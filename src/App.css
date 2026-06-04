@@ -1,13 +1,14 @@
 /* PALETA DE CORES CLÃ KAME */
 :root {
-  --verde-fundo: #7ed957;
-  --preto-kame: #1a1a1a;
+  --cinza-fundo: #403e3e;
+  --preto-kame: #000000;
   --amarelo-ouro: #ffde59;
   --branco: #ffffff;
+  --laranja: #ff914d;
 }
 
 body {
-  background-color: var(--verde-fundo);
+  background-color: var(--Cinza-fundo);
   color: var(--preto-kame);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   margin: 0;
