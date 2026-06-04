@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { Shield } from 'lucide-react'; // Ícone de escudo temporário
 
 // Configuração do Firebase
 const firebaseConfig = {
@@ -23,7 +24,7 @@ export default function App() {
   const [manterConectado, setManterConectado] = useState(false);
   const [mensagemErro, setMensagemErro] = useState('');
   
-  // Estado para saber se o usuário está logado com sucesso
+  // Estado para saber se o utilizador está logado com sucesso
   const [usuarioLogado, setUsuarioLogado] = useState(null);
 
   // Truque para transformar Nome/WhatsApp em E-mail para o Firebase
@@ -31,7 +32,7 @@ export default function App() {
     return texto.trim().replace(/\s+/g, '').toLowerCase() + '@clakame.com';
   };
 
-  // Função para Entrar
+  // Função EXCLUSIVA para Entrar (Login)
   const tentarLogin = async () => {
     setMensagemErro('');
     if (!identificacao || !palavraPasse) {
@@ -48,28 +49,6 @@ export default function App() {
     }
   };
 
-  // Função para Criar Conta
-  const criarConta = async () => {
-    setMensagemErro('');
-    if (!identificacao || palavraPasse.length < 6) {
-      setMensagemErro('Preencha a identificação e use uma senha de pelo menos 6 letras/números!');
-      return;
-    }
-
-    try {
-      const emailFake = formatarParaEmail(identificacao);
-      const userCredential = await createUserWithEmailAndPassword(auth, emailFake, palavraPasse);
-      setUsuarioLogado(userCredential.user);
-      alert('Conta criada com sucesso no Clã Kame!');
-    } catch (error) {
-      if (error.code === 'auth/email-already-in-use') {
-        setMensagemErro('Esse Técnico/WhatsApp já está registrado!');
-      } else {
-        setMensagemErro('Erro ao criar conta. Tente novamente.');
-      }
-    }
-  };
-
   // Função para Sair
   const fazerLogout = async () => {
     await signOut(auth);
@@ -78,11 +57,11 @@ export default function App() {
     setPalavraPasse('');
   };
 
-  // SE O USUÁRIO ESTIVER LOGADO, MOSTRA O PAINEL DE CONTROLE
+  // SE O UTILIZADOR ESTIVER LOGADO, MOSTRA O PAINEL DE CONTROLE
   if (usuarioLogado) {
     return (
       <div className="login-container" style={{ textAlign: 'center', padding: '40px' }}>
-        <img src="https://imagizer.imageshack.com/img923/6982/W040Zp.png" alt="Logo Clã Kame" className="kame-shield-logo" />
+        <Shield size={64} color="#ffde59" style={{ margin: '0 auto' }} />
         <h1 style={{ marginTop: '20px' }}>PAINEL DLS</h1>
         <p style={{ color: '#b0b3b8', marginBottom: '30px' }}>Bem-vindo de volta, guerreiro!</p>
         
@@ -98,15 +77,11 @@ export default function App() {
     );
   }
 
-  // SE NÃO ESTIVER LOGADO, MOSTRA A TELA DE LOGIN NORMAL
+  // SE NÃO ESTIVER LOGADO, MOSTRA A TELA DE LOGIN (SEM BOTÃO DE CRIAR CONTA)
   return (
     <div className="login-container">
       <div className="login-header">
-        <img 
-          src="https://imagizer.imageshack.com/img923/6982/W040Zp.png" 
-          alt="Logo Clã Kame" 
-          className="kame-shield-logo"
-        />
+        <Shield size={64} color="#ffde59" style={{ margin: '0 auto -10px auto', display: 'block' }} />
         <h1>Clã Kame</h1>
         <p className="login-subtitle" style={{ marginBottom: '20px' }}>Sistema de Gestão DLS na Nuvem</p>
       </div>
@@ -152,16 +127,9 @@ export default function App() {
           </button>
         </div>
 
+        {/* APENAS O BOTÃO DE ENTRAR */}
         <button className="btn-degrade" onClick={tentarLogin}>
           Entrar
-        </button>
-        
-        <button 
-          className="btn-degrade" 
-          style={{ marginTop: '15px' }} 
-          onClick={criarConta}
-        >
-          Criar Conta
         </button>
       </div>
     </div>
