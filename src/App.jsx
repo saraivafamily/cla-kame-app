@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { initializeApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 
-// Configuração do Firebase (As suas chaves reais)
+// Configuração do Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCoZ255eUBfUsIYArCMtHf1T0y_6U5fTsA",
   authDomain: "cla-kame.firebaseapp.com",
@@ -14,34 +15,92 @@ const firebaseConfig = {
 
 // Inicializa o Firebase
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 
 export default function App() {
-  // 1. MEMÓRIAS DA APLICAÇÃO (Guardam o que o utilizador escreve)
   const [identificacao, setIdentificacao] = useState('');
   const [palavraPasse, setPalavraPasse] = useState('');
   const [manterConectado, setManterConectado] = useState(false);
-  
-  // Memória para mostrar mensagens de erro no ecrã
   const [mensagemErro, setMensagemErro] = useState('');
+  
+  // Estado para saber se o usuário está logado com sucesso
+  const [usuarioLogado, setUsuarioLogado] = useState(null);
 
-  // 2. FUNÇÃO QUE É ATIVADA AO CLICAR EM "ENTRAR"
-  const tentarLogin = () => {
-    // Limpa erros antigos
-    setMensagemErro('');
-
-    // Verifica se os campos estão vazios
-    if (identificacao === '' || palavraPasse === '') {
-      setMensagemErro('Por favor, preencha o seu Nome/WhatsApp e a Senha!');
-      return; // Pára a função aqui se faltarem dados
-    }
-
-    // Se estiver tudo preenchido, mostra o que guardou (Teste do Passo 1)
-    alert(`Sucesso a capturar dados!\nTentando entrar como: ${identificacao}\nSenha digitada: ${palavraPasse}`);
+  // Truque para transformar Nome/WhatsApp em E-mail para o Firebase
+  const formatarParaEmail = (texto) => {
+    return texto.trim().replace(/\s+/g, '').toLowerCase() + '@clakame.com';
   };
 
+  // Função para Entrar
+  const tentarLogin = async () => {
+    setMensagemErro('');
+    if (!identificacao || !palavraPasse) {
+      setMensagemErro('Preencha os dados da batalha!');
+      return;
+    }
+
+    try {
+      const emailFake = formatarParaEmail(identificacao);
+      const userCredential = await signInWithEmailAndPassword(auth, emailFake, palavraPasse);
+      setUsuarioLogado(userCredential.user);
+    } catch (error) {
+      setMensagemErro('Senha incorreta ou Técnico não encontrado!');
+    }
+  };
+
+  // Função para Criar Conta
+  const criarConta = async () => {
+    setMensagemErro('');
+    if (!identificacao || palavraPasse.length < 6) {
+      setMensagemErro('Preencha a identificação e use uma senha de pelo menos 6 letras/números!');
+      return;
+    }
+
+    try {
+      const emailFake = formatarParaEmail(identificacao);
+      const userCredential = await createUserWithEmailAndPassword(auth, emailFake, palavraPasse);
+      setUsuarioLogado(userCredential.user);
+      alert('Conta criada com sucesso no Clã Kame!');
+    } catch (error) {
+      if (error.code === 'auth/email-already-in-use') {
+        setMensagemErro('Esse Técnico/WhatsApp já está registrado!');
+      } else {
+        setMensagemErro('Erro ao criar conta. Tente novamente.');
+      }
+    }
+  };
+
+  // Função para Sair
+  const fazerLogout = async () => {
+    await signOut(auth);
+    setUsuarioLogado(null);
+    setIdentificacao('');
+    setPalavraPasse('');
+  };
+
+  // SE O USUÁRIO ESTIVER LOGADO, MOSTRA O PAINEL DE CONTROLE
+  if (usuarioLogado) {
+    return (
+      <div className="login-container" style={{ textAlign: 'center', padding: '40px' }}>
+        <img src="https://imagizer.imageshack.com/img923/6982/W040Zp.png" alt="Logo Clã Kame" className="kame-shield-logo" />
+        <h1 style={{ marginTop: '20px' }}>PAINEL DLS</h1>
+        <p style={{ color: '#b0b3b8', marginBottom: '30px' }}>Bem-vindo de volta, guerreiro!</p>
+        
+        <div style={{ backgroundColor: '#3a3b3c', padding: '20px', borderRadius: '12px', marginBottom: '30px' }}>
+          <p style={{ color: '#ffde59', fontWeight: 'bold' }}>Status: CONECTADO</p>
+          <p style={{ fontSize: '14px' }}>Seu ID de batalha: {usuarioLogado.email.split('@')[0]}</p>
+        </div>
+
+        <button className="btn-degrade" onClick={fazerLogout}>
+          Desconectar e Sair
+        </button>
+      </div>
+    );
+  }
+
+  // SE NÃO ESTIVER LOGADO, MOSTRA A TELA DE LOGIN NORMAL
   return (
     <div className="login-container">
-      {/* Topo da Tela: Logo e Títulos */}
       <div className="login-header">
         <img 
           src="https://imagizer.imageshack.com/img923/6982/W040Zp.png" 
@@ -52,10 +111,7 @@ export default function App() {
         <p className="login-subtitle" style={{ marginBottom: '20px' }}>Sistema de Gestão DLS na Nuvem</p>
       </div>
 
-      {/* Formulário de Login */}
       <div className="login-form-area">
-        
-        {/* Mostra aviso vermelho se houver erro */}
         {mensagemErro && (
           <div style={{ color: '#ff914d', fontWeight: 'bold', marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(255, 145, 77, 0.1)', borderRadius: '8px' }}>
             {mensagemErro}
@@ -82,7 +138,6 @@ export default function App() {
           />
         </div>
 
-        {/* Opções (Manter Conectado e Esqueci a senha) */}
         <div className="login-opcoes">
           <label className="checkbox-label">
             <input 
@@ -92,12 +147,11 @@ export default function App() {
             /> 
             Manter conectado
           </label>
-          <button className="link-esqueci" onClick={() => alert('Função Esqueci a Senha ainda não ligada.')}>
+          <button className="link-esqueci" onClick={() => alert('Função Esqueci a Senha em construção')}>
             Esqueci a senha
           </button>
         </div>
 
-        {/* Botões Principais */}
         <button className="btn-degrade" onClick={tentarLogin}>
           Entrar
         </button>
@@ -105,7 +159,7 @@ export default function App() {
         <button 
           className="btn-degrade" 
           style={{ marginTop: '15px' }} 
-          onClick={() => alert('Vamos criar o Passo 2: O Registo de utilizadores!')}
+          onClick={criarConta}
         >
           Criar Conta
         </button>
