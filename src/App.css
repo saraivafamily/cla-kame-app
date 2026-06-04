@@ -1,15 +1,16 @@
 /* PALETA DE CORES CLÃ KAME */
 :root {
-  --cinza-fundo: #403e3e;
-  --preto-kame: #000000;
-  --amarelo-ouro: #ffde59;
-  --branco: #ffffff;
-  --laranja: #ff914d;
+  --cor-laranja: #ff914d;
+  --cor-amarelo: #ffde59;
+  --cor-fundo-site: #18191a; /* Fundo quase preto para destacar */
+  --cor-fundo-card: #242526; /* Cinza escuro para a caixa de login */
+  --cor-preto: #000000;
+  --cor-branco: #e4e6eb; /* Branco suave para não doer o olho */
+  --cor-degrade: linear-gradient(135deg, #ffde59 0%, #ff914d 100%);
 }
-
 body {
-  background-color: var(--Cinza-fundo);
-  color: var(--preto-kame);
+  background-color: var(--cor-fundo-site);
+  color: var(--cor-preto);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   margin: 0;
   padding: 0;
@@ -25,17 +26,17 @@ h1, h2, h3 {
   text-transform: uppercase;
   font-weight: 900;
   font-size: 3rem;
-  color: var(--preto-kame);
-  text-shadow: 3px 3px 0px var(--amarelo-ouro);
+  color: var(--cor-preto);
+  text-shadow: 3px 3px 0px var(--cor-amarelo);
   letter-spacing: 2px;
   margin-bottom: 10px;
 }
 
 /* Estilo dos Botões */
 button {
-  background-color: var(--amarelo-ouro);
-  color: var(--preto-kame);
-  border: 3px solid var(--preto-kame);
+  background-color: var(--cor-amarelo);
+  color: var(--cor-preto);
+  border: 3px solid var(--cor-preto);
   border-radius: 8px;
   padding: 12px 24px;
   font-size: 16px;
@@ -44,20 +45,20 @@ button {
   text-transform: uppercase;
   margin: 10px 5px;
   transition: all 0.2s;
-  box-shadow: 4px 4px 0px var(--preto-kame);
+  box-shadow: 4px 4px 0px var(--cor-preto);
 }
 
 /* Efeito ao clicar/passar o mouse no botão */
 button:hover {
   transform: translate(2px, 2px);
-  box-shadow: 2px 2px 0px var(--preto-kame);
+  box-shadow: 2px 2px 0px var(--cor-preto);
   background-color: #ffd000;
 }
 
 /* Caixas de Texto (Inputs) */
 input {
   padding: 12px;
-  border: 3px solid var(--preto-kame);
+  border: 3px solid var(--cor-preto);
   border-radius: 8px;
   font-size: 16px;
   margin: 10px 0;
@@ -67,6 +68,6 @@ input {
 }
 
 input:focus {
-  border-color: var(--amarelo-ouro);
+  border-color: var(--cor-amarelo);
   box-shadow: 0 0 8px var(--preto-kame);
 }
