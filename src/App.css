@@ -9,7 +9,7 @@
   --cor-degrade: linear-gradient(135deg, #ffde59 0%, #ff914d 100%);
 }
 body {
-  background-color: var(--cor-fundo-site);
+  background-color: var(--cor-laranja);
   color: var(--cor-preto);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   margin: 0;
