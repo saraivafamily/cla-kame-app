@@ -10,7 +10,6 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
 
-
 // Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA",
