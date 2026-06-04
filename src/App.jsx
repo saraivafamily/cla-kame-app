@@ -27,11 +27,18 @@ export default function App() {
   // Estado para saber se o utilizador está logado com sucesso
   const [usuarioLogado, setUsuarioLogado] = useState(null);
 
-  // Truque para transformar Nome/WhatsApp em E-mail para o Firebase
+  // Truque para aceitar tanto E-mail real quanto Celular
   const formatarParaEmail = (texto) => {
-    // Remove acentos (ex: ã -> a, ç -> c), tira espaços e põe tudo minúsculo
-    const textoSemAcentos = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-    return textoSemAcentos.trim().replace(/\s+/g, '').toLowerCase() + '@clakame.com';
+    const textoLimpo = texto.trim().toLowerCase();
+    
+    // Se tiver "@", o sistema entende que é um e-mail real e retorna sem alterar.
+    if (textoLimpo.includes('@')) {
+      return textoLimpo;
+    }
+    
+    // Se não tiver "@", assumimos que é celular. Removemos espaços, parênteses e traços.
+    const celularLimpo = textoLimpo.replace(/[-\s().]/g, '');
+    return celularLimpo + '@clakame.com';
   };
 
   // Função EXCLUSIVA para Entrar (Login)
@@ -98,10 +105,10 @@ export default function App() {
         )}
 
         <div className="input-group">
-          <label>WhatsApp ou Nome do Técnico</label>
+          <label>E-mail ou Celular (com DDD)</label>
           <input 
             type="text" 
-            placeholder="Ex: Vitor ou 5511999999999" 
+            placeholder="Ex: vitor@email.com ou 11999999999" 
             value={identificacao}
             onChange={(evento) => setIdentificacao(evento.target.value)}
           />
