@@ -24,7 +24,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'cla-kame-default-id';
+const appId = 'cla-kame-default-id';
 
 // Helpers para garantir as regras de caminhos do banco de dados na nuvem
 const getPublicPath = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
