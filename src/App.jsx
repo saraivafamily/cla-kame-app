@@ -145,99 +145,27 @@ const LoginScreen = ({ users, onLogin, onRegister }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-      <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 max-w-md w-full shadow-2xl">
-        <div className="text-center mb-6">
-          <div className="text-5xl mb-3">🐢</div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Clã Kame</h1>
-          <p className="text-slate-400 mt-2 text-sm">Sistema de Gestão DLS na Nuvem</p>
+   <div className="login-form-area">
+        <div className="input-group">
+          <label>WhatsApp ou Nome do Técnico</label>
+          <input type="text" placeholder="Ex: Vitor ou 5511999999999" />
         </div>
 
-        <div className="flex p-1 bg-slate-950 rounded-xl mb-6">
-          <button onClick={() => setView('login')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${view === 'login' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Entrar</button>
-          <button onClick={() => {setView('register'); setStep(1);}} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${view === 'register' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Criar Conta</button>
+        <div className="input-group">
+          <label>Senha</label>
+          <input type="password" placeholder="••••••••" />
         </div>
 
-        {view === 'login' && (
-          <form onSubmit={handleLoginSubmit} className="space-y-4 animate-in fade-in duration-300">
-            {loginError && (
-              <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg border border-red-500/20 flex items-center gap-2">
-                <AlertCircle size={16} className="shrink-0" /><span>{loginError}</span>
-              </div>
-            )}
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">WhatsApp ou Nome do Técnico</label>
-              <input required value={loginData.identifier} onChange={e=>setLoginData({...loginData, identifier: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm transition-all" placeholder="Ex: Vitor ou 5511999999999" />
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">Senha</label>
-              <input required type="password" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm transition-all" placeholder="••••••••" />
-            </div>
-            <div className="flex items-center justify-between mt-2">
-              <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer hover:text-slate-300 transition-colors">
-                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-900 w-4 h-4 cursor-pointer" />
-                Manter conectado
-              </label>
-              <button type="button" onClick={() => setShowForgot(true)} className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors underline underline-offset-2">Esqueci a senha</button>
-            </div>
-            {showForgot && (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg text-xs text-emerald-400 text-center animate-in fade-in">
-                Enviaremos um link de redefinição para o seu WhatsApp cadastrado!
-              </div>
-            )}
-            <Button type="submit" className="w-full mt-4 py-3">Entrar na Batalha</Button>
-          </form>
-        )}
+        <div className="login-opcoes">
+          <label className="checkbox-label">
+            <input type="checkbox" /> Manter conectado
+          </label>
+          <button className="link-esqueci">Esqueci a senha</button>
+        </div>
 
-        {view === 'register' && step === 1 && (
-          <form onSubmit={handleSendCode} className="space-y-4 animate-in slide-in-from-right-4 duration-300">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">Nome</label>
-                <input required value={formData.firstName} onChange={e=>setFormData({...formData, firstName: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 text-sm" placeholder="Ex: Don" />
-              </div>
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">Sobrenome</label>
-                <input required value={formData.lastName} onChange={e=>setFormData({...formData, lastName: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 text-sm" placeholder="Ex: Luck" />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">Nome do Time</label>
-              <input required value={formData.teamName} onChange={e=>setFormData({...formData, teamName: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 text-sm" placeholder="Ex: Luckers FC" />
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">WhatsApp (com DDD)</label>
-              <input required type="tel" value={formData.whatsapp} onChange={e=>setFormData({...formData, whatsapp: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 text-sm" placeholder="Ex: 11999999999" />
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">Crie uma Senha</label>
-              <input required type="password" value={formData.password} onChange={e=>setFormData({...formData, password: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 text-sm" placeholder="Min. 6 caracteres" minLength={6} />
-            </div>
-            <Button type="submit" disabled={isSending} className="w-full mt-2 py-3">
-              {isSending ? 'Enviando Código...' : 'Enviar Código via WhatsApp'}
-            </Button>
-          </form>
-        )}
-
-        {view === 'register' && step === 2 && (
-           <form onSubmit={(e) => { e.preventDefault(); onRegister(formData); }} className="space-y-4 animate-in slide-in-from-right-4 duration-300 text-center">
-             <div className="bg-emerald-500/10 text-emerald-400 p-4 rounded-xl mb-4 text-sm border border-emerald-500/20">
-               Código de 4 dígitos enviado para <br/><b className="text-lg tracking-wider text-white mt-1 inline-block">{formData.whatsapp}</b>
-               <span className="text-xs text-slate-400 mt-4 block p-2 bg-slate-950 rounded-lg border border-slate-800">
-                 (Teste: Digite qualquer código, ex: <b>1234</b>)
-               </span>
-             </div>
-             <div>
-               <input required type="text" maxLength={4} value={code} onChange={e=>setCode(e.target.value)} className="w-40 mx-auto text-center tracking-[0.7em] font-bold text-3xl bg-slate-950 border border-slate-700 rounded-xl p-4 text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/50" placeholder="0000" />
-             </div>
-             <Button type="submit" disabled={code.length < 4} className="w-full py-4 text-lg mt-4 shadow-xl">Verificar e Criar Conta</Button>
-             <button type="button" onClick={()=>setStep(1)} className="text-sm text-slate-500 hover:text-white mt-4 underline underline-offset-4">Voltar e corrigir número</button>
-           </form>
-        )}
+        <button className="btn-degrade">Entrar</button>
+        <button className="btn-degrade" style={{ marginTop: '15px' }}>Criar Conta</button>
       </div>
-    </div>
-  );
-};
 
 const Standings = ({ matches, teams, compId, compName }) => {
   const table = useMemo(() => calculateStandings(matches, teams, compId), [matches, teams, compId]);
