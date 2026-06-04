@@ -9,6 +9,12 @@ import {
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
+
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
 // Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA",
@@ -22,11 +28,14 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+};
+// -----------------------------------------------------------
+
+const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'cla-kame-default-id';
 
-// Helpers para garantir as regras de caminhos do banco de dados na nuvem
 const getPublicPath = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 const getPublicDocPath = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
@@ -751,45 +760,62 @@ export default function App() {
   const [fbUser, setFbUser] = useState(null);
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
   
-  // Estado real vindo do Firebase
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [competitions, setCompetitions] = useState([]);
   const [matches, setMatches] = useState([]);
 
-  // Estado Local da UI
   const [currentUserId, setCurrentUserId] = useState(() => localStorage.getItem('claKameUserId'));
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [selectedCompId, setSelectedCompId] = useState(null);
 
   const currentUser = users.find(u => u.id === currentUserId);
 
-  // Inicialização do Firebase e Auth
   useEffect(() => {
     const initAuth = async () => {
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
+        // Only attempt anonymous login if a real API key seems to be present.
+        // Otherwise, Firebase Auth will throw an error and crash the app state.
+        if (firebaseConfig.apiKey !== "demo-api-key-so-app-loads" && !firebaseConfig.apiKey.includes("AIzaSyC...")) {
+             await signInAnonymously(auth);
         } else {
-          await signInAnonymously(auth);
+             // Mock user state if no real firebase config is present so you can still use the UI
+             setFbUser({ uid: 'mock-user-123' });
+             setIsFirebaseLoading(false);
+             console.warn("Using mock Firebase configuration. Authentication and Database are simulated.");
         }
-      } catch (err) { console.error("Erro Auth:", err); }
+      } catch (err) { 
+          console.error("Erro Auth:", err);
+          setIsFirebaseLoading(false); // Stop loading even on error so UI can show
+      }
     };
     initAuth();
-    const unsub = onAuthStateChanged(auth, user => { setFbUser(user); });
-    return () => unsub();
+    
+    // Only set up real auth listener if keys are valid
+     if (firebaseConfig.apiKey !== "demo-api-key-so-app-loads" && !firebaseConfig.apiKey.includes("AIzaSyC...")) {
+        const unsub = onAuthStateChanged(auth, user => { setFbUser(user); });
+        return () => unsub();
+     }
   }, []);
 
-  // Sincronização ao Vivo com Firestore
   useEffect(() => {
     if (!fbUser) return;
     
+    // If using fake keys, just load mock data directly and don't try to connect to Firestore
+    if (firebaseConfig.apiKey === "demo-api-key-so-app-loads" || firebaseConfig.apiKey.includes("AIzaSyC...")) {
+        setUsers(MOCK_USERS);
+        setTeams(MOCK_TEAMS);
+        setCompetitions(MOCK_COMPETITIONS);
+        setMatches(MOCK_MATCHES);
+        setIsFirebaseLoading(false);
+        return;
+    }
+
     const unsubU = onSnapshot(getPublicPath('users'), snap => setUsers(snap.docs.map(d=>d.data())), err => console.error(err));
     const unsubT = onSnapshot(getPublicPath('teams'), snap => setTeams(snap.docs.map(d=>d.data())), err => console.error(err));
     const unsubC = onSnapshot(getPublicPath('competitions'), snap => setCompetitions(snap.docs.map(d=>d.data())), err => console.error(err));
     const unsubM = onSnapshot(getPublicPath('matches'), snap => setMatches(snap.docs.map(d=>d.data())), err => console.error(err));
 
-    // Seeding - Adiciona dados de teste se o banco estiver vazio na primeira vez
     const seedDB = async () => {
       const snap = await getDocs(getPublicPath('users'));
       if (snap.empty) {
@@ -808,8 +834,6 @@ export default function App() {
   const handleRegister = async (data) => {
     const newUserId = `u${Date.now()}`; const newTeamId = `t${Date.now()}`;
     const fullName = `${data.firstName} ${data.lastName}`;
-    
-    // HACK LÍDER: Se o nome for algum dos líderes, ele ganha o poder na hora!
     const isLeader = ["vitor", "daniel", "don luck", "goku"].some(name => fullName.toLowerCase().includes(name));
     
     const newUser = { id: newUserId, name: fullName, role: isLeader ? 'leader' : 'member', whatsapp: data.whatsapp, password: data.password };
