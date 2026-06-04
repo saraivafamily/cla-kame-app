@@ -29,7 +29,9 @@ export default function App() {
 
   // Truque para transformar Nome/WhatsApp em E-mail para o Firebase
   const formatarParaEmail = (texto) => {
-    return texto.trim().replace(/\s+/g, '').toLowerCase() + '@clakame.com';
+    // Remove acentos (ex: ã -> a, ç -> c), tira espaços e põe tudo minúsculo
+    const textoSemAcentos = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+    return textoSemAcentos.trim().replace(/\s+/g, '').toLowerCase() + '@clakame.com';
   };
 
   // Função EXCLUSIVA para Entrar (Login)
@@ -40,12 +42,14 @@ export default function App() {
       return;
     }
 
+    const emailFake = formatarParaEmail(identificacao);
+
     try {
-      const emailFake = formatarParaEmail(identificacao);
       const userCredential = await signInWithEmailAndPassword(auth, emailFake, palavraPasse);
       setUsuarioLogado(userCredential.user);
     } catch (error) {
-      setMensagemErro('Senha incorreta ou Técnico não encontrado!');
+      // Agora o erro te mostra exatamente o que o sistema tentou ler!
+      setMensagemErro(`Não encontrado! O sistema buscou: ${emailFake}. Verifique a senha e o Firebase.`);
     }
   };
 
