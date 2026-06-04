@@ -6,6 +6,7 @@ import {
   Shield, MessageCircle, Edit, Save, X, User
 } from 'lucide-react';
 
+import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
 
