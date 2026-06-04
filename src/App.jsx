@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import './index.css';
+import './App.css';
 import { 
   Home, Trophy, Medal, Camera, CheckSquare, Users, 
   LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, 
@@ -26,10 +28,6 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-};
-// -----------------------------------------------------------
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
