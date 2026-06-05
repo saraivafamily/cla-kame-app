@@ -1,3 +1,8 @@
+/* ESSAS 3 LINHAS SÃO OBRIGATÓRIAS PARA O PAINEL FUNCIONAR */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* =========================================
    PALETA DARK MODE + DEGRADÊ CLÃ KAME 
    ========================================= */
@@ -20,7 +25,7 @@ body {
   padding: 0;
 }
 
-/* Nova classe exclusiva para a tela de Login */
+/* Nova classe exclusiva para centralizar a tela de Login */
 .login-wrapper {
   display: flex;
   justify-content: center;
@@ -39,6 +44,7 @@ body {
   text-align: center;
   width: 90%;
   max-width: 400px;
+  margin: 0 auto;
 }
 
 .kame-shield-logo {
@@ -49,7 +55,8 @@ body {
   margin-right: auto;
 }
 
-h1 {
+/* Protege o H1 apenas na tela de login */
+.login-container h1 {
   text-transform: uppercase;
   font-weight: 900;
   font-size: 2.8rem;
@@ -72,8 +79,9 @@ h1 {
   display: block;
 }
 
-input[type="text"], 
-input[type="password"] {
+/* Protege os inputs para não quebrar o painel */
+.login-container input[type="text"], 
+.login-container input[type="password"] {
   padding: 15px;
   background-color: #3a3b3c;
   color: var(--cor-branco);
@@ -86,8 +94,8 @@ input[type="password"] {
   transition: 0.3s;
 }
 
-input[type="text"]:focus, 
-input[type="password"]:focus {
+.login-container input[type="text"]:focus, 
+.login-container input[type="password"]:focus {
   border-color: var(--cor-laranja);
   background-color: #242526;
 }
