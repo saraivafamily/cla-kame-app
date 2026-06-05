@@ -772,9 +772,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]);
 
       try {
-        // ⚠️ ATENÇÃO: COLOQUE A SUA CHAVE DA API DO GEMINI AQUI!
-        // É ela que permite que o seu site na Vercel "enxergue" a foto.
-        const apiKey = ""; 
+        // ⚠️ ATENÇÃO: A CHAVE AGORA FICA ESCONDIDA NA VERCEL
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
         
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
