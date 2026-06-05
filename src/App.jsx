@@ -44,6 +44,21 @@ const ROLE_NAMES = {
   member: 'Membro Oficial'
 };
 
+const fetchWithBackoff = async (url, options, retries = 5) => {
+  let delay = 1000;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2;
+    }
+  }
+};
+
 const processImage = (file, callback) => {
   if (!file) return;
   const reader = new FileReader();
@@ -59,6 +74,28 @@ const processImage = (file, callback) => {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
       callback(canvas.toDataURL('image/png'));
+    };
+    img.src = event.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+// Nova função para processar prints da partida (tamanho maior para a IA conseguir ler)
+const processScreenshot = (file, callback) => {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX_SIZE = 800; // Tamanho ideal para leitura da IA sem sobrecarregar o banco
+      let width = img.width; let height = img.height;
+      if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } }
+      else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      callback(canvas.toDataURL('image/jpeg', 0.8)); // 80% qualidade JPEG
     };
     img.src = event.target.result;
   };
@@ -565,14 +602,12 @@ const CreateCompetition = ({ teams, onCreate, showToast }) => {
     const count = parseInt(teamCount, 10);
     if (selectedTeams.length !== count) return showToast(`Selecione exatamente ${count} times (atualmente: ${selectedTeams.length}).`, 'error');
     
-    // 🔥 CORREÇÃO DO ID GENÉRICO AQUI: Cada competição cria o seu próprio ID antes de gerar os jogos
-    const newCompId = `c${Date.now()}`;
     const shuffledTeams = [...selectedTeams].sort(() => 0.5 - Math.random());
     const roundMatches = [];
     let matchCounter = 1;
     
+    const newCompId = `c${Date.now()}`;
     for (let i = 0; i < shuffledTeams.length - 1; i += 2) {
-      // O ID do jogo agora leva a marca da competição para não haver mistura de resultados!
       roundMatches.push({ id: `${newCompId}_m${matchCounter}_r1`, teamA: shuffledTeams[i], teamB: shuffledTeams[i+1], status: 'pending_play' });
       matchCounter++;
     }
@@ -642,7 +677,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
   const getMatchStatusDisplay = (matchId) => {
-    // 🔥 CORREÇÃO DE FILTRO: O sistema agora garante que a partida encontrada pertence EXATAMENTE a esta competição
     const submittedMatch = matches.find(m => m.matchId === matchId && m.compId === comp.id);
     
     if (!submittedMatch) return { text: 'Aguardando Jogo', color: 'text-slate-400', bg: 'bg-slate-800' };
@@ -679,19 +713,25 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [selectedMatchId, setSelectedMatchId] = useState('');
   const [availableMatches, setAvailableMatches] = useState([]);
   
-  const [teamA, setTeamA] = useState(null); const [teamB, setTeamB] = useState(null);
-  const [scoreA, setScoreA] = useState('0'); const [scoreB, setScoreB] = useState('0');
-  const [goalsA, setGoalsA] = useState([]); const [goalsB, setGoalsB] = useState([]);
+  const [teamA, setTeamA] = useState(null); 
+  const [teamB, setTeamB] = useState(null);
+  
+  const [scoreA, setScoreA] = useState('0'); 
+  const [scoreB, setScoreB] = useState('0');
+  const [goalsA, setGoalsA] = useState([]); 
+  const [goalsB, setGoalsB] = useState([]);
   const [observacoes, setObservacoes] = useState('');
   
-  const [isAnalyzing, setIsAnalyzing] = useState(false); const [imageUploaded, setImageUploaded] = useState(false);
+  const [matchImageBase64, setMatchImageBase64] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false); 
+  const [imageUploaded, setImageUploaded] = useState(false);
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const userTeamIds = teams.filter(t => t.ownerId === currentUser?.id).map(t => t.id);
   const visibleCompetitions = competitions.filter(c => isAdmin || c.teams?.some(tId => userTeamIds.includes(tId)));
 
   useEffect(() => {
-    setSelectedMatchId(''); resetAI();
+    setSelectedMatchId(''); resetMatchData();
     if (!selectedCompId) { setAvailableMatches([]); return; }
     const comp = competitions.find(c => c.id === selectedCompId);
     if (comp && comp.rounds) {
@@ -709,29 +749,98 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   }, [selectedCompId, competitions, matches]);
 
   useEffect(() => {
-    resetAI();
+    resetMatchData();
     if (selectedMatchId) {
       const match = availableMatches.find(m => m.id === selectedMatchId);
       if (match) { setTeamA(teams.find(t => t.id === match.teamA)); setTeamB(teams.find(t => t.id === match.teamB)); }
     } else { setTeamA(null); setTeamB(null); }
   }, [selectedMatchId, availableMatches, teams]);
 
-  const resetAI = () => { 
+  const resetMatchData = () => { 
     setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); 
-    setObservacoes(''); setImageUploaded(false); 
+    setObservacoes(''); setImageUploaded(false); setMatchImageBase64(null);
   };
 
-  const simulateAIAnalysis = () => {
-    if (!selectedMatchId) return;
-    setIsAnalyzing(true);
-    setTimeout(() => {
-      const sA = 1; const sB = 2;
-      setScoreA(sA.toString()); setScoreB(sB.toString());
-      setGoalsA([{ player: 'Trezeguet', minute: '10' }]);
-      setGoalsB([{ player: 'Batistuta', minute: '13' }, { player: 'Mbappe', minute: '87' }]);
-      setIsAnalyzing(false); setImageUploaded(true);
-      showToast("Dados extraídos do Print pela IA!", "success");
-    }, 2500);
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    processScreenshot(file, async (base64) => {
+      setMatchImageBase64(base64);
+      setIsAnalyzing(true);
+      setImageUploaded(false);
+      setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]);
+
+      try {
+        const apiKey = ""; // A chave é fornecida pelo ambiente
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+        const b64Data = base64.split(',')[1];
+        const mimeType = base64.match(/data:(.*?);base64/)[1];
+
+        const promptText = `
+          Analise este print de tela do jogo Dream League Soccer.
+          O time da esquerda na imagem é o "${teamA?.name}" e o da direita é o "${teamB?.name}".
+          Extraia o placar numérico e os autores dos gols de cada time, incluindo o minuto exato em que o gol ocorreu.
+          Retorne um JSON válido estritamente com este formato:
+          {
+            "scoreA": 0,
+            "scoreB": 0,
+            "goalsA": [{"player": "Nome", "minute": "Minuto"}],
+            "goalsB": [{"player": "Nome", "minute": "Minuto"}]
+          }
+          Se não houver gols para um time, retorne uma lista vazia []. Apenas números nos scores.
+        `;
+
+        const payload = {
+          contents: [{
+            role: "user",
+            parts: [
+              { text: promptText },
+              { inlineData: { mimeType: mimeType, data: b64Data } }
+            ]
+          }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "OBJECT",
+              properties: {
+                scoreA: { type: "INTEGER" },
+                scoreB: { type: "INTEGER" },
+                goalsA: { type: "ARRAY", items: { type: "OBJECT", properties: { player: { type: "STRING" }, minute: { type: "STRING" } } } },
+                goalsB: { type: "ARRAY", items: { type: "OBJECT", properties: { player: { type: "STRING" }, minute: { type: "STRING" } } } }
+              }
+            }
+          }
+        };
+
+        const result = await fetchWithBackoff(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (textResponse) {
+          const data = JSON.parse(textResponse);
+          setScoreA(data.scoreA?.toString() || '0');
+          setScoreB(data.scoreB?.toString() || '0');
+          setGoalsA(data.goalsA || []);
+          setGoalsB(data.goalsB || []);
+          showToast("Dados extraídos do Print pela IA!", "success");
+        } else {
+          throw new Error("Resposta da IA vazia.");
+        }
+
+      } catch (error) {
+        console.error("Erro na Análise da IA:", error);
+        showToast("A IA não conseguiu ler o print com precisão. Preencha os dados manualmente.", "error");
+      } finally {
+        setIsAnalyzing(false);
+        setImageUploaded(true);
+      }
+    });
   };
 
   const handleAddGoal = (team) => {
@@ -761,7 +870,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
     onSubmit({
       id: `m_${Date.now()}`, compId: selectedCompId, roundId: matchDetails.roundId, matchId: selectedMatchId, teamA: teamA.id, teamB: teamB.id, scoreA: parseInt(scoreA), scoreB: parseInt(scoreB),
-      goals: allGoals, observacoes: observacoes.trim(), status: 'pending', submittedBy: currentUser?.name || 'Técnico', imageUrl: 'simulated_image_url'
+      goals: allGoals, observacoes: observacoes.trim(), status: 'pending', submittedBy: currentUser?.name || 'Técnico', imageUrl: matchImageBase64
     });
     setSelectedCompId('');
     showToast("Partida enviada para validação dos Líderes/Kaiohs!", "success");
@@ -795,7 +904,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
         {selectedMatchId && (
           <div className="animate-in slide-in-from-top-4">
             <label className="block text-sm font-medium text-slate-400 mb-2">3. Envie o Print do Resultado (IA Scanner)</label>
-            <div className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer relative overflow-hidden ${imageUploaded ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-950'}`} onClick={!isAnalyzing ? simulateAIAnalysis : undefined}>
+            <label className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer relative overflow-hidden block ${imageUploaded ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-950'}`}>
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isAnalyzing} />
               {isAnalyzing && (
                 <div className="absolute inset-0 bg-emerald-500/5 flex flex-col items-center justify-center space-y-3 z-10">
                   <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500 shadow-[0_0_15px_#10b981] animate-bounce w-full"></div>
@@ -808,7 +918,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
               ) : (
                 <div className="flex flex-col items-center space-y-3"><UploadCloud className="text-slate-500" size={40} /><p className="text-white font-medium">Clique para enviar o print da partida</p><p className="text-xs text-slate-500">A nossa IA vai ler o placar e os autores dos gols automaticamente.</p></div>
               )}
-            </div>
+            </label>
           </div>
         )}
         {imageUploaded && (
@@ -826,8 +936,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
                   <span className="text-xs text-slate-400 block">Autores dos Gols</span>
                   {goalsA.map((g, index) => (
                     <div key={index} className="flex gap-2 items-center animate-in slide-in-from-left-4">
-                      <input type="text" placeholder="Nome do Jogador" value={g.player} onChange={e=>handleGoalChange('A', index, 'player', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500" required />
-                      <input type="text" placeholder="10'" value={g.minute} onChange={e=>handleGoalChange('A', index, 'minute', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-emerald-400 text-center outline-none focus:border-emerald-500" required />
+                      <input type="text" placeholder="Nome" value={g.player} onChange={e=>handleGoalChange('A', index, 'player', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500" required />
+                      <input type="text" placeholder="10" value={g.minute} onChange={e=>handleGoalChange('A', index, 'minute', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-emerald-400 text-center outline-none focus:border-emerald-500" required />
                       <button type="button" onClick={() => handleRemoveGoal('A', index)} className="text-red-500 hover:text-red-400 p-1"><X size={16} /></button>
                     </div>
                   ))}
@@ -845,8 +955,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
                   <span className="text-xs text-slate-400 block">Autores dos Gols</span>
                   {goalsB.map((g, index) => (
                     <div key={index} className="flex gap-2 items-center animate-in slide-in-from-right-4">
-                      <input type="text" placeholder="Nome do Jogador" value={g.player} onChange={e=>handleGoalChange('B', index, 'player', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500" required />
-                      <input type="text" placeholder="87'" value={g.minute} onChange={e=>handleGoalChange('B', index, 'minute', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-emerald-400 text-center outline-none focus:border-emerald-500" required />
+                      <input type="text" placeholder="Nome" value={g.player} onChange={e=>handleGoalChange('B', index, 'player', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500" required />
+                      <input type="text" placeholder="87" value={g.minute} onChange={e=>handleGoalChange('B', index, 'minute', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-emerald-400 text-center outline-none focus:border-emerald-500" required />
                       <button type="button" onClick={() => handleRemoveGoal('B', index)} className="text-red-500 hover:text-red-400 p-1"><X size={16} /></button>
                     </div>
                   ))}
@@ -953,7 +1063,6 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
             const tB = getTeam(m.teamB);
             return (
               <div key={m.id} className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col gap-5">
-                {/* 📌 NOVA FUNCIONALIDADE: NOME DA COMPETIÇÃO NO TOPO DA PARTIDA */}
                 <div className="text-center text-xs font-bold text-amber-500 uppercase tracking-widest bg-amber-500/5 py-2 rounded-lg border border-amber-500/10">
                   🏆 {getCompName(m.compId)}
                 </div>
@@ -984,10 +1093,19 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
                     </div>
                   </div>
 
-                  <div className="md:w-48 bg-slate-950 rounded-xl border border-slate-800 flex flex-col items-center justify-center p-4 text-center gap-2">
-                    <Shield size={32} className="text-slate-600 animate-pulse" />
-                    <span className="text-xs text-slate-400 font-semibold">Print da Partida</span>
-                    <span className="text-[10px] text-slate-600 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">Sincronizado</span>
+                  <div className="md:w-48 bg-slate-950 rounded-xl border border-slate-800 flex flex-col items-center justify-center p-4 text-center gap-2 relative overflow-hidden">
+                    {m.imageUrl && m.imageUrl.startsWith('data:image') ? (
+                      <>
+                        <img src={m.imageUrl} alt="Print da Partida" onClick={() => window.open(m.imageUrl, '_blank')} className="absolute inset-0 w-full h-full object-cover opacity-50 hover:opacity-100 transition-opacity cursor-pointer z-0" />
+                        <span className="text-[10px] font-bold text-white bg-black/60 px-2 py-1 rounded z-10 pointer-events-none shadow-xl">CLIQUE PARA AMPLIAR</span>
+                      </>
+                    ) : (
+                      <>
+                        <Shield size={32} className="text-slate-600 animate-pulse" />
+                        <span className="text-xs text-slate-400 font-semibold z-10 drop-shadow-md">Print da Partida</span>
+                        <span className="text-[10px] text-slate-600 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 z-10">Sincronizado</span>
+                      </>
+                    )}
                   </div>
                 </div>
 
