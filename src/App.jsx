@@ -13,13 +13,13 @@ import {
 // 1. CONFIGURAÇÃO DO FIREBASE (O SEU CÓDIGO)
 // ==========================================
 const firebaseConfig = {
-  apiKey: "AIzaSyCoZ255eUBfUsIYArCMtHf1T0y_6U5fTsA",
-  authDomain: "cla-kame.firebaseapp.com",
-  databaseURL: "https://cla-kame-default-rtdb.firebaseio.com",
-  projectId: "cla-kame",
-  storageBucket: "cla-kame.appspot.com",
-  messagingSenderId: "253792062726",
-  appId: "1:253792062726:web:1ee567bbbd175c31ce2287"
+  apiKey : "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA" , 
+  authDomain : "cla-kame.firebaseapp.com" , 
+  databaseURL : "https://cla-kame-default-rtdb.firebaseio.com" , 
+  projectId : "cla-kame" , 
+  storageBucket : "cla-kame.firebasestorage.app" , 
+  messagingSenderId : "253792062726" , 
+  appId : "1:253792062726:web:1ee567bbbd175c31ce2287"
 };
 
 // Inicializa o Firebase
