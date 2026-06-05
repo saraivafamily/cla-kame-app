@@ -15,7 +15,7 @@ import {
 const LOGO_URL = "https://i.imgur.com/NTbkaER.png"; 
 
 // ==========================================
-// 1. CONFIGURAÇÃO REAL DO FIREBASE E API
+// 1. CONFIGURAÇÃO REAL DO FIREBASE
 // ==========================================
 const firebaseConfig = {
   apiKey : "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA", 
@@ -32,12 +32,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'cla-kame-oficial';
 
-// A chave agora é puxada SOMENTE da Vercel (Nuvem), garantindo que funcione para todos os celulares!
-const getGeminiApiKey = () => {
-  try { return import.meta.env.VITE_GEMINI_API_KEY; } catch(e) {}
-  return "";
-};
-
 const getPublicPath = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 const getPublicDocPath = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
@@ -50,7 +44,8 @@ const ROLE_NAMES = {
   member: 'Membro Oficial'
 };
 
-const fetchWithBackoff = async (url, options, retries = 3) => {
+// Implementa proteção contra falhas e retentativas (Backoff)
+const fetchWithBackoff = async (url, options, retries = 5) => {
   let delay = 1000;
   for (let i = 0; i < retries; i++) {
     try {
@@ -58,7 +53,7 @@ const fetchWithBackoff = async (url, options, retries = 3) => {
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
         const errMsg = errJson?.error?.message || await response.text();
-        throw new Error(`${errMsg.substring(0, 150)}`); // Mostra o erro real do Google
+        throw new Error(`${errMsg.substring(0, 150)}`); 
       }
       return await response.json();
     } catch (error) {
@@ -791,8 +786,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]);
 
       try {
-        // Usa apenas o modelo universal oficial e testado
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${aiKey}`;
+        // Usa o modelo mais estável e rápido para este ambiente
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${aiKey}`;
 
         const b64Data = base64.split(',')[1];
         const mimeType = base64.match(/data:(.*?);base64/)[1];
@@ -835,7 +830,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }, 1);
+        });
 
         if (!result || !result.candidates) {
           throw new Error("A IA processou o pedido mas retornou uma resposta em branco.");
@@ -854,12 +849,12 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       } catch (error) {
         console.error("Erro na Análise da IA:", error);
         
-        // Formata a mensagem de erro para explicar exatamente o que aconteceu de forma amigável
+        // Mensagens de erro em português
         let mensagemErro = error.message;
         if (mensagemErro.includes("API_KEY_INVALID")) {
-           mensagemErro = "A sua Chave da API Gemini é inválida. Por favor, crie uma nova no Google AI Studio.";
-        } else if (mensagemErro.includes("not enabled") || mensagemErro.includes("has not been used")) {
-           mensagemErro = "A API não está ativada. A sua chave deve ser gerada no site: aistudio.google.com";
+           mensagemErro = "A chave Gemini fornecida é inválida. Ela deve começar com AIzaSy.";
+        } else if (mensagemErro.includes("API not enabled") || mensagemErro.includes("not found")) {
+           mensagemErro = "O modelo de IA não reconheceu essa chave ou ela não foi criada no Google AI Studio (aistudio.google.com).";
         }
 
         showToast(`Erro na IA: ${mensagemErro}`, "error");
