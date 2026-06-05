@@ -1,25 +1,25 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, getDocs, getDoc } from 'firebase/firestore';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, getDocs, getDoc, deleteDoc } from 'firebase/firestore';
 import { 
   Home, Trophy, Medal, Camera, CheckSquare, Users, 
   LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, 
   Activity, PlusCircle, ArrowLeft, PlayCircle, Lock,
-  Shield, MessageCircle, Edit, Save, X, User, Crown, Star
+  Shield, MessageCircle, Edit, Save, X, User, Crown, Star, Send, Trash2
 } from 'lucide-react';
 
 // ==========================================
 // 1. CONFIGURAÇÃO REAL DO FIREBASE
 // ==========================================
 const firebaseConfig = {
-  apiKey : "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA" , 
-  authDomain : "cla-kame.firebaseapp.com" , 
-  databaseURL : "https://cla-kame-default-rtdb.firebaseio.com" , 
-  projectId : "cla-kame" , 
-  storageBucket : "cla-kame.firebasestorage.app" , 
-  messagingSenderId : "253792062726" , 
-  appId : "1:253792062726:web:1ee567bbbd175c31ce2287" 
+  apiKey : "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA", 
+  authDomain : "cla-kame.firebaseapp.com", 
+  databaseURL : "https://cla-kame-default-rtdb.firebaseio.com", 
+  projectId : "cla-kame", 
+  storageBucket : "cla-kame.firebasestorage.app", 
+  messagingSenderId : "253792062726", 
+  appId : "1:253792062726:web:1ee567bbbd175c31ce2287"  
 };
 
 const app = initializeApp(firebaseConfig);
@@ -37,6 +37,41 @@ const ROLE_NAMES = {
   leader: 'Líder Supremo',
   kaioh: 'Senhor Kaioh',
   member: 'Membro Oficial'
+};
+
+const processImage = (file, callback) => {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX_SIZE = 128;
+      let width = img.width; let height = img.height;
+      if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } }
+      else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      callback(canvas.toDataURL('image/png'));
+    };
+    img.src = event.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+const ShieldDisplay = ({ shield, size = 'normal' }) => {
+  const isImage = shield?.startsWith('data:') || shield?.startsWith('http');
+  const sizeClasses = {
+    'small': isImage ? 'w-6 h-6' : 'text-xl',
+    'normal': isImage ? 'w-8 h-8' : 'text-2xl',
+    'large': isImage ? 'w-14 h-14' : 'text-5xl'
+  };
+  
+  if (isImage) {
+    return <img src={shield} alt="Escudo" className={`${sizeClasses[size]} object-contain drop-shadow-lg`} />;
+  }
+  return <span className={`${sizeClasses[size]} inline-block text-center`} style={{lineHeight: 1}}>{shield || '🛡️'}</span>;
 };
 
 const calculateStandings = (matches, teams, compId) => {
@@ -77,28 +112,157 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
 // ==========================================
 // 3. ECRÃS DE GESTÃO DO CLÃ
 // ==========================================
-const TeamsList = ({ teams, users, currentUser, onEditTeam }) => {
+
+const MembersList = ({ users, teams, currentUser, onUpdateUserRole, onExpelUser, onEditUser }) => {
+  const [expelConfirmId, setExpelConfirmId] = useState(null);
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [editData, setEditData] = useState({ name: '', whatsapp: '', email: '' });
+  
+  const isLeader = currentUser?.role === 'leader';
+
+  const startEdit = (user) => {
+    setEditingUserId(user.id);
+    setEditData({ name: user.name, whatsapp: user.whatsapp || '', email: user.email || '' });
+  };
+
+  const saveEdit = (userId) => {
+    if (editData.name && editData.whatsapp && editData.email) {
+      onEditUser(userId, editData);
+      setEditingUserId(null);
+    }
+  };
+
+  return (
+    <div className="animate-in fade-in duration-500 space-y-6">
+      <div className="flex items-center gap-3 mb-6">
+        <Crown className="text-emerald-500" size={28} />
+        <h2 className="text-2xl font-bold text-white">Gestão de Técnicos</h2>
+      </div>
+      
+      <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto">
+        <table className="w-full text-left text-sm whitespace-nowrap">
+          <thead className="bg-slate-950/50 text-slate-400 font-medium border-b border-slate-800">
+            <tr>
+              <th className="p-4">Técnico</th>
+              <th className="p-4">Time</th>
+              <th className="p-4">WhatsApp</th>
+              <th className="p-4">E-mail</th>
+              <th className="p-4">Cargo Atual</th>
+              <th className="p-4 text-center">Ações (Cargo e Expulsão)</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800/50">
+            {users.map(user => {
+              const userTeam = teams.find(t => t.ownerId === user.id);
+              
+              // MODO DE EDIÇÃO PARA O LÍDER SUPREMO
+              if (editingUserId === user.id) {
+                return (
+                  <tr key={user.id} className="bg-slate-800/80 transition-colors">
+                    <td className="p-3">
+                      <input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} className="w-full bg-slate-950 border border-emerald-500/50 rounded-lg p-2 text-white text-xs outline-none" placeholder="Nome" />
+                    </td>
+                    <td className="p-3 text-emerald-400 font-medium text-xs flex items-center gap-2 mt-1">
+                      {userTeam ? <><ShieldDisplay shield={userTeam.shield} size="small" /> {userTeam.name}</> : <span className="text-slate-500">Sem time</span>}
+                    </td>
+                    <td className="p-3">
+                      <input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} className="w-full bg-slate-950 border border-emerald-500/50 rounded-lg p-2 text-white text-xs outline-none" placeholder="WhatsApp" />
+                    </td>
+                    <td className="p-3">
+                      <input type="text" value={editData.email} onChange={e=>setEditData({...editData, email: e.target.value})} className="w-full bg-slate-950 border border-emerald-500/50 rounded-lg p-2 text-white text-xs outline-none" placeholder="E-mail" />
+                    </td>
+                    <td className="p-3 text-xs text-slate-400">{ROLE_NAMES[user.role]}</td>
+                    <td className="p-3 text-center flex items-center justify-center gap-1">
+                      <Button onClick={() => saveEdit(user.id)} className="bg-emerald-600 hover:bg-emerald-500 py-1.5 px-3 text-xs"><Save size={14}/> Salvar</Button>
+                      <Button onClick={() => setEditingUserId(null)} variant="outline" className="py-1.5 px-3 text-xs border-slate-600 text-slate-400"><X size={14}/></Button>
+                    </td>
+                  </tr>
+                );
+              }
+
+              // MODO DE VISUALIZAÇÃO NORMAL
+              return (
+                <tr key={user.id} className="hover:bg-slate-800/50 transition-colors">
+                  <td className="p-4 font-bold text-white flex items-center">
+                    {user.name}
+                    {isLeader && <button onClick={() => startEdit(user)} className="ml-2 text-slate-500 hover:text-amber-400 transition-colors" title="Editar Técnico"><Edit size={14} /></button>}
+                  </td>
+                  <td className="p-4 text-emerald-400 font-medium">
+                    {userTeam ? <div className="flex items-center gap-2"><ShieldDisplay shield={userTeam.shield} size="small" /> {userTeam.name}</div> : <span className="text-slate-500">Sem time</span>}
+                  </td>
+                  <td className="p-4 text-slate-300 flex items-center">
+                    {user.whatsapp || '-'}
+                    {isLeader && <button onClick={() => startEdit(user)} className="ml-2 text-slate-500 hover:text-amber-400 transition-colors" title="Editar WhatsApp"><Edit size={14} /></button>}
+                  </td>
+                  <td className="p-4 text-slate-400">
+                    <div className="flex items-center">
+                      {user.email || '-'}
+                      {isLeader && <button onClick={() => startEdit(user)} className="ml-2 text-slate-500 hover:text-amber-400 transition-colors" title="Editar E-mail"><Edit size={14} /></button>}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    {user.role === 'leader' && <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20"><Crown size={12}/> Líder Supremo</span>}
+                    {user.role === 'kaioh' && <span className="inline-flex items-center gap-1 text-xs font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20"><Star size={12}/> Senhor Kaioh</span>}
+                    {user.role === 'member' && <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-500/10 px-2 py-1 rounded border border-slate-500/20"><User size={12}/> Membro Oficial</span>}
+                  </td>
+                  <td className="p-4 text-center flex items-center justify-center gap-2">
+                    {/* Alterar Cargo só para Líder e Kaioh */}
+                    <select 
+                      value={user.role} 
+                      onChange={(e) => onUpdateUserRole(user.id, e.target.value)}
+                      className="bg-slate-950 border border-slate-700 text-slate-300 rounded-lg p-2 text-xs outline-none focus:border-emerald-500 transition-colors cursor-pointer"
+                    >
+                      <option value="member">Membro</option>
+                      <option value="kaioh">Kaioh</option>
+                      <option value="leader">Líder</option>
+                    </select>
+                    
+                    {/* Apenas o Líder Supremo vê o botão de expulsão */}
+                    {isLeader && (
+                      expelConfirmId === user.id ? (
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => onExpelUser(user.id)} className="bg-red-600 hover:bg-red-500 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-colors">Confirmar</button>
+                          <button onClick={() => setExpelConfirmId(null)} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1.5 rounded-lg text-xs transition-colors">Cancelar</button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setExpelConfirmId(user.id)}
+                          className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                        >
+                          <XCircle size={14} /> Expulsar
+                        </button>
+                      )
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const TeamsList = ({ teams, users, currentUser, onEditTeam, onDeleteTeam }) => {
   const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ name: '', coach: '', whatsapp: '', role: 'member' });
+  const [editData, setEditData] = useState({ name: '', coach: '', whatsapp: '', shield: '' });
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const isLeader = currentUser?.role === 'leader';
 
   const handleWhatsApp = (phone) => { if (phone) window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank'); };
   
   const startEdit = (team) => { 
-    const owner = users.find(u => u.id === team.ownerId);
     setEditingId(team.id); 
-    setEditData({ 
-      name: team.name, 
-      coach: team.coach || '', 
-      whatsapp: team.whatsapp || '',
-      role: owner?.role || 'member'
-    }); 
+    setEditData({ name: team.name, coach: team.coach || '', whatsapp: team.whatsapp || '', shield: team.shield || '🛡️' }); 
   };
 
-  const saveEdit = (team) => { 
+  const saveEdit = async (team) => { 
     if (editData.name) { 
-      onEditTeam({ ...team, ...editData }, editData.role); 
-      setEditingId(null); 
+      const success = await onEditTeam({ ...team, ...editData }); 
+      if (success !== false) setEditingId(null); 
     } 
   };
 
@@ -112,27 +276,21 @@ const TeamsList = ({ teams, users, currentUser, onEditTeam }) => {
           
           if (editingId === team.id) {
             return (
-              <div key={team.id} className="bg-slate-900 p-6 rounded-2xl border border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)] flex flex-col gap-4">
+              <div key={team.id} className="bg-slate-900 p-6 rounded-2xl border border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)] flex flex-col gap-4 relative z-10">
                 <div className="flex items-start gap-4">
-                  <span className="text-5xl mt-2">{team.shield}</span>
+                  <div className="flex flex-col items-center gap-2 mt-2">
+                    <ShieldDisplay shield={editData.shield} size="large" />
+                    <label className="cursor-pointer text-[10px] bg-slate-800 text-slate-300 px-2 py-1 rounded hover:bg-slate-700 transition-colors">
+                      Trocar Imagem
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], (data) => setEditData({...editData, shield: data}))} />
+                    </label>
+                  </div>
                   <div className="flex-1 space-y-2 w-full">
                     <label className="text-xs text-slate-400">Nome do Time</label>
                     <input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500" />
-                    
                     <label className="text-xs text-slate-400">Técnico e WhatsApp</label>
                     <input type="text" value={editData.coach} onChange={e=>setEditData({...editData, coach: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500" placeholder="Nome do Técnico" />
                     <input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500" placeholder="11999999999" />
-                    
-                    {owner && currentUser?.role === 'leader' && (
-                      <>
-                        <label className="text-xs text-amber-400 mt-2 block">Cargo no Clã</label>
-                        <select value={editData.role} onChange={e=>setEditData({...editData, role: e.target.value})} className="w-full bg-slate-950 border border-amber-500/50 text-amber-400 rounded p-2 text-sm outline-none">
-                          <option value="member">Membro Oficial</option>
-                          <option value="kaioh">Senhor Kaioh (Sub-Líder)</option>
-                          <option value="leader">Líder Supremo</option>
-                        </select>
-                      </>
-                    )}
                   </div>
                 </div>
                 <div className="flex gap-2 mt-2">
@@ -143,20 +301,33 @@ const TeamsList = ({ teams, users, currentUser, onEditTeam }) => {
             );
           }
           return (
-            <div key={team.id} className="relative bg-slate-900 p-6 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 group">
+            <div key={team.id} className="relative bg-slate-900 p-6 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 group overflow-hidden">
+              
+              {/* Botões de Ação (Apenas Admins) */}
               {isAdmin && (
-                <button onClick={() => startEdit(team)} className="absolute top-4 right-4 text-slate-500 hover:text-amber-400 opacity-0 group-hover:opacity-100 p-2 transition-all">
-                  <Edit size={18} />
-                </button>
+                <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all bg-slate-900/90 backdrop-blur-sm p-1 rounded-lg border border-slate-700/50 shadow-xl">
+                  {deleteConfirmId === team.id ? (
+                    <div className="flex items-center gap-1 px-1">
+                      <button onClick={() => { onDeleteTeam(team.id, team.ownerId); setDeleteConfirmId(null); }} className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs font-bold transition-colors">Excluir</button>
+                      <button onClick={() => setDeleteConfirmId(null)} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-xs transition-colors">Cancelar</button>
+                    </div>
+                  ) : (
+                    <>
+                      <button onClick={() => startEdit(team)} className="text-slate-400 hover:text-amber-400 p-1.5 transition-colors" title="Editar Time"><Edit size={16} /></button>
+                      {isLeader && <button onClick={() => setDeleteConfirmId(team.id)} className="text-slate-400 hover:text-red-400 p-1.5 transition-colors" title="Remover Time e Técnico"><Trash2 size={16} /></button>}
+                    </>
+                  )}
+                </div>
               )}
-              <div className="flex items-center gap-4">
-                <span className="text-5xl">{team.shield}</span>
+
+              <div className="flex items-center gap-4 mt-2">
+                <ShieldDisplay shield={team.shield} size="large" />
                 <div>
                   <h3 className="text-xl font-bold text-white pr-8">{team.name}</h3>
                   <p className="text-sm text-slate-400">Técnico: <span className="text-slate-300 font-medium">{team.coach || 'Não informado'}</span></p>
                   
-                  {role === 'leader' && <span className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20"><Crown size={12}/> Líder</span>}
-                  {role === 'kaioh' && <span className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20"><Star size={12}/> Kaioh</span>}
+                  {role === 'leader' && <span className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20"><Crown size={12}/> Líder Supremo</span>}
+                  {role === 'kaioh' && <span className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20"><Star size={12}/> Senhor Kaioh</span>}
                 </div>
               </div>
               <Button onClick={() => handleWhatsApp(team.whatsapp)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-2" disabled={!team.whatsapp}><MessageCircle size={18} /> Chamar pra Batalha</Button>
@@ -168,135 +339,165 @@ const TeamsList = ({ teams, users, currentUser, onEditTeam }) => {
   );
 };
 
-const CreateTeam = ({ onCreate }) => {
-  const [name, setName] = useState(''); const [coach, setCoach] = useState(''); const [whatsapp, setWhatsapp] = useState('');
+const CreateTeam = ({ onCreate, showToast }) => {
+  const [coachFirstName, setCoachFirstName] = useState('');
+  const [coachLastName, setCoachLastName] = useState('');
+  const [teamName, setTeamName] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('member');
+  const [shieldData, setShieldData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if(!name || !coach || !whatsapp) return;
-    onCreate({ 
+    if(!teamName || !coachFirstName || !coachLastName || !whatsapp || !email) return;
+    setIsLoading(true);
+
+    const cleanWhatsapp = whatsapp.replace(/\D/g, '');
+    const fullName = `${coachFirstName} ${coachLastName}`;
+    
+    const isSuccess = await onCreate({ 
       id: `t${Date.now()}`, 
-      name, 
-      coach, 
-      whatsapp: whatsapp.replace(/\D/g, ''), 
-      shield: '🛡️' 
+      name: teamName, 
+      coach: fullName, 
+      whatsapp: cleanWhatsapp, 
+      email: email.trim().toLowerCase(),
+      role: role,
+      shield: shieldData || '🛡️' 
     });
-    setName(''); setCoach(''); setWhatsapp('');
-    alert("Time criado! O técnico receberá a posse quando fizer o primeiro login com este WhatsApp.");
+
+    if (isSuccess) {
+      const siteUrl = window.location.origin; 
+      const msg = `Fala ${coachFirstName}! Tudo certo? 🐉🥋\n\nO seu time *${teamName}* acaba de ser convocado para o Clã Kame! 🐢🔥\nSeu cargo atual de batalha é: *${ROLE_NAMES[role] || 'Membro Oficial'}*.\n\nPara acessar o seu Quartel General e entrar na arena, clique no link mágico abaixo ☁️👇\n\n🔗 *Link de Acesso:* ${siteUrl}\n\n⚠️ *ATENÇÃO - PRIMEIRO ACESSO:* ⚠️\nNa tela inicial, preencha o seu E-mail (*${email}*) ou WhatsApp.\nNo campo de Senha, *CRIE A SENHA QUE VOCÊ QUISER NA HORA*! 🔐\n\nComo é a sua primeira vez, o nosso Radar do Dragão vai gravar essa senha automaticamente como a sua senha oficial para as próximas batalhas! 🐉✨\n\nEleva o teu Ki e vamos pro jogo! ⚡🎮`;
+      
+      const waUrl = `https://wa.me/${cleanWhatsapp}?text=${encodeURIComponent(msg)}`;
+      window.open(waUrl, '_blank');
+
+      setCoachFirstName(''); setCoachLastName(''); setTeamName(''); setWhatsapp(''); setEmail(''); setRole('member'); setShieldData(null);
+    }
+    setIsLoading(false);
   };
 
   return (
-    <div className="max-w-xl mx-auto animate-in fade-in pb-12">
+    <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Users className="text-emerald-500"/> Cadastrar Novo Time</h2>
       <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl mb-6 text-sm text-emerald-400">
-        <p className="font-bold flex items-center gap-2"><Activity size={16}/> Entrega Automática</p>
-        <p className="mt-1">Cadastre o WhatsApp correto do técnico. Assim que ele aceder ao site pela primeira vez com esse número, o sistema irá entregar-lhe a gestão deste time automaticamente!</p>
+        <p className="font-bold flex items-center gap-2"><Activity size={16}/> Registo Invisível (Automático)</p>
+        <p className="mt-1">Preencha os dados abaixo. O sistema vai preparar a conta do técnico e gerar um link. Quando ele tentar aceder com a senha que quiser, a conta é criada e vinculada na hora!</p>
       </div>
       
       <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 space-y-5">
-        <div><label className="block text-sm font-medium text-slate-400 mb-1">Nome do Time</label><input type="text" placeholder="Ex: Kame FC" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none" required /></div>
-        <div><label className="block text-sm font-medium text-slate-400 mb-1">Nome do Técnico</label><input type="text" placeholder="Ex: Mestre Kame" value={coach} onChange={e=>setCoach(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none" required /></div>
-        <div><label className="block text-sm font-medium text-slate-400 mb-1">WhatsApp do Técnico (com DDD)</label><input type="tel" placeholder="Ex: 11999999999" value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none" required /></div>
-        <Button type="submit" className="w-full py-4 text-lg mt-2 shadow-emerald-900/50 shadow-xl">Salvar e Preparar Entrega</Button>
+        <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+          <label className="block text-sm font-medium text-slate-400 mb-3">Escudo do Time</label>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-slate-900 rounded-xl border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+              <ShieldDisplay shield={shieldData} size="large" />
+            </div>
+            <div className="flex-1">
+              <label className="cursor-pointer bg-slate-800 hover:bg-emerald-600 text-white transition-colors px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 max-w-[220px]">
+                <UploadCloud size={18} />
+                {shieldData ? 'Trocar Escudo' : 'Enviar Imagem'}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], setShieldData)} />
+              </label>
+              <p className="text-xs text-slate-500 mt-2">Dica: Envie imagens em .PNG para manter o fundo transparente.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div><label className="block text-sm font-medium text-slate-400 mb-1">Nome do Técnico</label><input type="text" placeholder="Ex: Don" value={coachFirstName} onChange={e=>setCoachFirstName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none transition-colors" required /></div>
+          <div><label className="block text-sm font-medium text-slate-400 mb-1">Sobrenome</label><input type="text" placeholder="Ex: Luck" value={coachLastName} onChange={e=>setCoachLastName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none transition-colors" required /></div>
+        </div>
+        <div><label className="block text-sm font-medium text-slate-400 mb-1">Nome do Time</label><input type="text" placeholder="Ex: Kame FC" value={teamName} onChange={e=>setTeamName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none transition-colors" required /></div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div><label className="block text-sm font-medium text-slate-400 mb-1">WhatsApp (com DDD)</label><input type="tel" placeholder="Ex: 11999999999" value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none transition-colors" required /></div>
+          <div><label className="block text-sm font-medium text-slate-400 mb-1">E-mail do Técnico</label><input type="email" placeholder="tecnico@email.com" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none transition-colors" required /></div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-400 mb-1">Cargo no Clã</label>
+          <select value={role} onChange={e=>setRole(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none cursor-pointer">
+            <option value="member">Membro Oficial (Padrão)</option>
+            <option value="kaioh">Senhor Kaioh (Sub-Líder)</option>
+            <option value="leader">Líder Supremo</option>
+          </select>
+        </div>
+
+        <Button type="submit" disabled={isLoading} className="w-full py-4 text-lg mt-4 shadow-emerald-900/50 shadow-xl flex items-center justify-center gap-2">
+          <Send size={20} /> {isLoading ? 'Guardando...' : 'Salvar e Enviar Link'}
+        </Button>
       </form>
     </div>
   );
 };
 
-const CreateCompetition = ({ teams, onCreate }) => {
-  const [name, setName] = useState(''); const [format, setFormat] = useState('league');
+const CreateCompetition = ({ teams, onCreate, showToast }) => {
+  const [name, setName] = useState('');
+  const [format, setFormat] = useState('league');
+  const [teamCount, setTeamCount] = useState('');
+  const [deadline, setDeadline] = useState('');
   const [selectedTeams, setSelectedTeams] = useState([]);
-  const [error, setError] = useState('');
 
   const toggleTeam = (teamId) => { setSelectedTeams(selectedTeams.includes(teamId) ? selectedTeams.filter(id => id !== teamId) : [...selectedTeams, teamId]); };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name || !format) return setError('Preencha o nome da competição.');
-    if (selectedTeams.length < 2) return setError('Selecione pelo menos 2 times para competir.');
+    if (!name || !format || !teamCount || !deadline) return showToast('Preencha todos os campos obrigatórios.', 'error');
     
-    setError('');
+    const count = parseInt(teamCount, 10);
+    if (selectedTeams.length !== count) return showToast(`Selecione exatamente ${count} times (atualmente: ${selectedTeams.length}).`, 'error');
     
-    // Gerador Simples de 1ª Rodada (Pares Aleatórios)
     const shuffledTeams = [...selectedTeams].sort(() => 0.5 - Math.random());
     const roundMatches = [];
     let matchCounter = 1;
     
     for (let i = 0; i < shuffledTeams.length - 1; i += 2) {
-      roundMatches.push({ 
-        id: `m${matchCounter}_new_r1`, 
-        teamA: shuffledTeams[i], 
-        teamB: shuffledTeams[i+1], 
-        status: 'pending_play' 
-      });
+      roundMatches.push({ id: `m${matchCounter}_new_r1`, teamA: shuffledTeams[i], teamB: shuffledTeams[i+1], status: 'pending_play' });
       matchCounter++;
     }
 
     onCreate({ 
-      id: `c${Date.now()}`, 
-      name, 
-      format, 
-      status: 'active', 
-      teams: selectedTeams, 
+      id: `c${Date.now()}`, name, format, teamCount: count, deadline, status: 'active', teams: selectedTeams, 
       rounds: roundMatches.length > 0 ? [{ id: 'r1', number: 1, status: 'released', matches: roundMatches }] : []
     });
+    showToast("Competição e 1ª Rodada criadas!", "success");
   };
 
   return (
     <div className="max-w-3xl mx-auto animate-in fade-in pb-12">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><PlusCircle className="text-emerald-500"/> Criar Nova Competição</h2>
       <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 space-y-6">
-        {error && <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3"><AlertCircle size={20} /><p className="text-sm font-medium">{error}</p></div>}
-        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-400">Nome do Torneio</label>
-            <input type="text" placeholder="Ex: Copa Clã Kame" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none" required />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-400">Formato</label>
-            <select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none">
-              <option value="league">Pontos Corridos (Liga)</option>
-              <option value="cup">Mata-Mata (Copa)</option>
-            </select>
-          </div>
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Nome da Competição</label><input type="text" placeholder="Ex: Copa Clã Kame" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none transition-colors" required /></div>
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Formato</label><select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none transition-colors"><option value="cup">Mata-Mata (Copa)</option><option value="league">Pontos Corridos (Liga)</option><option value="group_stage_cup">Fase de Grupos + Mata-Mata</option></select></div>
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Quantidade de Times</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none transition-colors" required /></div>
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Prazo Final</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-emerald-500 outline-none transition-colors" required /></div>
         </div>
-        
         <div className="pt-6 border-t border-slate-800">
           <div className="flex justify-between items-center mb-4">
             <label className="text-sm font-medium text-slate-400">Quais times vão participar?</label>
-            <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded font-bold">{selectedTeams.length} Selecionados</span>
+            <span className={`text-xs px-2 py-1 rounded font-bold ${selectedTeams.length === parseInt(teamCount || 0) ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{selectedTeams.length} Selecionados</span>
           </div>
-          
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {teams.map(t => {
               const isSelected = selectedTeams.includes(t.id);
               return (
                 <div key={t.id} onClick={() => toggleTeam(t.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
-                  <span className="text-2xl">{t.shield}</span>
-                  <div className="flex flex-col">
-                    <span className={`font-medium text-sm ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{t.name}</span>
-                    <span className="text-[10px] text-slate-500">{t.coach}</span>
-                  </div>
+                  <ShieldDisplay shield={t.shield} size="normal" />
+                  <div className="flex flex-col"><span className={`font-medium text-sm ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{t.name}</span><span className="text-[10px] text-slate-500">{t.coach}</span></div>
                 </div>
               );
             })}
           </div>
         </div>
-        
-        <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm text-slate-400 text-center">
-          O sistema irá pegar nos times selecionados e <b className="text-emerald-400">gerar a 1ª Rodada automaticamente</b> ao clicar em salvar.
-        </div>
-
-        <Button type="submit" className="w-full py-4 text-lg mt-4">Lançar Competição</Button>
+        <Button type="submit" className="w-full py-4 text-lg mt-4 shadow-emerald-900/50 shadow-xl">Lançar Competição</Button>
       </form>
     </div>
   );
 };
 
-// ==========================================
-// 4. RESTANTES ECRÃS DO SISTEMA
-// ==========================================
 const Standings = ({ matches, teams, compId, compName }) => {
   const table = useMemo(() => calculateStandings(matches, teams, compId), [matches, teams, compId]);
   return (
@@ -307,7 +508,7 @@ const Standings = ({ matches, teams, compId, compName }) => {
           <thead className="bg-slate-950/50 text-slate-400 font-medium"><tr><th className="p-4 w-12 text-center">#</th><th className="p-4">Time</th><th className="p-4 text-center">PTS</th><th className="p-4 text-center">J</th><th className="p-4 text-center">V</th><th className="p-4 text-center">E</th><th className="p-4 text-center">D</th><th className="p-4 text-center">GP</th><th className="p-4 text-center">GC</th><th className="p-4 text-center">SG</th></tr></thead>
           <tbody className="divide-y divide-slate-800/50">
             {table.filter(t => t.p > 0 || table.length > 0).map((row, index) => (
-              <tr key={row.id} className="hover:bg-slate-800/50 transition-colors"><td className="p-4 text-center font-bold text-slate-500">{index + 1}</td><td className="p-4 font-medium text-white flex items-center gap-2"><span className="text-xl">{row.shield}</span> {row.name}</td><td className="p-4 text-center font-bold text-emerald-400">{row.pts}</td><td className="p-4 text-center text-slate-300">{row.p}</td><td className="p-4 text-center text-slate-300">{row.w}</td><td className="p-4 text-center text-slate-300">{row.d}</td><td className="p-4 text-center text-slate-300">{row.l}</td><td className="p-4 text-center text-slate-400">{row.gf}</td><td className="p-4 text-center text-slate-400">{row.ga}</td><td className="p-4 text-center text-slate-400 font-medium">{row.gd > 0 ? `+${row.gd}` : row.gd}</td></tr>
+              <tr key={row.id} className="hover:bg-slate-800/50 transition-colors"><td className="p-4 text-center font-bold text-slate-500">{index + 1}</td><td className="p-4 font-medium text-white flex items-center gap-2"><ShieldDisplay shield={row.shield} size="small" /> {row.name}</td><td className="p-4 text-center font-bold text-emerald-400">{row.pts}</td><td className="p-4 text-center text-slate-300">{row.p}</td><td className="p-4 text-center text-slate-300">{row.w}</td><td className="p-4 text-center text-slate-300">{row.d}</td><td className="p-4 text-center text-slate-300">{row.l}</td><td className="p-4 text-center text-slate-400">{row.gf}</td><td className="p-4 text-center text-slate-400">{row.ga}</td><td className="p-4 text-center text-slate-400 font-medium">{row.gd > 0 ? `+${row.gd}` : row.gd}</td></tr>
             ))}
             {table.length === 0 && <tr><td colSpan="10" className="p-4 text-center text-slate-500">Nenhum time registrado.</td></tr>}
           </tbody>
@@ -342,7 +543,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             {comp.rounds.map((round) => (
               <div key={round.id} className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
                 <div className="bg-slate-950/50 p-4 border-b border-slate-800 flex justify-between items-center"><h4 className="font-bold text-white flex items-center gap-2">{round.status === 'locked' ? <Lock size={16} className="text-slate-500"/> : <PlayCircle size={16} className="text-emerald-500"/>} Rodada {round.number}</h4>{round.status === 'locked' ? (isAdmin ? <Button variant="outline" className="text-xs py-1 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10" onClick={() => onReleaseRound(comp.id, round.id)}>Liberar Rodada</Button> : <span className="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded-full">Bloqueada</span>) : <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">Liberada</span>}</div>
-                <div className="p-4 grid gap-3">{round.matches.map(match => { const tA = getTeam(match.teamA); const tB = getTeam(match.teamB); const statusUI = getMatchStatusDisplay(match.id); return (<div key={match.id} className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800/50"><div className="flex-1 text-right font-medium text-slate-200">{tA?.name} <span className="ml-2 text-xl">{tA?.shield}</span></div><div className={`mx-4 px-4 py-2 rounded-lg text-sm text-center min-w-[120px] ${statusUI.bg} ${statusUI.color}`}>{statusUI.text}</div><div className="flex-1 text-left font-medium text-slate-200"><span className="mr-2 text-xl">{tB?.shield}</span> {tB?.name}</div></div>); })}</div>
+                <div className="p-4 grid gap-3">{round.matches.map(match => { const tA = getTeam(match.teamA); const tB = getTeam(match.teamB); const statusUI = getMatchStatusDisplay(match.id); return (<div key={match.id} className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800/50"><div className="flex-1 text-right font-medium text-slate-200">{tA?.name} <ShieldDisplay shield={tA?.shield} size="small" /></div><div className={`mx-4 px-4 py-2 rounded-lg text-sm text-center min-w-[120px] ${statusUI.bg} ${statusUI.color}`}>{statusUI.text}</div><div className="flex-1 text-left font-medium text-slate-200"><ShieldDisplay shield={tB?.shield} size="small" /> {tB?.name}</div></div>); })}</div>
               </div>
             ))}
           </div>
@@ -352,7 +553,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   );
 };
 
-const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser }) => {
+const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, showToast }) => {
   const [selectedCompId, setSelectedCompId] = useState('');
   const [selectedMatchId, setSelectedMatchId] = useState('');
   const [availableMatches, setAvailableMatches] = useState([]);
@@ -404,6 +605,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser }) =>
       setGoalsA(Array.from({length: sA}, () => ({ player: mockPlayers[Math.floor(Math.random()*3)], minute: Math.floor(Math.random()*90)+1 })).sort((a,b)=>a.minute-b.minute));
       setGoalsB(Array.from({length: sB}, () => ({ player: mockPlayers[Math.floor(Math.random()*3)+3], minute: Math.floor(Math.random()*90)+1 })).sort((a,b)=>a.minute-b.minute));
       setIsAnalyzing(false); setImageUploaded(true);
+      showToast("Dados extraídos do Print pela IA!", "success");
     }, 2000);
   };
 
@@ -417,6 +619,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser }) =>
       status: 'pending', submittedBy: currentUser?.id, imageUrl: 'simulated_image_url'
     });
     setSelectedCompId('');
+    showToast("Partida enviada para validação dos Líderes/Kaiohs!", "success");
   };
 
   return (
@@ -460,6 +663,19 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser }) =>
         )}
         {imageUploaded && (
           <form onSubmit={handleSubmit} className="animate-in slide-in-from-bottom-4 space-y-6 pt-4 border-t border-slate-800">
+            <div className="flex flex-col md:flex-row gap-6 items-start bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <div className="flex-1 w-full space-y-3">
+                <div className="text-center font-bold text-lg text-slate-300 flex items-center justify-center gap-2"><ShieldDisplay shield={teamA?.shield} size="normal" /> {teamA?.name}</div>
+                <input type="number" value={scoreA} readOnly className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-emerald-400 text-center text-3xl font-bold cursor-not-allowed opacity-80" />
+                <div className="space-y-1">{goalsA.map((g, i) => <div key={i} className="text-xs bg-slate-800 p-2 rounded text-slate-300 flex justify-between"><span>{g.player}</span><span className="text-emerald-400">{g.minute}'</span></div>)}</div>
+              </div>
+              <div className="text-slate-500 font-bold text-xl self-center pt-8">X</div>
+              <div className="flex-1 w-full space-y-3">
+                <div className="text-center font-bold text-lg text-slate-300 flex items-center justify-center gap-2">{teamB?.name} <ShieldDisplay shield={teamB?.shield} size="normal" /></div>
+                <input type="number" value={scoreB} readOnly className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-emerald-400 text-center text-3xl font-bold cursor-not-allowed opacity-80" />
+                <div className="space-y-1">{goalsB.map((g, i) => <div key={i} className="text-xs bg-slate-800 p-2 rounded text-slate-300 flex justify-between"><span>{g.player}</span><span className="text-emerald-400">{g.minute}'</span></div>)}</div>
+              </div>
+            </div>
             <Button type="submit" className="w-full py-3 text-lg">Enviar Partida para Nuvem</Button>
           </form>
         )}
@@ -483,9 +699,9 @@ const Dashboard = ({ matches, teams }) => {
             return (
               <div key={m.id} className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-4 flex-1">
-                  <div className="text-right flex-1 font-medium text-slate-200">{tA?.name} <span className="ml-1 text-xl">{tA?.shield}</span></div>
+                  <div className="text-right flex-1 font-medium text-slate-200 flex items-center justify-end gap-2">{tA?.name} <ShieldDisplay shield={tA?.shield} size="small" /></div>
                   <div className="bg-slate-950 px-4 py-2 rounded-lg font-bold text-xl text-emerald-400 border border-slate-800">{m.status === 'approved' || m.status === 'pending' ? `${m.scoreA} - ${m.scoreB}` : '? - ?'}</div>
-                  <div className="flex-1 font-medium text-slate-200"><span className="mr-1 text-xl">{tB?.shield}</span> {tB?.name}</div>
+                  <div className="flex-1 font-medium text-slate-200 flex items-center gap-2"><ShieldDisplay shield={tB?.shield} size="small" /> {tB?.name}</div>
                 </div>
                 <div className="ml-4 w-24 text-right">{m.status === 'approved' ? <span className="text-xs text-emerald-400">✅ Oficial</span> : m.status === 'rejected' ? <span className="text-xs text-red-400">❌ Rejeitado</span> : <span className="text-xs text-amber-400">⏳ Pendente</span>}</div>
               </div>
@@ -521,7 +737,7 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp }) =>
   );
 };
 
-const ValidationPanel = ({ matches, teams, onUpdateStatus }) => {
+const ValidationPanel = ({ matches, teams, onUpdateStatus, showToast }) => {
   const pending = matches.filter(m => m.status === 'pending');
   const getTeam = (id) => teams.find(t => t.id === id);
   return (
@@ -539,8 +755,8 @@ const ValidationPanel = ({ matches, teams, onUpdateStatus }) => {
                 <div className="flex-1 font-bold text-white">{getTeam(m.teamB)?.name}</div>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" className="border-red-500/50 text-red-400" onClick={() => onUpdateStatus(m.id, 'rejected')}><XCircle size={16}/> Rejeitar</Button>
-                <Button onClick={() => onUpdateStatus(m.id, 'approved')}><CheckCircle size={16}/> Aprovar</Button>
+                <Button variant="outline" className="border-red-500/50 text-red-400" onClick={() => { onUpdateStatus(m.id, 'rejected'); showToast("Jogo Rejeitado!", "error"); }}><XCircle size={16}/> Rejeitar</Button>
+                <Button onClick={() => { onUpdateStatus(m.id, 'approved'); showToast("Jogo Aprovado e validado!", "success"); }}><CheckCircle size={16}/> Aprovar</Button>
               </div>
             </div>
           ))}
@@ -572,6 +788,12 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [selectedCompId, setSelectedCompId] = useState(null);
 
+  const [toastMessage, setToastMessage] = useState(null);
+  const showToast = (text, type = 'success') => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       setFbUser(user);
@@ -580,7 +802,6 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Sincroniza dados e auto-vincula times pendentes
   useEffect(() => {
     if (!fbUser) return;
     
@@ -591,19 +812,53 @@ export default function App() {
       try {
         const userRef = getPublicDocPath('users', fbUser.uid);
         const snap = await getDoc(userRef);
-        let userWhatsapp = fbUser.email?.split('@')[0] || '';
+        let emailOriginal = fbUser.email || '';
+        let userWhatsapp = emailOriginal.includes('@clakame.com') ? emailOriginal.replace('@clakame.com', '') : '';
         
         if (!snap.exists()) {
-          const isLeader = fbUser.email.includes('11989000858') || fbUser.email.includes('savio');
-          await setDoc(userRef, {
-            id: fbUser.uid, email: fbUser.email, name: userWhatsapp, role: isLeader ? 'leader' : 'member', whatsapp: userWhatsapp
-          });
+          const pendingRefWa = getPublicDocPath('users', `pending_${userWhatsapp}`);
+          const pendingRefEmail = getPublicDocPath('users', `pending_${emailOriginal}`);
+          
+          let pendingSnap = await getDoc(pendingRefWa);
+          if(!pendingSnap.exists() && emailOriginal) pendingSnap = await getDoc(pendingRefEmail);
+
+          if (pendingSnap.exists()) {
+             const pData = pendingSnap.data();
+             await setDoc(userRef, {
+               id: fbUser.uid,
+               email: emailOriginal,
+               name: pData.name,
+               role: pData.role,
+               whatsapp: pData.whatsapp
+             });
+             await deleteDoc(pendingSnap.ref); 
+          } else {
+             // FORÇA O RECONHECIMENTO DO LÍDER SÁVIO
+             const isSavio = emailOriginal === 'saviosaraiva777@gmail.com' || emailOriginal.includes('savio') || emailOriginal.includes('91998270658');
+             
+             let finalName = userWhatsapp || emailOriginal.split('@')[0];
+             let finalWhatsapp = userWhatsapp;
+             let finalRole = isSavio ? 'leader' : 'member';
+
+             if (isSavio) {
+                 finalName = 'Sávio Saraiva';
+                 finalWhatsapp = '91998270658';
+                 finalRole = 'leader';
+             }
+
+             await setDoc(userRef, {
+               id: fbUser.uid, 
+               email: emailOriginal, 
+               name: finalName, 
+               role: finalRole, 
+               whatsapp: finalWhatsapp
+             });
+          }
         }
         setIsProfileLoading(false);
       } catch (err) { 
-        console.error("Erro perfil:", err);
         setIsProfileLoading(false);
-        setProfileError(err.message || 'Ocorreu um erro de conexão (Offline).');
+        setProfileError(err.message || 'Ocorreu um erro de conexão.');
       }
     };
     setupProfile();
@@ -616,19 +871,23 @@ export default function App() {
     return () => { unsubU(); unsubT(); unsubC(); unsubM(); };
   }, [fbUser]);
 
-  // Vínculo inteligente de times (Se o técnico entrar, ganha o time que criaram para ele)
   useEffect(() => {
     const linkPendingTeams = async () => {
       if (!fbUser || teams.length === 0) return;
-      const userWhatsapp = fbUser.email?.split('@')[0];
-      const pendingTeams = teams.filter(t => t.whatsapp === userWhatsapp && t.ownerId === `pending_${userWhatsapp}`);
+      const currentUser = users.find(u => u.id === fbUser.uid);
+      if(!currentUser) return;
+
+      const userWhatsapp = currentUser.whatsapp;
+      const userEmail = currentUser.email;
+
+      const pendingTeams = teams.filter(t => t.ownerId === `pending_${userWhatsapp}` || t.ownerId === `pending_${userEmail}`);
       
       for (const t of pendingTeams) {
         await updateDoc(getPublicDocPath('teams', t.id), { ownerId: fbUser.uid });
       }
     };
     linkPendingTeams();
-  }, [teams, fbUser]);
+  }, [teams, fbUser, users]);
 
   const formatarParaEmail = (texto) => {
     const textoLimpo = texto.trim().toLowerCase();
@@ -641,14 +900,24 @@ export default function App() {
     setMensagemErro('');
     if (!identificacao || !palavraPasse) { setMensagemErro('Preencha os dados da batalha!'); return; }
     const emailFake = formatarParaEmail(identificacao);
+    
     try {
       setIsFirebaseLoading(true);
       await signInWithEmailAndPassword(auth, emailFake, palavraPasse);
     } catch (error) {
-      setIsFirebaseLoading(false);
-      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-        setMensagemErro(`Acesso negado: Palavra-passe incorreta ou técnico não encontrado.`);
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        try {
+          await createUserWithEmailAndPassword(auth, emailFake, palavraPasse);
+        } catch (createError) {
+           setIsFirebaseLoading(false);
+           if (createError.code === 'auth/email-already-in-use') {
+              setMensagemErro(`Acesso negado: Senha incorreta para este utilizador.`);
+           } else {
+              setMensagemErro(`Erro ao aceder: ${createError.message}`);
+           }
+        }
       } else {
+        setIsFirebaseLoading(false);
         setMensagemErro(`Erro do Firebase: ${error.code}`);
       }
     }
@@ -661,29 +930,142 @@ export default function App() {
     if (!comp) return;
     const rounds = comp.rounds.map(r => r.id === roundId ? { ...r, status: 'released' } : r);
     await updateDoc(getPublicDocPath('competitions', compId), { rounds });
+    showToast("Rodada liberada com sucesso!", "success");
   };
   const handleSubmitMatch = async (m) => { await setDoc(getPublicDocPath('matches', m.id), m); setCurrentTab('dashboard'); };
   const handleUpdateMatchStatus = async (id, st) => { await updateDoc(getPublicDocPath('matches', id), { status: st }); };
 
-  // ==========================================
-  // NOVAS FUNÇÕES PARA LÍDERES
-  // ==========================================
-  const handleEditTeam = async (updatedTeam, newRole) => {
-    // 1. Atualiza as informações do Time
-    const { id, name, coach, whatsapp, ownerId } = updatedTeam;
-    await updateDoc(getPublicDocPath('teams', id), { name, coach, whatsapp: whatsapp.replace(/\D/g, '') });
-    
-    // 2. Atualiza o Cargo do utilizador (se o time já tiver um dono)
-    if (ownerId && !ownerId.startsWith('pending_') && newRole) {
-      await updateDoc(getPublicDocPath('users', ownerId), { role: newRole });
+  const handleUpdateUserRole = async (userId, newRole) => {
+    const currentLeaders = users.filter(u => u.role === 'leader');
+    const currentKaiohs = users.filter(u => u.role === 'kaioh');
+    const targetUser = users.find(u => u.id === userId);
+
+    if (targetUser.role === newRole) return;
+
+    if (newRole === 'leader' && currentLeaders.length >= 1) {
+      showToast('O clã só pode ter 1 Líder Supremo. Despromova o líder atual primeiro.', 'error');
+      return;
     }
+    if (newRole === 'kaioh' && currentKaiohs.length >= 3) {
+      showToast('Limite máximo de 3 Senhores Kaioh já foi atingido.', 'error');
+      return;
+    }
+
+    await updateDoc(getPublicDocPath('users', userId), { role: newRole });
+    showToast(`O técnico ${targetUser.name} agora é ${ROLE_NAMES[newRole]}!`, 'success');
+  };
+
+  const handleExpelUser = async (userId) => {
+    const userToFind = users.find(u => u.id === userId);
+    if (!userToFind) return;
+    if (userId === fbUser?.uid) {
+      showToast('Você não pode expulsar a si mesmo!', 'error');
+      return;
+    }
+
+    const userTeam = teams.find(t => t.ownerId === userId);
+    if (userTeam) {
+      await deleteDoc(getPublicDocPath('teams', userTeam.id));
+    }
+    await deleteDoc(getPublicDocPath('users', userId));
+    showToast('Técnico e time excluídos com sucesso!', 'success');
+  };
+
+  const handleEditUser = async (userId, updatedData) => {
+    await updateDoc(getPublicDocPath('users', userId), {
+      name: updatedData.name,
+      whatsapp: updatedData.whatsapp.replace(/\D/g, ''),
+      email: updatedData.email.trim().toLowerCase()
+    });
+    showToast("Dados do técnico atualizados com sucesso!", "success");
+  };
+
+  const handleDeleteTeam = async (teamId, ownerId) => {
+    await deleteDoc(getPublicDocPath('teams', teamId));
+    
+    if (ownerId && !ownerId.startsWith('pending_')) {
+      if (ownerId === fbUser?.uid) {
+        showToast('Seu time foi removido, mas sua conta de Líder foi mantida para não perder acesso.', 'error');
+      } else {
+        await deleteDoc(getPublicDocPath('users', ownerId));
+      }
+    } else if (ownerId && ownerId.startsWith('pending_')) {
+      await deleteDoc(getPublicDocPath('users', ownerId));
+    }
+    showToast('Time e técnico removidos com sucesso!', 'success');
+  };
+
+  const handleEditTeam = async (updatedTeam) => {
+    const { id, name, coach, whatsapp, shield } = updatedTeam;
+    const cleanWhatsapp = whatsapp.replace(/\D/g, '');
+    const cleanTeamName = name.trim().toLowerCase();
+    const cleanCoachName = coach.trim().toLowerCase();
+
+    const isDuplicateTeam = teams.some(t => 
+      t.id !== id && (
+        t.name.trim().toLowerCase() === cleanTeamName ||
+        t.whatsapp === cleanWhatsapp ||
+        t.coach.trim().toLowerCase() === cleanCoachName
+      )
+    );
+
+    if (isDuplicateTeam) {
+      showToast('Erro: Já existe outro time registrado com esse Nome, Técnico ou WhatsApp.', 'error');
+      return false;
+    }
+
+    await updateDoc(getPublicDocPath('teams', id), { name, coach, whatsapp: cleanWhatsapp, shield });
+    showToast("Dados do time salvos com sucesso!", "success");
+    return true;
   };
 
   const handleCreateTeam = async (teamData) => { 
-    // Define um dono provisório caso o utilizador ainda não exista
-    const ownerId = `pending_${teamData.whatsapp}`;
-    await setDoc(getPublicDocPath('teams', teamData.id), { ...teamData, ownerId }); 
+    const currentLeaders = users.filter(u => u.role === 'leader');
+    const currentKaiohs = users.filter(u => u.role === 'kaioh');
+
+    if (teamData.role === 'leader' && currentLeaders.length >= 1) {
+      showToast('O clã só pode ter 1 Líder Supremo. Despromova o líder atual primeiro.', 'error');
+      return false;
+    }
+    if (teamData.role === 'kaioh' && currentKaiohs.length >= 3) {
+      showToast('Limite máximo de 3 Senhores Kaioh já foi atingido.', 'error');
+      return false;
+    }
+
+    const cleanWhatsapp = teamData.whatsapp;
+    const cleanEmail = teamData.email;
+    const cleanTeamName = teamData.name.trim().toLowerCase();
+    const cleanCoachName = teamData.coach.trim().toLowerCase();
+
+    const isDuplicateTeam = teams.some(t => 
+      t.name.trim().toLowerCase() === cleanTeamName ||
+      t.whatsapp === cleanWhatsapp ||
+      t.coach.trim().toLowerCase() === cleanCoachName
+    );
+
+    const isDuplicateUser = users.some(u => 
+      (u.email && u.email.toLowerCase() === cleanEmail) ||
+      u.whatsapp === cleanWhatsapp ||
+      u.name.trim().toLowerCase() === cleanCoachName
+    );
+
+    if (isDuplicateTeam || isDuplicateUser) {
+      showToast('Ação Bloqueada: Já existe um cadastro registrado no sistema com esse Time, Técnico, E-mail ou WhatsApp!', 'error');
+      return false;
+    }
+
+    const ownerId = `pending_${cleanWhatsapp}`;
+    
+    await setDoc(getPublicDocPath('teams', teamData.id), { 
+      id: teamData.id, name: teamData.name, coach: teamData.coach, whatsapp: cleanWhatsapp, ownerId: ownerId, shield: teamData.shield
+    }); 
+    
+    await setDoc(getPublicDocPath('users', ownerId), {
+      id: ownerId, email: cleanEmail, name: teamData.coach, whatsapp: cleanWhatsapp, role: teamData.role
+    });
+
     setCurrentTab('teams_list'); 
+    return true;
   };
   
   const handleCreateComp = async (c) => { 
@@ -691,30 +1073,18 @@ export default function App() {
     setCurrentTab('competitions'); 
   };
 
-  // ==========================================
-  // RENDERIZAÇÃO
-  // ==========================================
   if (isFirebaseLoading) {
     return (<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#18191a', color: '#ffde59', fontFamily: 'sans-serif' }}><h2>🛡️ A preparar o Clã Kame...</h2></div>);
   }
-
   if (fbUser && isProfileLoading) {
     return (<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#18191a', color: '#ffde59', fontFamily: 'sans-serif' }}><h2>⏳ A carregar o seu Quartel General...</h2></div>);
   }
-
   if (fbUser && profileError) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#18191a', color: '#e4e6eb', fontFamily: 'sans-serif', textAlign: 'center', padding: '20px' }}>
-        <AlertCircle size={64} color="#ff914d" style={{ marginBottom: '20px' }} />
-        <h2 style={{ color: '#ffde59', marginBottom: '10px' }}>Ocorreu um erro na Base de Dados</h2>
-        <div style={{ maxWidth: '600px', backgroundColor: '#242526', padding: '20px', borderRadius: '12px', border: '1px solid #3a3b3c', textAlign: 'left', lineHeight: '1.6' }}>
-          <p style={{ color: '#ff914d', fontWeight: 'bold', marginTop: 0 }}>Erro exato: "{profileError}"</p>
-          <p style={{ color: '#b0b3b8' }}>Se o erro disser <b>"Missing or insufficient permissions"</b>, significa que o seu Firestore bloqueou o acesso.</p>
-        </div>
-        <div style={{ display: 'flex', gap: '15px', marginTop: '25px' }}>
-          <button onClick={() => window.location.reload()} style={{ padding: '12px 24px', backgroundColor: '#ff914d', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', border: 'none', color: 'black', textTransform: 'uppercase' }}>Tentar Novamente</button>
-          <button onClick={async () => { await signOut(auth); window.location.reload(); }} style={{ padding: '12px 24px', backgroundColor: 'transparent', border: '2px solid #ff914d', color: '#ff914d', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', textTransform: 'uppercase' }}>Desconectar / Sair</button>
-        </div>
+        <h2 style={{ color: '#ffde59', marginBottom: '10px' }}>Erro de Conexão</h2>
+        <p style={{ color: '#ff914d', fontWeight: 'bold' }}>{profileError}</p>
+        <button onClick={async () => { await signOut(auth); window.location.reload(); }} style={{ marginTop: '20px', padding: '12px 24px', backgroundColor: '#ff914d', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', border: 'none' }}>Sair e Tentar Novamente</button>
       </div>
     );
   }
@@ -735,9 +1105,9 @@ export default function App() {
             <p style={{ color: '#b0b3b8', fontSize: '14px', marginTop: '5px' }}>Sistema de Gestão DLS na Nuvem</p>
           </div>
           {mensagemErro && (<div style={{ color: '#ff914d', fontWeight: 'bold', marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(255, 145, 77, 0.1)', borderRadius: '8px', fontSize: '14px' }}>{mensagemErro}</div>)}
-          <div style={{ textAlign: 'left', marginBottom: '15px' }}><label style={{ fontSize: '14px', color: '#b0b3b8', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>E-mail ou Celular (com DDD)</label><input type="text" placeholder="Ex: vitor@email.com ou 11999999999" value={identificacao} onChange={(evento) => setIdentificacao(evento.target.value)} style={{ width: '100%', padding: '12px', backgroundColor: '#3a3b3c', border: 'none', borderRadius: '8px', color: 'white', outline: 'none' }}/></div>
+          <div style={{ textAlign: 'left', marginBottom: '15px' }}><label style={{ fontSize: '14px', color: '#b0b3b8', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>E-mail ou Celular (com DDD)</label><input type="text" placeholder="Ex: tecnico@email.com ou 11999999999" value={identificacao} onChange={(evento) => setIdentificacao(evento.target.value)} style={{ width: '100%', padding: '12px', backgroundColor: '#3a3b3c', border: 'none', borderRadius: '8px', color: 'white', outline: 'none' }}/></div>
           <div style={{ textAlign: 'left', marginBottom: '15px' }}><label style={{ fontSize: '14px', color: '#b0b3b8', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Senha</label><input type="password" placeholder="••••••••" value={palavraPasse} onChange={(evento) => setPalavraPasse(evento.target.value)} style={{ width: '100%', padding: '12px', backgroundColor: '#3a3b3c', border: 'none', borderRadius: '8px', color: 'white', outline: 'none' }}/></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '25px', color: '#b0b3b8' }}><label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}><input type="checkbox" checked={manterConectado} onChange={(evento) => setManterConectado(evento.target.checked)} /> Manter conectado</label><span style={{ color: '#ffde59', cursor: 'pointer' }} onClick={() => alert('Função em construção')}>Esqueci a senha</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '25px', color: '#b0b3b8' }}><label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}><input type="checkbox" checked={manterConectado} onChange={(evento) => setManterConectado(evento.target.checked)} /> Manter conectado</label><span style={{ color: '#ffde59', cursor: 'pointer' }} onClick={() => setMensagemErro('Função Esqueci a Senha em construção')}>Esqueci a senha</span></div>
           <button onClick={tentarLogin} style={{ width: '100%', padding: '15px', borderRadius: '10px', background: 'linear-gradient(135deg, #ffde59 0%, #ff914d 100%)', color: 'black', fontWeight: 'bold', fontSize: '16px', border: 'none', cursor: 'pointer', textTransform: 'uppercase' }}>Entrar</button>
         </div>
       </div>
@@ -754,6 +1124,7 @@ export default function App() {
     { id: 'submit', label: 'Registrar Jogo', icon: Camera },
     ...(isAdmin ? [ 
       { id: 'validation', label: 'Validação', icon: CheckSquare },
+      { id: 'members_list', label: 'Técnicos', icon: Crown },
       { id: 'create_comp', label: 'Nova Competição', icon: PlusCircle },
       { id: 'create_team', label: 'Novo Time', icon: Users }
     ] : []),
@@ -762,13 +1133,14 @@ export default function App() {
   const renderContent = () => {
     switch (currentTab) {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} />;
-      case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} onEditTeam={handleEditTeam} />;
+      case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} onEditTeam={handleEditTeam} onDeleteTeam={handleDeleteTeam} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={id => {setSelectedCompId(id); setCurrentTab('comp_details');}} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} />;
-      case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} onSubmit={handleSubmitMatch} currentUser={currentUser} />;
-      case 'validation': return <ValidationPanel matches={matches} teams={teams} onUpdateStatus={handleUpdateMatchStatus} />;
-      case 'create_comp': return <CreateCompetition teams={teams} onCreate={handleCreateComp} />;
-      case 'create_team': return <CreateTeam onCreate={handleCreateTeam} />;
+      case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} onSubmit={handleSubmitMatch} currentUser={currentUser} showToast={showToast} />;
+      case 'validation': return <ValidationPanel matches={matches} teams={teams} onUpdateStatus={handleUpdateMatchStatus} showToast={showToast} />;
+      case 'create_comp': return <CreateCompetition teams={teams} onCreate={handleCreateComp} showToast={showToast} />;
+      case 'create_team': return <CreateTeam onCreate={handleCreateTeam} showToast={showToast} />;
+      case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onUpdateUserRole={handleUpdateUserRole} onExpelUser={handleExpelUser} onEditUser={handleEditUser} />;
       default: return null;
     }
   };
@@ -776,7 +1148,14 @@ export default function App() {
   const pendingCount = isAdmin ? matches.filter(m=>m.status==='pending').length : 0;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans flex flex-col md:flex-row">
+    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans flex flex-col md:flex-row relative">
+      {toastMessage && (
+        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4 ${toastMessage.type === 'error' ? 'bg-red-950 border border-red-500 text-red-100' : 'bg-slate-800 border border-emerald-500 text-white'}`}>
+          {toastMessage.type === 'error' ? <AlertCircle className="text-red-500" size={20} /> : <CheckCircle className="text-emerald-500" size={20} />}
+          <span className="font-medium text-sm">{toastMessage.text}</span>
+        </div>
+      )}
+
       <aside className="w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 flex flex-col shrink-0">
         <div className="p-6 flex items-center gap-3">
           <Shield size={32} color="#ffde59" />
