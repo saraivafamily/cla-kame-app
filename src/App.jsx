@@ -1,7 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, getDocs, getDoc } from 'firebase/firestore';
 import { 
   Home, Trophy, Medal, Camera, CheckSquare, Users, 
   LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, 
@@ -9,9 +6,12 @@ import {
   Shield, MessageCircle, Edit, Save, X, User
 } from 'lucide-react';
 
-// ==========================================
-// 1. CONFIGURAÇÃO DO FIREBASE
-// ==========================================
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
+
+// --- ATENÇÃO: COLOQUE AS SUAS CHAVES DO FIREBASE ABAIXO ---
+// Substitua estas chaves de demonstração pelas suas chaves reais do Firebase Console antes de publicar.
 const firebaseConfig = {
   apiKey : "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA" , 
   authDomain : "cla-kame.firebaseapp.com" , 
@@ -21,19 +21,58 @@ const firebaseConfig = {
   messagingSenderId : "253792062726" , 
   appId : "1:253792062726:web:1ee567bbbd175c31ce2287"
 };
+// -----------------------------------------------------------
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = 'cla-kame-oficial'; // ID do projeto na base de dados
+const appId = 'cla-kame-default-id';
 
-// Atalhos para as pastas da base de dados
 const getPublicPath = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 const getPublicDocPath = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-// ==========================================
-// 2. FUNÇÕES E COMPONENTES AUXILIARES
-// ==========================================
+const MOCK_USERS = [
+  { id: 'u1', name: 'Goku', role: 'leader', whatsapp: '5511999999999', password: '123' },
+  { id: 'u2', name: 'Vegeta', role: 'member', whatsapp: '5511988888888', password: '123' },
+  { id: 'u3', name: 'Gohan', role: 'member', whatsapp: '5511977777777', password: '123' },
+];
+
+const MOCK_TEAMS = [
+  { id: 't1', name: 'Kame FC', ownerId: 'u1', shield: '🐢', coach: 'Goku', whatsapp: '5511999999999' },
+  { id: 't2', name: 'Capsule Corp', ownerId: 'u2', shield: '💊', coach: 'Vegeta', whatsapp: '5511988888888' },
+  { id: 't3', name: 'Sayaman United', ownerId: 'u3', shield: '🦸', coach: 'Gohan', whatsapp: '5511977777777' },
+  { id: 't4', name: 'Red Ribbon BR', ownerId: 'u4', shield: '🎀', coach: 'Dr. Gero', whatsapp: '5511966666666' },
+];
+
+const MOCK_COMPETITIONS = [
+  { 
+    id: 'c1', name: 'Liga DLS Clã Kame - Temporada 1', status: 'active', format: 'league', teams: ['t1', 't2', 't3', 't4'],
+    rounds: [
+      {
+        id: 'r1', number: 1, status: 'released',
+        matches: [
+          { id: 'm1_c1_r1', teamA: 't1', teamB: 't2', status: 'pending_play' },
+          { id: 'm2_c1_r1', teamA: 't3', teamB: 't4', status: 'pending_play' }
+        ]
+      },
+      {
+        id: 'r2', number: 2, status: 'locked',
+        matches: [
+          { id: 'm3_c1_r2', teamA: 't1', teamB: 't3', status: 'pending_play' },
+          { id: 'm4_c1_r2', teamA: 't2', teamB: 't4', status: 'pending_play' }
+        ]
+      }
+    ]
+  }
+];
+
+const MOCK_MATCHES = [
+  { 
+    id: 'm1', compId: 'c1', roundId: 'r1', matchId: 'm1_c1_r1', teamA: 't1', teamB: 't2', scoreA: 2, scoreB: 1, status: 'approved', submittedBy: 'u1', imageUrl: null, 
+    goals: [{ teamId: 't1', player: 'Goku', minute: 15 }, { teamId: 't1', player: 'Kuririn', minute: 45 }, { teamId: 't2', player: 'Vegeta', minute: 80 }] 
+  }
+];
+
 const calculateStandings = (matches, teams, compId) => {
   const table = {};
   teams.forEach(t => { table[t.id] = { ...t, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0 }; });
@@ -69,9 +108,132 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
   return <button type={type} onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant]} ${className}`}>{children}</button>;
 };
 
-// ==========================================
-// 3. ECRÃS DO PAINEL (Dashboard, Times, Validação)
-// ==========================================
+const LoginScreen = ({ users, onLogin, onRegister }) => {
+  const [view, setView] = useState('login'); 
+  const [step, setStep] = useState(1); 
+  const [formData, setFormData] = useState({ firstName: '', lastName: '', teamName: '', whatsapp: '', password: '' });
+  const [loginData, setLoginData] = useState({ identifier: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+  const [code, setCode] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+
+  const handleSendCode = (e) => {
+    e.preventDefault();
+    setIsSending(true);
+    setTimeout(() => { setIsSending(false); setStep(2); }, 1500);
+  };
+
+  const handleLoginSubmit = (e) => {
+    e.preventDefault();
+    setLoginError('');
+    const foundUser = users.find(u => 
+      (u.name.toLowerCase() === loginData.identifier.toLowerCase() || u.whatsapp === loginData.identifier) && 
+      u.password === loginData.password
+    );
+    if (foundUser) {
+      onLogin(foundUser.id, rememberMe); 
+    } else {
+      setLoginError('Credenciais inválidas. Verifique os dados e tente novamente.');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 login-wrapper">
+      <div className="login-container">
+        <div className="text-center mb-6 login-header">
+          <div className="text-5xl mb-3 flex justify-center"><Shield size={64} color="#ffde59" /></div>
+          <h1>Clã Kame</h1>
+          <p className="login-subtitle">Sistema de Gestão DLS na Nuvem</p>
+        </div>
+
+        <div className="flex p-1 bg-slate-950 rounded-xl mb-6">
+          <button onClick={() => setView('login')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${view === 'login' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Entrar</button>
+          <button onClick={() => {setView('register'); setStep(1);}} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${view === 'register' ? 'bg-[#ff914d] text-slate-950 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Criar Conta</button>
+        </div>
+
+        {view === 'login' && (
+          <form onSubmit={handleLoginSubmit} className="space-y-4 animate-in fade-in duration-300 login-form-area">
+            {loginError && (
+              <div style={{ color: '#ff914d', fontWeight: 'bold', marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(255, 145, 77, 0.1)', borderRadius: '8px', fontSize: '14px' }}>
+                <AlertCircle size={16} className="inline-block mr-2" /><span>{loginError}</span>
+              </div>
+            )}
+            <div className="input-group">
+              <label>WhatsApp ou Nome do Técnico</label>
+              <input required value={loginData.identifier} onChange={e=>setLoginData({...loginData, identifier: e.target.value})} placeholder="Ex: Vitor ou 5511999999999" />
+            </div>
+            <div className="input-group">
+              <label>Senha</label>
+              <input required type="password" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} placeholder="••••••••" />
+            </div>
+            <div className="login-opcoes">
+              <label className="checkbox-label">
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+                Manter conectado
+              </label>
+              <button type="button" onClick={() => setShowForgot(true)} className="link-esqueci">Esqueci a senha</button>
+            </div>
+            {showForgot && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg text-xs text-emerald-400 text-center animate-in fade-in mt-2">
+                Enviaremos um link de redefinição para o seu WhatsApp cadastrado!
+              </div>
+            )}
+            <button type="submit" className="btn-degrade mt-4">Entrar na Batalha</button>
+          </form>
+        )}
+
+        {view === 'register' && step === 1 && (
+          <form onSubmit={handleSendCode} className="space-y-4 animate-in slide-in-from-right-4 duration-300">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="input-group">
+                <label>Nome</label>
+                <input required value={formData.firstName} onChange={e=>setFormData({...formData, firstName: e.target.value})} placeholder="Ex: Don" />
+              </div>
+              <div className="input-group">
+                <label>Sobrenome</label>
+                <input required value={formData.lastName} onChange={e=>setFormData({...formData, lastName: e.target.value})} placeholder="Ex: Luck" />
+              </div>
+            </div>
+            <div className="input-group">
+              <label>Nome do Time</label>
+              <input required value={formData.teamName} onChange={e=>setFormData({...formData, teamName: e.target.value})} placeholder="Ex: Luckers FC" />
+            </div>
+            <div className="input-group">
+              <label>WhatsApp (com DDD)</label>
+              <input required type="tel" value={formData.whatsapp} onChange={e=>setFormData({...formData, whatsapp: e.target.value})} placeholder="Ex: 11999999999" />
+            </div>
+            <div className="input-group">
+              <label>Crie uma Senha</label>
+              <input required type="password" value={formData.password} onChange={e=>setFormData({...formData, password: e.target.value})} placeholder="Min. 6 caracteres" minLength={6} />
+            </div>
+            <button type="submit" disabled={isSending} className="btn-degrade mt-4">
+              {isSending ? 'A Enviar...' : 'Enviar Código via WhatsApp'}
+            </button>
+          </form>
+        )}
+
+        {view === 'register' && step === 2 && (
+           <form onSubmit={(e) => { e.preventDefault(); onRegister(formData); }} className="space-y-4 animate-in slide-in-from-right-4 duration-300 text-center">
+             <div className="bg-emerald-500/10 text-emerald-400 p-4 rounded-xl mb-4 text-sm border border-emerald-500/20">
+               Código de 4 dígitos enviado para <br/><b className="text-lg tracking-wider text-white mt-1 inline-block">{formData.whatsapp}</b>
+               <span className="text-xs text-slate-400 mt-4 block p-2 bg-slate-950 rounded-lg border border-slate-800">
+                 (Teste: Digite qualquer código, ex: <b>1234</b>)
+               </span>
+             </div>
+             <div>
+               <input required type="text" maxLength={4} value={code} onChange={e=>setCode(e.target.value)} className="w-40 mx-auto text-center tracking-[0.7em] font-bold text-3xl bg-[#3a3b3c] border border-slate-700 rounded-xl p-4 text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/50" placeholder="0000" />
+             </div>
+             <button type="submit" disabled={code.length < 4} className="btn-degrade mt-4">Verificar e Criar Conta</button>
+             <button type="button" onClick={()=>setStep(1)} className="link-esqueci mt-4 block mx-auto">Voltar e corrigir número</button>
+           </form>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const Standings = ({ matches, teams, compId, compName }) => {
   const table = useMemo(() => calculateStandings(matches, teams, compId), [matches, teams, compId]);
 
@@ -87,9 +249,16 @@ const Standings = ({ matches, teams, compId, compName }) => {
         <table className="w-full text-left text-sm whitespace-nowrap">
           <thead className="bg-slate-950/50 text-slate-400 font-medium">
             <tr>
-              <th className="p-4 w-12 text-center">#</th><th className="p-4">Time</th><th className="p-4 text-center">PTS</th>
-              <th className="p-4 text-center">J</th><th className="p-4 text-center">V</th><th className="p-4 text-center">E</th>
-              <th className="p-4 text-center">D</th><th className="p-4 text-center">GP</th><th className="p-4 text-center">GC</th><th className="p-4 text-center">SG</th>
+              <th className="p-4 w-12 text-center">#</th>
+              <th className="p-4">Time</th>
+              <th className="p-4 text-center">PTS</th>
+              <th className="p-4 text-center">J</th>
+              <th className="p-4 text-center">V</th>
+              <th className="p-4 text-center">E</th>
+              <th className="p-4 text-center">D</th>
+              <th className="p-4 text-center">GP</th>
+              <th className="p-4 text-center">GC</th>
+              <th className="p-4 text-center">SG</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/50">
@@ -98,9 +267,12 @@ const Standings = ({ matches, teams, compId, compName }) => {
                 <td className="p-4 text-center font-bold text-slate-500">{index + 1}</td>
                 <td className="p-4 font-medium text-white flex items-center gap-2"><span className="text-xl">{row.shield}</span> {row.name}</td>
                 <td className="p-4 text-center font-bold text-emerald-400">{row.pts}</td>
-                <td className="p-4 text-center text-slate-300">{row.p}</td><td className="p-4 text-center text-slate-300">{row.w}</td>
-                <td className="p-4 text-center text-slate-300">{row.d}</td><td className="p-4 text-center text-slate-300">{row.l}</td>
-                <td className="p-4 text-center text-slate-400">{row.gf}</td><td className="p-4 text-center text-slate-400">{row.ga}</td>
+                <td className="p-4 text-center text-slate-300">{row.p}</td>
+                <td className="p-4 text-center text-slate-300">{row.w}</td>
+                <td className="p-4 text-center text-slate-300">{row.d}</td>
+                <td className="p-4 text-center text-slate-300">{row.l}</td>
+                <td className="p-4 text-center text-slate-400">{row.gf}</td>
+                <td className="p-4 text-center text-slate-400">{row.ga}</td>
                 <td className="p-4 text-center text-slate-400 font-medium">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
               </tr>
             ))}
@@ -517,7 +689,7 @@ const TeamsList = ({ teams, currentUser, onEditTeam }) => {
 const Profile = ({ currentUser, teams, matches, competitions }) => {
   const userTeams = teams.filter(t => t.ownerId === currentUser.id);
 
-  if (userTeams.length === 0) return (<div className="animate-in fade-in text-center p-12 bg-slate-900 rounded-2xl border border-slate-800"><span className="text-6xl mb-4 block">😢</span><h2 className="text-2xl font-bold text-white mb-2">Você não tem um time</h2><p className="text-slate-400">Peça para um líder cadastrar o seu time.</p></div>);
+  if (userTeams.length === 0) return (<div className="animate-in fade-in text-center p-12 bg-slate-900 rounded-2xl border border-slate-800"><span className="text-6xl mb-4 block">😢</span><h2 className="text-2xl font-bold text-white mb-2">Você não tem um time</h2><p className="text-slate-400">Peça para um líder cadastrar seu time.</p></div>);
 
   return (
     <div className="animate-in fade-in duration-500 space-y-6">
@@ -553,7 +725,7 @@ const Profile = ({ currentUser, teams, matches, competitions }) => {
                     <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Partidas</p><p className="text-2xl font-bold text-white">{teamMatches.length}</p></div>
                     <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Vitórias</p><p className="text-2xl font-bold text-emerald-400">{wins}</p></div>
                     <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Aprov.</p><p className="text-2xl font-bold text-amber-400">{teamMatches.length > 0 ? Math.round((wins * 3 + draws) / (teamMatches.length * 3) * 100) : 0}%</p></div>
-                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Golos Marcados</p><p className="text-2xl font-bold text-blue-400">{gf}</p></div>
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Gols Marcados</p><p className="text-2xl font-bold text-blue-400">{gf}</p></div>
                   </div>
                 </div>
                 {biggestWin && (
@@ -576,164 +748,123 @@ const Profile = ({ currentUser, teams, matches, competitions }) => {
   );
 };
 
-// ==========================================
-// 4. MOTOR PRINCIPAL DO APLICATIVO
-// ==========================================
 export default function App() {
   const [fbUser, setFbUser] = useState(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
   
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [competitions, setCompetitions] = useState([]);
   const [matches, setMatches] = useState([]);
 
-  // Estados exclusivos da Tela de Login Seguro (Com E-mail ou Celular)
-  const [identificacao, setIdentificacao] = useState('');
-  const [palavraPasse, setPalavraPasse] = useState('');
-  const [manterConectado, setManterConectado] = useState(true);
-  const [mensagemErro, setMensagemErro] = useState('');
-
+  const [currentUserId, setCurrentUserId] = useState(() => localStorage.getItem('claKameUserId'));
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [selectedCompId, setSelectedCompId] = useState(null);
 
-  // Escuta as mudanças de Autenticação no Firebase
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      setFbUser(user);
-      setIsAuthLoading(false);
-    });
-    return () => unsub();
-  }, []);
+  const currentUser = users.find(u => u.id === currentUserId);
 
-  // Escuta os dados na Nuvem
   useEffect(() => {
-    if (!fbUser) return;
-
-    // Concede permissões ao usuário caso ele não exista no banco de dados
-    const setupProfile = async () => {
-      const userRef = getPublicDocPath('users', fbUser.uid);
-      const snap = await getDoc(userRef);
-      if (!snap.exists()) {
-        const emailOriginal = fbUser.email || '';
-        // Para garantir, você já será líder se tiver 'savio' ou seu número no email
-        const isLeader = emailOriginal.includes('11989000858') || emailOriginal.includes('savio');
-        await setDoc(userRef, {
-          id: fbUser.uid,
-          email: emailOriginal,
-          name: emailOriginal.split('@')[0],
-          role: isLeader ? 'leader' : 'member',
-          whatsapp: emailOriginal.split('@')[0]
-        });
+    const initAuth = async () => {
+      try {
+        if (firebaseConfig.apiKey !== "demo-api-key-so-app-loads" && !firebaseConfig.apiKey.includes("AIzaSyC...")) {
+             await signInAnonymously(auth);
+        } else {
+             setFbUser({ uid: 'mock-user-123' });
+             setIsFirebaseLoading(false);
+             console.warn("Using mock Firebase configuration.");
+        }
+      } catch (err) { 
+          console.error("Erro Auth:", err);
+          setIsFirebaseLoading(false); 
       }
     };
-    setupProfile();
+    initAuth();
+    
+     if (firebaseConfig.apiKey !== "demo-api-key-so-app-loads" && !firebaseConfig.apiKey.includes("AIzaSyC...")) {
+        const unsub = onAuthStateChanged(auth, user => { setFbUser(user); });
+        return () => unsub();
+     }
+  }, []);
 
-    const unsubU = onSnapshot(getPublicPath('users'), snap => setUsers(snap.docs.map(d=>d.data())));
-    const unsubT = onSnapshot(getPublicPath('teams'), snap => setTeams(snap.docs.map(d=>d.data())));
-    const unsubC = onSnapshot(getPublicPath('competitions'), snap => setCompetitions(snap.docs.map(d=>d.data())));
-    const unsubM = onSnapshot(getPublicPath('matches'), snap => setMatches(snap.docs.map(d=>d.data())));
+  useEffect(() => {
+    if (!fbUser) return;
+    
+    if (firebaseConfig.apiKey === "demo-api-key-so-app-loads" || firebaseConfig.apiKey.includes("AIzaSyC...")) {
+        setUsers(MOCK_USERS);
+        setTeams(MOCK_TEAMS);
+        setCompetitions(MOCK_COMPETITIONS);
+        setMatches(MOCK_MATCHES);
+        setIsFirebaseLoading(false);
+        return;
+    }
+
+    const unsubU = onSnapshot(getPublicPath('users'), snap => setUsers(snap.docs.map(d=>d.data())), err => console.error(err));
+    const unsubT = onSnapshot(getPublicPath('teams'), snap => setTeams(snap.docs.map(d=>d.data())), err => console.error(err));
+    const unsubC = onSnapshot(getPublicPath('competitions'), snap => setCompetitions(snap.docs.map(d=>d.data())), err => console.error(err));
+    const unsubM = onSnapshot(getPublicPath('matches'), snap => setMatches(snap.docs.map(d=>d.data())), err => console.error(err));
+
+    const seedDB = async () => {
+      const snap = await getDocs(getPublicPath('users'));
+      if (snap.empty) {
+        MOCK_USERS.forEach(u => setDoc(getPublicDocPath('users', u.id), u));
+        MOCK_TEAMS.forEach(t => setDoc(getPublicDocPath('teams', t.id), t));
+        MOCK_COMPETITIONS.forEach(c => setDoc(getPublicDocPath('competitions', c.id), c));
+        MOCK_MATCHES.forEach(m => setDoc(getPublicDocPath('matches', m.id), m));
+      }
+      setIsFirebaseLoading(false);
+    };
+    seedDB();
 
     return () => { unsubU(); unsubT(); unsubC(); unsubM(); };
   }, [fbUser]);
 
-  // Função inteligente que converte o texto para o formato de entrada
-  const formatarParaEmail = (texto) => {
-    const textoLimpo = texto.trim().toLowerCase();
-    if (textoLimpo.includes('@')) return textoLimpo;
-    return textoLimpo.replace(/[-\s().]/g, '') + '@clakame.com';
+  const handleRegister = async (data) => {
+    const newUserId = `u${Date.now()}`; const newTeamId = `t${Date.now()}`;
+    const fullName = `${data.firstName} ${data.lastName}`;
+    const isLeader = ["vitor", "daniel", "don luck", "goku"].some(name => fullName.toLowerCase().includes(name));
+    
+    const newUser = { id: newUserId, name: fullName, role: isLeader ? 'leader' : 'member', whatsapp: data.whatsapp, password: data.password };
+    const newTeam = { id: newTeamId, name: data.teamName, ownerId: newUserId, shield: '🛡️', coach: fullName, whatsapp: data.whatsapp };
+    
+    await setDoc(getPublicDocPath('users', newUserId), newUser);
+    await setDoc(getPublicDocPath('teams', newTeamId), newTeam);
+    
+    localStorage.setItem('claKameUserId', newUserId);
+    setCurrentUserId(newUserId);
+    setCurrentTab('dashboard');
   };
 
-  // Login Oficial Seguro
-  const tentarLogin = async () => {
-    setMensagemErro('');
-    if (!identificacao || !palavraPasse) { setMensagemErro('Preencha os dados da batalha!'); return; }
-    
-    const emailFake = formatarParaEmail(identificacao);
-    
-    try {
-      await signInWithEmailAndPassword(auth, emailFake, palavraPasse);
-    } catch (error) {
-      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-        setMensagemErro(`Acesso negado: Palavra-passe incorreta ou técnico não encontrado. Tentativa em: ${emailFake}`);
-      } else {
-        setMensagemErro(`Erro do Firebase: ${error.code}`);
-      }
-    }
+  const handleLogin = (userId, rememberMe) => {
+    if (rememberMe) localStorage.setItem('claKameUserId', userId);
+    setCurrentUserId(userId);
+    setCurrentTab('dashboard');
   };
 
-  const fazerLogout = async () => { await signOut(auth); };
+  const handleLogout = () => { setCurrentUserId(null); localStorage.removeItem('claKameUserId'); };
 
-  // Controladores do Painel
   const handleEditTeam = async (updatedTeam) => { await updateDoc(getPublicDocPath('teams', updatedTeam.id), updatedTeam); };
+
   const handleReleaseRound = async (compId, roundId) => {
     const comp = competitions.find(c => c.id === compId);
     if (!comp) return;
     const rounds = comp.rounds.map(r => r.id === roundId ? { ...r, status: 'released' } : r);
     await updateDoc(getPublicDocPath('competitions', compId), { rounds });
   };
+
   const handleCreateComp = async (c) => { await setDoc(getPublicDocPath('competitions', c.id), c); setCurrentTab('competitions'); };
   const handleCreateTeam = async (t) => { await setDoc(getPublicDocPath('teams', t.id), t); setCurrentTab('teams_list'); };
   const handleSubmitMatch = async (m) => { await setDoc(getPublicDocPath('matches', m.id), m); setCurrentTab('dashboard'); };
   const handleUpdateMatchStatus = async (id, st) => { await updateDoc(getPublicDocPath('matches', id), { status: st }); };
 
-  if (isAuthLoading) return <div className="min-h-screen bg-[#18191a] flex items-center justify-center text-[#ffde59] font-bold text-xl"><Shield size={40} className="mr-3 animate-pulse"/> A entrar no Clã Kame...</div>;
+  if (isFirebaseLoading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-emerald-500"><div className="animate-spin text-5xl">🐢</div><span className="ml-4 text-white">Conectando à Nuvem...</span></div>;
+  if (!currentUserId || !currentUser) return <LoginScreen users={users} onLogin={handleLogin} onRegister={handleRegister} />;
 
-  const currentUser = users.find(u => u.id === fbUser?.uid);
-
-  // ==========================================
-  // ECRÃ DE LOGIN (Com fundo escuro)
-  // ==========================================
-  if (!fbUser || !currentUser) {
-    return (
-      <div className="login-wrapper">
-        <div className="login-container">
-          <div className="login-header">
-            <Shield size={64} color="#ffde59" style={{ margin: '0 auto -10px auto', display: 'block' }} />
-            <h1>Clã Kame</h1>
-            <p className="login-subtitle" style={{ marginBottom: '20px' }}>Sistema de Gestão DLS na Nuvem</p>
-          </div>
-
-          <div className="login-form-area">
-            {mensagemErro && (
-              <div style={{ color: '#ff914d', fontWeight: 'bold', marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(255, 145, 77, 0.1)', borderRadius: '8px', fontSize: '14px' }}>
-                {mensagemErro}
-              </div>
-            )}
-
-            <div className="input-group">
-              <label>E-mail ou Celular (com DDD)</label>
-              <input type="text" placeholder="Ex: vitor@email.com ou 11999999999" value={identificacao} onChange={(e) => setIdentificacao(e.target.value)} />
-            </div>
-
-            <div className="input-group">
-              <label>Senha</label>
-              <input type="password" placeholder="••••••••" value={palavraPasse} onChange={(e) => setPalavraPasse(e.target.value)} />
-            </div>
-
-            <div className="login-opcoes">
-              <label className="checkbox-label">
-                <input type="checkbox" checked={manterConectado} onChange={(e) => setManterConectado(e.target.checked)} /> Manter conectado
-              </label>
-              <button className="link-esqueci" onClick={() => alert('Função Esqueci a Senha em construção')}>Esqueci a senha</button>
-            </div>
-
-            <button className="btn-degrade" onClick={tentarLogin}>Entrar</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ==========================================
-  // PAINEL DE CONTROLE OFICIAL (Dashboard)
-  // ==========================================
   const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home },
     { id: 'profile', label: 'Meu Perfil', icon: User },
     { id: 'teams_list', label: 'Times', icon: Shield },
     { id: 'competitions', label: 'Competições', icon: Medal },
-    { id: 'submit', label: 'Registar Jogo', icon: Camera },
+    { id: 'submit', label: 'Registrar Jogo', icon: Camera },
     ...(currentUser.role === 'leader' ? [
       { id: 'validation', label: 'Validação', icon: CheckSquare },
       { id: 'create_comp', label: 'Nova Comp', icon: PlusCircle },
@@ -762,8 +893,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans flex flex-col md:flex-row">
       <aside className="w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 flex flex-col shrink-0">
         <div className="p-6 flex items-center gap-3">
-          <Shield size={32} color="#ffde59" />
-          <div><h1 className="font-bold text-white text-xl">Clã Kame</h1><p className="text-xs text-emerald-400">Ao Vivo • Nuvem</p></div>
+          <span className="text-3xl">🐢</span><div><h1 className="font-bold text-white text-xl">Clã Kame</h1><p className="text-xs text-emerald-400">Ao Vivo • Nuvem</p></div>
         </div>
         <nav className="flex-1 px-4 pb-4 overflow-y-auto flex md:flex-col gap-2 overflow-x-auto">
           {TABS.map(tab => {
@@ -780,7 +910,7 @@ export default function App() {
           <div className="bg-slate-950 rounded-xl p-4 border border-slate-800/50">
             <p className="font-medium text-white truncate text-sm">{currentUser.name}</p>
             <p className="text-xs text-slate-500 mb-3">{currentUser.role === 'leader' ? 'Líder Supremo' : 'Membro Oficial'}</p>
-            <button onClick={fazerLogout} className="w-full flex items-center justify-center gap-2 text-xs text-slate-400 hover:text-white py-2 rounded-lg hover:bg-slate-800 transition-colors"><LogOut size={14} /> Sair</button>
+            <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 text-xs text-slate-400 hover:text-white py-2 rounded-lg hover:bg-slate-800 transition-colors"><LogOut size={14} /> Sair</button>
           </div>
         </div>
       </aside>
