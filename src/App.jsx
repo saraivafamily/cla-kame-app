@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 
 // ==========================================
-// 1. CONFIGURAÇÃO DO FIREBASE (O SEU CÓDIGO)
+// 1. CONFIGURAÇÃO REAL DO FIREBASE
 // ==========================================
 const firebaseConfig = {
   apiKey : "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA" , 
@@ -22,7 +22,6 @@ const firebaseConfig = {
   appId : "1:253792062726:web:1ee567bbbd175c31ce2287"
 };
 
-// Inicializa o Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -32,7 +31,7 @@ const getPublicPath = (colName) => collection(db, 'artifacts', appId, 'public', 
 const getPublicDocPath = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
 // ==========================================
-// 2. COMPONENTES DO PAINEL DE CONTROLO
+// 2. FUNÇÕES E COMPONENTES DO PAINEL
 // ==========================================
 const calculateStandings = (matches, teams, compId) => {
   const table = {};
@@ -69,7 +68,6 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
   return <button type={type} onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant]} ${className}`}>{children}</button>;
 };
 
-// ... SUB-ECRÃS DO PAINEL ...
 const Standings = ({ matches, teams, compId, compName }) => {
   const table = useMemo(() => calculateStandings(matches, teams, compId), [matches, teams, compId]);
   return (
@@ -320,42 +318,9 @@ const ValidationPanel = ({ matches, teams, onUpdateStatus }) => {
 };
 
 // ==========================================
-// 4. MOTOR PRINCIPAL
+// 3. MOTOR CENTRAL DO APLICATIVO
 // ==========================================
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
-  }
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-  componentDidCatch(error, errorInfo) {
-    this.setState({ errorInfo });
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ padding: '40px', backgroundColor: '#18191a', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', fontFamily: 'sans-serif' }}>
-          <div style={{ backgroundColor: '#242526', padding: '30px', borderRadius: '15px', border: '2px solid #ff914d', maxWidth: '800px', textAlign: 'center' }}>
-            <h1 style={{ color: '#ffde59', marginBottom: '15px' }}>⚠️ O Radar encontrou um erro!</h1>
-            <p style={{ color: '#e4e6eb', marginBottom: '20px' }}>
-              A tela ficou preta porque uma peça do painel falhou. Por favor, <b>copie o texto vermelho abaixo</b> ou tire um print e mande para mim para eu lhe dar a solução exata na hora:
-            </p>
-            <div style={{ backgroundColor: '#18191a', padding: '15px', borderRadius: '8px', textAlign: 'left', overflowX: 'auto' }}>
-              <p style={{ color: '#ff4d4d', fontWeight: 'bold', margin: '0 0 10px 0' }}>{this.state.error && this.state.error.toString()}</p>
-              <pre style={{ color: '#a8b2c1', fontSize: '12px', margin: 0 }}>{this.state.errorInfo && this.state.errorInfo.componentStack}</pre>
-            </div>
-            <button onClick={() => window.location.reload()} style={{ marginTop: '20px', padding: '10px 20px', backgroundColor: '#ff914d', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', border: 'none' }}>Tentar Recarregar</button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-function MainApp() {
+export default function App() {
   const [fbUser, setFbUser] = useState(null);
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
   
@@ -364,9 +329,7 @@ function MainApp() {
   const [competitions, setCompetitions] = useState([]);
   const [matches, setMatches] = useState([]);
 
-  // ==========================================
-  // ESTADOS DO SEU CÓDIGO DE LOGIN
-  // ==========================================
+  // Estados do seu formulário exato
   const [identificacao, setIdentificacao] = useState('');
   const [palavraPasse, setPalavraPasse] = useState('');
   const [manterConectado, setManterConectado] = useState(false);
@@ -375,18 +338,19 @@ function MainApp() {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [selectedCompId, setSelectedCompId] = useState(null);
 
+  // Verifica a sessão
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       setFbUser(user);
-      setIsFirebaseLoading(false);
+      setIsFirebaseLoading(false); // Liberta a tela de carregamento!
     });
     return () => unsub();
   }, []);
 
+  // Sincroniza dados e garante perfil
   useEffect(() => {
     if (!fbUser) return;
     
-    // Auto-cria perfil no Firestore caso não exista
     const setupProfile = async () => {
       try {
         const userRef = getPublicDocPath('users', fbUser.uid);
@@ -398,7 +362,7 @@ function MainApp() {
             id: fbUser.uid, email: emailOriginal, name: emailOriginal.split('@')[0], role: isLeader ? 'leader' : 'member', whatsapp: emailOriginal.split('@')[0]
           });
         }
-      } catch (err) { console.error("Erro ao criar perfil:", err); }
+      } catch (err) { console.error("Erro perfil:", err); }
     };
     setupProfile();
 
@@ -410,9 +374,7 @@ function MainApp() {
     return () => { unsubU(); unsubT(); unsubC(); unsubM(); };
   }, [fbUser]);
 
-  // ==========================================
-  // FUNÇÕES DO SEU CÓDIGO (Intactas)
-  // ==========================================
+  // Seu Login Inteligente
   const formatarParaEmail = (texto) => {
     const textoLimpo = texto.trim().toLowerCase();
     if (textoLimpo.includes('@')) { return textoLimpo; }
@@ -422,32 +384,22 @@ function MainApp() {
 
   const tentarLogin = async () => {
     setMensagemErro('');
-    if (!identificacao || !palavraPasse) {
-      setMensagemErro('Preencha os dados da batalha!');
-      return;
-    }
+    if (!identificacao || !palavraPasse) { setMensagemErro('Preencha os dados da batalha!'); return; }
+    
     const emailFake = formatarParaEmail(identificacao);
+    
     try {
-      setIsFirebaseLoading(true);
       await signInWithEmailAndPassword(auth, emailFake, palavraPasse);
     } catch (error) {
-      setIsFirebaseLoading(false);
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
         setMensagemErro(`Acesso negado: Palavra-passe incorreta ou técnico não encontrado.`);
-      } else if (error.code === 'auth/operation-not-allowed') {
-        setMensagemErro(`Erro: O método E-mail/Senha está desativado no Firebase!`);
       } else {
         setMensagemErro(`Erro do Firebase: ${error.code}`);
       }
     }
   };
 
-  const fazerLogout = async () => { 
-    await signOut(auth); 
-    setCurrentTab('dashboard');
-  };
-
-  // Funções de Gestão do Painel
+  const fazerLogout = async () => { await signOut(auth); setCurrentTab('dashboard'); };
   const handleReleaseRound = async (compId, roundId) => {
     const comp = competitions.find(c => c.id === compId);
     if (!comp) return;
@@ -458,78 +410,89 @@ function MainApp() {
   const handleUpdateMatchStatus = async (id, st) => { await updateDoc(getPublicDocPath('matches', id), { status: st }); };
 
   // ==========================================
-  // RENDERIZAÇÃO
+  // RENDERIZAÇÃO E PROTEÇÃO DE TELAS
   // ==========================================
   
+  // Proteção 1: Firebase a pensar (Mostra uma tela robusta independente de estilos)
   if (isFirebaseLoading) {
-    return <div className="min-h-screen bg-[#18191a] flex items-center justify-center text-[#ffde59] font-bold text-xl"><Shield size={40} className="mr-3 animate-pulse"/> A conectar ao Clã Kame...</div>;
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#18191a', color: '#ffde59', fontFamily: 'sans-serif' }}>
+        <h2>🛡️ A preparar o Clã Kame...</h2>
+      </div>
+    );
   }
 
+  // Proteção 2: Carregar o perfil do guerreiro
   const currentUser = users.find(u => u.id === fbUser?.uid);
+  if (fbUser && !currentUser) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#18191a', color: '#ffde59', fontFamily: 'sans-serif' }}>
+        <h2>⏳ A carregar o seu Quartel General...</h2>
+      </div>
+    );
+  }
 
-  // SE NÃO ESTIVER LOGADO -> MOSTRA EXATAMENTE O SEU ECRÃ (Mas embrulhado no 'login-wrapper' para centralizar)
+  // O SEU LOGIN ORIGINAL PERFEITO E CENTRALIZADO
   if (!fbUser || !currentUser) {
     return (
-      <div className="login-wrapper">
-        <div className="login-container">
-          <div className="login-header">
-            <Shield size={64} color="#ffde59" style={{ margin: '0 auto -10px auto', display: 'block' }} />
-            <h1>Clã Kame</h1>
-            <p className="login-subtitle" style={{ marginBottom: '20px' }}>Sistema de Gestão DLS na Nuvem</p>
+      <div className="login-wrapper" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#18191a' }}>
+        <div className="login-container" style={{ backgroundColor: '#242526', padding: '40px', borderRadius: '20px', textAlign: 'center', width: '90%', maxWidth: '400px', border: '2px solid #3a3b3c', color: 'white', fontFamily: 'sans-serif' }}>
+          
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}><Shield size={64} color="#ffde59" /></div>
+            <h1 style={{ margin: 0, color: 'white', fontSize: '32px', fontWeight: 'bold' }}>Clã Kame</h1>
+            <p style={{ color: '#b0b3b8', fontSize: '14px', marginTop: '5px' }}>Sistema de Gestão DLS na Nuvem</p>
           </div>
 
-          <div className="login-form-area">
-            {mensagemErro && (
-              <div style={{ color: '#ff914d', fontWeight: 'bold', marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(255, 145, 77, 0.1)', borderRadius: '8px' }}>
-                {mensagemErro}
-              </div>
-            )}
-
-            <div className="input-group">
-              <label>E-mail ou Celular (com DDD)</label>
-              <input 
-                type="text" 
-                placeholder="Ex: vitor@email.com ou 11999999999" 
-                value={identificacao}
-                onChange={(evento) => setIdentificacao(evento.target.value)}
-              />
+          {mensagemErro && (
+            <div style={{ color: '#ff914d', fontWeight: 'bold', marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(255, 145, 77, 0.1)', borderRadius: '8px', fontSize: '14px' }}>
+              {mensagemErro}
             </div>
+          )}
 
-            <div className="input-group">
-              <label>Senha</label>
-              <input 
-                type="password" 
-                placeholder="••••••••" 
-                value={palavraPasse}
-                onChange={(evento) => setPalavraPasse(evento.target.value)}
-              />
-            </div>
-
-            <div className="login-opcoes">
-              <label className="checkbox-label">
-                <input 
-                  type="checkbox" 
-                  checked={manterConectado} 
-                  onChange={(evento) => setManterConectado(evento.target.checked)} 
-                /> 
-                Manter conectado
-              </label>
-              <button className="link-esqueci" onClick={() => alert('Função Esqueci a Senha em construção')}>
-                Esqueci a senha
-              </button>
-            </div>
-
-            {/* APENAS O BOTÃO DE ENTRAR */}
-            <button className="btn-degrade" onClick={tentarLogin}>
-              Entrar
-            </button>
+          <div style={{ textAlign: 'left', marginBottom: '15px' }}>
+            <label style={{ fontSize: '14px', color: '#b0b3b8', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>E-mail ou Celular (com DDD)</label>
+            <input 
+              type="text" 
+              placeholder="Ex: vitor@email.com ou 11999999999" 
+              value={identificacao}
+              onChange={(evento) => setIdentificacao(evento.target.value)}
+              style={{ width: '100%', padding: '12px', backgroundColor: '#3a3b3c', border: 'none', borderRadius: '8px', color: 'white', outline: 'none' }}
+            />
           </div>
+
+          <div style={{ textAlign: 'left', marginBottom: '15px' }}>
+            <label style={{ fontSize: '14px', color: '#b0b3b8', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Senha</label>
+            <input 
+              type="password" 
+              placeholder="••••••••" 
+              value={palavraPasse}
+              onChange={(evento) => setPalavraPasse(evento.target.value)}
+              style={{ width: '100%', padding: '12px', backgroundColor: '#3a3b3c', border: 'none', borderRadius: '8px', color: 'white', outline: 'none' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '25px', color: '#b0b3b8' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={manterConectado} onChange={(evento) => setManterConectado(evento.target.checked)} /> 
+              Manter conectado
+            </label>
+            <span style={{ color: '#ffde59', cursor: 'pointer' }} onClick={() => alert('Função em construção')}>Esqueci a senha</span>
+          </div>
+
+          <button 
+            onClick={tentarLogin}
+            style={{ width: '100%', padding: '15px', borderRadius: '10px', background: 'linear-gradient(135deg, #ffde59 0%, #ff914d 100%)', color: 'black', fontWeight: 'bold', fontSize: '16px', border: 'none', cursor: 'pointer', textTransform: 'uppercase' }}
+          >
+            Entrar
+          </button>
+
         </div>
       </div>
     );
   }
 
-  // SE ESTIVER LOGADO -> MOSTRA O PAINEL DE GESTÃO COMPLETO
+  // O PAINEL DE GESTÃO
   const isLeader = currentUser?.role === 'leader';
   const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home },
@@ -579,13 +542,5 @@ function MainApp() {
       </aside>
       <main className="flex-1 p-4 md:p-8 overflow-y-auto"><div className="max-w-5xl mx-auto pb-20 md:pb-0">{renderContent()}</div></main>
     </div>
-  );
-}
-
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <MainApp />
-    </ErrorBoundary>
   );
 }
