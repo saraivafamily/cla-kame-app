@@ -772,24 +772,34 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]);
 
       try {
-        const apiKey = ""; // A chave é fornecida pelo ambiente
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        // ⚠️ ATENÇÃO: COLOQUE A SUA CHAVE DA API DO GEMINI AQUI!
+        // É ela que permite que o seu site na Vercel "enxergue" a foto.
+        const apiKey = ""; 
+        
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
         const b64Data = base64.split(',')[1];
         const mimeType = base64.match(/data:(.*?);base64/)[1];
 
+        // Aqui é onde ensinamos a IA a ler a tela do DLS!
         const promptText = `
-          Analise este print de tela do jogo Dream League Soccer.
-          O time da esquerda na imagem é o "${teamA?.name}" e o da direita é o "${teamB?.name}".
-          Extraia o placar numérico e os autores dos gols de cada time, incluindo o minuto exato em que o gol ocorreu.
-          Retorne um JSON válido estritamente com este formato:
+          Você é um assistente analisador de imagens do jogo Dream League Soccer (DLS).
+          A imagem é um print do resultado final de uma partida.
+          O time da casa (esquerda) é o "${teamA?.name}" e o visitante (direita) é o "${teamB?.name}".
+          
+          Sua tarefa:
+          1. Identifique o placar numérico final.
+          2. Identifique os autores dos gols de cada time e os minutos exatos (ex: 10, 45, 87).
+          
+          Retorne APENAS um JSON válido estritamente com este formato:
           {
             "scoreA": 0,
             "scoreB": 0,
-            "goalsA": [{"player": "Nome", "minute": "Minuto"}],
-            "goalsB": [{"player": "Nome", "minute": "Minuto"}]
+            "goalsA": [{"player": "Nome do Jogador", "minute": "Minuto"}],
+            "goalsB": [{"player": "Nome do Jogador", "minute": "Minuto"}]
           }
-          Se não houver gols para um time, retorne uma lista vazia []. Apenas números nos scores.
+          Se não houver gols para um dos times, retorne uma lista vazia []. 
+          NÃO ESCREVA MAIS NADA ALÉM DO JSON. SEM MARCAÇÕES MARKDOWN.
         `;
 
         const payload = {
@@ -801,16 +811,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
             ]
           }],
           generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: "OBJECT",
-              properties: {
-                scoreA: { type: "INTEGER" },
-                scoreB: { type: "INTEGER" },
-                goalsA: { type: "ARRAY", items: { type: "OBJECT", properties: { player: { type: "STRING" }, minute: { type: "STRING" } } } },
-                goalsB: { type: "ARRAY", items: { type: "OBJECT", properties: { player: { type: "STRING" }, minute: { type: "STRING" } } } }
-              }
-            }
+            responseMimeType: "application/json"
           }
         };
 
@@ -823,7 +824,10 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
         const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
         
         if (textResponse) {
-          const data = JSON.parse(textResponse);
+          // Garante que o texto vire código de verdade mesmo que a IA erre a formatação
+          const cleanedText = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+          const data = JSON.parse(cleanedText);
+          
           setScoreA(data.scoreA?.toString() || '0');
           setScoreB(data.scoreB?.toString() || '0');
           setGoalsA(data.goalsA || []);
@@ -835,7 +839,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
       } catch (error) {
         console.error("Erro na Análise da IA:", error);
-        showToast("A IA não conseguiu ler o print com precisão. Preencha os dados manualmente.", "error");
+        showToast("A IA falhou ao ler o print. Verifique a chave da API ou preencha manualmente.", "error");
       } finally {
         setIsAnalyzing(false);
         setImageUploaded(true);
