@@ -10,6 +10,13 @@ import {
 } from 'lucide-react';
 
 // ==========================================
+// CONFIGURAÇÃO DE LOGÓTIPO PERSONALIZADO
+// ==========================================
+// Cole aqui o link direto da imagem que deseja usar como logótipo oficial do aplicativo.
+// Se deixar vazio (""), o sistema utilizará automaticamente o ícone de escudo amarelo padrão.
+const LOGO_URL = "https://i.imgur.com/NTbkaER.png"; 
+
+// ==========================================
 // 1. CONFIGURAÇÃO REAL DO FIREBASE
 // ==========================================
 const firebaseConfig = {
@@ -113,10 +120,15 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
 // 3. ECRÃS DE GESTÃO DO CLÃ
 // ==========================================
 
-const MembersList = ({ users, teams, currentUser, onUpdateUserRole, onExpelUser, onEditUser }) => {
+const MembersList = ({ users, teams, currentUser, onUpdateUserRole, onExpelUser, onEditUser, onLinkTeam }) => {
   const [expelConfirmId, setExpelConfirmId] = useState(null);
   const [editingUserId, setEditingUserId] = useState(null);
   const [editData, setEditData] = useState({ name: '', whatsapp: '', email: '' });
+  
+  // Estados para o Modal de Vincular Time
+  const [linkingTeamUserId, setLinkingTeamUserId] = useState(null);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamShield, setNewTeamShield] = useState(null);
   
   const isLeader = currentUser?.role === 'leader';
 
@@ -155,7 +167,6 @@ const MembersList = ({ users, teams, currentUser, onUpdateUserRole, onExpelUser,
             {users.map(user => {
               const userTeam = teams.find(t => t.ownerId === user.id);
               
-              // MODO DE EDIÇÃO PARA O LÍDER SUPREMO
               if (editingUserId === user.id) {
                 return (
                   <tr key={user.id} className="bg-slate-800/80 transition-colors">
@@ -180,24 +191,62 @@ const MembersList = ({ users, teams, currentUser, onUpdateUserRole, onExpelUser,
                 );
               }
 
-              // MODO DE VISUALIZAÇÃO NORMAL
               return (
                 <tr key={user.id} className="hover:bg-slate-800/50 transition-colors">
-                  <td className="p-4 font-bold text-white flex items-center">
-                    {user.name}
-                    {isLeader && <button onClick={() => startEdit(user)} className="ml-2 text-slate-500 hover:text-amber-400 transition-colors" title="Editar Técnico"><Edit size={14} /></button>}
+                  <td className="p-4 font-bold text-white">
+                    <div className="flex items-center gap-1.5">
+                      <span>{user.name}</span>
+                      {isLeader && (
+                        <button onClick={() => startEdit(user)} className="text-slate-500 hover:text-amber-400 transition-colors p-0.5" title="Editar Nome do Técnico">
+                          <Edit size={13} />
+                        </button>
+                      )}
+                    </div>
                   </td>
+                  
                   <td className="p-4 text-emerald-400 font-medium">
-                    {userTeam ? <div className="flex items-center gap-2"><ShieldDisplay shield={userTeam.shield} size="small" /> {userTeam.name}</div> : <span className="text-slate-500">Sem time</span>}
+                    {userTeam ? (
+                      <div className="flex items-center gap-2">
+                        <ShieldDisplay shield={userTeam.shield} size="small" /> 
+                        <span>{userTeam.name}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500 text-xs">Sem time</span>
+                        {isLeader && (
+                          <button 
+                            onClick={() => {
+                              setLinkingTeamUserId(user.id);
+                              setNewTeamName('');
+                              setNewTeamShield(null);
+                            }}
+                            className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/30 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1"
+                          >
+                            <PlusCircle size={12}/> Cadastrar Time
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
-                  <td className="p-4 text-slate-300 flex items-center">
-                    {user.whatsapp || '-'}
-                    {isLeader && <button onClick={() => startEdit(user)} className="ml-2 text-slate-500 hover:text-amber-400 transition-colors" title="Editar WhatsApp"><Edit size={14} /></button>}
+
+                  <td className="p-4 text-slate-300">
+                    <div className="flex items-center gap-1.5">
+                      <span>{user.whatsapp || '-'}</span>
+                      {isLeader && (
+                        <button onClick={() => startEdit(user)} className="text-slate-500 hover:text-amber-400 transition-colors p-0.5" title="Editar WhatsApp">
+                          <Edit size={13} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td className="p-4 text-slate-400">
-                    <div className="flex items-center">
-                      {user.email || '-'}
-                      {isLeader && <button onClick={() => startEdit(user)} className="ml-2 text-slate-500 hover:text-amber-400 transition-colors" title="Editar E-mail"><Edit size={14} /></button>}
+                    <div className="flex items-center gap-1.5">
+                      <span>{user.email || '-'}</span>
+                      {isLeader && (
+                        <button onClick={() => startEdit(user)} className="text-slate-500 hover:text-amber-400 transition-colors p-0.5" title="Editar E-mail">
+                          <Edit size={13} />
+                        </button>
+                      )}
                     </div>
                   </td>
                   <td className="p-4">
@@ -206,7 +255,6 @@ const MembersList = ({ users, teams, currentUser, onUpdateUserRole, onExpelUser,
                     {user.role === 'member' && <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-500/10 px-2 py-1 rounded border border-slate-500/20"><User size={12}/> Membro Oficial</span>}
                   </td>
                   <td className="p-4 text-center flex items-center justify-center gap-2">
-                    {/* Alterar Cargo só para Líder e Kaioh */}
                     <select 
                       value={user.role} 
                       onChange={(e) => onUpdateUserRole(user.id, e.target.value)}
@@ -217,7 +265,6 @@ const MembersList = ({ users, teams, currentUser, onUpdateUserRole, onExpelUser,
                       <option value="leader">Líder</option>
                     </select>
                     
-                    {/* Apenas o Líder Supremo vê o botão de expulsão */}
                     {isLeader && (
                       expelConfirmId === user.id ? (
                         <div className="flex items-center gap-1">
@@ -240,6 +287,80 @@ const MembersList = ({ users, teams, currentUser, onUpdateUserRole, onExpelUser,
           </tbody>
         </table>
       </div>
+
+      {/* MODAL DE CADASTRO RÁPIDO E VÍNCULO DE TIME */}
+      {linkingTeamUserId && (() => {
+        const userToLink = users.find(u => u.id === linkingTeamUserId);
+        return (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-md w-full space-y-5 shadow-2xl">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Shield className="text-emerald-500" size={20} />
+                  Vincular Time ao Técnico
+                </h3>
+                <button onClick={() => setLinkingTeamUserId(null)} className="text-slate-400 hover:text-white">
+                  <X size={18} />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Técnico Selecionado</label>
+                  <input type="text" readOnly value={userToLink ? userToLink.name : ''} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-400 text-sm outline-none cursor-not-allowed" />
+                </div>
+
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                  <label className="block text-xs text-slate-400 mb-2">Escudo do Time</label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-slate-900 rounded-xl border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                      <ShieldDisplay shield={newTeamShield} size="large" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="cursor-pointer bg-slate-800 hover:bg-emerald-600 text-white transition-colors px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 max-w-[150px]">
+                        <UploadCloud size={14} />
+                        Enviar Imagem
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], setNewTeamShield)} />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Nome do Time</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Kame FC" 
+                    value={newTeamName} 
+                    onChange={e => setNewTeamName(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white text-sm outline-none transition-colors" 
+                    required 
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button variant="outline" onClick={() => setLinkingTeamUserId(null)} className="flex-1 text-xs py-2">Cancelar</Button>
+                <Button 
+                  onClick={async () => {
+                    if (!newTeamName.trim()) {
+                      alert('Por favor, insira o nome do time.');
+                      return;
+                    }
+                    const success = await onLinkTeam(linkingTeamUserId, newTeamName, newTeamShield);
+                    if (success) {
+                      setLinkingTeamUserId(null);
+                    }
+                  }} 
+                  className="flex-1 text-xs py-2 bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/50"
+                >
+                  Vincular time ao técnico
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
@@ -303,7 +424,6 @@ const TeamsList = ({ teams, users, currentUser, onEditTeam, onDeleteTeam }) => {
           return (
             <div key={team.id} className="relative bg-slate-900 p-6 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 group overflow-hidden">
               
-              {/* Botões de Ação (Apenas Admins) */}
               {isAdmin && (
                 <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all bg-slate-900/90 backdrop-blur-sm p-1 rounded-lg border border-slate-700/50 shadow-xl">
                   {deleteConfirmId === team.id ? (
@@ -833,7 +953,6 @@ export default function App() {
              });
              await deleteDoc(pendingSnap.ref); 
           } else {
-             // FORÇA O RECONHECIMENTO DO LÍDER SÁVIO
              const isSavio = emailOriginal === 'saviosaraiva777@gmail.com' || emailOriginal.includes('savio') || emailOriginal.includes('91998270658');
              
              let finalName = userWhatsapp || emailOriginal.split('@')[0];
@@ -980,6 +1099,32 @@ export default function App() {
     showToast("Dados do técnico atualizados com sucesso!", "success");
   };
 
+  const handleLinkTeam = async (userId, teamName, teamShield) => {
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return false;
+
+    const cleanTeamName = teamName.trim().toLowerCase();
+    
+    const isDuplicateTeam = teams.some(t => t.name.trim().toLowerCase() === cleanTeamName);
+    if (isDuplicateTeam) {
+      showToast("Erro: Já existe outro time registrado com este nome.", "error");
+      return false;
+    }
+
+    const teamId = `t${Date.now()}`;
+    await setDoc(getPublicDocPath('teams', teamId), {
+      id: teamId,
+      name: teamName,
+      coach: targetUser.name,
+      whatsapp: targetUser.whatsapp,
+      ownerId: userId,
+      shield: teamShield || '🛡'
+    });
+
+    showToast(`Time ${teamName} criado e vinculado com sucesso!`, "success");
+    return true;
+  };
+
   const handleDeleteTeam = async (teamId, ownerId) => {
     await deleteDoc(getPublicDocPath('teams', teamId));
     
@@ -1100,7 +1245,11 @@ export default function App() {
       <div className="login-wrapper" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#18191a' }}>
         <div className="login-container" style={{ backgroundColor: '#242526', padding: '40px', borderRadius: '20px', textAlign: 'center', width: '90%', maxWidth: '400px', border: '2px solid #3a3b3c', color: 'white', fontFamily: 'sans-serif' }}>
           <div style={{ marginBottom: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}><Shield size={64} color="#ffde59" /></div>
+            {LOGO_URL ? (
+              <img src={LOGO_URL} alt="Clã Kame" style={{ margin: '0 auto 15px auto', display: 'block', maxHeight: '100px', objectFit: 'contain' }} />
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}><Shield size={64} color="#ffde59" /></div>
+            )}
             <h1 style={{ margin: 0, color: 'white', fontSize: '32px', fontWeight: 'bold' }}>Clã Kame</h1>
             <p style={{ color: '#b0b3b8', fontSize: '14px', marginTop: '5px' }}>Sistema de Gestão DLS na Nuvem</p>
           </div>
@@ -1140,7 +1289,7 @@ export default function App() {
       case 'validation': return <ValidationPanel matches={matches} teams={teams} onUpdateStatus={handleUpdateMatchStatus} showToast={showToast} />;
       case 'create_comp': return <CreateCompetition teams={teams} onCreate={handleCreateComp} showToast={showToast} />;
       case 'create_team': return <CreateTeam onCreate={handleCreateTeam} showToast={showToast} />;
-      case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onUpdateUserRole={handleUpdateUserRole} onExpelUser={handleExpelUser} onEditUser={handleEditUser} />;
+      case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onUpdateUserRole={handleUpdateUserRole} onExpelUser={handleExpelUser} onEditUser={handleEditUser} onLinkTeam={handleLinkTeam} />;
       default: return null;
     }
   };
@@ -1158,7 +1307,11 @@ export default function App() {
 
       <aside className="w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 flex flex-col shrink-0">
         <div className="p-6 flex items-center gap-3">
-          <Shield size={32} color="#ffde59" />
+          {LOGO_URL ? (
+            <img src={LOGO_URL} alt="Clã Kame" className="w-10 h-10 object-contain" />
+          ) : (
+            <Shield size={32} color="#ffde59" />
+          )}
           <div><h1 className="font-bold text-white text-xl">Clã Kame</h1><p className="text-xs text-emerald-400">Ao Vivo • Nuvem</p></div>
         </div>
         <nav className="flex-1 px-4 pb-4 overflow-y-auto flex md:flex-col gap-2 overflow-x-auto">
