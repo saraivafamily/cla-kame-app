@@ -13,13 +13,12 @@ import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, getDocs }
 // --- ATENÇÃO: COLOQUE AS SUAS CHAVES DO FIREBASE ABAIXO ---
 // Substitua estas chaves de demonstração pelas suas chaves reais do Firebase Console antes de publicar.
 const firebaseConfig = {
-  apiKey : "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA" , 
-  authDomain : "cla-kame.firebaseapp.com" , 
-  databaseURL : "https://cla-kame-default-rtdb.firebaseio.com" , 
-  projectId : "cla-kame" , 
-  storageBucket : "cla-kame.firebasestorage.app" , 
-  messagingSenderId : "253792062726" , 
-  appId : "1:253792062726:web:1ee567bbbd175c31ce2287"
+  apiKey: "demo-api-key-so-app-loads", 
+  authDomain: "demo-project.firebaseapp.com",
+  projectId: "demo-project",
+  storageBucket: "demo-project.appspot.com",
+  messagingSenderId: "123456",
+  appId: "1:123456:web:abcde"
 };
 // -----------------------------------------------------------
 
