@@ -15,7 +15,7 @@ import {
 const LOGO_URL = "https://i.imgur.com/NTbkaER.png"; 
 
 // ==========================================
-// 1. CONFIGURAÇÃO REAL DO FIREBASE
+// 1. CONFIGURAÇÃO REAL DO FIREBASE E API
 // ==========================================
 const firebaseConfig = {
   apiKey : "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA", 
@@ -31,6 +31,12 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'cla-kame-oficial';
+
+// Buscador Seguro da Chave da IA (Puxa da Vercel automaticamente)
+const getGeminiApiKey = () => {
+  try { return import.meta.env.VITE_GEMINI_API_KEY; } catch(e) {}
+  return "";
+};
 
 const getPublicPath = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 const getPublicDocPath = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
@@ -49,7 +55,10 @@ const fetchWithBackoff = async (url, options, retries = 5) => {
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(url, options);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Erro HTTP ${response.status}: ${errText}`);
+      }
       return await response.json();
     } catch (error) {
       if (i === retries - 1) throw error;
@@ -80,7 +89,6 @@ const processImage = (file, callback) => {
   reader.readAsDataURL(file);
 };
 
-// Nova função para processar prints da partida (tamanho maior para a IA conseguir ler)
 const processScreenshot = (file, callback) => {
   if (!file) return;
   const reader = new FileReader();
@@ -88,14 +96,14 @@ const processScreenshot = (file, callback) => {
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const MAX_SIZE = 800; // Tamanho ideal para leitura da IA sem sobrecarregar o banco
+      const MAX_SIZE = 900; 
       let width = img.width; let height = img.height;
       if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } }
       else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
       canvas.width = width; canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
-      callback(canvas.toDataURL('image/jpeg', 0.8)); // 80% qualidade JPEG
+      callback(canvas.toDataURL('image/jpeg', 0.8)); 
     };
     img.src = event.target.result;
   };
@@ -772,33 +780,38 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]);
 
       try {
-        // ⚠️ ATENÇÃO: A CHAVE AGORA FICA ESCONDIDA NA VERCEL
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        
+        const apiKey = getGeminiApiKey();
+        if (!apiKey || apiKey.length < 10) {
+           showToast("Faltando configuração: A chave da API Gemini não foi encontrada nas variáveis da Vercel.", "error");
+           setIsAnalyzing(false);
+           return;
+        }
+
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
         const b64Data = base64.split(',')[1];
         const mimeType = base64.match(/data:(.*?);base64/)[1];
 
-        // Aqui é onde ensinamos a IA a ler a tela do DLS!
+        // 🔥 PROMPT TURBINADO E BLINDADO CONTRA INVERSÕES E CARTÕES
         const promptText = `
-          Você é um assistente analisador de imagens do jogo Dream League Soccer (DLS).
-          A imagem é um print do resultado final de uma partida.
-          O time da casa (esquerda) é o "${teamA?.name}" e o visitante (direita) é o "${teamB?.name}".
+          Analise o placar final deste jogo de Dream League Soccer (DLS).
+          Times da partida: "${teamA?.name}" e "${teamB?.name}".
           
-          Sua tarefa:
-          1. Identifique o placar numérico final.
-          2. Identifique os autores dos gols de cada time e os minutos exatos (ex: 10, 45, 87).
+          REGRAS IMPORTANTES PARA A LEITURA:
+          1. Os times podem estar em posições invertidas na imagem (esquerda ou direita). Por favor, leia os nomes escritos no placar da imagem e cruze com os nomes que forneci acima para associar o resultado corretamente.
+          2. No meio da tela fica a lista de acontecimentos. Um ícone de BOLA DE FUTEBOL (⚽) significa GOL. Um ícone de CARTÃO (🟨/🟥) significa PUNIÇÃO. 
+          3. VOCÊ DEVE IGNORAR OS CARTÕES. Liste APENAS os jogadores que têm o ícone da bola de futebol.
           
-          Retorne APENAS um JSON válido estritamente com este formato:
+          Retorne APENAS um JSON estrito no formato abaixo, correspondendo cada lado da imagem ao time correto que forneci. NÃO adicione \`\`\`json ou marcações, apenas retorne o bloco de chaves JSON:
           {
             "scoreA": 0,
             "scoreB": 0,
-            "goalsA": [{"player": "Nome do Jogador", "minute": "Minuto"}],
-            "goalsB": [{"player": "Nome do Jogador", "minute": "Minuto"}]
+            "goalsA": [{"player": "Nome", "minute": "90"}],
+            "goalsB": [{"player": "Nome", "minute": "90"}]
           }
-          Se não houver gols para um dos times, retorne uma lista vazia []. 
-          NÃO ESCREVA MAIS NADA ALÉM DO JSON. SEM MARCAÇÕES MARKDOWN.
+          * "scoreA" e "goalsA" pertencem SEMPRE ao time exato: "${teamA?.name}".
+          * "scoreB" e "goalsB" pertencem SEMPRE ao time exato: "${teamB?.name}".
+          * Se não houver gols (bolas) para um time, retorne uma lista vazia [].
         `;
 
         const payload = {
@@ -823,7 +836,6 @@ const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
         const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
         
         if (textResponse) {
-          // Garante que o texto vire código de verdade mesmo que a IA erre a formatação
           const cleanedText = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
           const data = JSON.parse(cleanedText);
           
@@ -833,12 +845,12 @@ const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
           setGoalsB(data.goalsB || []);
           showToast("Dados extraídos do Print pela IA!", "success");
         } else {
-          throw new Error("Resposta da IA vazia.");
+          throw new Error("Resposta da IA retornou vazia.");
         }
 
       } catch (error) {
         console.error("Erro na Análise da IA:", error);
-        showToast("A IA falhou ao ler o print. Verifique a chave da API ou preencha manualmente.", "error");
+        showToast("Erro na IA: A API não conseguiu processar ou chave incorreta. Ajuste manualmente.", "error");
       } finally {
         setIsAnalyzing(false);
         setImageUploaded(true);
@@ -933,7 +945,7 @@ const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
                 <div className="flex items-center gap-2"><ShieldDisplay shield={teamA?.shield} size="normal" /><span className="font-bold text-white text-lg">{teamA?.name}</span></div>
                 <div>
                   <label className="text-xs text-slate-500 block mb-1">Gols</label>
-                  <input type="number" readOnly value={scoreA} className="bg-slate-900 border border-slate-800 text-center font-bold text-3xl text-emerald-400 rounded-lg p-2 w-24 outline-none cursor-not-allowed" />
+                  <input type="number" value={scoreA} onChange={e=>setScoreA(e.target.value)} className="bg-slate-900 border border-slate-800 text-center font-bold text-3xl text-emerald-400 rounded-lg p-2 w-24 outline-none focus:border-emerald-500" />
                 </div>
                 <div className="space-y-2">
                   <span className="text-xs text-slate-400 block">Autores dos Gols</span>
@@ -952,7 +964,7 @@ const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
                 <div className="flex items-center gap-2"><ShieldDisplay shield={teamB?.shield} size="normal" /><span className="font-bold text-white text-lg">{teamB?.name}</span></div>
                 <div>
                   <label className="text-xs text-slate-500 block mb-1">Gols</label>
-                  <input type="number" readOnly value={scoreB} className="bg-slate-900 border border-slate-800 text-center font-bold text-3xl text-emerald-400 rounded-lg p-2 w-24 outline-none cursor-not-allowed" />
+                  <input type="number" value={scoreB} onChange={e=>setScoreB(e.target.value)} className="bg-slate-900 border border-slate-800 text-center font-bold text-3xl text-emerald-400 rounded-lg p-2 w-24 outline-none focus:border-emerald-500" />
                 </div>
                 <div className="space-y-2">
                   <span className="text-xs text-slate-400 block">Autores dos Gols</span>
