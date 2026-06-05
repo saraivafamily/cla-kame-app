@@ -791,8 +791,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]);
 
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${aiKey}`;
-
         const b64Data = base64.split(',')[1];
         const mimeType = base64.match(/data:(.*?);base64/)[1];
 
@@ -830,26 +828,50 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
           }
         };
 
-        const result = await fetchWithBackoff(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+        // 🔥 A SOLUÇÃO DEFINITIVA (Múltiplas tentativas de modelos)
+        // A Vercel/Google bloqueia alguns modelos dependendo de região. Este código testa os modelos em loop até um funcionar.
+        const modelVersions = [
+          'gemini-1.5-flash',
+          'gemini-1.5-flash-8b',
+          'gemini-1.5-pro',
+          'gemini-1.0-pro-vision-latest'
+        ];
 
-        const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
-        
-        if (textResponse) {
-          const cleanedText = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-          const data = JSON.parse(cleanedText);
-          
-          setScoreA(data.scoreA?.toString() || '0');
-          setScoreB(data.scoreB?.toString() || '0');
-          setGoalsA(data.goalsA || []);
-          setGoalsB(data.goalsB || []);
-          showToast("Dados extraídos do Print pela IA!", "success");
-        } else {
-          throw new Error("Resposta da IA retornou vazia.");
+        let result = null;
+        let lastError = null;
+
+        for (const model of modelVersions) {
+          try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiKey}`;
+            result = await fetchWithBackoff(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            }, 1); // Apenas 1 tentativa por modelo para ser rápido a saltar em caso de erro
+            
+            if (result && result.candidates) {
+              console.log(`Sucesso com o modelo: ${model}`);
+              break; 
+            }
+          } catch (e) {
+            console.warn(`Modelo ${model} rejeitou a chave ou está indisponível, a saltar para o próximo...`);
+            lastError = e;
+          }
         }
+
+        if (!result || !result.candidates) {
+          throw lastError || new Error("Nenhum modelo da IA respondeu corretamente à sua chave.");
+        }
+
+        const textResponse = result.candidates[0].content.parts[0].text;
+        const cleanedText = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+        const data = JSON.parse(cleanedText);
+        
+        setScoreA(data.scoreA?.toString() || '0');
+        setScoreB(data.scoreB?.toString() || '0');
+        setGoalsA(data.goalsA || []);
+        setGoalsB(data.goalsB || []);
+        showToast("Dados extraídos do Print pela IA!", "success");
 
       } catch (error) {
         console.error("Erro na Análise da IA:", error);
