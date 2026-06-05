@@ -1,4 +1,4 @@
-/* ESSAS 3 LINHAS SÃO OBRIGATÓRIAS PARA O PAINEL FUNCIONAR */
+/* OBRIGATÓRIO PARA O PAINEL FUNCIONAR */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -25,7 +25,7 @@ body {
   padding: 0;
 }
 
-/* Nova classe exclusiva para centralizar a tela de Login */
+/* Centralizador da tela de Login */
 .login-wrapper {
   display: flex;
   justify-content: center;
@@ -34,7 +34,6 @@ body {
   width: 100%;
 }
 
-/* Caixa Principal de Login */
 .login-container {
   background-color: var(--cor-fundo-card);
   padding: 40px;
@@ -55,7 +54,6 @@ body {
   margin-right: auto;
 }
 
-/* Protege o H1 apenas na tela de login */
 .login-container h1 {
   text-transform: uppercase;
   font-weight: 900;
@@ -79,7 +77,6 @@ body {
   display: block;
 }
 
-/* Protege os inputs para não quebrar o painel */
 .login-container input[type="text"], 
 .login-container input[type="password"] {
   padding: 15px;
@@ -128,20 +125,12 @@ body {
   background: transparent;
   color: var(--cor-amarelo);
   border: none;
-  box-shadow: none;
   font-size: 14px;
   font-weight: 600;
-  padding: 0;
-  margin: 0;
-  text-transform: none;
   cursor: pointer;
-  width: auto;
 }
 
 .link-esqueci:hover {
-  background: transparent;
-  transform: none;
-  box-shadow: none;
   color: var(--cor-laranja);
   text-decoration: underline;
 }
