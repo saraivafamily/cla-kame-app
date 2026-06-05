@@ -323,13 +323,14 @@ const ValidationPanel = ({ matches, teams, onUpdateStatus }) => {
 export default function App() {
   const [fbUser, setFbUser] = useState(null);
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState('');
   
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [competitions, setCompetitions] = useState([]);
   const [matches, setMatches] = useState([]);
 
-  // Estados do seu formulário exato
   const [identificacao, setIdentificacao] = useState('');
   const [palavraPasse, setPalavraPasse] = useState('');
   const [manterConectado, setManterConectado] = useState(false);
@@ -338,19 +339,20 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [selectedCompId, setSelectedCompId] = useState(null);
 
-  // Verifica a sessão
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       setFbUser(user);
-      setIsFirebaseLoading(false); // Liberta a tela de carregamento!
+      setIsFirebaseLoading(false);
     });
     return () => unsub();
   }, []);
 
-  // Sincroniza dados e garante perfil
   useEffect(() => {
     if (!fbUser) return;
     
+    setIsProfileLoading(true);
+    setProfileError('');
+
     const setupProfile = async () => {
       try {
         const userRef = getPublicDocPath('users', fbUser.uid);
@@ -362,7 +364,12 @@ export default function App() {
             id: fbUser.uid, email: emailOriginal, name: emailOriginal.split('@')[0], role: isLeader ? 'leader' : 'member', whatsapp: emailOriginal.split('@')[0]
           });
         }
-      } catch (err) { console.error("Erro perfil:", err); }
+        setIsProfileLoading(false);
+      } catch (err) { 
+        console.error("Erro perfil:", err);
+        setIsProfileLoading(false);
+        setProfileError('Ocorreu um erro de conexão (Offline).');
+      }
     };
     setupProfile();
 
@@ -374,7 +381,6 @@ export default function App() {
     return () => { unsubU(); unsubT(); unsubC(); unsubM(); };
   }, [fbUser]);
 
-  // Seu Login Inteligente
   const formatarParaEmail = (texto) => {
     const textoLimpo = texto.trim().toLowerCase();
     if (textoLimpo.includes('@')) { return textoLimpo; }
@@ -389,8 +395,10 @@ export default function App() {
     const emailFake = formatarParaEmail(identificacao);
     
     try {
+      setIsFirebaseLoading(true);
       await signInWithEmailAndPassword(auth, emailFake, palavraPasse);
     } catch (error) {
+      setIsFirebaseLoading(false);
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
         setMensagemErro(`Acesso negado: Palavra-passe incorreta ou técnico não encontrado.`);
       } else {
@@ -413,7 +421,6 @@ export default function App() {
   // RENDERIZAÇÃO E PROTEÇÃO DE TELAS
   // ==========================================
   
-  // Proteção 1: Firebase a pensar (Mostra uma tela robusta independente de estilos)
   if (isFirebaseLoading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#18191a', color: '#ffde59', fontFamily: 'sans-serif' }}>
@@ -422,9 +429,7 @@ export default function App() {
     );
   }
 
-  // Proteção 2: Carregar o perfil do guerreiro
-  const currentUser = users.find(u => u.id === fbUser?.uid);
-  if (fbUser && !currentUser) {
+  if (fbUser && isProfileLoading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#18191a', color: '#ffde59', fontFamily: 'sans-serif' }}>
         <h2>⏳ A carregar o seu Quartel General...</h2>
@@ -432,7 +437,40 @@ export default function App() {
     );
   }
 
-  // O SEU LOGIN ORIGINAL PERFEITO E CENTRALIZADO
+  if (fbUser && profileError) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#18191a', color: '#e4e6eb', fontFamily: 'sans-serif', textAlign: 'center', padding: '20px' }}>
+        <AlertCircle size={64} color="#ff914d" style={{ marginBottom: '20px' }} />
+        <h2 style={{ color: '#ffde59', marginBottom: '10px' }}>A Base de Dados está Desativada!</h2>
+        
+        <div style={{ maxWidth: '600px', backgroundColor: '#242526', padding: '20px', borderRadius: '12px', border: '1px solid #3a3b3c', textAlign: 'left', lineHeight: '1.6' }}>
+          <p style={{ color: '#ff914d', fontWeight: 'bold', marginTop: 0 }}>O Firebase indicou: "Client is offline".</p>
+          <p style={{ color: '#b0b3b8' }}>Isto acontece porque a autenticação funcionou perfeitamente, mas a <b>Base de Dados (Firestore) ainda não foi inicializada</b> no seu projeto do Firebase.</p>
+          
+          <p style={{ color: 'white', fontWeight: 'bold', marginTop: '15px', marginBottom: '5px' }}>Como resolver em 3 passos simples:</p>
+          <ol style={{ color: '#b0b3b8', margin: 0, paddingLeft: '20px' }}>
+            <li>Vá ao painel do <b>Firebase</b> e abra o seu projeto.</li>
+            <li>No menu do lado esquerdo, clique em <b>Firestore Database</b>.</li>
+            <li>Clique no botão <b>Create Database</b> (Criar banco de dados). Siga os passos e escolha <b>"Start in test mode"</b> (Modo de teste).</li>
+          </ol>
+          <p style={{ color: '#b0b3b8', marginTop: '15px', marginBottom: 0 }}>Após concluir, clique no botão abaixo para regressar à batalha.</p>
+        </div>
+
+        <button onClick={() => window.location.reload()} style={{ marginTop: '25px', padding: '12px 24px', backgroundColor: '#ff914d', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', border: 'none', color: 'black', textTransform: 'uppercase' }}>
+          Recarregar Sistema
+        </button>
+      </div>
+    );
+  }
+
+  const currentUser = users.find(u => u.id === fbUser?.uid) || (fbUser ? {
+    id: fbUser.uid,
+    email: fbUser.email,
+    name: fbUser.email?.split('@')[0] || 'Guerreiro',
+    role: (fbUser.email?.includes('11989000858') || fbUser.email?.includes('savio')) ? 'leader' : 'member',
+    whatsapp: fbUser.email?.split('@')[0] || ''
+  } : null);
+
   if (!fbUser || !currentUser) {
     return (
       <div className="login-wrapper" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#18191a' }}>
@@ -492,7 +530,6 @@ export default function App() {
     );
   }
 
-  // O PAINEL DE GESTÃO
   const isLeader = currentUser?.role === 'leader';
   const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home },
