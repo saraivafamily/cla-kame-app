@@ -4,10 +4,10 @@
 :root {
   --cor-laranja: #ff914d;
   --cor-amarelo: #ffde59;
-  --cor-fundo-site: #18191a; /* Fundo quase preto para destacar */
-  --cor-fundo-card: #242526; /* Cinza escuro para a caixa de login */
+  --cor-fundo-site: #18191a;
+  --cor-fundo-card: #242526;
   --cor-preto: #000000;
-  --cor-branco: #e4e6eb; /* Branco suave para não doer o olho */
+  --cor-branco: #e4e6eb;
   --cor-degrade: linear-gradient(135deg, #ffde59 0%, #ff914d 100%);
 }
 
@@ -18,10 +18,15 @@ body {
   font-family: 'Montserrat', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   margin: 0;
   padding: 0;
+}
+
+/* Nova classe exclusiva para a tela de Login */
+.login-wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  width: 100%;
 }
 
 /* Caixa Principal de Login */
@@ -29,14 +34,13 @@ body {
   background-color: var(--cor-fundo-card);
   padding: 40px;
   border-radius: 20px;
-  box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.5); /* Sombra elegante */
+  box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.5);
   border: 2px solid #3a3b3c;
   text-align: center;
   width: 90%;
   max-width: 400px;
 }
 
-/* Logo escudo */
 .kame-shield-logo {
   max-width: 120px;
   margin-bottom: -10px;
@@ -45,7 +49,6 @@ body {
   margin-right: auto;
 }
 
-/* Título */
 h1 {
   text-transform: uppercase;
   font-weight: 900;
@@ -56,7 +59,6 @@ h1 {
   margin-bottom: 5px;
 }
 
-/* Textos acima dos campos */
 .input-group {
   text-align: left;
   margin-top: 15px;
@@ -70,7 +72,6 @@ h1 {
   display: block;
 }
 
-/* Campos de Digitação (Inputs) */
 input[type="text"], 
 input[type="password"] {
   padding: 15px;
@@ -91,9 +92,6 @@ input[type="password"]:focus {
   background-color: #242526;
 }
 
-/* =========================================
-   LINHA DAS OPÇÕES: Checkbox e Esqueci a Senha
-   ========================================= */
 .login-opcoes {
   display: flex;
   justify-content: space-between;
@@ -110,7 +108,6 @@ input[type="password"]:focus {
   color: #b0b3b8;
 }
 
-/* Faz o checkbox ficar normal e não gigante */
 .checkbox-label input[type="checkbox"] {
   width: 18px;
   height: 18px;
@@ -119,7 +116,6 @@ input[type="password"]:focus {
   accent-color: var(--cor-laranja);
 }
 
-/* Botão "Esqueci a Senha" invisível (apenas o texto) */
 .link-esqueci {
   background: transparent;
   color: var(--cor-amarelo);
@@ -142,9 +138,6 @@ input[type="password"]:focus {
   text-decoration: underline;
 }
 
-/* =========================================
-   BOTÕES PRINCIPAIS DE AÇÃO (Degradê)
-   ========================================= */
 .btn-degrade {
   background: var(--cor-degrade);
   color: var(--cor-preto);
@@ -157,7 +150,7 @@ input[type="password"]:focus {
   text-transform: uppercase;
   width: 100%;
   transition: all 0.2s ease-in-out;
-  box-shadow: 0px 4px 15px rgba(255, 145, 77, 0.4); /* Brilho laranja */
+  box-shadow: 0px 4px 15px rgba(255, 145, 77, 0.4);
 }
 
 .btn-degrade:hover {
