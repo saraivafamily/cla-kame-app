@@ -6,7 +6,7 @@ import {
   Home, Trophy, Medal, Camera, CheckSquare, Users, 
   LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, 
   Activity, PlusCircle, ArrowLeft, PlayCircle, Lock,
-  Shield, MessageCircle, Edit, Save, X, User, Crown, Star, Send, Trash2, Settings
+  Shield, MessageCircle, Edit, Save, X, User, Crown, Star, Send, Trash2
 } from 'lucide-react';
 
 // ==========================================
@@ -32,6 +32,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'cla-kame-oficial';
 
+// A chave agora é puxada SOMENTE da Vercel (Nuvem), garantindo que funcione para todos os celulares!
 const getGeminiApiKey = () => {
   try { return import.meta.env.VITE_GEMINI_API_KEY; } catch(e) {}
   return "";
@@ -55,8 +56,9 @@ const fetchWithBackoff = async (url, options, retries = 5) => {
     try {
       const response = await fetch(url, options);
       if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`[${response.status}] ${errText.substring(0, 100)}...`);
+        const errJson = await response.json().catch(() => ({}));
+        const errMsg = errJson?.error?.message || await response.text();
+        throw new Error(`${errMsg.substring(0, 80)}...`);
       }
       return await response.json();
     } catch (error) {
@@ -733,9 +735,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [isAnalyzing, setIsAnalyzing] = useState(false); 
   const [imageUploaded, setImageUploaded] = useState(false);
 
-  // NOVO: Cofre Local para a chave da API
-  const [aiKey, setAiKey] = useState(() => localStorage.getItem('claKame_gemini_key') || getGeminiApiKey());
-  const [showKeyConfig, setShowKeyConfig] = useState(false);
+  // A chave agora é estritamente carregada da Vercel
+  const aiKey = getGeminiApiKey();
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const userTeamIds = teams.filter(t => t.ownerId === currentUser?.id).map(t => t.id);
@@ -777,9 +778,10 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     if (!file) return;
 
     if (!aiKey || aiKey.length < 10) {
-      showToast("Você precisa configurar a sua chave da IA antes de escanear o print.", "error");
-      setShowKeyConfig(true);
-      return;
+      showToast("Scanner IA indisponível. A chave mestra não está configurada na Vercel. Preencha os dados manualmente.", "error");
+      setMatchImageBase64(URL.createObjectURL(file)); // Mostra a imagem mesmo sem IA
+      setImageUploaded(true);
+      return; 
     }
 
     processScreenshot(file, async (base64) => {
@@ -851,7 +853,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
       } catch (error) {
         console.error("Erro na Análise da IA:", error);
-        showToast("Erro na IA. Verifique se a chave está correta nas engrenagens.", "error");
+        showToast(`Erro na IA: ${error.message}`, "error");
       } finally {
         setIsAnalyzing(false);
         setImageUploaded(true);
@@ -895,34 +897,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida (IA)</h2>
-      
-      {/* BLOCO DE CONFIGURAÇÃO DA CHAVE (COFRE LOCAL) */}
-      {(!aiKey || showKeyConfig) && (
-        <div className="bg-amber-500/10 p-5 rounded-xl border border-amber-500/30 mb-6 animate-in fade-in">
-          <label className="text-amber-400 font-bold text-sm flex items-center gap-2 mb-2">
-            <Lock size={16} /> Chave Secreta da API Gemini (Cofre Local)
-          </label>
-          <p className="text-xs text-slate-400 mb-4">
-            A sua chave fica guardada <b>apenas neste telemóvel/computador</b> de forma segura. O GitHub e a Vercel não têm acesso, protegendo a sua conta de bloqueios!
-          </p>
-          <div className="flex flex-col md:flex-row gap-3">
-            <input 
-              type="password" 
-              value={aiKey} 
-              onChange={e => setAiKey(e.target.value)} 
-              placeholder="Cole aqui a sua chave AIzaSy..." 
-              className="flex-1 bg-slate-950 border border-amber-500/30 rounded-lg p-3 text-white text-sm outline-none focus:border-amber-500" 
-            />
-            <Button onClick={() => { 
-              localStorage.setItem('claKame_gemini_key', aiKey); 
-              setShowKeyConfig(false); 
-              showToast("Chave protegida e guardada no cofre!", "success"); 
-            }} className="bg-amber-600 hover:bg-amber-500 text-amber-950 px-6 font-bold shadow-amber-900/50">
-              Salvar Chave
-            </Button>
-          </div>
-        </div>
-      )}
 
       <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-6">
         <div>
@@ -950,11 +924,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
           <div className="animate-in slide-in-from-top-4">
             <div className="flex justify-between items-center mb-2">
               <label className="block text-sm font-medium text-slate-400">3. Envie o Print do Resultado (IA Scanner)</label>
-              {aiKey && (
-                <button type="button" onClick={() => setShowKeyConfig(!showKeyConfig)} className="text-slate-500 hover:text-amber-400 transition-colors p-1" title="Configurar API Key da IA">
-                  <Settings size={18} />
-                </button>
-              )}
             </div>
             
             <label className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer relative overflow-hidden block ${imageUploaded ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-950'}`}>
