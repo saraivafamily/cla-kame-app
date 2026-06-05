@@ -19,7 +19,7 @@ const firebaseConfig = {
   projectId : "cla-kame" , 
   storageBucket : "cla-kame.firebasestorage.app" , 
   messagingSenderId : "253792062726" , 
-  appId : "1:253792062726:web:1ee567bbbd175c31ce2287"
+  appId : "1:253792062726:web:1ee567bbbd175c31ce2287" 
 };
 
 const app = initializeApp(firebaseConfig);
@@ -368,7 +368,8 @@ export default function App() {
       } catch (err) { 
         console.error("Erro perfil:", err);
         setIsProfileLoading(false);
-        setProfileError('Ocorreu um erro de conexão (Offline).');
+        // GUARDA O ERRO EXATO QUE O FIREBASE ENVIOU
+        setProfileError(err.message || 'Ocorreu um erro de conexão (Offline).');
       }
     };
     setupProfile();
@@ -441,24 +442,30 @@ export default function App() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#18191a', color: '#e4e6eb', fontFamily: 'sans-serif', textAlign: 'center', padding: '20px' }}>
         <AlertCircle size={64} color="#ff914d" style={{ marginBottom: '20px' }} />
-        <h2 style={{ color: '#ffde59', marginBottom: '10px' }}>A Base de Dados está Desativada!</h2>
+        <h2 style={{ color: '#ffde59', marginBottom: '10px' }}>Ocorreu um erro na Base de Dados</h2>
         
         <div style={{ maxWidth: '600px', backgroundColor: '#242526', padding: '20px', borderRadius: '12px', border: '1px solid #3a3b3c', textAlign: 'left', lineHeight: '1.6' }}>
-          <p style={{ color: '#ff914d', fontWeight: 'bold', marginTop: 0 }}>O Firebase indicou: "Client is offline".</p>
-          <p style={{ color: '#b0b3b8' }}>Isto acontece porque a autenticação funcionou perfeitamente, mas a <b>Base de Dados (Firestore) ainda não foi inicializada</b> no seu projeto do Firebase.</p>
+          <p style={{ color: '#ff914d', fontWeight: 'bold', marginTop: 0 }}>Erro exato: "{profileError}"</p>
+          <p style={{ color: '#b0b3b8' }}>Se o erro disser <b>"Missing or insufficient permissions"</b>, significa que o seu Firestore bloqueou o acesso.</p>
           
-          <p style={{ color: 'white', fontWeight: 'bold', marginTop: '15px', marginBottom: '5px' }}>Como resolver em 3 passos simples:</p>
+          <p style={{ color: 'white', fontWeight: 'bold', marginTop: '15px', marginBottom: '5px' }}>Como corrigir isso rapidamente no Firebase:</p>
           <ol style={{ color: '#b0b3b8', margin: 0, paddingLeft: '20px' }}>
-            <li>Vá ao painel do <b>Firebase</b> e abra o seu projeto.</li>
-            <li>No menu do lado esquerdo, clique em <b>Firestore Database</b>.</li>
-            <li>Clique no botão <b>Create Database</b> (Criar banco de dados). Siga os passos e escolha <b>"Start in test mode"</b> (Modo de teste).</li>
+            <li>Aceda ao Firebase e abra o <b>Firestore Database</b>.</li>
+            <li>No topo, clique no separador <b>Rules</b> (Regras).</li>
+            <li>Altere a linha `allow read, write: if false;` para <b style={{ color: '#ffde59' }}>`allow read, write: if true;`</b></li>
+            <li>Clique no botão <b>Publish</b> (Publicar).</li>
           </ol>
-          <p style={{ color: '#b0b3b8', marginTop: '15px', marginBottom: 0 }}>Após concluir, clique no botão abaixo para regressar à batalha.</p>
         </div>
 
-        <button onClick={() => window.location.reload()} style={{ marginTop: '25px', padding: '12px 24px', backgroundColor: '#ff914d', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', border: 'none', color: 'black', textTransform: 'uppercase' }}>
-          Recarregar Sistema
-        </button>
+        <div style={{ display: 'flex', gap: '15px', marginTop: '25px' }}>
+          <button onClick={() => window.location.reload()} style={{ padding: '12px 24px', backgroundColor: '#ff914d', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', border: 'none', color: 'black', textTransform: 'uppercase' }}>
+            Tentar Novamente
+          </button>
+          
+          <button onClick={async () => { await signOut(auth); window.location.reload(); }} style={{ padding: '12px 24px', backgroundColor: 'transparent', border: '2px solid #ff914d', color: '#ff914d', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', textTransform: 'uppercase' }}>
+            Desconectar / Sair
+          </button>
+        </div>
       </div>
     );
   }
