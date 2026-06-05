@@ -55,8 +55,14 @@ export default function App() {
       const userCredential = await signInWithEmailAndPassword(auth, emailFake, palavraPasse);
       setUsuarioLogado(userCredential.user);
     } catch (error) {
-      // Agora o erro te mostra exatamente o que o sistema tentou ler!
-      setMensagemErro(`Não encontrado! O sistema buscou: ${emailFake}. Verifique a senha e o Firebase.`);
+      // Agora vamos mostrar o ERRO REAL que o Firebase está a devolver!
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+        setMensagemErro(`Acesso negado: Palavra-passe incorreta ou técnico não encontrado.`);
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setMensagemErro(`Erro: O método E-mail/Senha está desativado no Firebase!`);
+      } else {
+        setMensagemErro(`Erro do Firebase: ${error.code}`);
+      }
     }
   };
 
