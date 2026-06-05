@@ -322,7 +322,40 @@ const ValidationPanel = ({ matches, teams, onUpdateStatus }) => {
 // ==========================================
 // 4. MOTOR PRINCIPAL
 // ==========================================
-export default function App() {
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    this.setState({ errorInfo });
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '40px', backgroundColor: '#18191a', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', fontFamily: 'sans-serif' }}>
+          <div style={{ backgroundColor: '#242526', padding: '30px', borderRadius: '15px', border: '2px solid #ff914d', maxWidth: '800px', textAlign: 'center' }}>
+            <h1 style={{ color: '#ffde59', marginBottom: '15px' }}>⚠️ O Radar encontrou um erro!</h1>
+            <p style={{ color: '#e4e6eb', marginBottom: '20px' }}>
+              A tela ficou preta porque uma peça do painel falhou. Por favor, <b>copie o texto vermelho abaixo</b> ou tire um print e mande para mim para eu lhe dar a solução exata na hora:
+            </p>
+            <div style={{ backgroundColor: '#18191a', padding: '15px', borderRadius: '8px', textAlign: 'left', overflowX: 'auto' }}>
+              <p style={{ color: '#ff4d4d', fontWeight: 'bold', margin: '0 0 10px 0' }}>{this.state.error && this.state.error.toString()}</p>
+              <pre style={{ color: '#a8b2c1', fontSize: '12px', margin: 0 }}>{this.state.errorInfo && this.state.errorInfo.componentStack}</pre>
+            </div>
+            <button onClick={() => window.location.reload()} style={{ marginTop: '20px', padding: '10px 20px', backgroundColor: '#ff914d', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', border: 'none' }}>Tentar Recarregar</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function MainApp() {
   const [fbUser, setFbUser] = useState(null);
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
   
@@ -546,5 +579,13 @@ export default function App() {
       </aside>
       <main className="flex-1 p-4 md:p-8 overflow-y-auto"><div className="max-w-5xl mx-auto pb-20 md:pb-0">{renderContent()}</div></main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <MainApp />
+    </ErrorBoundary>
   );
 }
