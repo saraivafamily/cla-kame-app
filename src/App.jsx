@@ -15,7 +15,7 @@ import {
 const LOGO_URL = "https://i.imgur.com/NTbkaER.png"; 
 
 // ==========================================
-// 1. CONFIGURAÇÃO REAL DO FIREBASE
+// 1. CONFIGURAÇÃO REAL DO FIREBASE E API
 // ==========================================
 const firebaseConfig = {
   apiKey : "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA", 
@@ -32,6 +32,15 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'cla-kame-oficial';
 
+const getGeminiApiKey = () => {
+  try { 
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) {
+      return import.meta.env.VITE_GEMINI_API_KEY;
+    }
+  } catch(e) {}
+  return ""; 
+};
+
 const getPublicPath = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 const getPublicDocPath = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
@@ -44,8 +53,7 @@ const ROLE_NAMES = {
   member: 'Membro Oficial'
 };
 
-// Implementa proteção contra falhas e retentativas (Backoff)
-const fetchWithBackoff = async (url, options, retries = 5) => {
+const fetchWithBackoff = async (url, options, retries = 3) => {
   let delay = 1000;
   for (let i = 0; i < retries; i++) {
     try {
@@ -85,6 +93,7 @@ const processImage = (file, callback) => {
   reader.readAsDataURL(file);
 };
 
+// 🔥 RESOLUÇÃO TURBINADA PARA A IA VER OS DETALHES CLARAMENTE
 const processScreenshot = (file, callback) => {
   if (!file) return;
   const reader = new FileReader();
@@ -92,18 +101,26 @@ const processScreenshot = (file, callback) => {
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const MAX_SIZE = 900; 
+      const MAX_SIZE = 1920; // Muito mais resolução!
       let width = img.width; let height = img.height;
       if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } }
       else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
       canvas.width = width; canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
-      callback(canvas.toDataURL('image/jpeg', 0.8)); 
+      callback(canvas.toDataURL('image/jpeg', 0.95)); // 95% de Qualidade
     };
     img.src = event.target.result;
   };
   reader.readAsDataURL(file);
+};
+
+// Lógica de similaridade para cruzar nomes da esquerda/direita com os nomes reais do App
+const calculateSimilarity = (str1, str2) => {
+  if(!str1 || !str2) return 0;
+  const words1 = str1.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+  const words2 = str2.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+  return words1.filter(w => words2.includes(w)).length;
 };
 
 const ShieldDisplay = ({ shield, size = 'normal' }) => {
@@ -410,7 +427,9 @@ const TeamsList = ({ teams, users, currentUser, onEditTeam, onDeleteTeam }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const isLeader = currentUser?.role === 'leader';
 
-  const handleWhatsApp = (phone) => { if (phone) window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank'); };
+  const handleWhatsApp = (phone) => { 
+    if (phone) window.open(`https://wa.me/${String(phone).replace(/\D/g, '')}`, '_blank'); 
+  };
   
   const startEdit = (team) => { 
     setEditingId(team.id); 
@@ -702,7 +721,20 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             {comp.rounds.map((round) => (
               <div key={round.id} className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
                 <div className="bg-slate-950/50 p-4 border-b border-slate-800 flex justify-between items-center"><h4 className="font-bold text-white flex items-center gap-2">{round.status === 'locked' ? <Lock size={16} className="text-slate-500"/> : <PlayCircle size={16} className="text-emerald-500"/>} Rodada {round.number}</h4>{round.status === 'locked' ? (isAdmin ? <Button variant="outline" className="text-xs py-1 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10" onClick={() => onReleaseRound(comp.id, round.id)}>Liberar Rodada</Button> : <span className="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded-full">Bloqueada</span>) : <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">Liberada</span>}</div>
-                <div className="p-4 grid gap-3">{round.matches.map(match => { const tA = getTeam(match.teamA); const tB = getTeam(match.teamB); const statusUI = getMatchStatusDisplay(match.id); return (<div key={match.id} className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800/50"><div className="flex-1 text-right font-medium text-slate-200">{tA?.name} <ShieldDisplay shield={tA?.shield} size="small" /></div><div className={`mx-4 px-4 py-2 rounded-lg text-sm text-center min-w-[120px] ${statusUI.bg} ${statusUI.color}`}>{statusUI.text}</div><div className="flex-1 text-left font-medium text-slate-200"><ShieldDisplay shield={tB?.shield} size="small" /> {tB?.name}</div></div>); })}</div>
+                <div className="p-4 grid gap-3">
+                  {(round.matches || []).map(match => { 
+                    const tA = getTeam(match.teamA); 
+                    const tB = getTeam(match.teamB); 
+                    const statusUI = getMatchStatusDisplay(match.id); 
+                    return (
+                      <div key={match.id} className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800/50">
+                        <div className="flex-1 text-right font-medium text-slate-200">{tA?.name} <ShieldDisplay shield={tA?.shield} size="small" /></div>
+                        <div className={`mx-4 px-4 py-2 rounded-lg text-sm text-center min-w-[120px] ${statusUI.bg} ${statusUI.color}`}>{statusUI.text}</div>
+                        <div className="flex-1 text-left font-medium text-slate-200"><ShieldDisplay shield={tB?.shield} size="small" /> {tB?.name}</div>
+                      </div>
+                    ); 
+                  })}
+                </div>
               </div>
             ))}
           </div>
@@ -730,26 +762,31 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [isAnalyzing, setIsAnalyzing] = useState(false); 
   const [imageUploaded, setImageUploaded] = useState(false);
 
-  // A chave agora é estritamente carregada da Vercel
+  // A chave agora é estritamente carregada do ambiente
   const aiKey = getGeminiApiKey();
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-  const userTeamIds = teams.filter(t => t.ownerId === currentUser?.id).map(t => t.id);
-  const visibleCompetitions = competitions.filter(c => isAdmin || c.teams?.some(tId => userTeamIds.includes(tId)));
+  
+  const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
+  const visibleCompetitions = (competitions || []).filter(c => isAdmin || (c.teams || []).some(tId => userTeamIds.includes(tId)));
 
   useEffect(() => {
     setSelectedMatchId(''); resetMatchData();
     if (!selectedCompId) { setAvailableMatches([]); return; }
+    
     const comp = competitions.find(c => c.id === selectedCompId);
-    if (comp && comp.rounds) {
+    
+    if (comp && Array.isArray(comp.rounds)) {
       let toPlay = [];
       comp.rounds.filter(r => r.status === 'released').forEach(round => {
-        round.matches.forEach(rm => {
-          const alreadySubmitted = matches.some(m => m.matchId === rm.id && (m.status === 'pending' || m.status === 'approved'));
-          if (!alreadySubmitted && (isAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
-            toPlay.push({ ...rm, roundId: round.id });
-          }
-        });
+        if (Array.isArray(round.matches)) {
+          round.matches.forEach(rm => {
+            const alreadySubmitted = matches.some(m => m.matchId === rm.id && (m.status === 'pending' || m.status === 'approved'));
+            if (!alreadySubmitted && (isAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
+              toPlay.push({ ...rm, roundId: round.id });
+            }
+          });
+        }
       });
       setAvailableMatches(toPlay);
     }
@@ -759,8 +796,13 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     resetMatchData();
     if (selectedMatchId) {
       const match = availableMatches.find(m => m.id === selectedMatchId);
-      if (match) { setTeamA(teams.find(t => t.id === match.teamA)); setTeamB(teams.find(t => t.id === match.teamB)); }
-    } else { setTeamA(null); setTeamB(null); }
+      if (match) { 
+        setTeamA(teams.find(t => t.id === match.teamA)); 
+        setTeamB(teams.find(t => t.id === match.teamB)); 
+      }
+    } else { 
+      setTeamA(null); setTeamB(null); 
+    }
   }, [selectedMatchId, availableMatches, teams]);
 
   const resetMatchData = () => { 
@@ -786,31 +828,30 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]);
 
       try {
-        // Usa o modelo mais estável e rápido para este ambiente
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${aiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${aiKey}`;
 
         const b64Data = base64.split(',')[1];
         const mimeType = base64.match(/data:(.*?);base64/)[1];
 
+        // 🔥 A NOVA INSTRUÇÃO ESPACIAL: Garante que a IA não inverta os times!
         const promptText = `
-          Analise o placar final deste jogo de Dream League Soccer (DLS).
-          Times da partida: "${teamA?.name}" e "${teamB?.name}".
-          
-          REGRAS IMPORTANTES PARA A LEITURA:
-          1. Os times podem estar em posições invertidas na imagem (esquerda ou direita). Por favor, leia os nomes escritos no placar da imagem e cruze com os nomes que forneci acima para associar o resultado corretamente.
-          2. No meio da tela fica a lista de acontecimentos. Um ícone de BOLA DE FUTEBOL (⚽) significa GOL. Um ícone de CARTÃO (🟨/🟥) significa PUNIÇÃO. 
-          3. VOCÊ DEVE IGNORAR OS CARTÕES. Liste APENAS os jogadores que têm o ícone da bola de futebol.
-          
-          Retorne APENAS um JSON estrito no formato abaixo, correspondendo cada lado da imagem ao time correto que forneci. NÃO adicione \`\`\`json ou marcações, apenas retorne o bloco de chaves JSON:
-          {
-            "scoreA": 0,
-            "scoreB": 0,
-            "goalsA": [{"player": "Nome", "minute": "90"}],
-            "goalsB": [{"player": "Nome", "minute": "90"}]
-          }
-          * "scoreA" e "goalsA" pertencem SEMPRE ao time exato: "${teamA?.name}".
-          * "scoreB" e "goalsB" pertencem SEMPRE ao time exato: "${teamB?.name}".
-          * Se não houver gols (bolas) para um time, retorne uma lista vazia [].
+Analise o placar final deste jogo de Dream League Soccer (DLS).
+
+REGRAS:
+1. O escudo do lado ESQUERDO tem um placar. O escudo do lado DIREITO tem um placar.
+2. Na lista central, identifique quem fez gol. GOLS possuem o ícone de uma BOLA DE FUTEBOL (⚽) ao lado.
+3. CARTÕES possuem um ícone retangular (🟨/🟥). IGNORE COMPLETAMENTE os jogadores com cartões.
+4. Liste os jogadores e minutos agrupando por quem está no lado esquerdo ou direito.
+
+Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e não escreva mais nada.
+{
+  "leftTeamName": "nome lido no escudo da esquerda",
+  "leftScore": 0,
+  "leftGoals": [{"player": "Nome", "minute": "90"}],
+  "rightTeamName": "nome lido no escudo da direita",
+  "rightScore": 0,
+  "rightGoals": [{"player": "Nome", "minute": "90"}]
+}
         `;
 
         const payload = {
@@ -836,20 +877,43 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
           throw new Error("A IA processou o pedido mas retornou uma resposta em branco.");
         }
 
-        const textResponse = result.candidates[0].content.parts[0].text;
-        const cleanedText = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-        const data = JSON.parse(cleanedText);
+        let textResponse = result.candidates[0].content.parts[0].text.trim();
+        if (textResponse.startsWith('```')) {
+            textResponse = textResponse.replace(/^```json/i, '').replace(/```$/, '').trim();
+        }
         
-        setScoreA(data.scoreA?.toString() || '0');
-        setScoreB(data.scoreB?.toString() || '0');
-        setGoalsA(data.goalsA || []);
-        setGoalsB(data.goalsB || []);
+        const data = JSON.parse(textResponse);
+
+        // 🔥 A LÓGICA DE CRUZAMENTO: O sistema é quem decide de que lado o time está!
+        const leftName = String(data.leftTeamName || "");
+        const rightName = String(data.rightTeamName || "");
+        const nameA = String(teamA?.name || "");
+        const nameB = String(teamB?.name || "");
+
+        const leftMatchesA = calculateSimilarity(leftName, nameA);
+        const rightMatchesA = calculateSimilarity(rightName, nameA);
+        const leftMatchesB = calculateSimilarity(leftName, nameB);
+        const rightMatchesB = calculateSimilarity(rightName, nameB);
+
+        const isTeamA_Left = (leftMatchesA + rightMatchesB) >= (leftMatchesB + rightMatchesA);
+
+        if (isTeamA_Left) {
+          setScoreA(data.leftScore?.toString() || '0');
+          setScoreB(data.rightScore?.toString() || '0');
+          setGoalsA(data.leftGoals || []);
+          setGoalsB(data.rightGoals || []);
+        } else {
+          setScoreA(data.rightScore?.toString() || '0');
+          setScoreB(data.leftScore?.toString() || '0');
+          setGoalsA(data.rightGoals || []);
+          setGoalsB(data.leftGoals || []);
+        }
+
         showToast("Dados extraídos do Print pela IA!", "success");
 
       } catch (error) {
         console.error("Erro na Análise da IA:", error);
         
-        // Mensagens de erro em português
         let mensagemErro = error.message;
         if (mensagemErro.includes("API_KEY_INVALID")) {
            mensagemErro = "A chave Gemini fornecida é inválida. Ela deve começar com AIzaSy.";
@@ -886,8 +950,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     const matchDetails = availableMatches.find(m => m.id === selectedMatchId);
     
     const allGoals = [
-      ...goalsA.map(g => ({ teamId: teamA.id, player: g.player, minute: g.minute })),
-      ...goalsB.map(g => ({ teamId: teamB.id, player: g.player, minute: g.minute }))
+      ...(goalsA || []).map(g => ({ teamId: teamA.id, player: g.player, minute: g.minute })),
+      ...(goalsB || []).map(g => ({ teamId: teamB.id, player: g.player, minute: g.minute }))
     ];
 
     onSubmit({
@@ -917,8 +981,10 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
               <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
                 <option value="">Qual jogo você jogou?</option>
                 {availableMatches.map(m => {
-                  const tA = teams.find(t=>t.id===m.teamA)?.name; const tB = teams.find(t=>t.id===m.teamB)?.name;
-                  return <option key={m.id} value={m.id}>Rodada {m.roundId.replace('r','')} - {tA} x {tB}</option>
+                  const tA = teams.find(t=>t.id===m.teamA)?.name || 'Time A'; 
+                  const tB = teams.find(t=>t.id===m.teamB)?.name || 'Time B';
+                  const formattedRoundId = String(m.roundId || '').replace('r', '');
+                  return <option key={m.id} value={m.id}>Rodada {formattedRoundId} - {tA} x {tB}</option>
                 })}
               </select>
             ) : <div className="p-3 bg-slate-950 rounded border border-slate-800 text-slate-500 text-sm">Nenhuma partida pendente.</div>}
@@ -960,7 +1026,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
                 </div>
                 <div className="space-y-2">
                   <span className="text-xs text-slate-400 block">Autores dos Gols</span>
-                  {goalsA.map((g, index) => (
+                  {(goalsA || []).map((g, index) => (
                     <div key={index} className="flex gap-2 items-center animate-in slide-in-from-left-4">
                       <input type="text" placeholder="Nome" value={g.player} onChange={e=>handleGoalChange('A', index, 'player', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500" required />
                       <input type="text" placeholder="10" value={g.minute} onChange={e=>handleGoalChange('A', index, 'minute', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-emerald-400 text-center outline-none focus:border-emerald-500" required />
@@ -979,7 +1045,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
                 </div>
                 <div className="space-y-2">
                   <span className="text-xs text-slate-400 block">Autores dos Gols</span>
-                  {goalsB.map((g, index) => (
+                  {(goalsB || []).map((g, index) => (
                     <div key={index} className="flex gap-2 items-center animate-in slide-in-from-right-4">
                       <input type="text" placeholder="Nome" value={g.player} onChange={e=>handleGoalChange('B', index, 'player', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500" required />
                       <input type="text" placeholder="87" value={g.minute} onChange={e=>handleGoalChange('B', index, 'minute', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-emerald-400 text-center outline-none focus:border-emerald-500" required />
@@ -1120,7 +1186,7 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
                   </div>
 
                   <div className="md:w-48 bg-slate-950 rounded-xl border border-slate-800 flex flex-col items-center justify-center p-4 text-center gap-2 relative overflow-hidden">
-                    {m.imageUrl && m.imageUrl.startsWith('data:image') ? (
+                    {typeof m.imageUrl === 'string' && m.imageUrl.startsWith('data:image') ? (
                       <>
                         <img src={m.imageUrl} alt="Print da Partida" onClick={() => window.open(m.imageUrl, '_blank')} className="absolute inset-0 w-full h-full object-cover opacity-50 hover:opacity-100 transition-opacity cursor-pointer z-0" />
                         <span className="text-[10px] font-bold text-white bg-black/60 px-2 py-1 rounded z-10 pointer-events-none shadow-xl">CLIQUE PARA AMPLIAR</span>
