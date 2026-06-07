@@ -6,7 +6,7 @@ import {
   Home, Trophy, Medal, Camera, CheckSquare, Users, 
   LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, 
   Activity, PlusCircle, ArrowLeft, PlayCircle, Lock,
-  Shield, MessageCircle, Edit, Save, X, User, Crown, Star, Send, Trash2
+  Shield, MessageCircle, Edit, Save, X, User, Crown, Star, Send, Trash2, Settings, UserPlus
 } from 'lucide-react';
 
 // ==========================================
@@ -93,7 +93,6 @@ const processImage = (file, callback) => {
   reader.readAsDataURL(file);
 };
 
-// 🔥 RESOLUÇÃO TURBINADA PARA A IA VER OS DETALHES CLARAMENTE
 const processScreenshot = (file, callback) => {
   if (!file) return;
   const reader = new FileReader();
@@ -101,26 +100,18 @@ const processScreenshot = (file, callback) => {
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const MAX_SIZE = 1920; // Muito mais resolução!
+      const MAX_SIZE = 900; 
       let width = img.width; let height = img.height;
       if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } }
       else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
       canvas.width = width; canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
-      callback(canvas.toDataURL('image/jpeg', 0.95)); // 95% de Qualidade
+      callback(canvas.toDataURL('image/jpeg', 0.8)); 
     };
     img.src = event.target.result;
   };
   reader.readAsDataURL(file);
-};
-
-// Lógica de similaridade para cruzar nomes da esquerda/direita com os nomes reais do App
-const calculateSimilarity = (str1, str2) => {
-  if(!str1 || !str2) return 0;
-  const words1 = str1.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-  const words2 = str2.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-  return words1.filter(w => words2.includes(w)).length;
 };
 
 const ShieldDisplay = ({ shield, size = 'normal' }) => {
@@ -135,6 +126,53 @@ const ShieldDisplay = ({ shield, size = 'normal' }) => {
     return <img src={shield} alt="Escudo" className={`${sizeClasses[size]} object-contain drop-shadow-lg`} />;
   }
   return <span className={`${sizeClasses[size]} inline-block text-center`} style={{lineHeight: 1}}>{shield || '🛡️'}</span>;
+};
+
+// ==========================================
+// MÁQUINA DE SORTEIO DE RODADAS (ROUND-ROBIN)
+// ==========================================
+const generateRoundRobin = (teamIds, compId) => {
+  let teams = [...teamIds];
+  // Se for ímpar, adiciona um "Fantasma" para o balanceamento
+  if (teams.length % 2 !== 0) {
+    teams.push(null);
+  }
+  
+  const numTeams = teams.length;
+  const numRounds = numTeams - 1;
+  const half = numTeams / 2;
+  const rounds = [];
+  let matchCounter = 1;
+
+  for (let r = 0; r < numRounds; r++) {
+    const roundMatches = [];
+    for (let i = 0; i < half; i++) {
+      const teamA = teams[i];
+      const teamB = teams[numTeams - 1 - i];
+      
+      // Só cria o jogo se nenhum for o Fantasma (BYE)
+      if (teamA !== null && teamB !== null) {
+        roundMatches.push({
+          id: `${compId}_m${matchCounter}_r${r+1}`,
+          teamA: teamA,
+          teamB: teamB,
+          status: 'pending_play'
+        });
+        matchCounter++;
+      }
+    }
+    
+    rounds.push({
+      id: `r${r+1}`,
+      number: r + 1,
+      status: r === 0 ? 'released' : 'locked', // Libera só a primeira
+      matches: roundMatches
+    });
+
+    // Rotação dos times (mantém o index 0 fixo e gira o resto)
+    teams.splice(1, 0, teams.pop());
+  }
+  return rounds;
 };
 
 const calculateStandings = (matches, teams, compId) => {
@@ -175,6 +213,73 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
 // ==========================================
 // 3. ECRÃS DE GESTÃO DO CLÃ
 // ==========================================
+
+const Profile = ({ currentUser, teams, matches, competitions }) => {
+  const userTeams = teams.filter(t => t.ownerId === currentUser.id);
+
+  if (userTeams.length === 0) {
+    return (
+      <div className="animate-in fade-in text-center p-12 bg-slate-900 rounded-2xl border border-slate-800">
+        <span className="text-6xl mb-4 block">😢</span>
+        <h2 className="text-2xl font-bold text-white mb-2">Você ainda não tem um time</h2>
+        <p className="text-slate-400">Peça para um líder cadastrar seu time no Clã.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="animate-in fade-in duration-500 space-y-6">
+      <div className="flex items-center gap-4 bg-slate-900 p-6 rounded-2xl border border-slate-800">
+        <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center text-3xl">👤</div>
+        <div>
+          <h2 className="text-2xl font-bold text-white">{currentUser.name}</h2>
+          <p className="text-emerald-400 font-medium tracking-wide text-sm uppercase mt-1">
+            {ROLE_NAMES[currentUser.role] || 'Guerreiro'}
+          </p>
+        </div>
+      </div>
+      <div className="space-y-8">
+        {userTeams.map(team => {
+          const teamMatches = matches.filter(m => m.status === 'approved' && (m.teamA === team.id || m.teamB === team.id));
+          let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0;
+          teamMatches.forEach(m => {
+            const isTeamA = m.teamA === team.id;
+            const scoreFor = isTeamA ? m.scoreA : m.scoreB;
+            const scoreAgainst = isTeamA ? m.scoreB : m.scoreA;
+            gf += scoreFor; ga += scoreAgainst;
+            if (scoreFor > scoreAgainst) wins++;
+            else if (scoreFor === scoreAgainst) draws++;
+            else losses++;
+          });
+
+          return (
+            <div key={team.id} className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+              <div className="bg-slate-950/50 p-6 border-b border-slate-800 flex items-center gap-4">
+                <ShieldDisplay shield={team.shield} size="large" />
+                <div>
+                  <h3 className="text-2xl font-bold text-white">{team.name}</h3>
+                  <p className="text-slate-400">Técnico: <span className="text-slate-300 font-medium">{team.coach || 'Não informado'}</span></p>
+                </div>
+              </div>
+              <div className="p-6">
+                <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Activity className="text-emerald-500" size={20}/> Estatísticas Históricas
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Partidas</p><p className="text-2xl font-bold text-white">{teamMatches.length}</p></div>
+                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Vitórias</p><p className="text-2xl font-bold text-emerald-400">{wins}</p></div>
+                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Aproveitamento</p><p className="text-2xl font-bold text-amber-400">{teamMatches.length > 0 ? Math.round((wins * 3 + draws) / (teamMatches.length * 3) * 100) : 0}%</p></div>
+                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Gols Feitos</p><p className="text-2xl font-bold text-blue-400">{gf}</p></div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 
 const MembersList = ({ users, teams, currentUser, onUpdateUserRole, onExpelUser, onEditUser, onLinkTeam }) => {
   const [expelConfirmId, setExpelConfirmId] = useState(null);
@@ -515,7 +620,82 @@ const TeamsList = ({ teams, users, currentUser, onEditTeam, onDeleteTeam }) => {
   );
 };
 
-const CreateTeam = ({ onCreate, showToast }) => {
+// ==========================================
+// TELA: NOVO TIME (SIMPLES MANUAL) - PARA TESTES E BOTS
+// ==========================================
+const CreateTeamManual = ({ onCreate, showToast }) => {
+  const [teamName, setTeamName] = useState('');
+  const [coachName, setCoachName] = useState('');
+  const [shieldData, setShieldData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if(!teamName) return;
+    setIsLoading(true);
+
+    await onCreate({ 
+      id: `t${Date.now()}`, 
+      name: teamName, 
+      coach: coachName || 'Técnico Manual', 
+      whatsapp: '', 
+      ownerId: 'npc_manual', // Time sem dono vinculado (Apenas para o campeonato rodar)
+      shield: shieldData || '🛡️' 
+    });
+
+    showToast("Time criado e pronto para jogar!", "success");
+    setTeamName(''); setCoachName(''); setShieldData(null);
+    setIsLoading(false);
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
+      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><UserPlus className="text-emerald-500"/> Criar Time Simples (S/ Acesso)</h2>
+      <div className="bg-slate-800/50 border border-slate-700 p-4 rounded-xl mb-6 text-sm text-slate-300">
+        <p className="font-bold flex items-center gap-2 text-white"><Activity size={16} className="text-emerald-400"/> Modo Rápido & Bots</p>
+        <p className="mt-1">Crie times rapidamente para preencher competições ou realizar testes. Esses times não têm um WhatsApp atrelado e ninguém fará login com eles.</p>
+      </div>
+      
+      <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 space-y-5">
+        <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+          <label className="block text-sm font-medium text-slate-400 mb-3">Escudo do Time</label>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-slate-900 rounded-xl border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+              <ShieldDisplay shield={shieldData} size="large" />
+            </div>
+            <div className="flex-1">
+              <label className="cursor-pointer bg-slate-800 hover:bg-emerald-600 text-white transition-colors px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 max-w-[220px]">
+                <UploadCloud size={18} />
+                {shieldData ? 'Trocar Escudo' : 'Enviar Imagem'}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], setShieldData)} />
+              </label>
+              <p className="text-xs text-slate-500 mt-2">Dica: Envie imagens em .PNG para manter o fundo transparente.</p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-400 mb-1">Nome do Time <span className="text-red-400">*</span></label>
+          <input type="text" placeholder="Ex: Kame FC" value={teamName} onChange={e=>setTeamName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none transition-colors" required />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-400 mb-1">Nome do Técnico (Opcional)</label>
+          <input type="text" placeholder="Ex: Mestre Kame" value={coachName} onChange={e=>setCoachName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none transition-colors" />
+        </div>
+
+        <Button type="submit" disabled={isLoading} className="w-full py-4 text-lg mt-4 shadow-emerald-900/50 shadow-xl flex items-center justify-center gap-2">
+          <Save size={20} /> {isLoading ? 'Guardando...' : 'Salvar Time Manual'}
+        </Button>
+      </form>
+    </div>
+  );
+};
+
+// ==========================================
+// TELA: CONVITE DE TÉCNICOS COM ACESSO (O ANTIGO CREATE TEAM)
+// ==========================================
+const CreateTeamFull = ({ onCreate, showToast }) => {
   const [coachFirstName, setCoachFirstName] = useState('');
   const [coachLastName, setCoachLastName] = useState('');
   const [teamName, setTeamName] = useState('');
@@ -557,10 +737,10 @@ const CreateTeam = ({ onCreate, showToast }) => {
 
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Users className="text-emerald-500"/> Cadastrar Novo Time</h2>
+      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Users className="text-emerald-500"/> Convidar Técnico (Com Acesso)</h2>
       <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl mb-6 text-sm text-emerald-400">
-        <p className="font-bold flex items-center gap-2"><Activity size={16}/> Registo Invisível (Automático)</p>
-        <p className="mt-1">Preencha os dados abaixo. O sistema vai preparar a conta do técnico e gerar um link. Quando ele tentar aceder com a senha que quiser, a conta é criada e vinculada na hora!</p>
+        <p className="font-bold flex items-center gap-2"><Activity size={16}/> Registo Invisível + WhatsApp</p>
+        <p className="mt-1">Use este painel para convidar técnicos reais. O sistema vai preparar a conta, criar o time dele e gerar a mensagem automática no WhatsApp!</p>
       </div>
       
       <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 space-y-5">
@@ -625,21 +805,17 @@ const CreateCompetition = ({ teams, onCreate, showToast }) => {
     const count = parseInt(teamCount, 10);
     if (selectedTeams.length !== count) return showToast(`Selecione exatamente ${count} times (atualmente: ${selectedTeams.length}).`, 'error');
     
-    const shuffledTeams = [...selectedTeams].sort(() => 0.5 - Math.random());
-    const roundMatches = [];
-    let matchCounter = 1;
-    
     const newCompId = `c${Date.now()}`;
-    for (let i = 0; i < shuffledTeams.length - 1; i += 2) {
-      roundMatches.push({ id: `${newCompId}_m${matchCounter}_r1`, teamA: shuffledTeams[i], teamB: shuffledTeams[i+1], status: 'pending_play' });
-      matchCounter++;
-    }
+    
+    // 🔥 MAGIA DO ROUND-ROBIN: Gera todas as partidas e cruza toda a gente automaticamente!
+    const generatedRounds = generateRoundRobin(selectedTeams, newCompId);
 
     onCreate({ 
       id: newCompId, name, format, teamCount: count, deadline, status: 'active', teams: selectedTeams, 
-      rounds: roundMatches.length > 0 ? [{ id: 'r1', number: 1, status: 'released', matches: roundMatches }] : []
+      rounds: generatedRounds
     });
-    showToast("Competição e 1ª Rodada criadas!", "success");
+    
+    showToast(`Competição criada! Foram geradas ${generatedRounds.length} rodadas de forma automática!`, "success");
   };
 
   return (
@@ -669,7 +845,7 @@ const CreateCompetition = ({ teams, onCreate, showToast }) => {
             })}
           </div>
         </div>
-        <Button type="submit" className="w-full py-4 text-lg mt-4 shadow-emerald-900/50 shadow-xl">Lançar Competição</Button>
+        <Button type="submit" className="w-full py-4 text-lg mt-4 shadow-emerald-900/50 shadow-xl">Sortear e Lançar Competição</Button>
       </form>
     </div>
   );
@@ -760,11 +936,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   
   const [matchImageBase64, setMatchImageBase64] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false); 
-  const [imageUploaded, setImageUploaded] = useState(false);
 
-  // A chave agora é estritamente carregada do ambiente
   const aiKey = getGeminiApiKey();
-
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
   const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
@@ -807,24 +980,22 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
   const resetMatchData = () => { 
     setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); 
-    setObservacoes(''); setImageUploaded(false); setMatchImageBase64(null);
+    setObservacoes(''); setMatchImageBase64(null);
   };
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (!aiKey || aiKey.length < 10) {
-      showToast("Scanner IA indisponível. A chave não está configurada na Vercel. Preencha os dados manualmente.", "error");
-      setMatchImageBase64(URL.createObjectURL(file)); 
-      setImageUploaded(true);
-      return; 
-    }
-
     processScreenshot(file, async (base64) => {
-      setMatchImageBase64(base64);
+      setMatchImageBase64(base64); // Mostra a imagem na tela, o técnico pode submeter manualmente!
+
+      if (!aiKey || !aiKey.startsWith('AIzaSy')) {
+        showToast("Você anexou a imagem! Preencha o placar manualmente abaixo.", "success");
+        return; 
+      }
+
       setIsAnalyzing(true);
-      setImageUploaded(false);
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]);
 
       try {
@@ -833,58 +1004,37 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
         const b64Data = base64.split(',')[1];
         const mimeType = base64.match(/data:(.*?);base64/)[1];
 
-        // 🔥 A NOVA INSTRUÇÃO ESPACIAL: Garante que a IA não inverta os times!
         const promptText = `
 Analise o placar final deste jogo de Dream League Soccer (DLS).
-
 REGRAS:
 1. O escudo do lado ESQUERDO tem um placar. O escudo do lado DIREITO tem um placar.
-2. Na lista central, identifique quem fez gol. GOLS possuem o ícone de uma BOLA DE FUTEBOL (⚽) ao lado.
-3. CARTÕES possuem um ícone retangular (🟨/🟥). IGNORE COMPLETAMENTE os jogadores com cartões.
-4. Liste os jogadores e minutos agrupando por quem está no lado esquerdo ou direito.
-
-Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e não escreva mais nada.
+2. Na lista central, identifique quem fez gol (bola de futebol ⚽).
+3. IGNORE os jogadores com cartões (🟨/🟥).
+Retorne EXATAMENTE este formato JSON:
 {
-  "leftTeamName": "nome lido no escudo da esquerda",
+  "leftTeamName": "nome na esquerda",
   "leftScore": 0,
   "leftGoals": [{"player": "Nome", "minute": "90"}],
-  "rightTeamName": "nome lido no escudo da direita",
+  "rightTeamName": "nome na direita",
   "rightScore": 0,
   "rightGoals": [{"player": "Nome", "minute": "90"}]
 }
         `;
 
         const payload = {
-          contents: [{
-            role: "user",
-            parts: [
-              { text: promptText },
-              { inlineData: { mimeType: mimeType, data: b64Data } }
-            ]
-          }],
-          generationConfig: {
-            responseMimeType: "application/json"
-          }
+          contents: [{ role: "user", parts: [ { text: promptText }, { inlineData: { mimeType: mimeType, data: b64Data } } ] }],
+          generationConfig: { responseMimeType: "application/json" }
         };
 
-        const result = await fetchWithBackoff(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+        const result = await fetchWithBackoff(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
 
-        if (!result || !result.candidates) {
-          throw new Error("A IA processou o pedido mas retornou uma resposta em branco.");
-        }
+        if (!result || !result.candidates) throw new Error("A IA processou mas retornou vazio.");
 
         let textResponse = result.candidates[0].content.parts[0].text.trim();
-        if (textResponse.startsWith('```')) {
-            textResponse = textResponse.replace(/^```json/i, '').replace(/```$/, '').trim();
-        }
+        if (textResponse.startsWith('```')) textResponse = textResponse.replace(/^```json/i, '').replace(/```$/, '').trim();
         
         const data = JSON.parse(textResponse);
 
-        // 🔥 A LÓGICA DE CRUZAMENTO: O sistema é quem decide de que lado o time está!
         const leftName = String(data.leftTeamName || "");
         const rightName = String(data.rightTeamName || "");
         const nameA = String(teamA?.name || "");
@@ -898,33 +1048,19 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         const isTeamA_Left = (leftMatchesA + rightMatchesB) >= (leftMatchesB + rightMatchesA);
 
         if (isTeamA_Left) {
-          setScoreA(data.leftScore?.toString() || '0');
-          setScoreB(data.rightScore?.toString() || '0');
-          setGoalsA(data.leftGoals || []);
-          setGoalsB(data.rightGoals || []);
+          setScoreA(data.leftScore?.toString() || '0'); setScoreB(data.rightScore?.toString() || '0');
+          setGoalsA(data.leftGoals || []); setGoalsB(data.rightGoals || []);
         } else {
-          setScoreA(data.rightScore?.toString() || '0');
-          setScoreB(data.leftScore?.toString() || '0');
-          setGoalsA(data.rightGoals || []);
-          setGoalsB(data.leftGoals || []);
+          setScoreA(data.rightScore?.toString() || '0'); setScoreB(data.leftScore?.toString() || '0');
+          setGoalsA(data.rightGoals || []); setGoalsB(data.leftGoals || []);
         }
-
         showToast("Dados extraídos do Print pela IA!", "success");
 
       } catch (error) {
-        console.error("Erro na Análise da IA:", error);
-        
-        let mensagemErro = error.message;
-        if (mensagemErro.includes("API_KEY_INVALID")) {
-           mensagemErro = "A chave Gemini fornecida é inválida. Ela deve começar com AIzaSy.";
-        } else if (mensagemErro.includes("API not enabled") || mensagemErro.includes("not found")) {
-           mensagemErro = "O modelo de IA não reconheceu essa chave ou ela não foi criada no Google AI Studio (aistudio.google.com).";
-        }
-
-        showToast(`Erro na IA: ${mensagemErro}`, "error");
+        console.error("Erro IA:", error);
+        showToast(`IA falhou. Preencha manualmente abaixo.`, "error");
       } finally {
         setIsAnalyzing(false);
-        setImageUploaded(true);
       }
     });
   };
@@ -959,12 +1095,12 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
       goals: allGoals, observacoes: observacoes.trim(), status: 'pending', submittedBy: currentUser?.name || 'Técnico', imageUrl: matchImageBase64
     });
     setSelectedCompId('');
-    showToast("Partida enviada para validação dos Líderes/Kaiohs!", "success");
+    showToast("Partida enviada para validação dos Líderes!", "success");
   };
 
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida (IA)</h2>
+      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida</h2>
 
       <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-6">
         <div>
@@ -974,9 +1110,10 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             {visibleCompetitions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
+        
         {selectedCompId && (
           <div className="animate-in fade-in">
-            <label className="block text-sm font-medium text-slate-400 mb-2">2. Selecione a Partida Liberada</label>
+            <label className="block text-sm font-medium text-slate-400 mb-2">2. Selecione a Partida</label>
             {availableMatches.length > 0 ? (
               <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
                 <option value="">Qual jogo você jogou?</option>
@@ -990,80 +1127,87 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             ) : <div className="p-3 bg-slate-950 rounded border border-slate-800 text-slate-500 text-sm">Nenhuma partida pendente.</div>}
           </div>
         )}
+
+        {/* 🔥 FORMULÁRIO SEMPRE VISÍVEL QUANDO A PARTIDA É ESCOLHIDA (MODO MANUAL ON) */}
         {selectedMatchId && (
-          <div className="animate-in slide-in-from-top-4">
-            <div className="flex justify-between items-center mb-2">
-              <label className="block text-sm font-medium text-slate-400">3. Envie o Print do Resultado (IA Scanner)</label>
-            </div>
+          <div className="animate-in slide-in-from-top-4 border-t border-slate-800 pt-6 mt-6">
             
-            <label className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer relative overflow-hidden block ${imageUploaded ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-950'}`}>
-              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isAnalyzing} />
-              {isAnalyzing && (
-                <div className="absolute inset-0 bg-emerald-500/5 flex flex-col items-center justify-center space-y-3 z-10">
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500 shadow-[0_0_15px_#10b981] animate-bounce w-full"></div>
-                  <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-emerald-400 font-medium">IA do Clã Kame analisando o print do jogo...</p>
+            <div className="mb-6 p-4 border border-slate-800 bg-slate-950 rounded-xl">
+              <label className="block text-sm font-bold text-emerald-400 mb-2">Anexar Print (Opcional)</label>
+              <p className="text-xs text-slate-500 mb-3">Opcionalmente, anexe o print do resultado. A nossa IA tentará preencher tudo automaticamente para você.</p>
+              <label className={`border-2 border-dashed rounded-xl p-4 text-center transition-colors cursor-pointer relative overflow-hidden block ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-900'}`}>
+                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isAnalyzing} />
+                {isAnalyzing && (
+                  <div className="absolute inset-0 bg-emerald-500/5 flex flex-col items-center justify-center space-y-2 z-10">
+                    <div className="w-6 h-6 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-emerald-400 font-medium text-sm">IA analisando o print...</p>
+                  </div>
+                )}
+                {matchImageBase64 ? (
+                  <div className="flex flex-col items-center space-y-2">
+                    <CheckCircle className="text-emerald-500" size={24} />
+                    <p className="text-emerald-400 font-medium text-sm">Print Anexado!</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center space-y-2">
+                    <UploadCloud className="text-slate-500" size={28} />
+                    <p className="text-white font-medium text-sm">Clique para anexar o print</p>
+                  </div>
+                )}
+              </label>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <h3 className="text-sm font-semibold text-white flex items-center gap-1.5"><Edit size={16} className="text-slate-400"/> Preencha o Resultado:</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-950 p-5 rounded-2xl border border-slate-800">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2"><ShieldDisplay shield={teamA?.shield} size="normal" /><span className="font-bold text-white text-lg">{teamA?.name}</span></div>
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">Gols</label>
+                    <input type="number" value={scoreA} onChange={e=>setScoreA(e.target.value)} className="bg-slate-900 border border-slate-800 text-center font-bold text-3xl text-emerald-400 rounded-lg p-2 w-24 outline-none focus:border-emerald-500" />
+                  </div>
+                  <div className="space-y-2">
+                    <span className="text-xs text-slate-400 block">Autores dos Gols</span>
+                    {(goalsA || []).map((g, index) => (
+                      <div key={index} className="flex gap-2 items-center animate-in slide-in-from-left-4">
+                        <input type="text" placeholder="Nome" value={g.player} onChange={e=>handleGoalChange('A', index, 'player', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500" required />
+                        <input type="text" placeholder="10" value={g.minute} onChange={e=>handleGoalChange('A', index, 'minute', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-emerald-400 text-center outline-none focus:border-emerald-500" required />
+                        <button type="button" onClick={() => handleRemoveGoal('A', index)} className="text-red-500 hover:text-red-400 p-1"><X size={16} /></button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => handleAddGoal('A')} className="text-xs text-emerald-400 hover:underline flex items-center gap-1">+ Adicionar Gol</button>
+                  </div>
                 </div>
-              )}
-              {imageUploaded ? (
-                <div className="flex flex-col items-center space-y-2"><CheckCircle className="text-emerald-500" size={40} /><p className="text-emerald-400 font-medium">Print Analisado e Placar Extraído!</p></div>
-              ) : (
-                <div className="flex flex-col items-center space-y-3"><UploadCloud className="text-slate-500" size={40} /><p className="text-white font-medium">Clique para enviar o print da partida</p><p className="text-xs text-slate-500">A nossa IA vai ler o placar e os autores dos gols automaticamente.</p></div>
-              )}
-            </label>
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2"><ShieldDisplay shield={teamB?.shield} size="normal" /><span className="font-bold text-white text-lg">{teamB?.name}</span></div>
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">Gols</label>
+                    <input type="number" value={scoreB} onChange={e=>setScoreB(e.target.value)} className="bg-slate-900 border border-slate-800 text-center font-bold text-3xl text-emerald-400 rounded-lg p-2 w-24 outline-none focus:border-emerald-500" />
+                  </div>
+                  <div className="space-y-2">
+                    <span className="text-xs text-slate-400 block">Autores dos Gols</span>
+                    {(goalsB || []).map((g, index) => (
+                      <div key={index} className="flex gap-2 items-center animate-in slide-in-from-right-4">
+                        <input type="text" placeholder="Nome" value={g.player} onChange={e=>handleGoalChange('B', index, 'player', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500" required />
+                        <input type="text" placeholder="87" value={g.minute} onChange={e=>handleGoalChange('B', index, 'minute', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-emerald-400 text-center outline-none focus:border-emerald-500" required />
+                        <button type="button" onClick={() => handleRemoveGoal('B', index)} className="text-red-500 hover:text-red-400 p-1"><X size={16} /></button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => handleAddGoal('B')} className="text-xs text-emerald-400 hover:underline flex items-center gap-1">+ Adicionar Gol</button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-400 block">Observações (Opcional)</label>
+                <textarea placeholder="Ocorreu alguma queda de conexão? Relate aqui..." value={observacoes} onChange={e=>setObservacoes(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-slate-300 text-sm h-24 outline-none resize-none transition-colors" />
+              </div>
+
+              <Button type="submit" className="w-full py-4 text-lg shadow-emerald-950/50 shadow-2xl">Enviar Partida para Nuvem</Button>
+            </form>
           </div>
-        )}
-        {imageUploaded && (
-          <form onSubmit={handleSubmit} className="animate-in slide-in-from-bottom-4 space-y-6 pt-4 border-t border-slate-800">
-            <h3 className="text-sm font-semibold text-amber-400 flex items-center gap-1.5"><AlertCircle size={16}/> Revise os dados lidos pela IA:</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-950 p-5 rounded-2xl border border-slate-800">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2"><ShieldDisplay shield={teamA?.shield} size="normal" /><span className="font-bold text-white text-lg">{teamA?.name}</span></div>
-                <div>
-                  <label className="text-xs text-slate-500 block mb-1">Gols</label>
-                  <input type="number" value={scoreA} onChange={e=>setScoreA(e.target.value)} className="bg-slate-900 border border-slate-800 text-center font-bold text-3xl text-emerald-400 rounded-lg p-2 w-24 outline-none focus:border-emerald-500" />
-                </div>
-                <div className="space-y-2">
-                  <span className="text-xs text-slate-400 block">Autores dos Gols</span>
-                  {(goalsA || []).map((g, index) => (
-                    <div key={index} className="flex gap-2 items-center animate-in slide-in-from-left-4">
-                      <input type="text" placeholder="Nome" value={g.player} onChange={e=>handleGoalChange('A', index, 'player', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500" required />
-                      <input type="text" placeholder="10" value={g.minute} onChange={e=>handleGoalChange('A', index, 'minute', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-emerald-400 text-center outline-none focus:border-emerald-500" required />
-                      <button type="button" onClick={() => handleRemoveGoal('A', index)} className="text-red-500 hover:text-red-400 p-1"><X size={16} /></button>
-                    </div>
-                  ))}
-                  <button type="button" onClick={() => handleAddGoal('A')} className="text-xs text-emerald-400 hover:underline flex items-center gap-1">+ Adicionar Gol</button>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-2"><ShieldDisplay shield={teamB?.shield} size="normal" /><span className="font-bold text-white text-lg">{teamB?.name}</span></div>
-                <div>
-                  <label className="text-xs text-slate-500 block mb-1">Gols</label>
-                  <input type="number" value={scoreB} onChange={e=>setScoreB(e.target.value)} className="bg-slate-900 border border-slate-800 text-center font-bold text-3xl text-emerald-400 rounded-lg p-2 w-24 outline-none focus:border-emerald-500" />
-                </div>
-                <div className="space-y-2">
-                  <span className="text-xs text-slate-400 block">Autores dos Gols</span>
-                  {(goalsB || []).map((g, index) => (
-                    <div key={index} className="flex gap-2 items-center animate-in slide-in-from-right-4">
-                      <input type="text" placeholder="Nome" value={g.player} onChange={e=>handleGoalChange('B', index, 'player', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500" required />
-                      <input type="text" placeholder="87" value={g.minute} onChange={e=>handleGoalChange('B', index, 'minute', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-emerald-400 text-center outline-none focus:border-emerald-500" required />
-                      <button type="button" onClick={() => handleRemoveGoal('B', index)} className="text-red-500 hover:text-red-400 p-1"><X size={16} /></button>
-                    </div>
-                  ))}
-                  <button type="button" onClick={() => handleAddGoal('B')} className="text-xs text-emerald-400 hover:underline flex items-center gap-1">+ Adicionar Gol</button>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-400 block">Observações e Justificativas da Partida</label>
-              <textarea placeholder="Ocorreu alguma queda de conexão? Relate aqui os acontecimentos ou detalhes da partida..." value={observacoes} onChange={e=>setObservacoes(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-slate-300 text-sm h-24 outline-none resize-none transition-colors" />
-            </div>
-
-            <Button type="submit" className="w-full py-4 text-lg shadow-emerald-950/50 shadow-2xl">Enviar Partida para Nuvem</Button>
-          </form>
         )}
       </div>
     </div>
@@ -1194,8 +1338,8 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
                     ) : (
                       <>
                         <Shield size={32} className="text-slate-600 animate-pulse" />
-                        <span className="text-xs text-slate-400 font-semibold z-10 drop-shadow-md">Print da Partida</span>
-                        <span className="text-[10px] text-slate-600 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 z-10">Sincronizado</span>
+                        <span className="text-xs text-slate-400 font-semibold z-10 drop-shadow-md">Nenhum Print</span>
+                        <span className="text-[10px] text-slate-600 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 z-10">Envio Manual</span>
                       </>
                     )}
                   </div>
@@ -1456,7 +1600,7 @@ export default function App() {
   const handleDeleteTeam = async (teamId, ownerId) => {
     await deleteDoc(getPublicDocPath('teams', teamId));
     
-    if (ownerId && !ownerId.startsWith('pending_')) {
+    if (ownerId && !ownerId.startsWith('pending_') && !ownerId.startsWith('npc_')) {
       if (ownerId === fbUser?.uid) {
         showToast('Seu time foi removido, mas sua conta de Líder foi mantida para não perder acesso.', 'error');
       } else {
@@ -1465,25 +1609,24 @@ export default function App() {
     } else if (ownerId && ownerId.startsWith('pending_')) {
       await deleteDoc(getPublicDocPath('users', ownerId));
     }
-    showToast('Time e técnico removidos com sucesso!', 'success');
+    showToast('Time removido com sucesso!', 'success');
   };
 
   const handleEditTeam = async (updatedTeam) => {
     const { id, name, coach, whatsapp, shield } = updatedTeam;
-    const cleanWhatsapp = whatsapp.replace(/\D/g, '');
+    const cleanWhatsapp = whatsapp ? whatsapp.replace(/\D/g, '') : '';
     const cleanTeamName = name.trim().toLowerCase();
-    const cleanCoachName = coach.trim().toLowerCase();
+    const cleanCoachName = coach ? coach.trim().toLowerCase() : '';
 
     const isDuplicateTeam = teams.some(t => 
       t.id !== id && (
         t.name.trim().toLowerCase() === cleanTeamName ||
-        t.whatsapp === cleanWhatsapp ||
-        t.coach.trim().toLowerCase() === cleanCoachName
+        (cleanWhatsapp !== '' && t.whatsapp === cleanWhatsapp)
       )
     );
 
     if (isDuplicateTeam) {
-      showToast('Erro: Já existe outro time registrado com esse Nome, Técnico ou WhatsApp.', 'error');
+      showToast('Erro: Já existe outro time registrado com esse Nome ou WhatsApp.', 'error');
       return false;
     }
 
@@ -1492,7 +1635,7 @@ export default function App() {
     return true;
   };
 
-  const handleCreateTeam = async (teamData) => { 
+  const handleCreateTeamFull = async (teamData) => { 
     const currentLeaders = users.filter(u => u.role === 'leader');
     const currentKaiohs = users.filter(u => u.role === 'kaioh');
 
@@ -1508,21 +1651,12 @@ export default function App() {
     const cleanWhatsapp = teamData.whatsapp;
     const cleanEmail = teamData.email;
     const cleanTeamName = teamData.name.trim().toLowerCase();
-    const cleanCoachName = teamData.coach.trim().toLowerCase();
 
     const isDuplicateTeam = teams.some(t => 
-      t.name.trim().toLowerCase() === cleanTeamName ||
-      t.whatsapp === cleanWhatsapp ||
-      t.coach.trim().toLowerCase() === cleanCoachName
+      t.name.trim().toLowerCase() === cleanTeamName || t.whatsapp === cleanWhatsapp
     );
 
-    const isDuplicateUser = users.some(u => 
-      (u.email && u.email.toLowerCase() === cleanEmail) ||
-      u.whatsapp === cleanWhatsapp ||
-      u.name.trim().toLowerCase() === cleanCoachName
-    );
-
-    if (isDuplicateTeam || isDuplicateUser) {
+    if (isDuplicateTeam) {
       showToast('Ação Bloqueada: Já existe um cadastro registrado no sistema com esse Time, Técnico, E-mail ou WhatsApp!', 'error');
       return false;
     }
@@ -1541,6 +1675,12 @@ export default function App() {
     return true;
   };
   
+  const handleCreateTeamManual = async (teamData) => {
+    await setDoc(getPublicDocPath('teams', teamData.id), teamData);
+    setCurrentTab('teams_list');
+    return true;
+  };
+
   const handleCreateComp = async (c) => { 
     await setDoc(getPublicDocPath('competitions', c.id), c); 
     setCurrentTab('competitions'); 
@@ -1596,29 +1736,33 @@ export default function App() {
   
   const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home },
-    { id: 'teams_list', label: 'Times do Clã', icon: Shield },
+    { id: 'profile', label: 'Meu Perfil', icon: User },
+    { id: 'teams_list', label: 'Times', icon: Shield },
     { id: 'competitions', label: 'Competições', icon: Medal },
-    { id: 'submit', label: 'Registrar Jogo', icon: Camera },
+    { id: 'submit', label: 'Registrar', icon: Camera },
     ...(isAdmin ? [ 
       { id: 'validation', label: 'Validação', icon: CheckSquare },
       { id: 'members_list', label: 'Técnicos', icon: Crown },
-      { id: 'create_comp', label: 'Nova Competição', icon: PlusCircle },
-      { id: 'create_team', label: 'Novo Time', icon: Users }
+      { id: 'create_comp', label: 'Nova Comp', icon: PlusCircle },
+      { id: 'create_team', label: 'Convidar Técnico', icon: Users },
+      { id: 'create_team_manual', label: 'Time Simples', icon: UserPlus }
     ] : []),
   ];
 
   const renderContent = () => {
     switch (currentTab) {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} />;
+      case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} onEditTeam={handleEditTeam} onDeleteTeam={handleDeleteTeam} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={id => {setSelectedCompId(id); setCurrentTab('comp_details');}} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} />;
       case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} onSubmit={handleSubmitMatch} currentUser={currentUser} showToast={showToast} />;
       case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={handleUpdateMatchStatus} showToast={showToast} />;
       case 'create_comp': return <CreateCompetition teams={teams} onCreate={handleCreateComp} showToast={showToast} />;
-      case 'create_team': return <CreateTeam onCreate={handleCreateTeam} showToast={showToast} />;
+      case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamFull} showToast={showToast} />;
+      case 'create_team_manual': return <CreateTeamManual onCreate={handleCreateTeamManual} showToast={showToast} />;
       case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onUpdateUserRole={handleUpdateUserRole} onExpelUser={handleExpelUser} onEditUser={handleEditUser} onLinkTeam={handleLinkTeam} />;
-      default: return null;
+      default: return <Dashboard matches={matches} teams={teams} />;
     }
   };
 
