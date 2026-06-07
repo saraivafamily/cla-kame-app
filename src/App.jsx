@@ -242,14 +242,28 @@ const Profile = ({ currentUser, teams, matches, competitions }) => {
         {userTeams.map(team => {
           const teamMatches = matches.filter(m => m.status === 'approved' && (m.teamA === team.id || m.teamB === team.id));
           let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0;
+          let biggestWin = null;
+          let maxGd = -1;
+
           teamMatches.forEach(m => {
             const isTeamA = m.teamA === team.id;
             const scoreFor = isTeamA ? m.scoreA : m.scoreB;
             const scoreAgainst = isTeamA ? m.scoreB : m.scoreA;
             gf += scoreFor; ga += scoreAgainst;
-            if (scoreFor > scoreAgainst) wins++;
-            else if (scoreFor === scoreAgainst) draws++;
-            else losses++;
+            
+            if (scoreFor > scoreAgainst) {
+              wins++;
+              const gd = scoreFor - scoreAgainst;
+              if (gd > maxGd) { maxGd = gd; biggestWin = { scoreFor, scoreAgainst, oppId: isTeamA ? m.teamB : m.teamA }; }
+            } else if (scoreFor === scoreAgainst) { draws++; } 
+            else { losses++; }
+          });
+
+          const participations = competitions.filter(c => c.teams?.includes(team.id)).map(c => {
+            const table = calculateStandings(matches, teams, c.id);
+            const rankIndex = table.findIndex(t => t.id === team.id);
+            const rank = rankIndex !== -1 ? rankIndex + 1 : '-';
+            return { compName: c.name, rank, format: c.format };
           });
 
           return (
@@ -261,15 +275,39 @@ const Profile = ({ currentUser, teams, matches, competitions }) => {
                   <p className="text-slate-400">Técnico: <span className="text-slate-300 font-medium">{team.coach || 'Não informado'}</span></p>
                 </div>
               </div>
-              <div className="p-6">
-                <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <Activity className="text-emerald-500" size={20}/> Estatísticas Históricas
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Partidas</p><p className="text-2xl font-bold text-white">{teamMatches.length}</p></div>
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Vitórias</p><p className="text-2xl font-bold text-emerald-400">{wins}</p></div>
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Aproveitamento</p><p className="text-2xl font-bold text-amber-400">{teamMatches.length > 0 ? Math.round((wins * 3 + draws) / (teamMatches.length * 3) * 100) : 0}%</p></div>
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Gols Feitos</p><p className="text-2xl font-bold text-blue-400">{gf}</p></div>
+              <div className="p-6 space-y-8">
+                <div>
+                  <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Activity className="text-emerald-500" size={20}/> Estatísticas Históricas</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Partidas</p><p className="text-2xl font-bold text-white">{teamMatches.length}</p></div>
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Vitórias</p><p className="text-2xl font-bold text-emerald-400">{wins}</p></div>
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Aproveitamento</p><p className="text-2xl font-bold text-amber-400">{teamMatches.length > 0 ? Math.round((wins * 3 + draws) / (teamMatches.length * 3) * 100) : 0}%</p></div>
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center"><p className="text-slate-400 text-sm mb-1">Gols Feitos</p><p className="text-2xl font-bold text-blue-400">{gf}</p></div>
+                  </div>
+                </div>
+                {biggestWin && (
+                  <div className="bg-gradient-to-r from-emerald-900/40 to-slate-900 p-5 rounded-xl border border-emerald-900/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm text-emerald-400 font-bold mb-1 flex items-center gap-2">🏆 Maior Goleada Aplicada</p>
+                      <p className="text-white font-medium text-lg">{team.name} <span className="font-bold text-emerald-400 mx-2">{biggestWin.scoreFor} x {biggestWin.scoreAgainst}</span> {teams.find(t=>t.id === biggestWin.oppId)?.name}</p>
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Trophy className="text-amber-500" size={20}/> Histórico em Competições</h4>
+                  {participations.length > 0 ? (
+                    <div className="space-y-3">
+                      {participations.map((p, i) => (
+                        <div key={i} className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800">
+                          <span className="text-slate-200 font-medium">{p.compName}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded hidden md:block">{p.format === 'league' ? 'Liga' : 'Copa'}</span>
+                            <span className="font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">{p.rank}º Lugar</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded-xl border border-slate-800">Este time ainda não participou de nenhuma competição.</p>}
                 </div>
               </div>
             </div>
@@ -620,9 +658,6 @@ const TeamsList = ({ teams, users, currentUser, onEditTeam, onDeleteTeam }) => {
   );
 };
 
-// ==========================================
-// TELA: NOVO TIME (SIMPLES MANUAL) - PARA TESTES E BOTS
-// ==========================================
 const CreateTeamManual = ({ onCreate, showToast }) => {
   const [teamName, setTeamName] = useState('');
   const [coachName, setCoachName] = useState('');
@@ -639,7 +674,7 @@ const CreateTeamManual = ({ onCreate, showToast }) => {
       name: teamName, 
       coach: coachName || 'Técnico Manual', 
       whatsapp: '', 
-      ownerId: 'npc_manual', // Time sem dono vinculado (Apenas para o campeonato rodar)
+      ownerId: 'npc_manual', 
       shield: shieldData || '🛡️' 
     });
 
@@ -692,9 +727,6 @@ const CreateTeamManual = ({ onCreate, showToast }) => {
   );
 };
 
-// ==========================================
-// TELA: CONVITE DE TÉCNICOS COM ACESSO (O ANTIGO CREATE TEAM)
-// ==========================================
 const CreateTeamFull = ({ onCreate, showToast }) => {
   const [coachFirstName, setCoachFirstName] = useState('');
   const [coachLastName, setCoachLastName] = useState('');
@@ -792,7 +824,6 @@ const CreateTeamFull = ({ onCreate, showToast }) => {
 const CreateCompetition = ({ teams, onCreate, showToast }) => {
   const [name, setName] = useState('');
   const [format, setFormat] = useState('league');
-  const [teamCount, setTeamCount] = useState('');
   const [deadline, setDeadline] = useState('');
   const [selectedTeams, setSelectedTeams] = useState([]);
 
@@ -800,14 +831,11 @@ const CreateCompetition = ({ teams, onCreate, showToast }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name || !format || !teamCount || !deadline) return showToast('Preencha todos os campos obrigatórios.', 'error');
+    if (!name || !format || !deadline) return showToast('Preencha todos os campos obrigatórios.', 'error');
+    if (selectedTeams.length < 2) return showToast('Selecione pelo menos 2 times.', 'error');
     
-    const count = parseInt(teamCount, 10);
-    if (selectedTeams.length !== count) return showToast(`Selecione exatamente ${count} times (atualmente: ${selectedTeams.length}).`, 'error');
-    
+    const count = selectedTeams.length;
     const newCompId = `c${Date.now()}`;
-    
-    // 🔥 MAGIA DO ROUND-ROBIN: Gera todas as partidas e cruza toda a gente automaticamente!
     const generatedRounds = generateRoundRobin(selectedTeams, newCompId);
 
     onCreate({ 
@@ -825,13 +853,13 @@ const CreateCompetition = ({ teams, onCreate, showToast }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Nome da Competição</label><input type="text" placeholder="Ex: Copa Clã Kame" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none transition-colors" required /></div>
           <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Formato</label><select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none transition-colors"><option value="cup">Mata-Mata (Copa)</option><option value="league">Pontos Corridos (Liga)</option><option value="group_stage_cup">Fase de Grupos + Mata-Mata</option></select></div>
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Quantidade de Times</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none transition-colors" required /></div>
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Quantidade de Times</label><input type="number" readOnly value={selectedTeams.length} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-500 cursor-not-allowed outline-none transition-colors" /></div>
           <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Prazo Final</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-emerald-500 outline-none transition-colors" required /></div>
         </div>
         <div className="pt-6 border-t border-slate-800">
           <div className="flex justify-between items-center mb-4">
             <label className="text-sm font-medium text-slate-400">Quais times vão participar?</label>
-            <span className={`text-xs px-2 py-1 rounded font-bold ${selectedTeams.length === parseInt(teamCount || 0) ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{selectedTeams.length} Selecionados</span>
+            <span className={`text-xs px-2 py-1 rounded font-bold ${selectedTeams.length >= 2 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{selectedTeams.length} Selecionados</span>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {teams.map(t => {
@@ -839,7 +867,7 @@ const CreateCompetition = ({ teams, onCreate, showToast }) => {
               return (
                 <div key={t.id} onClick={() => toggleTeam(t.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
                   <ShieldDisplay shield={t.shield} size="normal" />
-                  <div className="flex flex-col"><span className={`font-medium text-sm ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{t.name}</span><span className="text-[10px] text-slate-500">{t.coach}</span></div>
+                  <div className="flex flex-col"><span className={`font-medium text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{t.name}</span></div>
                 </div>
               );
             })}
@@ -889,7 +917,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     <div className="animate-in fade-in duration-500 space-y-6">
       <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4"><ArrowLeft size={20} /> Voltar para Competições</button>
       <div className="bg-gradient-to-r from-emerald-900/40 to-slate-900 p-6 rounded-2xl border border-emerald-900/50 flex justify-between items-center"><div><h2 className="text-3xl font-bold text-white mb-2">{comp.name}</h2><p className="text-emerald-400 flex items-center gap-2"><Trophy size={16}/> {comp.format === 'league' ? 'Pontos Corridos' : 'Mata-Mata'}</p></div><span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm font-medium">Em Andamento</span></div>
-      <Standings matches={matches} teams={teams} compId={comp.id} />
+      <Standings matches={matches} teams={teams.filter(t => comp.teams?.includes(t.id))} compId={comp.id} />
       <div className="mt-8">
         <h3 className="text-xl font-bold text-white mb-4">Rodadas</h3>
         {comp.rounds?.length > 0 ? (
@@ -936,8 +964,22 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   
   const [matchImageBase64, setMatchImageBase64] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false); 
+  const [imageUploaded, setImageUploaded] = useState(false);
 
-  const aiKey = getGeminiApiKey();
+  const [localKeyInput, setLocalKeyInput] = useState('');
+  const [showKeyConfig, setShowKeyConfig] = useState(false);
+  
+  const [aiKey, setAiKey] = useState(() => {
+    try { 
+      const local = localStorage.getItem('claKame_gemini_key');
+      if (local && local.startsWith('AIzaSy')) return local;
+      if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) {
+        return import.meta.env.VITE_GEMINI_API_KEY;
+      }
+    } catch(e) {}
+    return ""; 
+  });
+
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
   const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
@@ -980,7 +1022,20 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
   const resetMatchData = () => { 
     setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); 
-    setObservacoes(''); setMatchImageBase64(null);
+    setObservacoes(''); setImageUploaded(false); setMatchImageBase64(null);
+  };
+
+  const saveLocalKey = () => {
+    const cleanKey = localKeyInput.trim();
+    if (!cleanKey.startsWith('AIzaSy')) {
+      showToast("Chave inválida! A chave deve começar com 'AIzaSy'.", "error");
+      return;
+    }
+    localStorage.setItem('claKame_gemini_key', cleanKey);
+    setAiKey(cleanKey);
+    setShowKeyConfig(false);
+    setLocalKeyInput('');
+    showToast("Chave protegida e guardada no seu dispositivo!", "success");
   };
 
   const handleImageUpload = (e) => {
@@ -988,7 +1043,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     if (!file) return;
 
     processScreenshot(file, async (base64) => {
-      setMatchImageBase64(base64); // Mostra a imagem na tela, o técnico pode submeter manualmente!
+      setMatchImageBase64(base64);
 
       if (!aiKey || !aiKey.startsWith('AIzaSy')) {
         showToast("Você anexou a imagem! Preencha o placar manualmente abaixo.", "success");
@@ -1008,14 +1063,16 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 Analise o placar final deste jogo de Dream League Soccer (DLS).
 REGRAS:
 1. O escudo do lado ESQUERDO tem um placar. O escudo do lado DIREITO tem um placar.
-2. Na lista central, identifique quem fez gol (bola de futebol ⚽).
-3. IGNORE os jogadores com cartões (🟨/🟥).
-Retorne EXATAMENTE este formato JSON:
+2. Na lista central, identifique quem fez gol. GOLS possuem o ícone de uma BOLA DE FUTEBOL (⚽) ao lado.
+3. CARTÕES possuem um ícone retangular (🟨/🟥). IGNORE COMPLETAMENTE os jogadores com cartões.
+4. Liste os jogadores e minutos agrupando por quem está no lado esquerdo ou direito.
+
+Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e não escreva mais nada.
 {
-  "leftTeamName": "nome na esquerda",
+  "leftTeamName": "nome lido no escudo da esquerda",
   "leftScore": 0,
   "leftGoals": [{"player": "Nome", "minute": "90"}],
-  "rightTeamName": "nome na direita",
+  "rightTeamName": "nome lido no escudo da direita",
   "rightScore": 0,
   "rightGoals": [{"player": "Nome", "minute": "90"}]
 }
@@ -1037,23 +1094,10 @@ Retorne EXATAMENTE este formato JSON:
 
         const leftName = String(data.leftTeamName || "");
         const rightName = String(data.rightTeamName || "");
-        const nameA = String(teamA?.name || "");
-        const nameB = String(teamB?.name || "");
-
-        const leftMatchesA = calculateSimilarity(leftName, nameA);
-        const rightMatchesA = calculateSimilarity(rightName, nameA);
-        const leftMatchesB = calculateSimilarity(leftName, nameB);
-        const rightMatchesB = calculateSimilarity(rightName, nameB);
-
-        const isTeamA_Left = (leftMatchesA + rightMatchesB) >= (leftMatchesB + rightMatchesA);
-
-        if (isTeamA_Left) {
-          setScoreA(data.leftScore?.toString() || '0'); setScoreB(data.rightScore?.toString() || '0');
-          setGoalsA(data.leftGoals || []); setGoalsB(data.rightGoals || []);
-        } else {
-          setScoreA(data.rightScore?.toString() || '0'); setScoreB(data.leftScore?.toString() || '0');
-          setGoalsA(data.rightGoals || []); setGoalsB(data.leftGoals || []);
-        }
+        
+        setScoreA(data.leftScore?.toString() || '0'); setScoreB(data.rightScore?.toString() || '0');
+        setGoalsA(data.leftGoals || []); setGoalsB(data.rightGoals || []);
+        
         showToast("Dados extraídos do Print pela IA!", "success");
 
       } catch (error) {
@@ -1061,6 +1105,7 @@ Retorne EXATAMENTE este formato JSON:
         showToast(`IA falhou. Preencha manualmente abaixo.`, "error");
       } finally {
         setIsAnalyzing(false);
+        setImageUploaded(true);
       }
     });
   };
@@ -1100,7 +1145,30 @@ Retorne EXATAMENTE este formato JSON:
 
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida</h2>
+      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida (IA)</h2>
+
+      {isAdmin && (!aiKey || showKeyConfig) && (
+        <div className="bg-amber-500/10 p-5 rounded-xl border border-amber-500/30 mb-6 animate-in fade-in">
+          <label className="text-amber-400 font-bold text-sm flex items-center gap-2 mb-2">
+            <Lock size={16} /> Chave Secreta da API Gemini (Cofre Local)
+          </label>
+          <p className="text-xs text-slate-400 mb-4">
+            Como Líder, você pode colar a sua chave oficial (começa com <b>AIzaSy</b>) diretamente aqui. Ela ficará guardada no seu dispositivo e ativará a Inteligência Artificial na hora, sem depender da Vercel!
+          </p>
+          <div className="flex flex-col md:flex-row gap-3">
+            <input 
+              type="password" 
+              value={localKeyInput} 
+              onChange={e => setLocalKeyInput(e.target.value)} 
+              placeholder="Ex: AIzaSy..." 
+              className="flex-1 bg-slate-950 border border-amber-500/30 rounded-lg p-3 text-white text-sm outline-none focus:border-amber-500" 
+            />
+            <Button onClick={saveLocalKey} className="bg-amber-600 hover:bg-amber-500 text-amber-950 px-6 font-bold shadow-amber-900/50">
+              Salvar Chave
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-6">
         <div>
@@ -1128,12 +1196,18 @@ Retorne EXATAMENTE este formato JSON:
           </div>
         )}
 
-        {/* 🔥 FORMULÁRIO SEMPRE VISÍVEL QUANDO A PARTIDA É ESCOLHIDA (MODO MANUAL ON) */}
         {selectedMatchId && (
           <div className="animate-in slide-in-from-top-4 border-t border-slate-800 pt-6 mt-6">
             
             <div className="mb-6 p-4 border border-slate-800 bg-slate-950 rounded-xl">
-              <label className="block text-sm font-bold text-emerald-400 mb-2">Anexar Print (Opcional)</label>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-bold text-emerald-400">Anexar Print (Opcional)</label>
+                {isAdmin && aiKey && (
+                  <button type="button" onClick={() => setShowKeyConfig(!showKeyConfig)} className="text-slate-500 hover:text-amber-400 transition-colors p-1" title="Configurar API Key da IA">
+                    <Settings size={18} />
+                  </button>
+                )}
+              </div>
               <p className="text-xs text-slate-500 mb-3">Opcionalmente, anexe o print do resultado. A nossa IA tentará preencher tudo automaticamente para você.</p>
               <label className={`border-2 border-dashed rounded-xl p-4 text-center transition-colors cursor-pointer relative overflow-hidden block ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-900'}`}>
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isAnalyzing} />
@@ -1162,7 +1236,7 @@ Retorne EXATAMENTE este formato JSON:
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-950 p-5 rounded-2xl border border-slate-800">
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2"><ShieldDisplay shield={teamA?.shield} size="normal" /><span className="font-bold text-white text-lg">{teamA?.name}</span></div>
+                  <div className="flex items-center gap-2"><ShieldDisplay shield={teamA?.shield} size="normal" /><span className="font-bold text-white text-lg truncate">{teamA?.name}</span></div>
                   <div>
                     <label className="text-xs text-slate-500 block mb-1">Gols</label>
                     <input type="number" value={scoreA} onChange={e=>setScoreA(e.target.value)} className="bg-slate-900 border border-slate-800 text-center font-bold text-3xl text-emerald-400 rounded-lg p-2 w-24 outline-none focus:border-emerald-500" />
@@ -1181,7 +1255,7 @@ Retorne EXATAMENTE este formato JSON:
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2"><ShieldDisplay shield={teamB?.shield} size="normal" /><span className="font-bold text-white text-lg">{teamB?.name}</span></div>
+                  <div className="flex items-center gap-2"><ShieldDisplay shield={teamB?.shield} size="normal" /><span className="font-bold text-white text-lg truncate">{teamB?.name}</span></div>
                   <div>
                     <label className="text-xs text-slate-500 block mb-1">Gols</label>
                     <input type="number" value={scoreB} onChange={e=>setScoreB(e.target.value)} className="bg-slate-900 border border-slate-800 text-center font-bold text-3xl text-emerald-400 rounded-lg p-2 w-24 outline-none focus:border-emerald-500" />
@@ -1245,7 +1319,7 @@ const Dashboard = ({ matches, teams }) => {
 
 const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEditComp, onDeleteComp }) => {
   const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ name: '', format: 'league', deadline: '' });
+  const [editData, setEditData] = useState({ name: '', format: 'league', deadline: '', teams: [] });
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
@@ -1255,13 +1329,26 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEd
   const startEdit = (comp, e) => {
     e.stopPropagation();
     setEditingId(comp.id);
-    setEditData({ name: comp.name, format: comp.format || 'league', deadline: comp.deadline || '' });
+    setEditData({ name: comp.name, format: comp.format || 'league', deadline: comp.deadline || '', teams: comp.teams || [] });
+  };
+
+  const toggleEditTeam = (teamId) => {
+    setEditData(prev => ({
+      ...prev,
+      teams: prev.teams.includes(teamId)
+        ? prev.teams.filter(id => id !== teamId)
+        : [...prev.teams, teamId]
+    }));
   };
 
   const saveEdit = async (comp, e) => {
     e.stopPropagation();
     if (editData.name) {
-      await onEditComp({ ...comp, ...editData });
+      await onEditComp({ 
+        ...comp, 
+        ...editData,
+        teamCount: editData.teams.length 
+      });
       setEditingId(null);
     }
   };
@@ -1295,6 +1382,30 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEd
                       <input type="date" value={editData.deadline} onChange={e=>setEditData({...editData, deadline: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-slate-300 text-sm outline-none focus:border-amber-500 mt-1" />
                     </div>
                   </div>
+                  
+                  {/* SELEÇÃO DE TIMES NO MODO EDIÇÃO */}
+                  <div className="pt-3 border-t border-slate-800">
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="text-xs text-slate-400 font-bold">Times Participantes ({editData.teams.length})</label>
+                      <span className="text-[10px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Atenção: Não recria rodadas antigas</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                      {teams.map(t => {
+                        const isSelected = editData.teams.includes(t.id);
+                        return (
+                          <div
+                            key={t.id}
+                            onClick={() => toggleEditTeam(t.id)}
+                            className={`cursor-pointer flex items-center gap-2 p-2 rounded-lg border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}
+                          >
+                            <ShieldDisplay shield={t.shield} size="small" />
+                            <span className={`font-medium text-[10px] truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{t.name}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                 </div>
                 <div className="flex gap-2 mt-2">
                   <Button variant="outline" onClick={(e) => { e.stopPropagation(); setEditingId(null); }} className="flex-1 py-2 text-slate-400"><X size={16}/> Cancelar</Button>
