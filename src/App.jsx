@@ -1243,10 +1243,29 @@ const Dashboard = ({ matches, teams }) => {
   );
 };
 
-const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp }) => {
+const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEditComp, onDeleteComp }) => {
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({ name: '', format: 'league', deadline: '' });
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const userTeamIds = teams.filter(t => t.ownerId === currentUser?.id).map(t => t.id);
   const visibleComps = competitions.filter(c => isAdmin || c.teams?.some(t => userTeamIds.includes(t)));
+
+  const startEdit = (comp, e) => {
+    e.stopPropagation();
+    setEditingId(comp.id);
+    setEditData({ name: comp.name, format: comp.format || 'league', deadline: comp.deadline || '' });
+  };
+
+  const saveEdit = async (comp, e) => {
+    e.stopPropagation();
+    if (editData.name) {
+      await onEditComp({ ...comp, ...editData });
+      setEditingId(null);
+    }
+  };
+
   return (
     <div className="animate-in fade-in duration-500">
       <div className="flex items-center gap-3 mb-6"><Medal className="text-emerald-500" size={28} /><h2 className="text-2xl font-bold text-white">Competições</h2></div>
@@ -1254,10 +1273,56 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp }) =>
         {visibleComps.length === 0 && <p className="text-slate-500 col-span-2">Nenhuma competição.</p>}
         {visibleComps.map(comp => {
           const isPart = comp.teams?.some(t => userTeamIds.includes(t));
+          
+          if (editingId === comp.id) {
+            return (
+              <div key={comp.id} className="bg-slate-900 p-6 rounded-2xl border border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)] flex flex-col gap-4 relative z-10" onClick={e => e.stopPropagation()}>
+                <div className="space-y-3 w-full">
+                  <div>
+                    <label className="text-xs text-slate-400">Nome da Competição</label>
+                    <input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500 mt-1" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-slate-400">Formato</label>
+                      <select value={editData.format} onChange={e=>setEditData({...editData, format: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500 mt-1">
+                        <option value="league">Liga</option>
+                        <option value="cup">Copa</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400">Prazo Final</label>
+                      <input type="date" value={editData.deadline} onChange={e=>setEditData({...editData, deadline: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-slate-300 text-sm outline-none focus:border-amber-500 mt-1" />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Button variant="outline" onClick={(e) => { e.stopPropagation(); setEditingId(null); }} className="flex-1 py-2 text-slate-400"><X size={16}/> Cancelar</Button>
+                  <Button onClick={(e) => saveEdit(comp, e)} className="flex-1 py-2 bg-amber-600 hover:bg-amber-500 shadow-amber-900/50"><Save size={16}/> Salvar</Button>
+                </div>
+              </div>
+            );
+          }
+
           return (
-            <div key={comp.id} onClick={() => onSelectComp(comp.id)} className={`cursor-pointer bg-slate-900 p-6 rounded-2xl border transition-all hover:scale-[1.02] ${isAdmin && isPart ? 'border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)]' : isPart ? 'border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-slate-800 hover:border-slate-700'}`}>
-              <div className="flex justify-between items-start mb-2"><h3 className="text-xl font-bold text-white">{comp.name}</h3>{isPart && <span className={`text-xs px-2 py-1 rounded-md font-bold ${isAdmin ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>Participa</span>}</div>
-              <p className="text-sm text-slate-400 mb-4">{comp.format === 'league' ? 'Liga' : 'Copa'} • {comp.teams?.length || 0} equipes</p>
+            <div key={comp.id} onClick={() => onSelectComp(comp.id)} className={`relative cursor-pointer bg-slate-900 p-6 rounded-2xl border transition-all hover:scale-[1.02] group ${isAdmin && isPart ? 'border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)]' : isPart ? 'border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-slate-800 hover:border-slate-700'}`}>
+              {isAdmin && (
+                <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all bg-slate-900/90 backdrop-blur-sm p-1 rounded-lg border border-slate-700/50 shadow-xl" onClick={e => e.stopPropagation()}>
+                  {deleteConfirmId === comp.id ? (
+                    <div className="flex items-center gap-1 px-1">
+                      <button onClick={(e) => { e.stopPropagation(); onDeleteComp(comp.id); setDeleteConfirmId(null); }} className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs font-bold transition-colors">Excluir</button>
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(null); }} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-xs transition-colors">Cancelar</button>
+                    </div>
+                  ) : (
+                    <>
+                      <button onClick={(e) => startEdit(comp, e)} className="text-slate-400 hover:text-amber-400 p-1.5 transition-colors" title="Editar Competição"><Edit size={16} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(comp.id); }} className="text-slate-400 hover:text-red-400 p-1.5 transition-colors" title="Remover Competição"><Trash2 size={16} /></button>
+                    </>
+                  )}
+                </div>
+              )}
+              <div className="flex justify-between items-start mb-2 pr-16"><h3 className="text-xl font-bold text-white">{comp.name}</h3>{isPart && <span className={`text-xs px-2 py-1 rounded-md font-bold ${isAdmin ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>Participa</span>}</div>
+              <p className="text-sm text-slate-400 mb-4">{comp.format === 'league' ? 'Liga' : 'Copa'} • {comp.teams?.length || 0} equipes {comp.deadline ? `• Prazo: ${new Date(comp.deadline).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}` : ''}</p>
               <div className="text-xs text-slate-500 flex justify-between items-center"><span>Ver Tabela ➔</span></div>
             </div>
           );
@@ -1686,6 +1751,16 @@ export default function App() {
     setCurrentTab('competitions'); 
   };
 
+  const handleEditComp = async (updatedComp) => {
+    await updateDoc(getPublicDocPath('competitions', updatedComp.id), updatedComp);
+    showToast("Competição atualizada com sucesso!", "success");
+  };
+
+  const handleDeleteComp = async (compId) => {
+    await deleteDoc(getPublicDocPath('competitions', compId));
+    showToast("Competição excluída com sucesso!", "success");
+  };
+
   if (isFirebaseLoading) {
     return (<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#18191a', color: '#ffde59', fontFamily: 'sans-serif' }}><h2>🛡️ A preparar o Clã Kame...</h2></div>);
   }
@@ -1754,7 +1829,7 @@ export default function App() {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} />;
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} onEditTeam={handleEditTeam} onDeleteTeam={handleDeleteTeam} />;
-      case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={id => {setSelectedCompId(id); setCurrentTab('comp_details');}} />;
+      case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={id => {setSelectedCompId(id); setCurrentTab('comp_details');}} onEditComp={handleEditComp} onDeleteComp={handleDeleteComp} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} />;
       case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} onSubmit={handleSubmitMatch} currentUser={currentUser} showToast={showToast} />;
       case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={handleUpdateMatchStatus} showToast={showToast} />;
