@@ -315,7 +315,6 @@ const Profile = ({ currentUser, teams, matches, competitions }) => {
   );
 };
 
-
 const MembersList = ({ users, teams, currentUser, onUpdateUserRole, onExpelUser, onEditUser, onLinkTeam }) => {
   const [expelConfirmId, setExpelConfirmId] = useState(null);
   const [editingUserId, setEditingUserId] = useState(null);
@@ -559,98 +558,88 @@ const MembersList = ({ users, teams, currentUser, onUpdateUserRole, onExpelUser,
   );
 };
 
-const TeamsList = ({ teams, users, currentUser, onEditTeam, onDeleteTeam }) => {
+const TeamsList = ({ teams, currentUser, onEditTeam }) => {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', coach: '', whatsapp: '', shield: '' });
-  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
-  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-  const isLeader = currentUser?.role === 'leader';
-
-  const handleWhatsApp = (phone) => { 
-    if (phone) window.open(`https://wa.me/${String(phone).replace(/\D/g, '')}`, '_blank'); 
-  };
-  
-  const startEdit = (team) => { 
-    setEditingId(team.id); 
-    setEditData({ name: team.name, coach: team.coach || '', whatsapp: team.whatsapp || '', shield: team.shield || '🛡️' }); 
+  const handleWhatsApp = (phone) => {
+    if (!phone) return;
+    const cleanPhone = phone.replace(/\D/g, ''); 
+    window.open(`https://wa.me/${cleanPhone}`, '_blank');
   };
 
-  const saveEdit = async (team) => { 
-    if (editData.name) { 
-      const success = await onEditTeam({ ...team, ...editData }); 
-      if (success !== false) setEditingId(null); 
-    } 
+  const startEdit = (team) => {
+    setEditingId(team.id);
+    setEditData({ name: team.name, coach: team.coach || '', whatsapp: team.whatsapp || '', shield: team.shield || '🛡️' });
+  };
+
+  const saveEdit = (team) => {
+    if (!editData.name || !editData.coach || !editData.whatsapp) return;
+    onEditTeam({ ...team, ...editData });
+    setEditingId(null);
   };
 
   return (
     <div className="animate-in fade-in duration-500">
-      <div className="flex items-center gap-3 mb-6"><Shield className="text-emerald-500" size={28} /><h2 className="text-2xl font-bold text-white">Mural de Times</h2></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {teams.map(team => {
-          const owner = users.find(u => u.id === team.ownerId);
-          const role = owner?.role || 'member';
-          
-          if (editingId === team.id) {
+      <div className="flex items-center gap-3 mb-6">
+        <Shield className="text-emerald-500" size={28} />
+        <h2 className="text-2xl font-bold text-white">Mural de Times</h2>
+      </div>
+      
+      {teams.length === 0 ? (
+        <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center text-slate-500">
+          Nenhum time registrado no clã ainda.
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+          {teams.map(team => {
+            if (editingId === team.id) {
+              return (
+                <div key={team.id} className="bg-slate-900 p-3 rounded-xl border border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)] flex flex-col justify-between gap-3">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="shrink-0 pt-1">
+                      <ShieldDisplay shield={editData.shield} size="normal" />
+                    </div>
+                    <div className="flex-1 space-y-1.5 w-full">
+                      <input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} placeholder="Time" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
+                      <input type="text" value={editData.coach} onChange={e=>setEditData({...editData, coach: e.target.value})} placeholder="Técnico" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
+                      <input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} placeholder="WhatsApp" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5 mt-1">
+                    <Button variant="outline" onClick={() => setEditingId(null)} className="flex-1 py-1.5 text-[10px] px-0 hover:text-white"><X size={12}/></Button>
+                    <Button onClick={() => saveEdit(team)} className="flex-1 py-1.5 text-[10px] px-0"><Save size={12}/></Button>
+                  </div>
+                </div>
+              );
+            }
+
             return (
-              <div key={team.id} className="bg-slate-900 p-6 rounded-2xl border border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)] flex flex-col gap-4 relative z-10">
-                <div className="flex items-start gap-4">
-                  <div className="flex flex-col items-center gap-2 mt-2">
-                    <ShieldDisplay shield={editData.shield} size="large" />
-                    <label className="cursor-pointer text-[10px] bg-slate-800 text-slate-300 px-2 py-1 rounded hover:bg-slate-700 transition-colors">
-                      Trocar Imagem
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], (data) => setEditData({...editData, shield: data}))} />
-                    </label>
-                  </div>
-                  <div className="flex-1 space-y-2 w-full">
-                    <label className="text-xs text-slate-400">Nome do Time</label>
-                    <input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500" />
-                    <label className="text-xs text-slate-400">Técnico e WhatsApp</label>
-                    <input type="text" value={editData.coach} onChange={e=>setEditData({...editData, coach: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500" placeholder="Nome do Técnico" />
-                    <input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500" placeholder="11999999999" />
+              <div key={team.id} className="relative bg-slate-900 p-3 md:p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-3 group">
+                {currentUser?.role === 'leader' && (
+                  <button onClick={() => startEdit(team)} className="absolute top-2 right-2 text-slate-500 hover:text-emerald-400 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-slate-800" title="Editar Time">
+                    <Edit size={14} />
+                  </button>
+                )}
+                <div className="flex flex-col items-center text-center gap-2 mt-2">
+                  <div className="shrink-0"><ShieldDisplay shield={team.shield} size="normal" /></div>
+                  <div className="w-full">
+                    <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate px-2">{team.name}</h3>
+                    <p className="text-[9px] md:text-[10px] text-slate-400 mt-1 truncate px-1"><span className="text-slate-300 font-medium">{team.coach || 'Sem técnico'}</span></p>
                   </div>
                 </div>
-                <div className="flex gap-2 mt-2">
-                  <Button variant="outline" onClick={() => setEditingId(null)} className="flex-1 py-2 text-slate-400"><X size={16}/> Cancelar</Button>
-                  <Button onClick={() => saveEdit(team)} className="flex-1 py-2 bg-amber-600 hover:bg-amber-500 shadow-amber-900/50"><Save size={16}/> Salvar</Button>
-                </div>
+                <Button 
+                  onClick={() => handleWhatsApp(team.whatsapp)}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-1 py-1.5 text-[10px] md:text-xs px-2"
+                  disabled={!team.whatsapp}
+                >
+                  <MessageCircle size={14} /> Chamar
+                </Button>
               </div>
             );
-          }
-          return (
-            <div key={team.id} className="relative bg-slate-900 p-6 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 group overflow-hidden">
-              
-              {isAdmin && (
-                <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all bg-slate-900/90 backdrop-blur-sm p-1 rounded-lg border border-slate-700/50 shadow-xl">
-                  {deleteConfirmId === team.id ? (
-                    <div className="flex items-center gap-1 px-1">
-                      <button onClick={() => { onDeleteTeam(team.id, team.ownerId); setDeleteConfirmId(null); }} className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs font-bold transition-colors">Excluir</button>
-                      <button onClick={() => setDeleteConfirmId(null)} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-xs transition-colors">Cancelar</button>
-                    </div>
-                  ) : (
-                    <>
-                      <button onClick={() => startEdit(team)} className="text-slate-400 hover:text-amber-400 p-1.5 transition-colors" title="Editar Time"><Edit size={16} /></button>
-                      {isLeader && <button onClick={() => setDeleteConfirmId(team.id)} className="text-slate-400 hover:text-red-400 p-1.5 transition-colors" title="Remover Time e Técnico"><Trash2 size={16} /></button>}
-                    </>
-                  )}
-                </div>
-              )}
-
-              <div className="flex items-center gap-4 mt-2">
-                <ShieldDisplay shield={team.shield} size="large" />
-                <div>
-                  <h3 className="text-xl font-bold text-white pr-8">{team.name}</h3>
-                  <p className="text-sm text-slate-400">Técnico: <span className="text-slate-300 font-medium">{team.coach || 'Não informado'}</span></p>
-                  
-                  {role === 'leader' && <span className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20"><Crown size={12}/> Líder Supremo</span>}
-                  {role === 'kaioh' && <span className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20"><Star size={12}/> Senhor Kaioh</span>}
-                </div>
-              </div>
-              <Button onClick={() => handleWhatsApp(team.whatsapp)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-2" disabled={!team.whatsapp}><MessageCircle size={18} /> Chamar pra Batalha</Button>
-            </div>
-          );
-        })}
-      </div>
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -823,54 +812,116 @@ const CreateCompetition = ({ teams, onCreate, showToast }) => {
   const [format, setFormat] = useState('league');
   const [deadline, setDeadline] = useState('');
   const [selectedTeams, setSelectedTeams] = useState([]);
+  const [error, setError] = useState('');
 
-  const toggleTeam = (teamId) => { setSelectedTeams(selectedTeams.includes(teamId) ? selectedTeams.filter(id => id !== teamId) : [...selectedTeams, teamId]); };
+  const toggleTeam = (teamId) => {
+    if (selectedTeams.includes(teamId)) {
+      setSelectedTeams(selectedTeams.filter(id => id !== teamId));
+    } else {
+      setSelectedTeams([...selectedTeams, teamId]);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name || !format || !deadline) return showToast('Preencha todos os campos obrigatórios.', 'error');
-    if (selectedTeams.length < 2) return showToast('Selecione pelo menos 2 times.', 'error');
+    if (!name || !format || !deadline) {
+      setError('Por favor, preencha todos os campos do formulário.');
+      return;
+    }
     
+    if (selectedTeams.length < 2) {
+      setError(`Atenção: Selecione pelo menos 2 times para iniciar a competição.`);
+      return;
+    }
+
+    setError('');
+
     const count = selectedTeams.length;
     const newCompId = `c${Date.now()}`;
     const generatedRounds = generateRoundRobin(selectedTeams, newCompId);
 
     onCreate({ 
-      id: newCompId, name, format, teamCount: count, deadline, status: 'active', teams: selectedTeams, 
+      id: newCompId, 
+      name, 
+      format, 
+      teamCount: count,
+      deadline, 
+      status: 'active', 
+      teams: selectedTeams, 
       rounds: generatedRounds
     });
     
-    showToast(`Competição criada! Foram geradas ${generatedRounds.length} rodadas de forma automática!`, "success");
+    showToast(`Competição criada com sucesso! Foram geradas ${generatedRounds.length} rodadas.`, "success");
   };
 
   return (
     <div className="max-w-3xl mx-auto animate-in fade-in pb-12">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><PlusCircle className="text-emerald-500"/> Criar Nova Competição</h2>
-      <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 space-y-6">
+      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+        <PlusCircle className="text-emerald-500"/> Nova Competição Automática
+      </h2>
+      
+      <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 space-y-6 shadow-xl">
+        {error && (
+          <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3">
+            <AlertCircle size={20} />
+            <p className="text-sm font-medium">{error}</p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Nome da Competição</label><input type="text" placeholder="Ex: Copa Clã Kame" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none transition-colors" required /></div>
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Formato</label><select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none transition-colors"><option value="cup">Mata-Mata (Copa)</option><option value="league">Pontos Corridos (Liga)</option><option value="group_stage_cup">Fase de Grupos + Mata-Mata</option></select></div>
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Quantidade de Times</label><input type="number" readOnly value={selectedTeams.length} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-500 cursor-not-allowed outline-none transition-colors" /></div>
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Prazo Final</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-emerald-500 outline-none transition-colors" required /></div>
-        </div>
-        <div className="pt-6 border-t border-slate-800">
-          <div className="flex justify-between items-center mb-4">
-            <label className="text-sm font-medium text-slate-400">Quais times vão participar?</label>
-            <span className={`text-xs px-2 py-1 rounded font-bold ${selectedTeams.length >= 2 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{selectedTeams.length} Selecionados</span>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-400">Nome do Campeonato</label>
+            <input type="text" placeholder="Ex: Liga de Inverno" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {teams.map(t => {
-              const isSelected = selectedTeams.includes(t.id);
-              return (
-                <div key={t.id} onClick={() => toggleTeam(t.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
-                  <ShieldDisplay shield={t.shield} size="normal" />
-                  <div className="flex flex-col"><span className={`font-medium text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{t.name}</span></div>
-                </div>
-              );
-            })}
+          
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-400">Formato</label>
+            <select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
+              <option value="league">Pontos Corridos (Sorteio Automático)</option>
+              <option value="cup">Mata-Mata (Copa)</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-400">Qtd. de Times</label>
+            <input type="number" readOnly value={selectedTeams.length} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-500 cursor-not-allowed outline-none transition-colors" />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-400">Prazo de Conclusão</label>
+            <input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none" required />
           </div>
         </div>
-        <Button type="submit" className="w-full py-4 text-lg mt-4 shadow-emerald-900/50 shadow-xl">Sortear e Lançar Competição</Button>
+
+        <div className="pt-4 border-t border-slate-800">
+          <div className="flex justify-between items-end mb-4">
+            <label className="text-sm font-medium text-slate-400">Selecione as Equipes Participantes</label>
+            <span className={`text-xs px-2 py-1 rounded font-bold ${selectedTeams.length >= 2 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{selectedTeams.length} Marcadas</span>
+          </div>
+          {teams.length === 0 ? (
+            <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado no clã ainda.</p>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-64 overflow-y-auto pr-2">
+              {teams.map(team => {
+                const isSelected = selectedTeams.includes(team.id);
+                return (
+                  <div 
+                    key={team.id} 
+                    onClick={() => toggleTeam(team.id)}
+                    className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-slate-950 border-slate-800 hover:border-slate-600'}`}
+                  >
+                    <div className="shrink-0"><ShieldDisplay shield={team.shield} size="small" /></div>
+                    <span className={`font-medium text-xs md:text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{team.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <Button type="submit" className="w-full py-4 text-lg mt-4 shadow-emerald-900/50 shadow-xl">
+           <Trophy size={20} /> Sortear Tabela e Lançar Competição
+        </Button>
       </form>
     </div>
   );
@@ -878,17 +929,51 @@ const CreateCompetition = ({ teams, onCreate, showToast }) => {
 
 const Standings = ({ matches, teams, compId, compName }) => {
   const table = useMemo(() => calculateStandings(matches, teams, compId), [matches, teams, compId]);
+
   return (
     <div className="animate-in fade-in duration-500">
-      {compName && (<div className="flex items-center gap-3 mb-6"><Trophy className="text-amber-400" size={28} /><h2 className="text-2xl font-bold text-white">Tabela - {compName}</h2></div>)}
-      <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto">
+      {compName && (
+        <div className="flex items-center gap-3 mb-6">
+          <Trophy className="text-amber-400" size={28} />
+          <h2 className="text-2xl font-bold text-white">Tabela - {compName}</h2>
+        </div>
+      )}
+      <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto shadow-xl">
         <table className="w-full text-left text-sm whitespace-nowrap">
-          <thead className="bg-slate-950/50 text-slate-400 font-medium"><tr><th className="p-4 w-12 text-center">#</th><th className="p-4">Time</th><th className="p-4 text-center">PTS</th><th className="p-4 text-center">J</th><th className="p-4 text-center">V</th><th className="p-4 text-center">E</th><th className="p-4 text-center">D</th><th className="p-4 text-center">GP</th><th className="p-4 text-center">GC</th><th className="p-4 text-center">SG</th></tr></thead>
+          <thead className="bg-slate-950/50 text-slate-400 font-medium">
+            <tr>
+              <th className="p-4 w-12 text-center">#</th>
+              <th className="p-4">Time</th>
+              <th className="p-4 text-center">PTS</th>
+              <th className="p-4 text-center">J</th>
+              <th className="p-4 text-center">V</th>
+              <th className="p-4 text-center">E</th>
+              <th className="p-4 text-center">D</th>
+              <th className="p-4 text-center">GP</th>
+              <th className="p-4 text-center">GC</th>
+              <th className="p-4 text-center">SG</th>
+            </tr>
+          </thead>
           <tbody className="divide-y divide-slate-800/50">
             {table.filter(t => t.p > 0 || table.length > 0).map((row, index) => (
-              <tr key={row.id} className="hover:bg-slate-800/50 transition-colors"><td className="p-4 text-center font-bold text-slate-500">{index + 1}</td><td className="p-4 font-medium text-white flex items-center gap-2"><ShieldDisplay shield={row.shield} size="small" /> {row.name}</td><td className="p-4 text-center font-bold text-emerald-400">{row.pts}</td><td className="p-4 text-center text-slate-300">{row.p}</td><td className="p-4 text-center text-slate-300">{row.w}</td><td className="p-4 text-center text-slate-300">{row.d}</td><td className="p-4 text-center text-slate-300">{row.l}</td><td className="p-4 text-center text-slate-400">{row.gf}</td><td className="p-4 text-center text-slate-400">{row.ga}</td><td className="p-4 text-center text-slate-400 font-medium">{row.gd > 0 ? `+${row.gd}` : row.gd}</td></tr>
+              <tr key={row.id} className="hover:bg-slate-800/50 transition-colors">
+                <td className="p-4 text-center font-bold text-slate-500">{index + 1}</td>
+                <td className="p-4 font-medium text-white flex items-center gap-2">
+                  <ShieldDisplay shield={row.shield} size="small" /> {row.name}
+                </td>
+                <td className="p-4 text-center font-bold text-emerald-400">{row.pts}</td>
+                <td className="p-4 text-center text-slate-300">{row.p}</td>
+                <td className="p-4 text-center text-slate-300">{row.w}</td>
+                <td className="p-4 text-center text-slate-300">{row.d}</td>
+                <td className="p-4 text-center text-slate-300">{row.l}</td>
+                <td className="p-4 text-center text-slate-400">{row.gf}</td>
+                <td className="p-4 text-center text-slate-400">{row.ga}</td>
+                <td className="p-4 text-center text-slate-400 font-medium">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
+              </tr>
             ))}
-            {table.length === 0 && <tr><td colSpan="10" className="p-4 text-center text-slate-500">Nenhum time registrado.</td></tr>}
+            {table.length === 0 && (
+              <tr><td colSpan="10" className="p-4 text-center text-slate-500">Nenhum time registrado.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -1064,6 +1149,13 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     showToast("Chave protegida e guardada no seu dispositivo!", "success");
   };
 
+  const calculateSimilarity = (str1, str2) => {
+    if(!str1 || !str2) return 0;
+    const words1 = str1.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+    const words2 = str2.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+    return words1.filter(w => words2.includes(w)).length;
+  };
+
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1120,10 +1212,28 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
         const leftName = String(data.leftTeamName || "");
         const rightName = String(data.rightTeamName || "");
-        
-        setScoreA(data.leftScore?.toString() || '0'); setScoreB(data.rightScore?.toString() || '0');
-        setGoalsA(data.leftGoals || []); setGoalsB(data.rightGoals || []);
-        
+        const nameA = String(teamA?.name || "");
+        const nameB = String(teamB?.name || "");
+
+        const leftMatchesA = calculateSimilarity(leftName, nameA);
+        const rightMatchesA = calculateSimilarity(rightName, nameA);
+        const leftMatchesB = calculateSimilarity(leftName, nameB);
+        const rightMatchesB = calculateSimilarity(rightName, nameB);
+
+        const isTeamA_Left = (leftMatchesA + rightMatchesB) >= (leftMatchesB + rightMatchesA);
+
+        if (isTeamA_Left) {
+          setScoreA(data.leftScore?.toString() || '0');
+          setScoreB(data.rightScore?.toString() || '0');
+          setGoalsA(data.leftGoals || []);
+          setGoalsB(data.rightGoals || []);
+        } else {
+          setScoreA(data.rightScore?.toString() || '0');
+          setScoreB(data.leftScore?.toString() || '0');
+          setGoalsA(data.rightGoals || []);
+          setGoalsB(data.leftGoals || []);
+        }
+
         showToast("Dados extraídos do Print pela IA!", "success");
 
       } catch (error) {
@@ -1171,7 +1281,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida (IA)</h2>
+      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida</h2>
 
       {isAdmin && (!aiKey || showKeyConfig) && (
         <div className="bg-amber-500/10 p-5 rounded-xl border border-amber-500/30 mb-6 animate-in fade-in">
@@ -1615,9 +1725,6 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
   );
 };
 
-// ==========================================
-// 4. MOTOR CENTRAL DO APLICATIVO
-// ==========================================
 export default function App() {
   const [fbUser, setFbUser] = useState(null);
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
