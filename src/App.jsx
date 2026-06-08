@@ -133,7 +133,6 @@ const ShieldDisplay = ({ shield, size = 'normal' }) => {
 // ==========================================
 const generateRoundRobin = (teamIds, compId) => {
   let teams = [...teamIds];
-  // Se for ímpar, adiciona um "Fantasma" para o balanceamento
   if (teams.length % 2 !== 0) {
     teams.push(null);
   }
@@ -150,7 +149,6 @@ const generateRoundRobin = (teamIds, compId) => {
       const teamA = teams[i];
       const teamB = teams[numTeams - 1 - i];
       
-      // Só cria o jogo se nenhum for o Fantasma (BYE)
       if (teamA !== null && teamB !== null) {
         roundMatches.push({
           id: `${compId}_m${matchCounter}_r${r+1}`,
@@ -165,11 +163,10 @@ const generateRoundRobin = (teamIds, compId) => {
     rounds.push({
       id: `r${r+1}`,
       number: r + 1,
-      status: r === 0 ? 'released' : 'locked', // Libera só a primeira
+      status: r === 0 ? 'released' : 'locked', 
       matches: roundMatches
     });
 
-    // Rotação dos times (mantém o index 0 fixo e gira o resto)
     teams.splice(1, 0, teams.pop());
   }
   return rounds;
@@ -260,7 +257,7 @@ const Profile = ({ currentUser, teams, matches, competitions }) => {
           });
 
           const participations = competitions.filter(c => c.teams?.includes(team.id)).map(c => {
-            const table = calculateStandings(matches, teams, c.id);
+            const table = calculateStandings(matches, teams.filter(t => c.teams?.includes(t.id)), c.id);
             const rankIndex = table.findIndex(t => t.id === team.id);
             const rank = rankIndex !== -1 ? rankIndex + 1 : '-';
             return { compName: c.name, rank, format: c.format };
@@ -916,8 +913,18 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   return (
     <div className="animate-in fade-in duration-500 space-y-6">
       <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4"><ArrowLeft size={20} /> Voltar para Competições</button>
-      <div className="bg-gradient-to-r from-emerald-900/40 to-slate-900 p-6 rounded-2xl border border-emerald-900/50 flex justify-between items-center"><div><h2 className="text-3xl font-bold text-white mb-2">{comp.name}</h2><p className="text-emerald-400 flex items-center gap-2"><Trophy size={16}/> {comp.format === 'league' ? 'Pontos Corridos' : 'Mata-Mata'}</p></div><span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm font-medium">Em Andamento</span></div>
+      <div className="bg-gradient-to-r from-emerald-900/40 to-slate-900 p-6 rounded-2xl border border-emerald-900/50 flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-bold text-white mb-2">{comp.name}</h2>
+          <p className="text-emerald-400 flex items-center gap-2">
+            <Trophy size={16}/> {comp.format === 'league' ? 'Pontos Corridos' : 'Mata-Mata'}
+          </p>
+        </div>
+        <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm font-medium">Em Andamento</span>
+      </div>
+
       <Standings matches={matches} teams={teams.filter(t => comp.teams?.includes(t.id))} compId={comp.id} />
+
       <div className="mt-8">
         <h3 className="text-xl font-bold text-white mb-4">Rodadas</h3>
         {comp.rounds?.length > 0 ? (
@@ -1344,10 +1351,20 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEd
   const saveEdit = async (comp, e) => {
     e.stopPropagation();
     if (editData.name) {
+      let newRounds = comp.rounds;
+      
+      const currentTeams = comp.teams || [];
+      const teamsChanged = editData.teams.length !== currentTeams.length || editData.teams.some(t => !currentTeams.includes(t));
+      
+      if (teamsChanged) {
+        newRounds = generateRoundRobin(editData.teams, comp.id);
+      }
+
       await onEditComp({ 
         ...comp, 
         ...editData,
-        teamCount: editData.teams.length 
+        teamCount: editData.teams.length,
+        rounds: newRounds
       });
       setEditingId(null);
     }
@@ -1383,11 +1400,10 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEd
                     </div>
                   </div>
                   
-                  {/* SELEÇÃO DE TIMES NO MODO EDIÇÃO */}
                   <div className="pt-3 border-t border-slate-800">
                     <div className="flex justify-between items-center mb-2">
                       <label className="text-xs text-slate-400 font-bold">Times Participantes ({editData.teams.length})</label>
-                      <span className="text-[10px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Atenção: Não recria rodadas antigas</span>
+                      <span className="text-[10px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Atenção: Mudar times recriará TODAS as rodadas</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
                       {teams.map(t => {
