@@ -117,9 +117,9 @@ const processScreenshot = (file, callback) => {
 const ShieldDisplay = ({ shield, size = 'large' }) => {
   const isImage = shield?.startsWith('data:') || shield?.startsWith('http');
   const sizeClasses = {
-    'small': isImage ? 'w-6 h-6' : 'text-xl',
-    'normal': isImage ? 'w-8 h-8' : 'text-2xl',
-    'large': isImage ? 'w-24 h-24' : 'text-5xl'
+    'small': isImage ? 'w-8 h-8' : 'text-2xl',
+    'normal': isImage ? 'w-10 h-10' : 'text-4xl',
+    'large': isImage ? 'w-20 h-20' : 'text-6xl'
   };
   
   if (isImage) {
