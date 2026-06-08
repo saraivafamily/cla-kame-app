@@ -114,11 +114,11 @@ const processScreenshot = (file, callback) => {
   reader.readAsDataURL(file);
 };
 
-const ShieldDisplay = ({ shield, size = 'large' }) => {
+const ShieldDisplay = ({ shield, size = 'normal' }) => {
   const isImage = shield?.startsWith('data:') || shield?.startsWith('http');
   const sizeClasses = {
     'small': isImage ? 'w-8 h-8' : 'text-2xl',
-    'normal': isImage ? 'w-10 h-10' : 'text-4xl',
+    'normal': isImage ? 'w-14 h-14' : 'text-4xl',
     'large': isImage ? 'w-20 h-20' : 'text-6xl'
   };
   
