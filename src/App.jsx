@@ -903,11 +903,11 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const getMatchStatusDisplay = (matchId) => {
     const submittedMatch = matches.find(m => m.matchId === matchId && m.compId === comp.id);
     
-    if (!submittedMatch) return { text: 'Aguardando Jogo', color: 'text-slate-400', bg: 'bg-slate-800' };
-    if (submittedMatch.status === 'approved') return { text: `${submittedMatch.scoreA} - ${submittedMatch.scoreB}`, color: 'text-emerald-400 font-bold text-lg', bg: 'bg-slate-950 border border-emerald-900' };
-    if (submittedMatch.status === 'pending') return { text: 'Em Validação', color: 'text-amber-400', bg: 'bg-amber-500/10' };
-    if (submittedMatch.status === 'rejected') return { text: 'Rejeitado (Rejogar)', color: 'text-red-400', bg: 'bg-red-500/10' };
-    return { text: 'Desconhecido', color: 'text-slate-400', bg: 'bg-slate-800' };
+    if (!submittedMatch) return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
+    if (submittedMatch.status === 'approved') return { isPlayed: true, scoreA: submittedMatch.scoreA, scoreB: submittedMatch.scoreB, text: 'Oficial', color: 'text-emerald-400', bg: 'bg-slate-950 border-emerald-900/50' };
+    if (submittedMatch.status === 'pending') return { isPlayed: true, scoreA: submittedMatch.scoreA, scoreB: submittedMatch.scoreB, text: 'Em Validação', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
+    if (submittedMatch.status === 'rejected') return { isPlayed: false, text: 'Rejeitado', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' };
+    return { isPlayed: false, text: 'Desconhecido', color: 'text-slate-500', bg: 'bg-slate-900' };
   };
 
   return (
@@ -938,10 +938,29 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                     const tB = getTeam(match.teamB); 
                     const statusUI = getMatchStatusDisplay(match.id); 
                     return (
-                      <div key={match.id} className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800/50">
-                        <div className="flex-1 text-right font-medium text-slate-200">{tA?.name} <ShieldDisplay shield={tA?.shield} size="small" /></div>
-                        <div className={`mx-4 px-4 py-2 rounded-lg text-sm text-center min-w-[120px] ${statusUI.bg} ${statusUI.color}`}>{statusUI.text}</div>
-                        <div className="flex-1 text-left font-medium text-slate-200"><ShieldDisplay shield={tB?.shield} size="small" /> {tB?.name}</div>
+                      <div key={match.id} className="bg-slate-950 p-3 rounded-xl border border-slate-800/50 flex flex-col gap-2">
+                        <div className="flex items-center justify-between w-full gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-start">
+                            <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
+                            <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate">{tA?.name}</span>
+                          </div>
+                          
+                          <div className={`flex items-center justify-center gap-1 md:gap-2 px-2 py-1 md:px-3 rounded-lg border shrink-0 ${statusUI.bg}`}>
+                            <span className={`font-bold text-sm md:text-base ${statusUI.color}`}>{statusUI.isPlayed ? statusUI.scoreA : '-'}</span>
+                            <span className="text-[10px] md:text-xs text-slate-500 font-bold mx-0.5">X</span>
+                            <span className={`font-bold text-sm md:text-base ${statusUI.color}`}>{statusUI.isPlayed ? statusUI.scoreB : '-'}</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
+                            <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate text-right">{tB?.name}</span>
+                            <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
+                          </div>
+                        </div>
+                        {statusUI.text !== 'Oficial' && (
+                          <div className="flex justify-center">
+                            <span className={`text-[9px] uppercase tracking-wider font-bold ${statusUI.color}`}>{statusUI.text}</span>
+                          </div>
+                        )}
                       </div>
                     ); 
                   })}
@@ -1241,42 +1260,52 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             <form onSubmit={handleSubmit} className="space-y-6">
               <h3 className="text-sm font-semibold text-white flex items-center gap-1.5"><Edit size={16} className="text-slate-400"/> Preencha o Resultado:</h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-950 p-5 rounded-2xl border border-slate-800">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2"><ShieldDisplay shield={teamA?.shield} size="normal" /><span className="font-bold text-white text-lg truncate">{teamA?.name}</span></div>
-                  <div>
-                    <label className="text-xs text-slate-500 block mb-1">Gols</label>
-                    <input type="number" value={scoreA} onChange={e=>setScoreA(e.target.value)} className="bg-slate-900 border border-slate-800 text-center font-bold text-3xl text-emerald-400 rounded-lg p-2 w-24 outline-none focus:border-emerald-500" />
+              <div className="flex flex-col items-center gap-4 w-full bg-slate-950 p-4 md:p-6 rounded-2xl border border-slate-800 shadow-xl">
+                <div className="flex items-center justify-between w-full gap-2 border-b border-slate-800/50 pb-4 mb-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-start">
+                    <div className="shrink-0"><ShieldDisplay shield={teamA?.shield} size="normal" /></div>
+                    <span className="font-bold text-sm md:text-base text-white truncate">{teamA?.name}</span>
                   </div>
-                  <div className="space-y-2">
-                    <span className="text-xs text-slate-400 block">Autores dos Gols</span>
-                    {(goalsA || []).map((g, index) => (
-                      <div key={index} className="flex gap-2 items-center animate-in slide-in-from-left-4">
-                        <input type="text" placeholder="Nome" value={g.player} onChange={e=>handleGoalChange('A', index, 'player', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500" required />
-                        <input type="text" placeholder="10" value={g.minute} onChange={e=>handleGoalChange('A', index, 'minute', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-emerald-400 text-center outline-none focus:border-emerald-500" required />
-                        <button type="button" onClick={() => handleRemoveGoal('A', index)} className="text-red-500 hover:text-red-400 p-1"><X size={16} /></button>
-                      </div>
-                    ))}
-                    <button type="button" onClick={() => handleAddGoal('A')} className="text-xs text-emerald-400 hover:underline flex items-center gap-1">+ Adicionar Gol</button>
+
+                  <div className="flex items-center justify-center gap-2 shrink-0">
+                    <input type="number" value={scoreA} onChange={e=>setScoreA(e.target.value)} className="w-12 md:w-16 bg-slate-900 border border-slate-700 text-center font-bold text-xl md:text-2xl text-emerald-400 rounded-lg p-2 outline-none focus:border-emerald-500" />
+                    <span className="text-xs text-slate-500 font-bold">X</span>
+                    <input type="number" value={scoreB} onChange={e=>setScoreB(e.target.value)} className="w-12 md:w-16 bg-slate-900 border border-slate-700 text-center font-bold text-xl md:text-2xl text-emerald-400 rounded-lg p-2 outline-none focus:border-emerald-500" />
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                    <span className="font-bold text-sm md:text-base text-white truncate text-right">{teamB?.name}</span>
+                    <div className="shrink-0"><ShieldDisplay shield={teamB?.shield} size="normal" /></div>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2"><ShieldDisplay shield={teamB?.shield} size="normal" /><span className="font-bold text-white text-lg truncate">{teamB?.name}</span></div>
-                  <div>
-                    <label className="text-xs text-slate-500 block mb-1">Gols</label>
-                    <input type="number" value={scoreB} onChange={e=>setScoreB(e.target.value)} className="bg-slate-900 border border-slate-800 text-center font-bold text-3xl text-emerald-400 rounded-lg p-2 w-24 outline-none focus:border-emerald-500" />
-                  </div>
-                  <div className="space-y-2">
-                    <span className="text-xs text-slate-400 block">Autores dos Gols</span>
-                    {(goalsB || []).map((g, index) => (
-                      <div key={index} className="flex gap-2 items-center animate-in slide-in-from-right-4">
-                        <input type="text" placeholder="Nome" value={g.player} onChange={e=>handleGoalChange('B', index, 'player', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500" required />
-                        <input type="text" placeholder="87" value={g.minute} onChange={e=>handleGoalChange('B', index, 'minute', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-emerald-400 text-center outline-none focus:border-emerald-500" required />
-                        <button type="button" onClick={() => handleRemoveGoal('B', index)} className="text-red-500 hover:text-red-400 p-1"><X size={16} /></button>
+                <div className="flex items-start justify-between w-full gap-4 mt-2">
+                  <div className="flex-1 w-full space-y-2">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block text-left">Gols (Opcional)</span>
+                    {goalsA.map((g, index) => (
+                      <div key={index} className="flex gap-1.5 items-center bg-slate-900 border border-slate-800 rounded p-1.5">
+                        <input type="text" placeholder="Jogador" value={g.player} onChange={e=>handleGoalChange('A', index, 'player', e.target.value)} className="flex-1 bg-transparent text-[10px] md:text-xs text-white outline-none w-full min-w-0" required />
+                        <input type="number" placeholder="Min" value={g.minute} onChange={e=>handleGoalChange('A', index, 'minute', e.target.value)} className="w-10 bg-transparent text-[10px] md:text-xs text-emerald-400 text-center outline-none" required />
+                        <button type="button" onClick={() => handleRemoveGoal('A', index)} className="text-red-500 hover:text-red-400 p-0.5"><X size={12} /></button>
                       </div>
                     ))}
-                    <button type="button" onClick={() => handleAddGoal('B')} className="text-xs text-emerald-400 hover:underline flex items-center gap-1">+ Adicionar Gol</button>
+                    <button type="button" onClick={() => handleAddGoal('A')} className="text-[10px] md:text-xs text-emerald-400 hover:underline flex items-center gap-1">+ Adicionar Gol</button>
+                  </div>
+
+                  <div className="w-4 shrink-0"></div>
+
+                  <div className="flex-1 w-full space-y-2">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block text-right">Gols (Opcional)</span>
+                    {goalsB.map((g, index) => (
+                      <div key={index} className="flex gap-1.5 items-center bg-slate-900 border border-slate-800 rounded p-1.5">
+                        <input type="text" placeholder="Jogador" value={g.player} onChange={e=>handleGoalChange('B', index, 'player', e.target.value)} className="flex-1 bg-transparent text-[10px] md:text-xs text-white outline-none w-full min-w-0 text-right" required />
+                        <input type="number" placeholder="Min" value={g.minute} onChange={e=>handleGoalChange('B', index, 'minute', e.target.value)} className="w-10 bg-transparent text-[10px] md:text-xs text-emerald-400 text-center outline-none" required />
+                        <button type="button" onClick={() => handleRemoveGoal('B', index)} className="text-red-500 hover:text-red-400 p-0.5"><X size={12} /></button>
+                      </div>
+                    ))}
+                    <div className="flex justify-end">
+                      <button type="button" onClick={() => handleAddGoal('B')} className="text-[10px] md:text-xs text-emerald-400 hover:underline flex items-center gap-1">+ Adicionar Gol</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1308,13 +1337,28 @@ const Dashboard = ({ matches, teams }) => {
           {recentMatches.map(m => {
             const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
             return (
-              <div key={m.id} className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
-                <div className="flex items-center gap-4 flex-1">
-                  <div className="text-right flex-1 font-medium text-slate-200 flex items-center justify-end gap-2">{tA?.name} <ShieldDisplay shield={tA?.shield} size="small" /></div>
-                  <div className="bg-slate-950 px-4 py-2 rounded-lg font-bold text-xl text-emerald-400 border border-slate-800">{m.status === 'approved' || m.status === 'pending' ? `${m.scoreA} - ${m.scoreB}` : '? - ?'}</div>
-                  <div className="flex-1 font-medium text-slate-200 flex items-center gap-2"><ShieldDisplay shield={tB?.shield} size="small" /> {tB?.name}</div>
+              <div key={m.id} className="bg-slate-900 p-3 md:p-4 rounded-xl border border-slate-800 flex flex-col gap-2">
+                <div className="flex items-center justify-between w-full gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-start">
+                    <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
+                    <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate">{tA?.name}</span>
+                  </div>
+                  
+                  <div className="flex items-center justify-center gap-1.5 md:gap-2 px-2 md:px-3 py-1 bg-slate-950 rounded-lg border border-slate-800 shrink-0">
+                    <span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? m.scoreA : '?'}</span>
+                    <span className="text-[10px] text-slate-500 font-bold mx-0.5">X</span>
+                    <span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? m.scoreB : '?'}</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
+                    <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate text-right">{tB?.name}</span>
+                    <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
+                  </div>
                 </div>
-                <div className="ml-4 w-24 text-right">{m.status === 'approved' ? <span className="text-xs text-emerald-400">✅ Oficial</span> : m.status === 'rejected' ? <span className="text-xs text-red-400">❌ Rejeitado</span> : <span className="text-xs text-amber-400">⏳ Pendente</span>}</div>
+                
+                <div className="flex justify-center mt-1">
+                  {m.status === 'approved' ? <span className="text-[10px] text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">✅ Oficial</span> : m.status === 'rejected' ? <span className="text-[10px] text-red-400 font-medium bg-red-500/10 px-2 py-0.5 rounded-md border border-red-500/20">❌ Rejeitado</span> : <span className="text-[10px] text-amber-400 font-medium bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">⏳ Pendente</span>}
+                </div>
               </div>
             );
           })}
@@ -1464,15 +1508,18 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
   const getTeam = (id) => teams.find(t => t.id === id);
   const getCompName = (id) => competitions?.find(c => c.id === id)?.name || 'Competição Desconhecida';
 
-  const getFormattedGoals = (teamId, allGoals) => {
+  const getFormattedGoals = (teamId, allGoals, align) => {
     const goals = allGoals.filter(g => g.teamId === teamId);
-    if (goals.length === 0) return <span className="text-xs text-slate-500">Nenhum gol</span>;
+    if (goals.length === 0) return <span className={`text-[10px] md:text-xs text-slate-600 block text-${align}`}>Nenhum gol</span>;
     return (
-      <div className="space-y-0.5 text-xs text-slate-400">
+      <div className={`space-y-0.5 text-[10px] md:text-xs text-slate-400 flex flex-col ${align === 'right' ? 'items-end text-right' : 'items-start text-left'}`}>
         {goals.map((g, i) => (
-          <div key={i} className="flex gap-1.5 justify-center">
-            <span className="text-emerald-400 font-bold">{g.minute}'</span>
-            <span>{g.player}</span>
+          <div key={i} className="flex gap-1.5 items-center">
+            {align === 'left' ? (
+              <><span className="text-emerald-400 font-bold">{g.minute}'</span><span className="truncate">{g.player}</span></>
+            ) : (
+              <><span className="truncate">{g.player}</span><span className="text-emerald-400 font-bold">{g.minute}'</span></>
+            )}
           </div>
         ))}
       </div>
@@ -1491,21 +1538,39 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
             const tB = getTeam(m.teamB);
             return (
               <div key={m.id} className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col gap-5">
-                <div className="text-center text-xs font-bold text-amber-500 uppercase tracking-widest bg-amber-500/5 py-2 rounded-lg border border-amber-500/10">
+                <div className="text-center text-xs font-bold text-amber-500 uppercase tracking-widest bg-amber-500/5 py-2 rounded-lg border border-amber-500/10 mb-2">
                   🏆 {getCompName(m.compId)}
                 </div>
 
                 <div className="flex flex-col md:flex-row items-stretch gap-6">
                   <div className="flex-1 space-y-4">
-                    <div className="flex items-center gap-4 justify-center">
-                      <div className="text-right flex-1 font-bold text-white flex flex-col items-end gap-1">
-                        <div className="flex items-center gap-2"><ShieldDisplay shield={tA?.shield} size="small" /><span>{tA?.name}</span></div>
-                        {getFormattedGoals(m.teamA, m.goals || [])}
+                    <div className="flex flex-col items-center gap-3 w-full bg-slate-950 p-4 rounded-xl border border-slate-800/50">
+                      <div className="flex items-center justify-between w-full gap-2 border-b border-slate-800/50 pb-3">
+                        <div className="flex items-center gap-2 flex-1 min-w-0 justify-start">
+                          <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="normal" /></div>
+                          <span className="font-bold text-sm md:text-base text-white truncate">{tA?.name}</span>
+                        </div>
+
+                        <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-slate-900 rounded-lg border border-slate-700 shrink-0">
+                          <span className="font-bold text-xl md:text-2xl text-emerald-400">{m.scoreA}</span>
+                          <span className="text-[10px] md:text-xs text-slate-500 font-bold mx-1">X</span>
+                          <span className="font-bold text-xl md:text-2xl text-emerald-400">{m.scoreB}</span>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                          <span className="font-bold text-sm md:text-base text-white truncate text-right">{tB?.name}</span>
+                          <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="normal" /></div>
+                        </div>
                       </div>
-                      <div className="bg-slate-950 px-4 py-2 rounded-lg font-bold text-2xl text-emerald-400 border border-slate-800">{m.scoreA} - {m.scoreB}</div>
-                      <div className="flex-1 font-bold text-white flex flex-col items-start gap-1">
-                        <div className="flex items-center gap-2"><span>{tB?.name}</span><ShieldDisplay shield={tB?.shield} size="small" /></div>
-                        {getFormattedGoals(m.teamB, m.goals || [])}
+
+                      <div className="flex items-start justify-between w-full pt-1">
+                        <div className="flex-1 min-w-0">
+                           {getFormattedGoals(m.teamA, m.goals || [], 'left')}
+                        </div>
+                        <div className="w-[40px] shrink-0"></div>
+                        <div className="flex-1 min-w-0">
+                           {getFormattedGoals(m.teamB, m.goals || [], 'right')}
+                        </div>
                       </div>
                     </div>
 
