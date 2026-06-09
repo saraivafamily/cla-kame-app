@@ -565,8 +565,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
   const getMatchStatusDisplay = (matchId) => {
-    // Recolhe todos os envios desta partida e ordena do mais recente para o mais antigo
-    const matchSubmissions = matches.filter(m => m.matchId === matchId && m.compId === comp.id);
+    // Recolhe todos os envios desta partida (IGNORANDO OS REJEITADOS) e ordena do mais recente para o mais antigo
+    const matchSubmissions = matches.filter(m => m.matchId === matchId && m.compId === comp.id && m.status !== 'rejected');
     
     if (matchSubmissions.length === 0) {
       return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
@@ -578,15 +578,18 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       return timeB - timeA;
     });
 
-    // Filtra pelo último placar validado, senão exibe o último pendente ou rejeitado
+    // Pega o último placar validado ou o último pendente
     const submittedMatch = matchSubmissions.find(m => m.status === 'approved') || 
-                           matchSubmissions.find(m => m.status === 'pending') || 
-                           matchSubmissions[0];
+                           matchSubmissions.find(m => m.status === 'pending');
+
+    if (!submittedMatch) {
+      return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
+    }
 
     if (submittedMatch.status === 'approved') return { isPlayed: true, scoreA: submittedMatch.scoreA, scoreB: submittedMatch.scoreB, text: 'Oficial', color: 'text-emerald-400', bg: 'bg-slate-950 border-emerald-900/50' };
     if (submittedMatch.status === 'pending') return { isPlayed: true, scoreA: submittedMatch.scoreA, scoreB: submittedMatch.scoreB, text: 'Em Validação', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
-    if (submittedMatch.status === 'rejected') return { isPlayed: false, text: 'Rejeitado', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' };
-    return { isPlayed: false, text: 'Desconhecido', color: 'text-slate-500', bg: 'bg-slate-900' };
+    
+    return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
   };
 
   return (
@@ -1037,7 +1040,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser }) => {
     .map(c => c.id);
 
   const recentMatches = matches
-    .filter(m => isAdmin || visibleCompIds.includes(m.compId))
+    .filter(m => (isAdmin || visibleCompIds.includes(m.compId)) && m.status !== 'rejected')
     .reverse()
     .slice(0, 5);
     
