@@ -172,6 +172,61 @@ const generateRoundRobin = (teamIds, compId) => {
   return rounds;
 };
 
+// ==========================================
+// MÁQUINA DE CHAVEAMENTO (MATA-MATA / COPA)
+// ==========================================
+const generateCupBracket = (teamIds, compId) => {
+  let teams = [...teamIds];
+  
+  let powerOf2 = 1;
+  while (powerOf2 < teams.length) powerOf2 *= 2;
+  
+  while (teams.length < powerOf2) {
+    teams.push(''); // Preenche vagas restantes para fechar a chave (ex: de 5 pra 8 equipas)
+  }
+
+  const totalRounds = Math.log2(powerOf2);
+  const rounds = [];
+  let matchCounter = 1;
+
+  for (let r = 0; r < totalRounds; r++) {
+    const roundMatches = [];
+    const numMatches = powerOf2 / Math.pow(2, r + 1);
+    
+    for (let i = 0; i < numMatches; i++) {
+      let tA = '';
+      let tB = '';
+      
+      if (r === 0) {
+        tA = teams[i * 2] || '';
+        tB = teams[i * 2 + 1] || '';
+      }
+
+      roundMatches.push({
+        id: `${compId}_m${matchCounter}_r${r+1}`,
+        teamA: tA,
+        teamB: tB,
+        status: 'pending_play'
+      });
+      matchCounter++;
+    }
+
+    let roundLabel = String(r + 1);
+    if (numMatches === 1) roundLabel = 'Final';
+    else if (numMatches === 2) roundLabel = 'Semifinal';
+    else if (numMatches === 4) roundLabel = 'Quartas';
+    else if (numMatches === 8) roundLabel = 'Oitavas';
+
+    rounds.push({
+      id: `r${r+1}`,
+      number: roundLabel,
+      status: r === 0 ? 'released' : 'locked',
+      matches: roundMatches
+    });
+  }
+  return rounds;
+};
+
 const calculateStandings = (matches, teams, compId) => {
   const table = {};
   teams.forEach(t => { table[t.id] = { ...t, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0 }; });
@@ -1167,7 +1222,12 @@ const CreateCompetition = ({ teams, onCreate, showToast }) => {
         return;
       }
       finalTeams = selectedTeams;
-      generatedRounds = generateRoundRobin(selectedTeams, newCompId);
+      
+      if (format === 'cup') {
+        generatedRounds = generateCupBracket(selectedTeams, newCompId);
+      } else {
+        generatedRounds = generateRoundRobin(selectedTeams, newCompId);
+      }
     } else {
       // Validações do modo Manual
       if (manualRounds.length === 0) {
