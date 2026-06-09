@@ -1006,17 +1006,25 @@ const CreateTeamFull = ({ onCreate, showToast }) => {
     if(!teamName || !coachFirstName || !coachLastName || !whatsapp || !email) return;
     setIsLoading(true);
 
-    const cleanWhatsapp = whatsapp.replace(/\D/g, '');
+    const cleanWhatsapp = String(whatsapp).replace(/\D/g, '');
     const fullName = `${coachFirstName} ${coachLastName}`;
     
     const isSuccess = await onCreate({ 
-      id: `t${Date.now()}`, 
-      name: teamName, 
-      coach: fullName, 
-      whatsapp: cleanWhatsapp, 
-      email: email.trim().toLowerCase(),
-      role: role,
-      shield: shieldData || '🛡️' 
+      user: {
+        id: `pending_${cleanWhatsapp}`,
+        name: fullName,
+        email: String(email).trim().toLowerCase(),
+        role: role,
+        whatsapp: cleanWhatsapp,
+      },
+      team: {
+        id: `t${Date.now()}`,
+        name: teamName,
+        coach: fullName,
+        whatsapp: cleanWhatsapp,
+        ownerId: `pending_${cleanWhatsapp}`,
+        shield: shieldData || '🛡️'
+      }
     });
 
     if (isSuccess) {
@@ -1086,11 +1094,17 @@ const CreateTeamFull = ({ onCreate, showToast }) => {
 };
 
 const CreateCompetition = ({ teams, onCreate, showToast }) => {
+  const [creationMode, setCreationMode] = useState('auto'); // 'auto' | 'manual'
   const [name, setName] = useState('');
   const [format, setFormat] = useState('league');
   const [deadline, setDeadline] = useState('');
   const [selectedTeams, setSelectedTeams] = useState([]);
   const [error, setError] = useState('');
+
+  // Estado exclusivo para o modo Manual
+  const [manualRounds, setManualRounds] = useState([
+    { id: 'r1', number: 1, status: 'locked', matches: [] }
+  ]);
 
   const toggleTeam = (teamId) => {
     if (selectedTeams.includes(teamId)) {
@@ -1100,49 +1114,144 @@ const CreateCompetition = ({ teams, onCreate, showToast }) => {
     }
   };
 
+  const handleAddManualRound = () => {
+    setManualRounds(prev => [
+      ...prev,
+      { id: `r${prev.length + 1}`, number: prev.length + 1, status: 'locked', matches: [] }
+    ]);
+  };
+
+  const handleAddManualMatch = (roundIndex) => {
+    const newRounds = [...manualRounds];
+    newRounds[roundIndex].matches.push({ teamA: '', teamB: '' });
+    setManualRounds(newRounds);
+  };
+
+  const handleManualMatchChange = (roundIndex, matchIndex, field, value) => {
+    const newRounds = [...manualRounds];
+    newRounds[roundIndex].matches[matchIndex][field] = value;
+    setManualRounds(newRounds);
+  };
+
+  const handleRemoveManualMatch = (roundIndex, matchIndex) => {
+    const newRounds = [...manualRounds];
+    newRounds[roundIndex].matches.splice(matchIndex, 1);
+    setManualRounds(newRounds);
+  };
+
+  const handleRemoveManualRound = (roundIndex) => {
+    const newRounds = [...manualRounds];
+    newRounds.splice(roundIndex, 1);
+    // Renumera as rodadas
+    newRounds.forEach((r, idx) => {
+      r.id = `r${idx + 1}`;
+      r.number = idx + 1;
+    });
+    setManualRounds(newRounds);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name || !format || !deadline) {
-      setError('Por favor, preencha todos os campos do formulário.');
+      setError('Por favor, preencha todos os campos básicos do formulário.');
       return;
     }
-    
-    if (selectedTeams.length < 2) {
-      setError(`Atenção: Selecione pelo menos 2 times para iniciar a competição.`);
-      return;
+
+    const newCompId = `c${Date.now()}`;
+    let generatedRounds = [];
+    let finalTeams = [];
+
+    if (creationMode === 'auto') {
+      if (selectedTeams.length < 2) {
+        setError('Atenção: Selecione pelo menos 2 times para iniciar a competição automática.');
+        return;
+      }
+      finalTeams = selectedTeams;
+      generatedRounds = generateRoundRobin(selectedTeams, newCompId);
+    } else {
+      // Validações do modo Manual
+      if (manualRounds.length === 0) {
+        setError('Adicione pelo menos uma rodada.');
+        return;
+      }
+
+      let hasMatches = false;
+      let isValidMatches = true;
+      const allParticipatingTeams = new Set();
+
+      manualRounds.forEach(r => {
+        if (r.matches.length > 0) hasMatches = true;
+        r.matches.forEach(m => {
+          if (!m.teamA || !m.teamB) isValidMatches = false;
+          if (m.teamA === m.teamB) isValidMatches = false;
+          if (m.teamA) allParticipatingTeams.add(m.teamA);
+          if (m.teamB) allParticipatingTeams.add(m.teamB);
+        });
+      });
+
+      if (!hasMatches) {
+        setError('Adicione pelo menos uma partida nas rodadas.');
+        return;
+      }
+      if (!isValidMatches) {
+        setError('Existem partidas inválidas nas rodadas (times em branco ou jogando contra si mesmos).');
+        return;
+      }
+
+      finalTeams = Array.from(allParticipatingTeams);
+      let matchCounter = 1;
+      
+      generatedRounds = manualRounds.map((r, rIndex) => ({
+        id: `r${rIndex + 1}`,
+        number: rIndex + 1,
+        status: rIndex === 0 ? 'released' : 'locked',
+        matches: r.matches.map(m => {
+          const matchId = `${newCompId}_m${matchCounter}_r${rIndex + 1}`;
+          matchCounter++;
+          return {
+            id: matchId,
+            teamA: m.teamA,
+            teamB: m.teamB,
+            status: 'pending_play'
+          };
+        })
+      }));
     }
 
     setError('');
-
-    const count = selectedTeams.length;
-    const newCompId = `c${Date.now()}`;
-    const generatedRounds = generateRoundRobin(selectedTeams, newCompId);
 
     onCreate({ 
       id: newCompId, 
       name, 
       format, 
-      teamCount: count,
+      teamCount: finalTeams.length,
       deadline, 
       status: 'active', 
-      teams: selectedTeams, 
+      teams: finalTeams, 
       rounds: generatedRounds
     });
     
-    showToast(`Competição criada com sucesso! Foram geradas ${generatedRounds.length} rodadas.`, "success");
+    showToast(`Competição criada com sucesso no modo ${creationMode === 'auto' ? 'Automático' : 'Manual'}!`, "success");
   };
 
   return (
     <div className="max-w-3xl mx-auto animate-in fade-in pb-12">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-        <PlusCircle className="text-emerald-500"/> Nova Competição Automática
+        <PlusCircle className="text-emerald-500"/> Nova Competição
       </h2>
       
       <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 space-y-6 shadow-xl">
+        
+        {/* Toggle de Modos */}
+        <div className="flex p-1 bg-slate-950 rounded-xl mb-6 border border-slate-800">
+          <button type="button" onClick={() => {setCreationMode('auto'); setError('');}} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${creationMode === 'auto' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Sorteio Automático</button>
+          <button type="button" onClick={() => {setCreationMode('manual'); setError('');}} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${creationMode === 'manual' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Confrontos Manuais</button>
+        </div>
+
         {error && (
           <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3">
             <AlertCircle size={20} />
-            <p className="text-sm font-medium">{error}</p>
+            <p className="text-sm font-medium">{String(error)}</p>
           </div>
         )}
 
@@ -1155,14 +1264,14 @@ const CreateCompetition = ({ teams, onCreate, showToast }) => {
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-400">Formato</label>
             <select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
-              <option value="league">Pontos Corridos (Sorteio Automático)</option>
+              <option value="league">Pontos Corridos (Liga)</option>
               <option value="cup">Mata-Mata (Copa)</option>
             </select>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-400">Qtd. de Times</label>
-            <input type="number" readOnly value={selectedTeams.length} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-500 cursor-not-allowed outline-none transition-colors" />
+            <label className="text-sm font-medium text-slate-400">Qtd. de Times Calculada</label>
+            <input type="number" readOnly value={creationMode === 'auto' ? selectedTeams.length : 'Automático'} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-500 cursor-not-allowed outline-none transition-colors" />
           </div>
 
           <div className="space-y-2">
@@ -1171,34 +1280,81 @@ const CreateCompetition = ({ teams, onCreate, showToast }) => {
           </div>
         </div>
 
-        <div className="pt-4 border-t border-slate-800">
-          <div className="flex justify-between items-end mb-4">
-            <label className="text-sm font-medium text-slate-400">Selecione as Equipes Participantes</label>
-            <span className={`text-xs px-2 py-1 rounded font-bold ${selectedTeams.length >= 2 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{selectedTeams.length} Marcadas</span>
-          </div>
-          {teams.length === 0 ? (
-            <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado no clã ainda.</p>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-64 overflow-y-auto pr-2">
-              {teams.map(team => {
-                const isSelected = selectedTeams.includes(team.id);
-                return (
-                  <div 
-                    key={team.id} 
-                    onClick={() => toggleTeam(team.id)}
-                    className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-slate-950 border-slate-800 hover:border-slate-600'}`}
-                  >
-                    <div className="shrink-0"><ShieldDisplay shield={team.shield} size="small" /></div>
-                    <span className={`font-medium text-xs md:text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{team.name}</span>
-                  </div>
-                );
-              })}
+        {creationMode === 'auto' ? (
+          <div className="pt-4 border-t border-slate-800 animate-in fade-in">
+            <div className="flex justify-between items-end mb-4">
+              <label className="text-sm font-medium text-slate-400">Selecione as Equipes Participantes</label>
+              <span className={`text-xs px-2 py-1 rounded font-bold ${selectedTeams.length >= 2 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{selectedTeams.length} Marcadas</span>
             </div>
-          )}
-        </div>
+            {(!teams || teams.length === 0) ? (
+              <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado no clã ainda.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-64 overflow-y-auto pr-2">
+                {teams.map(team => {
+                  const isSelected = selectedTeams.includes(team.id);
+                  return (
+                    <div 
+                      key={team.id} 
+                      onClick={() => toggleTeam(team.id)}
+                      className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-slate-950 border-slate-800 hover:border-slate-600'}`}
+                    >
+                      <div className="shrink-0"><ShieldDisplay shield={team.shield} size="small" /></div>
+                      <span className={`font-medium text-xs md:text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{String(team.name)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="pt-4 border-t border-slate-800 space-y-6 animate-in fade-in">
+            <div className="flex justify-between items-center">
+              <label className="text-sm font-medium text-slate-400">Montagem de Rodadas e Confrontos</label>
+            </div>
+            
+            {manualRounds.map((round, rIndex) => (
+              <div key={rIndex} className="bg-slate-950 rounded-xl border border-slate-800 overflow-hidden">
+                <div className="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
+                  <span className="font-bold text-slate-300 text-sm flex items-center gap-2">
+                    <span className="bg-slate-800 px-2 py-1 rounded text-xs text-amber-400 font-mono">{rIndex + 1}</span>
+                    Rodada
+                  </span>
+                  <button type="button" onClick={() => handleRemoveManualRound(rIndex)} className="text-slate-500 hover:text-red-400 transition-colors p-1" title="Excluir Rodada">
+                    <Trash2 size={16}/>
+                  </button>
+                </div>
+                <div className="p-4 space-y-3">
+                  {round.matches.map((match, mIndex) => (
+                    <div key={mIndex} className="flex items-center gap-2">
+                      <select value={match.teamA} onChange={e => handleManualMatchChange(rIndex, mIndex, 'teamA', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-xs outline-none">
+                        <option value="">Escolha um Time</option>
+                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                      <span className="text-xs text-slate-500 font-bold">X</span>
+                      <select value={match.teamB} onChange={e => handleManualMatchChange(rIndex, mIndex, 'teamB', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-xs outline-none">
+                        <option value="">Escolha um Time</option>
+                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                      <button type="button" onClick={() => handleRemoveManualMatch(rIndex, mIndex)} className="text-slate-600 hover:text-red-400 p-1 bg-slate-900 rounded border border-slate-700" title="Remover Partida">
+                        <X size={16}/>
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => handleAddManualMatch(rIndex)} className="text-xs bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-lg font-medium flex items-center gap-1 mt-2 transition-colors">
+                    <PlusCircle size={14}/> Partida
+                  </button>
+                </div>
+              </div>
+            ))}
 
-        <Button type="submit" className="w-full py-4 text-lg mt-4 shadow-emerald-900/50 shadow-xl">
-           <Trophy size={20} /> Sortear Tabela e Lançar Competição
+            <Button type="button" variant="outline" onClick={handleAddManualRound} className="w-full py-3 border-dashed border-slate-700 hover:border-slate-500 text-slate-400">
+              <PlusCircle size={16}/> Nova Rodada
+            </Button>
+          </div>
+        )}
+
+        <Button type="submit" className={`w-full py-4 text-lg mt-4 shadow-xl ${creationMode === 'manual' ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/50' : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/50'}`}>
+           <Trophy size={20} /> Lançar Competição ({creationMode === 'auto' ? 'Automática' : 'Manual'})
         </Button>
       </form>
     </div>
