@@ -1406,8 +1406,9 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEd
   );
 };
 
-const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch }) => {
+const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch }) => {
   const [subTab, setSubTab] = useState('overview'); // 'overview' | 'scorers' | 'assists'
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const getTeam = (id) => (teams || []).find(t => t.id === id);
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
@@ -1430,8 +1431,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
     }
 
-    if (submittedMatch.status === 'approved') return { isPlayed: true, scoreA: submittedMatch.scoreA, scoreB: submittedMatch.scoreB, penaltiesA: submittedMatch.penaltiesA, penaltiesB: submittedMatch.penaltiesB, text: 'Oficial', color: 'text-emerald-400', bg: 'bg-slate-950 border-emerald-900/50' };
-    if (submittedMatch.status === 'pending') return { isPlayed: true, scoreA: submittedMatch.scoreA, scoreB: submittedMatch.scoreB, penaltiesA: submittedMatch.penaltiesA, penaltiesB: submittedMatch.penaltiesB, text: 'Em Validação', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
+    if (submittedMatch.status === 'approved') return { submittedMatchId: submittedMatch.id, isPlayed: true, scoreA: submittedMatch.scoreA, scoreB: submittedMatch.scoreB, penaltiesA: submittedMatch.penaltiesA, penaltiesB: submittedMatch.penaltiesB, text: 'Oficial', color: 'text-emerald-400', bg: 'bg-slate-950 border-emerald-900/50' };
+    if (submittedMatch.status === 'pending') return { submittedMatchId: submittedMatch.id, isPlayed: true, scoreA: submittedMatch.scoreA, scoreB: submittedMatch.scoreB, penaltiesA: submittedMatch.penaltiesA, penaltiesB: submittedMatch.penaltiesB, text: 'Em Validação', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
     
     return { isPlayed: false, text: 'Desconhecido', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
   };
@@ -1514,8 +1515,22 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                 if (submittedMatch) onSelectMatch(submittedMatch);
                               }
                             }}
-                            className={`bg-slate-950 p-3 rounded-xl border border-slate-800/50 flex flex-col gap-2 ${statusUI.isPlayed ? 'cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition-all group' : ''}`}
+                            className={`bg-slate-950 p-3 rounded-xl border border-slate-800/50 flex flex-col gap-2 relative ${statusUI.isPlayed ? 'cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition-all group' : ''}`}
                           >
+                            {isAdmin && statusUI.isPlayed && statusUI.submittedMatchId && (
+                              <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all bg-slate-900/90 backdrop-blur-sm p-1 rounded-lg border border-slate-700/50 z-10" onClick={e => e.stopPropagation()}>
+                                {deleteConfirmId === statusUI.submittedMatchId ? (
+                                  <div className="flex items-center gap-1 px-1">
+                                    <button onClick={(e) => { e.stopPropagation(); onDeleteMatch(statusUI.submittedMatchId); setDeleteConfirmId(null); }} className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs font-bold transition-colors">Excluir</button>
+                                    <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(null); }} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-xs transition-colors">Cancelar</button>
+                                  </div>
+                                ) : (
+                                  <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(statusUI.submittedMatchId); }} className="text-slate-400 hover:text-red-400 p-1.5 transition-colors" title="Excluir Resultado permanentemente">
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                              </div>
+                            )}
                             <div className="flex items-center justify-between w-full gap-1.5">
                               <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-start">
                                 <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
@@ -2830,7 +2845,7 @@ export default function App() {
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
       case 'teams_list': return <TeamsList teams={teams} currentUser={currentUser} onEditTeam={handleEditTeam} competitions={competitions} matches={matches} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onEditComp={c => updateDoc(getPublicDocPath('competitions', c.id), c)} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
-      case 'comp_details': return <CompetitionDetails comp={(competitions || []).find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onSelectMatch={handleSelectMatch} />;
+      case 'comp_details': return <CompetitionDetails comp={(competitions || []).find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => { setCurrentTab(prevTab); setSelectedMatch(null); }} />;
       case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(()=>setCurrentTab('dashboard'))} currentUser={currentUser} showToast={showToast} />;
       case 'validation': 
