@@ -1892,8 +1892,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
       const currentKeyToUse = GEMINI_API_KEY.trim();
 
-      if (!currentKeyToUse || currentKeyToUse === "SUA_NOVA_CHAVE_AQUI" || currentKeyToUse.length < 30 || currentKeyToUse.startsWith('AQ.')) {
-        showToast("Chave inválida! Você precisa colar sua nova chave AIzaSy... no arquivo App.jsx.", "error");
+      if (!currentKeyToUse || currentKeyToUse === "SUA_NOVA_CHAVE_AQUI" || currentKeyToUse.length < 30) {
+        showToast("Chave inválida! Você precisa colar sua chave no arquivo App.jsx.", "error");
         return;
       }
 
