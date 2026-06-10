@@ -1820,33 +1820,13 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [isAnalyzing, setIsAnalyzing] = useState(false); 
   const [imageUploaded, setImageUploaded] = useState(false);
 
-  // Estados para configuração manual da API Key na Vercel
-  const [localKeyInput, setLocalKeyInput] = useState('');
-  const [showKeyConfig, setShowKeyConfig] = useState(false);
-  
-  const [aiKey, setAiKey] = useState(() => {
-    try { 
-      const local = localStorage.getItem('claKame_gemini_key');
-      if (local && local.length >= 20) return local; 
-      if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) {
-        return import.meta.env.VITE_GEMINI_API_KEY;
-      }
-    } catch(e) {}
-    return ""; 
-  });
-
-  const saveLocalKey = () => {
-    const cleanKey = localKeyInput.trim();
-    if (cleanKey.length < 20) {
-      showToast("Chave muito curta! Verifique se copiou a chave corretamente.", "error");
-      return;
-    }
-    localStorage.setItem('claKame_gemini_key', cleanKey);
-    setAiKey(cleanKey);
-    setShowKeyConfig(false);
-    setLocalKeyInput('');
-    showToast("Chave configurada e salva no seu dispositivo!", "success");
-  };
+  // =========================================================================
+  // 🔑 CHAVE DA INTELIGÊNCIA ARTIFICIAL EMBUTIDA (EXCLUSIVO PARA LÍDERES)
+  // Substitua o texto "COLE_A_SUA_CHAVE_AQUI" pela sua chave gerada no Google
+  // Exemplo: const GEMINI_API_KEY = "AIzaSyB8...";
+  // =========================================================================
+  const GEMINI_API_KEY = "AQ.Ab8RN6KSCLNXfiui9cwEqCH3KL9lCfo7U-xOaG9Oo3CKJbI0Qw"; 
+  // =========================================================================
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
@@ -1911,12 +1891,10 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     processScreenshot(file, async (base64) => {
       setMatchImageBase64(base64);
 
-      let currentKeyToUse = localStorage.getItem('claKame_gemini_key') || aiKey || "";
-      currentKeyToUse = currentKeyToUse.trim();
+      const currentKeyToUse = GEMINI_API_KEY.trim();
 
-      if (!currentKeyToUse || currentKeyToUse.length < 20) {
-        showToast("Por favor, cole a sua API Key na engrenagem acima antes de enviar a foto.", "error");
-        setShowKeyConfig(true);
+      if (!currentKeyToUse || currentKeyToUse === "COLE_A_SUA_CHAVE_AQUI" || currentKeyToUse.length < 20) {
+        showToast("Você não colou a Chave no código-fonte! Edite o App.jsx e tente novamente.", "error");
         return;
       }
 
@@ -1924,10 +1902,11 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); setPenaltiesA(''); setPenaltiesB('');
 
       try {
-        const b64Data = base64.split(',')[1];
-        const mimeType = base64.match(/data:(.*?);base64/)[1];
-
-        const promptText = `
+        const payload = {
+          contents: [{ 
+            role: "user", 
+            parts: [ 
+              { text: `
 Analise o placar final deste jogo de Dream League Soccer (DLS).
 REGRAS:
 1. O escudo do lado ESQUERDO tem um placar. O escudo do lado DIREITO tem um placar.
@@ -1945,23 +1924,20 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
   "rightScore": 0,
   "rightGoals": [{"player": "Nome do Goleador", "assist": "", "minute": "90"}]
 }
-        `;
-
-        const payload = {
-          contents: [{ role: "user", parts: [ { text: promptText }, { inlineData: { mimeType: mimeType, data: b64Data } } ] }],
+              `}, 
+              { inlineData: { mimeType: base64.match(/data:(.*?);base64/)[1], data: base64.split(',')[1] } } 
+            ] 
+          }],
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        // TENTATIVA 1: O modelo Flash mais atualizado
         let url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${encodeURIComponent(currentKeyToUse)}`;
         let response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        let resultJson;
 
         if (!response.ok) {
            const errJson = await response.json().catch(() => ({}));
            const errMsg = errJson?.error?.message || "";
            
-           // Se o Google reclamar que não encontrou o Flash, fazemos um Fallback Imediato para o modelo Pro
            if (errMsg.includes("not found") || errMsg.includes("is not supported")) {
               url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${encodeURIComponent(currentKeyToUse)}`;
               response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -1975,7 +1951,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
            }
         }
 
-        resultJson = await response.json();
+        const resultJson = await response.json();
 
         if (!resultJson || !resultJson.candidates) throw new Error("A IA processou mas retornou vazio.");
 
@@ -2012,12 +1988,12 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
       } catch (error) {
         console.error("Erro IA:", error);
-        if (!currentKeyToUse) {
-            showToast("Configure a API Key clicando na engrenagem ⚙️ acima.", "error");
-        } else if (error.message.includes("API key not valid") || error.message.includes("API_KEY_INVALID")) {
-            showToast("Sua chave foi rejeitada. Verifique se copiou corretamente.", "error");
+        if (error.message.includes("API key not valid") || error.message.includes("API_KEY_INVALID")) {
+            showToast("Sua chave embutida é inválida.", "error");
+        } else if (error.message.includes("API key expired")) {
+            showToast("A chave embutida expirou! Por favor, gere uma nova.", "error");
         } else if (error.message.includes("not found") || error.message.includes("Generative Language API")) {
-            showToast("A chave não tem permissão para usar a IA. Crie uma nova no site do AI Studio.", "error");
+            showToast("A chave não tem permissão para usar a IA. Crie uma nova.", "error");
         } else {
             showToast(`Erro Google: ${error.message.substring(0, 60)}. Preencha manualmente.`, "error");
         }
@@ -2084,29 +2060,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida</h2>
 
-      {isAdmin && (!aiKey || showKeyConfig) && (
-        <div className="bg-amber-500/10 p-5 rounded-xl border border-amber-500/30 mb-6 animate-in fade-in">
-          <label className="text-amber-400 font-bold text-sm flex items-center gap-2 mb-2">
-            <Lock size={16} /> Configuração da IA (Apenas para os Líderes)
-          </label>
-          <p className="text-xs text-slate-400 mb-4">
-            Como você está acessando pela Vercel, cole a sua API Key gerada no <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-emerald-400 font-bold hover:underline">Google AI Studio (Clique Aqui)</a>. Ela ficará guardada de forma segura neste dispositivo.
-          </p>
-          <div className="flex flex-col md:flex-row gap-3">
-            <input 
-              type="password" 
-              value={localKeyInput} 
-              onChange={e => setLocalKeyInput(e.target.value)} 
-              placeholder="Cole a sua API Key (Ex: AIzaSy... ou AQ...)" 
-              className="flex-1 bg-slate-950 border border-amber-500/30 rounded-lg p-3 text-white text-sm outline-none focus:border-amber-500" 
-            />
-            <Button onClick={saveLocalKey} className="bg-amber-600 hover:bg-amber-500 text-amber-950 px-6 font-bold shadow-amber-900/50">
-              Salvar Chave
-            </Button>
-          </div>
-        </div>
-      )}
-
       <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-6">
         <div>
           <label className="block text-sm font-medium text-slate-400 mb-2">1. Selecione o Campeonato</label>
@@ -2139,11 +2092,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             <div className="mb-6 p-4 border border-slate-800 bg-slate-950 rounded-xl">
               <div className="flex justify-between items-center mb-2">
                 <label className="block text-sm font-bold text-emerald-400">Anexar Print (Opcional)</label>
-                {isAdmin && (
-                  <button type="button" onClick={() => setShowKeyConfig(!showKeyConfig)} className="text-slate-500 hover:text-amber-400 transition-colors p-1" title="Configurar API Key da IA">
-                    <Settings size={18} />
-                  </button>
-                )}
               </div>
               <p className="text-xs text-slate-500 mb-3">Opcionalmente, anexe o print do resultado. A nossa IA tentará preencher tudo automaticamente para você.</p>
               <label className={`border-2 border-dashed rounded-xl p-4 text-center transition-colors cursor-pointer relative overflow-hidden block ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-900'}`}>
