@@ -119,12 +119,12 @@ const processScreenshot = (file, callback) => {
   reader.readAsDataURL(file);
 };
 
-const ShieldDisplay = ({ shield, size = 'normal' }) => {
+const ShieldDisplay = ({ shield, size = 'large' }) => {
   const isImage = typeof shield === 'string' && (shield.startsWith('data:') || shield.startsWith('http'));
   const sizeClasses = {
     'small': isImage ? 'w-6 h-6' : 'text-xl',
     'normal': isImage ? 'w-24 h-24' : 'text-5xl',
-    'large': isImage ? 'w-34 h-34' : 'text-5xl'
+    'large': isImage ? 'w-34 h-34' : 'text-10xl'
   };
   
   if (isImage) {
@@ -566,7 +566,7 @@ const Profile = ({ currentUser, teams, matches, competitions }) => {
                         </div>
                       ))}
                     </div>
-                  ) : <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded-xl border border-slate-800">Esta equipa ainda não participou de nenhuma competição.</p>}
+                  ) : <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded-xl border border-slate-800">Esta equipe ainda não participou de nenhuma competição.</p>}
                 </div>
               </div>
             </div>
@@ -1297,7 +1297,7 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEd
                   </div>
                   <div className="pt-3 border-t border-slate-800">
                     <div className="flex justify-between items-center mb-2">
-                      <label className="text-xs text-slate-400 font-bold">Equipas ({editData.teams.length})</label>
+                      <label className="text-xs text-slate-400 font-bold">Equipes ({editData.teams.length})</label>
                     </div>
                     <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
                       {(teams || []).map(t => {
@@ -1338,7 +1338,7 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEd
                 </div>
               )}
               <div className="flex justify-between items-start mb-2 pr-16"><h3 className="text-xl font-bold text-white">{String(comp.name)}</h3>{isPart && <span className={`text-xs px-2 py-1 rounded-md font-bold ${isAdmin ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>Participa</span>}</div>
-              <p className="text-sm text-slate-400 mb-4">{comp.format === 'league' ? 'Liga' : 'Copa'} • {String(comp.teams?.length || 0)} equipas {comp.deadline ? `• Prazo: ${new Date(comp.deadline).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}` : ''}</p>
+              <p className="text-sm text-slate-400 mb-4">{comp.format === 'league' ? 'Liga' : 'Copa'} • {String(comp.teams?.length || 0)} equipes {comp.deadline ? `• Prazo: ${new Date(comp.deadline).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}` : ''}</p>
               <div className="text-xs text-slate-500 flex justify-between items-center"><span>Ver Tabela ➔</span></div>
             </div>
           );
@@ -1564,7 +1564,7 @@ const MatchDetails = ({ match, teams, competitions, onBack }) => {
         <div className="p-6 md:p-8 flex items-center justify-between gap-2 bg-gradient-to-b from-slate-900 to-slate-950">
           <div className="flex-1 flex flex-col items-center text-center gap-2 min-w-0">
             <ShieldDisplay shield={tA?.shield} size="large" />
-            <span className="font-bold text-xs md:text-base text-white truncate w-full">{String(tA?.name || 'Equipa A')}</span>
+            <span className="font-bold text-xs md:text-base text-white truncate w-full">{String(tA?.name || 'Equipe A')}</span>
             <span className="text-[10px] text-slate-500 truncate w-full">Técnico: {String(tA?.coach || 'NPC')}</span>
           </div>
 
@@ -1586,8 +1586,8 @@ const MatchDetails = ({ match, teams, competitions, onBack }) => {
           </div>
 
           <div className="flex-1 flex flex-col items-center text-center gap-2 min-w-0">
-            <ShieldDisplay shield={tB?.shield} size="normal" />
-            <span className="font-bold text-xs md:text-base text-white truncate w-full">{String(tB?.name || 'Equipa B')}</span>
+            <ShieldDisplay shield={tB?.shield} size="large" />
+            <span className="font-bold text-xs md:text-base text-white truncate w-full">{String(tB?.name || 'Equipe B')}</span>
             <span className="text-[10px] text-slate-500 truncate w-full">Técnico: {String(tB?.coach || 'NPC')}</span>
           </div>
         </div>
