@@ -1824,7 +1824,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   // 🔑 CHAVE DA INTELIGÊNCIA ARTIFICIAL EMBUTIDA (EXCLUSIVO PARA LÍDERES)
   // Substitua o texto "SUA_NOVA_CHAVE_AQUI" pela chave que começa com AIzaSy...
   // =========================================================================
-  const GEMINI_API_KEY = "AQ.Ab8RN6KSCLNXfiui9cwEqCH3KL9lCfo7U-xOaG9Oo3CKJbI0Qw"; 
+  const GEMINI_API_KEY = AQ.Ab8RN6IjWM0j2jk-DRkhgRJyOdh7Z01J38hwGMBFitm8lT_Cbg; 
   // =========================================================================
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
