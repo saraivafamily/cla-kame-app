@@ -1820,8 +1820,33 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [isAnalyzing, setIsAnalyzing] = useState(false); 
   const [imageUploaded, setImageUploaded] = useState(false);
 
-  // A mágica: No ambiente de testes, se deixarmos vazio, o sistema injeta as credenciais fortes automaticamente!
-  const apiKey = ""; 
+  // Estados para configuração manual da API Key na Vercel
+  const [localKeyInput, setLocalKeyInput] = useState('');
+  const [showKeyConfig, setShowKeyConfig] = useState(false);
+  
+  const [aiKey, setAiKey] = useState(() => {
+    try { 
+      const local = localStorage.getItem('claKame_gemini_key');
+      if (local && local.length >= 20) return local; 
+      if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) {
+        return import.meta.env.VITE_GEMINI_API_KEY;
+      }
+    } catch(e) {}
+    return ""; 
+  });
+
+  const saveLocalKey = () => {
+    const cleanKey = localKeyInput.trim();
+    if (cleanKey.length < 20) {
+      showToast("Chave inválida! Verifique se copiou a chave corretamente.", "error");
+      return;
+    }
+    localStorage.setItem('claKame_gemini_key', cleanKey);
+    setAiKey(cleanKey);
+    setShowKeyConfig(false);
+    setLocalKeyInput('');
+    showToast("Chave configurada e salva no seu dispositivo!", "success");
+  };
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
@@ -1890,8 +1915,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); setPenaltiesA(''); setPenaltiesB('');
 
       try {
-        // Utilizamos o modelo mais poderoso suportado pelo ambiente de pré-visualização (Gemini 2.5 Flash)
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        const keyToUse = aiKey || "";
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${keyToUse}`;
 
         const b64Data = base64.split(',')[1];
         const mimeType = base64.match(/data:(.*?);base64/)[1];
@@ -1958,7 +1983,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
       } catch (error) {
         console.error("Erro IA:", error);
-        showToast(`IA falhou. Preencha manualmente abaixo.`, "error");
+        if (!aiKey || error.message.includes('API key') || error.message.includes('authentication') || error.message.includes('OAuth')) {
+            showToast("Configure uma API Key válida do Gemini clicando na engrenagem ⚙️ acima.", "error");
+        } else {
+            showToast(`Erro na IA. Preencha manualmente abaixo.`, "error");
+        }
       } finally {
         setIsAnalyzing(false);
         setImageUploaded(true);
@@ -2022,6 +2051,29 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida</h2>
 
+      {isAdmin && (!aiKey || showKeyConfig) && (
+        <div className="bg-amber-500/10 p-5 rounded-xl border border-amber-500/30 mb-6 animate-in fade-in">
+          <label className="text-amber-400 font-bold text-sm flex items-center gap-2 mb-2">
+            <Lock size={16} /> Configuração da IA na Vercel (Apenas Líderes)
+          </label>
+          <p className="text-xs text-slate-400 mb-4">
+            Como você está acessando pela Vercel, é necessário colar a sua API Key gerada no Google AI Studio. Ela ficará guardada localmente no seu navegador de forma segura.
+          </p>
+          <div className="flex flex-col md:flex-row gap-3">
+            <input 
+              type="password" 
+              value={localKeyInput} 
+              onChange={e => setLocalKeyInput(e.target.value)} 
+              placeholder="Cole a sua API Key (Ex: AIzaSy... ou AQ...)" 
+              className="flex-1 bg-slate-950 border border-amber-500/30 rounded-lg p-3 text-white text-sm outline-none focus:border-amber-500" 
+            />
+            <Button onClick={saveLocalKey} className="bg-amber-600 hover:bg-amber-500 text-amber-950 px-6 font-bold shadow-amber-900/50">
+              Salvar Chave
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-6">
         <div>
           <label className="block text-sm font-medium text-slate-400 mb-2">1. Selecione o Campeonato</label>
@@ -2054,6 +2106,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             <div className="mb-6 p-4 border border-slate-800 bg-slate-950 rounded-xl">
               <div className="flex justify-between items-center mb-2">
                 <label className="block text-sm font-bold text-emerald-400">Anexar Print (Opcional)</label>
+                {isAdmin && (
+                  <button type="button" onClick={() => setShowKeyConfig(!showKeyConfig)} className="text-slate-500 hover:text-amber-400 transition-colors p-1" title="Configurar API Key da IA">
+                    <Settings size={18} />
+                  </button>
+                )}
               </div>
               <p className="text-xs text-slate-500 mb-3">Opcionalmente, anexe o print do resultado. A nossa IA tentará preencher tudo automaticamente para você.</p>
               <label className={`border-2 border-dashed rounded-xl p-4 text-center transition-colors cursor-pointer relative overflow-hidden block ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-900'}`}>
