@@ -1927,12 +1927,13 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        // Ligação Limpa e Direta (sem fallbacks ou rotas que causam confusão)
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
+        // Ligação Definitiva - Chave passada diretamente na URL para evitar bloqueios de navegador
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY.trim()}`;
+        
+        const response = await fetch(url, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': GEMINI_API_KEY.trim()
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)
         });
@@ -1941,12 +1942,12 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
            const errJson = await response.json().catch(() => ({}));
            const errMsg = errJson?.error?.message || "";
            
-           if (response.status === 404 || errMsg.includes("not found")) {
-              throw new Error("API DESLIGADA: Acesse o Google Cloud e clique em 'ATIVAR' a Generative Language API no seu projeto.");
-           } else if (response.status === 401 || errMsg.includes("OAuth") || errMsg.includes("credentials")) {
-              throw new Error("CHAVE INVÁLIDA: A chave inserida foi rejeitada. Verifique se copiou corretamente.");
+           if (response.status === 400 && errMsg.includes("API_KEY_INVALID")) {
+              throw new Error("A sua chave 'AQ...' foi rejeitada pelo Google. Certifique-se de copiá-la por inteiro.");
+           } else if (response.status === 403 || errMsg.includes("permission")) {
+              throw new Error("A API 'Generative Language' não está ativada. Ative no painel do Google Cloud.");
            } else {
-              throw new Error(errMsg || `Erro de conexão: ${response.status}`);
+              throw new Error(errMsg || `Erro do servidor Google: ${response.status}`);
            }
         }
 
