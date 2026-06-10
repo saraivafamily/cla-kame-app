@@ -1828,6 +1828,9 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     try { 
       const local = localStorage.getItem('claKame_gemini_key');
       if (local && local.length >= 20) return local; 
+      if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) {
+        return import.meta.env.VITE_GEMINI_API_KEY;
+      }
     } catch(e) {}
     return ""; 
   });
@@ -1835,7 +1838,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const saveLocalKey = () => {
     const cleanKey = localKeyInput.trim();
     if (cleanKey.length < 20) {
-      showToast("Chave inválida! Verifique se copiou a chave corretamente.", "error");
+      showToast("Chave muito curta! Verifique se copiou a chave corretamente.", "error");
       return;
     }
     localStorage.setItem('claKame_gemini_key', cleanKey);
@@ -1908,7 +1911,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     processScreenshot(file, async (base64) => {
       setMatchImageBase64(base64);
 
-      // BLINDAGEM CONTRA OAUTH ERROR: Só executa se a chave existir de verdade
       let currentKeyToUse = localStorage.getItem('claKame_gemini_key') || aiKey || "";
       currentKeyToUse = currentKeyToUse.trim();
 
@@ -1922,10 +1924,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); setPenaltiesA(''); setPenaltiesB('');
 
       try {
-        // CORREÇÃO DEFINITIVA: A chave volta a ir pelo link (parâmetro ?key=), 
-        // evitando confusões com servidores antigos ou Vertex AI.
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(currentKeyToUse)}`;
-
         const b64Data = base64.split(',')[1];
         const mimeType = base64.match(/data:(.*?);base64/)[1];
 
@@ -1954,15 +1952,34 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        const result = await fetchWithBackoff(url, { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify(payload) 
-        });
+        // TENTATIVA 1: O modelo Flash mais atualizado
+        let url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${encodeURIComponent(currentKeyToUse)}`;
+        let response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        let resultJson;
 
-        if (!result || !result.candidates) throw new Error("A IA processou mas retornou vazio.");
+        if (!response.ok) {
+           const errJson = await response.json().catch(() => ({}));
+           const errMsg = errJson?.error?.message || "";
+           
+           // Se o Google reclamar que não encontrou o Flash, fazemos um Fallback Imediato para o modelo Pro
+           if (errMsg.includes("not found") || errMsg.includes("is not supported")) {
+              url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${encodeURIComponent(currentKeyToUse)}`;
+              response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+              
+              if (!response.ok) {
+                 const fallbackErr = await response.json().catch(() => ({}));
+                 throw new Error(fallbackErr?.error?.message || "Erro no modelo secundário.");
+              }
+           } else {
+              throw new Error(errMsg || "Erro de conexão com o Google IA.");
+           }
+        }
 
-        let textResponse = result.candidates[0].content.parts[0].text.trim();
+        resultJson = await response.json();
+
+        if (!resultJson || !resultJson.candidates) throw new Error("A IA processou mas retornou vazio.");
+
+        let textResponse = resultJson.candidates[0].content.parts[0].text.trim();
         textResponse = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
         
         const data = JSON.parse(textResponse);
@@ -1995,7 +2012,15 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
       } catch (error) {
         console.error("Erro IA:", error);
-        showToast(`Erro Google: ${error.message.substring(0, 70)}. Preencha manualmente.`, "error");
+        if (!currentKeyToUse) {
+            showToast("Configure a API Key clicando na engrenagem ⚙️ acima.", "error");
+        } else if (error.message.includes("API key not valid") || error.message.includes("API_KEY_INVALID")) {
+            showToast("Sua chave foi rejeitada. Verifique se copiou corretamente.", "error");
+        } else if (error.message.includes("not found") || error.message.includes("Generative Language API")) {
+            showToast("A chave não tem permissão para usar a IA. Crie uma nova no site do AI Studio.", "error");
+        } else {
+            showToast(`Erro Google: ${error.message.substring(0, 60)}. Preencha manualmente.`, "error");
+        }
       } finally {
         setIsAnalyzing(false);
         setImageUploaded(true);
