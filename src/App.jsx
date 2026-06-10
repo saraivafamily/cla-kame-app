@@ -1838,7 +1838,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const saveLocalKey = () => {
     const cleanKey = localKeyInput.trim();
     if (cleanKey.length < 20) {
-      showToast("Chave inválida! Verifique se copiou a chave corretamente.", "error");
+      showToast("Chave muito curta! Verifique se copiou a chave corretamente.", "error");
       return;
     }
     localStorage.setItem('claKame_gemini_key', cleanKey);
@@ -1916,7 +1916,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
       try {
         const keyToUse = aiKey || "";
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${keyToUse}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(keyToUse)}`;
 
         const b64Data = base64.split(',')[1];
         const mimeType = base64.match(/data:(.*?);base64/)[1];
@@ -1983,10 +1983,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
       } catch (error) {
         console.error("Erro IA:", error);
-        if (!aiKey || error.message.includes('API key') || error.message.includes('authentication') || error.message.includes('OAuth')) {
-            showToast("Configure uma API Key válida do Gemini clicando na engrenagem ⚙️ acima.", "error");
+        if (!aiKey) {
+            showToast("Configure a API Key clicando na engrenagem ⚙️ acima.", "error");
         } else {
-            showToast(`Erro na IA. Preencha manualmente abaixo.`, "error");
+            // Agora o painel exibe a resposta real do Google (ex: API key not valid)
+            showToast(`Erro do Google: ${error.message.substring(0, 80)}. Preencha manualmente.`, "error");
         }
       } finally {
         setIsAnalyzing(false);
