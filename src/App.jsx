@@ -1822,6 +1822,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
   // =========================================================================
   // 🔑 CHAVE DA INTELIGÊNCIA ARTIFICIAL (DEFINITIVA E EMBUTIDA)
+  // Cole a sua chave AQ... dentro das aspas abaixo:
   // =========================================================================
   const GEMINI_API_KEY = "AQ.Ab8RN6LZlcOY5CoZYA-xHMu8EXBmwS53mtPjW3L-KXv2R6NXWQ"; 
   // =========================================================================
@@ -1889,8 +1890,12 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     processScreenshot(file, async (base64) => {
       setMatchImageBase64(base64);
 
-      if (!GEMINI_API_KEY || GEMINI_API_KEY.trim() === "") {
-        showToast("Chave da IA não configurada no código.", "error");
+      const currentKeyToUse = GEMINI_API_KEY.trim();
+
+      // BARREIRA REMOVIDA: Agora aceita livremente a sua chave AQ...
+      if (!currentKeyToUse || currentKeyToUse.includes("COLE") || currentKeyToUse.length < 20) {
+        showToast("ERRO: Por favor, cole a sua chave no ficheiro App.jsx.", "error");
+        setIsAnalyzing(false);
         return;
       }
 
@@ -1927,8 +1932,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        // Ligação Definitiva - Chave passada diretamente na URL para evitar bloqueios de navegador
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY.trim()}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${currentKeyToUse}`;
         
         const response = await fetch(url, {
           method: 'POST',
@@ -1941,14 +1945,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         if (!response.ok) {
            const errJson = await response.json().catch(() => ({}));
            const errMsg = errJson?.error?.message || "";
-           
-           if (response.status === 400 && errMsg.includes("API_KEY_INVALID")) {
-              throw new Error("A sua chave 'AQ...' foi rejeitada pelo Google. Certifique-se de copiá-la por inteiro.");
-           } else if (response.status === 403 || errMsg.includes("permission")) {
-              throw new Error("A API 'Generative Language' não está ativada. Ative no painel do Google Cloud.");
-           } else {
-              throw new Error(errMsg || `Erro do servidor Google: ${response.status}`);
-           }
+           throw new Error(errMsg || `Erro do servidor Google: ${response.status}`);
         }
 
         const resultJson = await response.json();
@@ -2197,7 +2194,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     </div>
   );
 };
-
 const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToast }) => {
   const pending = (matches || []).filter(m => m.status === 'pending');
   const getTeam = (id) => (teams || []).find(t => t.id === id);
