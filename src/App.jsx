@@ -1915,8 +1915,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); setPenaltiesA(''); setPenaltiesB('');
 
       try {
-        const keyToUse = aiKey || "";
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(keyToUse)}`;
+        const keyToUse = aiKey ? aiKey.trim() : "";
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${keyToUse}`;
 
         const b64Data = base64.split(',')[1];
         const mimeType = base64.match(/data:(.*?);base64/)[1];
@@ -1985,8 +1985,9 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         console.error("Erro IA:", error);
         if (!aiKey) {
             showToast("Configure a API Key clicando na engrenagem ⚙️ acima.", "error");
+        } else if (error.message.includes('OAuth') || error.message.includes('invalid authentication credentials')) {
+            showToast("Chave sem permissão! Gere a chave no site correto: aistudio.google.com", "error");
         } else {
-            // Agora o painel exibe a resposta real do Google (ex: API key not valid)
             showToast(`Erro do Google: ${error.message.substring(0, 80)}. Preencha manualmente.`, "error");
         }
       } finally {
@@ -2058,14 +2059,14 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             <Lock size={16} /> Configuração da IA na Vercel (Apenas Líderes)
           </label>
           <p className="text-xs text-slate-400 mb-4">
-            Como você está acessando pela Vercel, é necessário colar a sua API Key gerada no Google AI Studio. Ela ficará guardada localmente no seu navegador de forma segura.
+            A chave atual do Google Cloud não possui permissão para a IA. Por favor, gere uma nova chave oficial no <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-emerald-400 font-bold hover:underline">Google AI Studio (Clique Aqui)</a> e cole-a abaixo.
           </p>
           <div className="flex flex-col md:flex-row gap-3">
             <input 
               type="password" 
               value={localKeyInput} 
               onChange={e => setLocalKeyInput(e.target.value)} 
-              placeholder="Cole a sua API Key (Ex: AIzaSy... ou AQ...)" 
+              placeholder="Cole a sua API Key (Ex: AIzaSy...)" 
               className="flex-1 bg-slate-950 border border-amber-500/30 rounded-lg p-3 text-white text-sm outline-none focus:border-amber-500" 
             />
             <Button onClick={saveLocalKey} className="bg-amber-600 hover:bg-amber-500 text-amber-950 px-6 font-bold shadow-amber-900/50">
