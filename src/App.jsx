@@ -1586,7 +1586,7 @@ const MatchDetails = ({ match, teams, competitions, onBack }) => {
           </div>
 
           <div className="flex-1 flex flex-col items-center text-center gap-2 min-w-0">
-            <ShieldDisplay shield={tB?.shield} size="large" />
+            <ShieldDisplay shield={tB?.shield} size="normal" />
             <span className="font-bold text-xs md:text-base text-white truncate w-full">{String(tB?.name || 'Equipa B')}</span>
             <span className="text-[10px] text-slate-500 truncate w-full">Técnico: {String(tB?.coach || 'NPC')}</span>
           </div>
