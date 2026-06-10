@@ -124,7 +124,7 @@ const ShieldDisplay = ({ shield, size = 'large' }) => {
   const sizeClasses = {
     'small': isImage ? 'w-6 h-6' : 'text-xl',
     'normal': isImage ? 'w-8 h-8' : 'text-2xl',
-    'large': isImage ? 'w-14 h-14' : 'text-5xl'
+    'large': isImage ? 'w-34 h-34' : 'text-5xl'
   };
   
   if (isImage) {
