@@ -105,26 +105,26 @@ const processScreenshot = (file, callback) => {
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const MAX_SIZE = 900; 
+      const MAX_SIZE = 1920; 
       let width = img.width; let height = img.height;
       if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } }
       else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
       canvas.width = width; canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
-      callback(canvas.toDataURL('image/jpeg', 0.8)); 
+      callback(canvas.toDataURL('image/jpeg', 0.95)); 
     };
     img.src = event.target.result;
   };
   reader.readAsDataURL(file);
 };
 
-const ShieldDisplay = ({ shield, size = 'large' }) => {
+const ShieldDisplay = ({ shield, size = 'normal' }) => {
   const isImage = typeof shield === 'string' && (shield.startsWith('data:') || shield.startsWith('http'));
   const sizeClasses = {
     'small': isImage ? 'w-6 h-6' : 'text-xl',
-    'normal': isImage ? 'w-24 h-24' : 'text-5xl',
-    'large': isImage ? 'w-34 h-34' : 'text-10xl'
+    'normal': isImage ? 'w-8 h-8' : 'text-2xl',
+    'large': isImage ? 'w-14 h-14' : 'text-5xl'
   };
   
   if (isImage) {
@@ -566,7 +566,7 @@ const Profile = ({ currentUser, teams, matches, competitions }) => {
                         </div>
                       ))}
                     </div>
-                  ) : <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded-xl border border-slate-800">Esta equipe ainda não participou de nenhuma competição.</p>}
+                  ) : <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded-xl border border-slate-800">Esta equipa ainda não participou de nenhuma competição.</p>}
                 </div>
               </div>
             </div>
@@ -579,16 +579,69 @@ const Profile = ({ currentUser, teams, matches, competitions }) => {
 
 const Standings = ({ matches, teams, compId, compName }) => {
   const table = useMemo(() => calculateStandings(matches || [], teams || [], compId), [matches, teams, compId]);
+  const tableRef = React.useRef(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportTable = async () => {
+    try {
+      setIsExporting(true);
+      // Carrega a ferramenta fotográfica (html2canvas) de forma dinâmica
+      let html2canvas = window.html2canvas;
+      if (!html2canvas) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+        html2canvas = window.html2canvas;
+      }
+
+      if (tableRef.current) {
+        // Tira a foto focando no container, injetando fundo slate escuro
+        const canvas = await html2canvas(tableRef.current, {
+          backgroundColor: '#0f172a',
+          scale: 2, // Maior qualidade (HD)
+          useCORS: true,
+          windowWidth: tableRef.current.scrollWidth,
+        });
+        
+        const image = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.href = image;
+        link.download = `Tabela_${compName ? compName.replace(/\s+/g, '_') : 'Classificacao'}.png`;
+        link.click();
+      }
+    } catch (error) {
+      console.error("Erro ao gerar imagem da tabela:", error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="animate-in fade-in duration-500">
-      {compName && (
-        <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-3">
           <Trophy className="text-amber-400" size={28} />
-          <h2 className="text-2xl font-bold text-white">Tabela - {String(compName)}</h2>
+          <h2 className="text-2xl font-bold text-white">Classificação</h2>
         </div>
-      )}
-      <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto shadow-xl">
+        <button 
+          onClick={handleExportTable} 
+          disabled={isExporting} 
+          className="flex items-center gap-2 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-4 py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
+        >
+          <Camera size={16} /> {isExporting ? 'A Processar...' : 'Publicar Tabela'}
+        </button>
+      </div>
+      <div ref={tableRef} className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto shadow-xl">
+        {isExporting && compName && (
+          <div className="p-5 bg-slate-950 text-center border-b border-slate-800">
+            <h2 className="text-xl font-black text-emerald-400 uppercase tracking-widest">🏆 {String(compName)}</h2>
+            <p className="text-xs text-slate-500 mt-1">Classificação Oficial • Clã Kame</p>
+          </div>
+        )}
         <table className="w-full text-left text-sm whitespace-nowrap">
           <thead className="bg-slate-950/50 text-slate-400 font-medium">
             <tr>
@@ -626,6 +679,11 @@ const Standings = ({ matches, teams, compId, compName }) => {
             )}
           </tbody>
         </table>
+        {isExporting && (
+          <div className="p-3 bg-slate-950 text-center border-t border-slate-800 text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+            Gerado pelo App Oficial do Clã Kame
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1297,7 +1355,7 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEd
                   </div>
                   <div className="pt-3 border-t border-slate-800">
                     <div className="flex justify-between items-center mb-2">
-                      <label className="text-xs text-slate-400 font-bold">Equipes ({editData.teams.length})</label>
+                      <label className="text-xs text-slate-400 font-bold">Equipas ({editData.teams.length})</label>
                     </div>
                     <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
                       {(teams || []).map(t => {
@@ -1338,7 +1396,7 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEd
                 </div>
               )}
               <div className="flex justify-between items-start mb-2 pr-16"><h3 className="text-xl font-bold text-white">{String(comp.name)}</h3>{isPart && <span className={`text-xs px-2 py-1 rounded-md font-bold ${isAdmin ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>Participa</span>}</div>
-              <p className="text-sm text-slate-400 mb-4">{comp.format === 'league' ? 'Liga' : 'Copa'} • {String(comp.teams?.length || 0)} equipes {comp.deadline ? `• Prazo: ${new Date(comp.deadline).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}` : ''}</p>
+              <p className="text-sm text-slate-400 mb-4">{comp.format === 'league' ? 'Liga' : 'Copa'} • {String(comp.teams?.length || 0)} equipas {comp.deadline ? `• Prazo: ${new Date(comp.deadline).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}` : ''}</p>
               <div className="text-xs text-slate-500 flex justify-between items-center"><span>Ver Tabela ➔</span></div>
             </div>
           );
@@ -1349,7 +1407,7 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEd
 };
 
 const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch }) => {
-  const [subTab, setSubTab] = useState('overview'); // 'overview' | 'scorers'
+  const [subTab, setSubTab] = useState('overview'); // 'overview' | 'scorers' | 'assists'
   const getTeam = (id) => (teams || []).find(t => t.id === id);
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
@@ -1393,6 +1451,21 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     return Object.values(scorersMap).sort((a, b) => b.count - a.count);
   }, [matches, comp?.id]);
 
+  const topAssists = useMemo(() => {
+    const assistsMap = {};
+    (matches || []).filter(m => m.compId === comp?.id && m.status === 'approved').forEach(match => {
+      (match.goals || []).forEach(goal => {
+        if (!goal.assist || goal.assist.trim() === '') return;
+        const key = `${goal.assist.toLowerCase().trim()}-${goal.teamId}`;
+        if (!assistsMap[key]) {
+          assistsMap[key] = { player: goal.assist.trim(), teamId: goal.teamId, count: 0 };
+        }
+        assistsMap[key].count += 1;
+      });
+    });
+    return Object.values(assistsMap).sort((a, b) => b.count - a.count);
+  }, [matches, comp?.id]);
+
   if (!comp) return null;
 
   return (
@@ -1408,14 +1481,15 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm font-medium">Em Andamento</span>
       </div>
 
-      <div className="flex p-1 bg-slate-950 rounded-xl mb-6 border border-slate-800">
+      <div className="flex flex-col md:flex-row p-1 bg-slate-950 rounded-xl mb-6 border border-slate-800 gap-1">
         <button onClick={() => setSubTab('overview')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${subTab === 'overview' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Classificação & Jogos</button>
         <button onClick={() => setSubTab('scorers')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${subTab === 'scorers' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Artilharia ⚽</button>
+        <button onClick={() => setSubTab('assists')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${subTab === 'assists' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Assistências 👟</button>
       </div>
 
       {subTab === 'overview' && (
         <div className="space-y-8 animate-in fade-in">
-          <Standings matches={matches} teams={(teams || []).filter(t => (comp.teams || []).includes(t.id))} compId={comp.id} compName={null} />
+          <Standings matches={matches} teams={(teams || []).filter(t => (comp.teams || []).includes(t.id))} compId={comp.id} compName={comp.name} />
 
           <div>
             <h3 className="text-xl font-bold text-white mb-4">Rodadas</h3>
@@ -1528,6 +1602,48 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
           </div>
         </div>
       )}
+
+      {subTab === 'assists' && (
+        <div className="animate-in fade-in slide-in-from-right-4">
+          <h3 className="text-xl font-bold text-white mb-4">Líderes de Assistências</h3>
+          <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto shadow-xl">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-slate-950/50 text-slate-400 font-medium border-b border-slate-800">
+                <tr>
+                  <th className="p-4 w-12 text-center">#</th>
+                  <th className="p-4">Jogador</th>
+                  <th className="p-4">Time</th>
+                  <th className="p-4 text-center">Assistências</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50">
+                {topAssists.length === 0 ? (
+                  <tr><td colSpan="4" className="p-4 text-center text-slate-500">Nenhuma assistência registrada ou aprovada nesta competição.</td></tr>
+                ) : (
+                  topAssists.map((assist, index) => {
+                    const team = getTeam(assist.teamId);
+                    return (
+                      <tr key={index} className="hover:bg-slate-800/50 transition-colors">
+                        <td className="p-4 text-center font-bold text-slate-500">
+                          {index === 0 ? <span className="text-amber-400 text-lg">🥇</span> : index === 1 ? <span className="text-slate-300 text-lg">🥈</span> : index === 2 ? <span className="text-amber-700 text-lg">🥉</span> : `${index + 1}`}
+                        </td>
+                        <td className="p-4 font-bold text-white flex items-center gap-2">👟 {assist.player}</td>
+                        <td className="p-4 text-slate-300">
+                          <div className="flex items-center gap-2">
+                            <ShieldDisplay shield={team?.shield} size="small" />
+                            <span className="truncate max-w-[120px] md:max-w-[200px]">{team?.name || 'Desconhecido'}</span>
+                          </div>
+                        </td>
+                        <td className="p-4 text-center font-black text-blue-400 text-lg">{assist.count}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1564,7 +1680,7 @@ const MatchDetails = ({ match, teams, competitions, onBack }) => {
         <div className="p-6 md:p-8 flex items-center justify-between gap-2 bg-gradient-to-b from-slate-900 to-slate-950">
           <div className="flex-1 flex flex-col items-center text-center gap-2 min-w-0">
             <ShieldDisplay shield={tA?.shield} size="large" />
-            <span className="font-bold text-xs md:text-base text-white truncate w-full">{String(tA?.name || 'Equipe A')}</span>
+            <span className="font-bold text-xs md:text-base text-white truncate w-full">{String(tA?.name || 'Equipa A')}</span>
             <span className="text-[10px] text-slate-500 truncate w-full">Técnico: {String(tA?.coach || 'NPC')}</span>
           </div>
 
@@ -1587,7 +1703,7 @@ const MatchDetails = ({ match, teams, competitions, onBack }) => {
 
           <div className="flex-1 flex flex-col items-center text-center gap-2 min-w-0">
             <ShieldDisplay shield={tB?.shield} size="large" />
-            <span className="font-bold text-xs md:text-base text-white truncate w-full">{String(tB?.name || 'Equipe B')}</span>
+            <span className="font-bold text-xs md:text-base text-white truncate w-full">{String(tB?.name || 'Equipa B')}</span>
             <span className="text-[10px] text-slate-500 truncate w-full">Técnico: {String(tB?.coach || 'NPC')}</span>
           </div>
         </div>
@@ -1606,13 +1722,14 @@ const MatchDetails = ({ match, teams, competitions, onBack }) => {
                 {goals.map((g, idx) => {
                   const isA = g.teamId === match.teamA;
                   return (
-                    <div key={idx} className={`flex items-center gap-2.5 text-xs md:text-sm ${isA ? 'flex-row' : 'flex-row-reverse'}`}>
-                      <span className="text-base">⚽</span>
+                    <div key={idx} className={`flex items-start gap-2.5 text-xs md:text-sm ${isA ? 'flex-row' : 'flex-row-reverse'}`}>
+                      <span className="text-base mt-0.5">⚽</span>
                       <div className={`flex flex-col ${isA ? 'items-start' : 'items-end'}`}>
                         <span className="font-bold text-slate-200">{String(g.player)}</span>
-                        <span className="text-[9px] text-emerald-400 font-semibold">{String(g.minute)}' Minuto</span>
+                        {g.assist && <span className="text-[10px] text-slate-400 font-medium">👟 {String(g.assist)}</span>}
+                        <span className="text-[9px] text-emerald-400 font-semibold mt-0.5">{String(g.minute)}' Minuto</span>
                       </div>
-                      <span className="text-[10px] text-slate-600 font-mono">({isA ? 'Casa' : 'Fora'})</span>
+                      <span className="text-[10px] text-slate-600 font-mono mt-1">({isA ? 'Casa' : 'Fora'})</span>
                     </div>
                   );
                 })}
@@ -1688,19 +1805,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [isAnalyzing, setIsAnalyzing] = useState(false); 
   const [imageUploaded, setImageUploaded] = useState(false);
 
-  const [localKeyInput, setLocalKeyInput] = useState('');
-  const [showKeyConfig, setShowKeyConfig] = useState(false);
-  
-  const [aiKey, setAiKey] = useState(() => {
-    try { 
-      const local = localStorage.getItem('claKame_gemini_key');
-      if (local && local.startsWith('AIzaSy')) return local;
-      if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) {
-        return import.meta.env.VITE_GEMINI_API_KEY;
-      }
-    } catch(e) {}
-    return ""; 
-  });
+  // A mágica: No ambiente de testes, se deixarmos vazio, o sistema injeta as credenciais fortes automaticamente!
+  const apiKey = ""; 
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
@@ -1751,19 +1857,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     setObservacoes(''); setImageUploaded(false); setMatchImageBase64(null);
   };
 
-  const saveLocalKey = () => {
-    const cleanKey = localKeyInput.trim();
-    if (!cleanKey.startsWith('AIzaSy')) {
-      showToast("Chave inválida! A chave deve começar com 'AIzaSy'.", "error");
-      return;
-    }
-    localStorage.setItem('claKame_gemini_key', cleanKey);
-    setAiKey(cleanKey);
-    setShowKeyConfig(false);
-    setLocalKeyInput('');
-    showToast("Chave protegida e guardada no seu dispositivo!", "success");
-  };
-
   const calculateSimilarity = (str1, str2) => {
     if(!str1 || !str2) return 0;
     const words1 = str1.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
@@ -1778,16 +1871,12 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     processScreenshot(file, async (base64) => {
       setMatchImageBase64(base64);
 
-      if (!aiKey || !aiKey.startsWith('AIzaSy')) {
-        showToast("Você anexou a imagem! Preencha o placar manualmente abaixo.", "success");
-        return; 
-      }
-
       setIsAnalyzing(true);
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); setPenaltiesA(''); setPenaltiesB('');
 
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${aiKey}`;
+        // Utilizamos o modelo mais poderoso suportado pelo ambiente de pré-visualização (Gemini 2.5 Flash)
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
         const b64Data = base64.split(',')[1];
         const mimeType = base64.match(/data:(.*?);base64/)[1];
@@ -1797,17 +1886,18 @@ Analise o placar final deste jogo de Dream League Soccer (DLS).
 REGRAS:
 1. O escudo do lado ESQUERDO tem um placar. O escudo do lado DIREITO tem um placar.
 2. Na lista central, identifique quem fez gol. GOLS possuem o ícone de uma BOLA DE FUTEBOL (⚽) ao lado.
-3. CARTÕES possuem um ícone retangular (🟨/🟥). IGNORE COMPLETAMENTE os jogadores com cartões.
-4. Liste os jogadores e minutos agrupando por quem está no lado esquerdo ou direito.
+3. ASSISTÊNCIAS: Possuem o ícone de uma CHUTEIRA (👟) ao lado. Vincule a assistência ao gol do mesmo lado correspondente. Nem todo gol tem assistência. Deixe o campo assist vazio ("") se não houver.
+4. CARTÕES possuem um ícone retangular (🟨/🟥). IGNORE COMPLETAMENTE os jogadores com cartões.
+5. Liste os jogadores e minutos agrupando por quem está no lado esquerdo ou direito. Remova os parênteses dos minutos.
 
 Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e não escreva mais nada.
 {
   "leftTeamName": "nome lido no escudo da esquerda",
   "leftScore": 0,
-  "leftGoals": [{"player": "Nome", "minute": "90"}],
+  "leftGoals": [{"player": "Nome do Goleador", "assist": "Nome da Assistência ou vazio", "minute": "90"}],
   "rightTeamName": "nome lido no escudo da direita",
   "rightScore": 0,
-  "rightGoals": [{"player": "Nome", "minute": "90"}]
+  "rightGoals": [{"player": "Nome do Goleador", "assist": "", "minute": "90"}]
 }
         `;
 
@@ -1821,7 +1911,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         if (!result || !result.candidates) throw new Error("A IA processou mas retornou vazio.");
 
         let textResponse = result.candidates[0].content.parts[0].text.trim();
-        if (textResponse.startsWith('```')) textResponse = textResponse.replace(/^```json/i, '').replace(/```$/, '').trim();
+        textResponse = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
         
         const data = JSON.parse(textResponse);
 
@@ -1862,8 +1952,8 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
   };
 
   const handleAddGoal = (team) => {
-    if (team === 'A') { setGoalsA([...goalsA, { player: '', minute: '' }]); setScoreA((parseInt(scoreA || 0) + 1).toString()); } 
-    else { setGoalsB([...goalsB, { player: '', minute: '' }]); setScoreB((parseInt(scoreB || 0) + 1).toString()); }
+    if (team === 'A') { setGoalsA([...goalsA, { player: '', assist: '', minute: '' }]); setScoreA((parseInt(scoreA || 0) + 1).toString()); } 
+    else { setGoalsB([...goalsB, { player: '', assist: '', minute: '' }]); setScoreB((parseInt(scoreB || 0) + 1).toString()); }
   };
 
   const handleRemoveGoal = (team, index) => {
@@ -1888,8 +1978,8 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     const matchDetails = availableMatches.find(m => m.id === selectedMatchId);
     
     const allGoals = [
-      ...(goalsA || []).map(g => ({ teamId: teamA.id, player: g.player, minute: g.minute })),
-      ...(goalsB || []).map(g => ({ teamId: teamB.id, player: g.player, minute: g.minute }))
+      ...(goalsA || []).map(g => ({ teamId: teamA.id, player: g.player, assist: g.assist || '', minute: g.minute })),
+      ...(goalsB || []).map(g => ({ teamId: teamB.id, player: g.player, assist: g.assist || '', minute: g.minute }))
     ];
 
     onSubmit({
@@ -1916,29 +2006,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida</h2>
-
-      {isAdmin && (!aiKey || showKeyConfig) && (
-        <div className="bg-amber-500/10 p-5 rounded-xl border border-amber-500/30 mb-6 animate-in fade-in">
-          <label className="text-amber-400 font-bold text-sm flex items-center gap-2 mb-2">
-            <Lock size={16} /> Chave Secreta da API Gemini (Cofre Local)
-          </label>
-          <p className="text-xs text-slate-400 mb-4">
-            Como Líder, você pode colar a sua chave oficial (começa com <b>AIzaSy</b>) diretamente aqui. Ela ficará guardada no seu dispositivo e ativará a Inteligência Artificial na hora, sem depender da Vercel!
-          </p>
-          <div className="flex flex-col md:flex-row gap-3">
-            <input 
-              type="password" 
-              value={localKeyInput} 
-              onChange={e => setLocalKeyInput(e.target.value)} 
-              placeholder="Ex: AIzaSy..." 
-              className="flex-1 bg-slate-950 border border-amber-500/30 rounded-lg p-3 text-white text-sm outline-none focus:border-amber-500" 
-            />
-            <Button onClick={saveLocalKey} className="bg-amber-600 hover:bg-amber-500 text-amber-950 px-6 font-bold shadow-amber-900/50">
-              Salvar Chave
-            </Button>
-          </div>
-        </div>
-      )}
 
       <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-6">
         <div>
@@ -1972,11 +2039,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             <div className="mb-6 p-4 border border-slate-800 bg-slate-950 rounded-xl">
               <div className="flex justify-between items-center mb-2">
                 <label className="block text-sm font-bold text-emerald-400">Anexar Print (Opcional)</label>
-                {isAdmin && aiKey && (
-                  <button type="button" onClick={() => setShowKeyConfig(!showKeyConfig)} className="text-slate-500 hover:text-amber-400 transition-colors p-1" title="Configurar API Key da IA">
-                    <Settings size={18} />
-                  </button>
-                )}
               </div>
               <p className="text-xs text-slate-500 mb-3">Opcionalmente, anexe o print do resultado. A nossa IA tentará preencher tudo automaticamente para você.</p>
               <label className={`border-2 border-dashed rounded-xl p-4 text-center transition-colors cursor-pointer relative overflow-hidden block ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-900'}`}>
@@ -2038,12 +2100,17 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
                 <div className="flex items-start justify-between w-full gap-4 mt-2">
                   <div className="flex-1 w-full space-y-2">
-                    <span className="text-[10px] text-slate-500 uppercase font-bold block text-left">Gols (Opcional)</span>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block text-left">Gols e Assistências (Opcional)</span>
                     {goalsA.map((g, index) => (
-                      <div key={index} className="flex gap-1.5 items-center bg-slate-900 border border-slate-800 rounded p-1.5">
-                        <input type="text" placeholder="Jogador" value={g.player} onChange={e=>handleGoalChange('A', index, 'player', e.target.value)} className="flex-1 bg-transparent text-[10px] md:text-xs text-white outline-none w-full min-w-0" required />
-                        <input type="number" placeholder="Min" value={g.minute} onChange={e=>handleGoalChange('A', index, 'minute', e.target.value)} className="w-10 bg-transparent text-[10px] md:text-xs text-emerald-400 text-center outline-none" required />
-                        <button type="button" onClick={() => handleRemoveGoal('A', index)} className="text-red-500 hover:text-red-400 p-0.5"><X size={12} /></button>
+                      <div key={index} className="flex gap-2 items-center bg-slate-900 border border-slate-800 rounded p-2">
+                        <div className="flex flex-col flex-1 gap-1.5">
+                           <input type="text" placeholder="Goleador (⚽)" value={g.player} onChange={e=>handleGoalChange('A', index, 'player', e.target.value)} className="bg-slate-950 text-[10px] md:text-xs text-white outline-none w-full px-2 py-1.5 rounded border border-slate-800 focus:border-emerald-500" required />
+                           <input type="text" placeholder="Assistência (👟)" value={g.assist || ''} onChange={e=>handleGoalChange('A', index, 'assist', e.target.value)} className="bg-slate-950 text-[10px] md:text-xs text-slate-400 outline-none w-full px-2 py-1.5 rounded border border-slate-800 focus:border-emerald-500" />
+                        </div>
+                        <div className="flex flex-col items-center gap-1">
+                           <input type="number" placeholder="Min" value={g.minute} onChange={e=>handleGoalChange('A', index, 'minute', e.target.value)} className="w-12 bg-slate-950 px-1 py-1.5 rounded border border-slate-800 text-[10px] md:text-xs text-emerald-400 text-center outline-none font-bold focus:border-emerald-500" required />
+                           <button type="button" onClick={() => handleRemoveGoal('A', index)} className="text-red-500 hover:text-red-400 p-1 bg-red-500/10 rounded"><X size={12} /></button>
+                        </div>
                       </div>
                     ))}
                     <button type="button" onClick={() => handleAddGoal('A')} className="text-[10px] md:text-xs text-emerald-400 hover:underline flex items-center gap-1">+ Adicionar Gol</button>
@@ -2052,12 +2119,17 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                   <div className="w-4 shrink-0"></div>
 
                   <div className="flex-1 w-full space-y-2">
-                    <span className="text-[10px] text-slate-500 uppercase font-bold block text-right">Gols (Opcional)</span>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block text-right">Gols e Assistências (Opcional)</span>
                     {goalsB.map((g, index) => (
-                      <div key={index} className="flex gap-1.5 items-center bg-slate-900 border border-slate-800 rounded p-1.5">
-                        <input type="text" placeholder="Jogador" value={g.player} onChange={e=>handleGoalChange('B', index, 'player', e.target.value)} className="flex-1 bg-transparent text-[10px] md:text-xs text-white outline-none w-full min-w-0 text-right" required />
-                        <input type="number" placeholder="Min" value={g.minute} onChange={e=>handleGoalChange('B', index, 'minute', e.target.value)} className="w-10 bg-transparent text-[10px] md:text-xs text-emerald-400 text-center outline-none" required />
-                        <button type="button" onClick={() => handleRemoveGoal('B', index)} className="text-red-500 hover:text-red-400 p-0.5"><X size={12} /></button>
+                      <div key={index} className="flex gap-2 items-center bg-slate-900 border border-slate-800 rounded p-2 flex-row-reverse">
+                        <div className="flex flex-col flex-1 gap-1.5">
+                           <input type="text" placeholder="Goleador (⚽)" value={g.player} onChange={e=>handleGoalChange('B', index, 'player', e.target.value)} className="bg-slate-950 text-[10px] md:text-xs text-white outline-none w-full px-2 py-1.5 rounded border border-slate-800 focus:border-emerald-500 text-right" required />
+                           <input type="text" placeholder="Assistência (👟)" value={g.assist || ''} onChange={e=>handleGoalChange('B', index, 'assist', e.target.value)} className="bg-slate-950 text-[10px] md:text-xs text-slate-400 outline-none w-full px-2 py-1.5 rounded border border-slate-800 focus:border-emerald-500 text-right" />
+                        </div>
+                        <div className="flex flex-col items-center gap-1">
+                           <input type="number" placeholder="Min" value={g.minute} onChange={e=>handleGoalChange('B', index, 'minute', e.target.value)} className="w-12 bg-slate-950 px-1 py-1.5 rounded border border-slate-800 text-[10px] md:text-xs text-emerald-400 text-center outline-none font-bold focus:border-emerald-500" required />
+                           <button type="button" onClick={() => handleRemoveGoal('B', index)} className="text-red-500 hover:text-red-400 p-1 bg-red-500/10 rounded"><X size={12} /></button>
+                        </div>
                       </div>
                     ))}
                     <div className="flex justify-end">
@@ -2102,14 +2174,14 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
     const goals = (allGoals || []).filter(g => g.teamId === teamId);
     if (goals.length === 0) return <span className={`text-[10px] md:text-xs text-slate-600 block text-${align}`}>Nenhum gol</span>;
     return (
-      <div className={`space-y-0.5 text-[10px] md:text-xs text-slate-400 flex flex-col ${align === 'right' ? 'items-end text-right' : 'items-start text-left'}`}>
+      <div className={`space-y-1.5 text-[10px] md:text-xs text-slate-400 flex flex-col ${align === 'right' ? 'items-end text-right' : 'items-start text-left'}`}>
         {goals.map((g, i) => (
-          <div key={i} className="flex gap-1.5 items-center">
-            {align === 'left' ? (
-              <><span className="text-emerald-400 font-bold">{String(g.minute)}'</span><span className="truncate">{String(g.player)}</span></>
-            ) : (
-              <><span className="truncate">{String(g.player)}</span><span className="text-emerald-400 font-bold">{String(g.minute)}'</span></>
-            )}
+          <div key={i} className={`flex gap-1.5 items-start ${align === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
+            <span className="text-emerald-400 font-bold mt-0.5">{String(g.minute)}'</span>
+            <div className={`flex flex-col min-w-0 ${align === 'right' ? 'items-end' : 'items-start'}`}>
+              <span className="truncate font-medium text-slate-200">{String(g.player)}</span>
+              {g.assist && <span className="text-[8.5px] text-slate-500 truncate">👟 {String(g.assist)}</span>}
+            </div>
           </div>
         ))}
       </div>
@@ -2215,6 +2287,264 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
   );
 };
 
+const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, onExpelUser, onEditUser, onLinkTeam, showToast }) => {
+  const [expelConfirmId, setExpelConfirmId] = useState(null);
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [editData, setEditData] = useState({ name: '', whatsapp: '', email: '' });
+  
+  const [linkingTeamUserId, setLinkingTeamUserId] = useState(null);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamShield, setNewTeamShield] = useState(null);
+  
+  const isLeader = currentUser?.role === 'leader';
+
+  const startEdit = (user) => {
+    setEditingUserId(user.id);
+    setEditData({ name: user.name || '', whatsapp: user.whatsapp || '', email: user.email || '' });
+  };
+
+  const saveEdit = (userId) => {
+    if (editData.name && editData.whatsapp && editData.email) {
+      onEditUser(userId, {
+        name: String(editData.name),
+        whatsapp: String(editData.whatsapp),
+        email: String(editData.email)
+      });
+      setEditingUserId(null);
+    } else {
+      showToast("Preencha todos os campos do treinador para salvar.", "error");
+    }
+  };
+
+  return (
+    <div className="animate-in fade-in duration-500 space-y-6">
+      <div className="flex items-center gap-3 mb-6">
+        <Crown className="text-emerald-500" size={28} />
+        <h2 className="text-2xl font-bold text-white">Gestão de Técnicos</h2>
+      </div>
+      
+      <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto shadow-2xl">
+        <table className="w-full text-left text-sm whitespace-nowrap">
+          <thead className="bg-slate-950/50 text-slate-400 font-medium border-b border-slate-800">
+            <tr>
+              <th className="p-4">Treinador</th>
+              <th className="p-4">Time</th>
+              <th className="p-4">WhatsApp</th>
+              <th className="p-4">E-mail</th>
+              <th className="p-4">Cargo Atual</th>
+              <th className="p-4 text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800/50">
+            {users.map(user => {
+              if (!user || !user.id) return null; // Segurança contra dados nulos
+              
+              const userTeam = teams.find(t => t.ownerId === user.id);
+              const isMe = currentUser && user.id === currentUser.id;
+              
+              // MODO EDIÇÃO DO USUÁRIO
+              if (editingUserId === user.id) {
+                return (
+                  <tr key={user.id} className="bg-slate-800/80 transition-colors">
+                    <td className="p-3">
+                      <input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} className="w-full bg-slate-950 border border-emerald-500/50 rounded-lg p-2 text-white text-xs outline-none" placeholder="Nome" />
+                    </td>
+                    <td className="p-3 text-emerald-400 font-medium text-xs">
+                      {userTeam ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <ShieldDisplay shield={userTeam.shield} size="small" /> 
+                          <span>{String(userTeam.name)}</span>
+                        </div>
+                      ) : <span className="text-slate-500">Sem time</span>}
+                    </td>
+                    <td className="p-3">
+                      <input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} className="w-full bg-slate-950 border border-emerald-500/50 rounded-lg p-2 text-white text-xs outline-none" placeholder="WhatsApp" />
+                    </td>
+                    <td className="p-3">
+                      <input type="text" value={editData.email} onChange={e=>setEditData({...editData, email: e.target.value})} className="w-full bg-slate-950 border border-emerald-500/50 rounded-lg p-2 text-white text-xs outline-none" placeholder="E-mail" />
+                    </td>
+                    <td className="p-3 text-xs text-slate-400">{ROLE_NAMES[user.role] || 'Membro'}</td>
+                    <td className="p-3 text-center flex items-center justify-center gap-1">
+                      <Button onClick={() => saveEdit(user.id)} className="bg-emerald-600 hover:bg-emerald-500 py-1.5 px-3 text-xs"><Save size={14}/> Salvar</Button>
+                      <Button onClick={() => setEditingUserId(null)} variant="outline" className="py-1.5 px-3 text-xs border-slate-600 text-slate-400"><X size={14}/></Button>
+                    </td>
+                  </tr>
+                );
+              }
+
+              // MODO VISUALIZAÇÃO DO USUÁRIO
+              return (
+                <tr key={user.id} className="hover:bg-slate-800/50 transition-colors">
+                  <td className="p-4 font-bold text-white">
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex flex-col">
+                        <span>{String(user.name || 'Sem Nome')} {isMe && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded ml-1">Você</span>}</span>
+                        {String(user.id).startsWith('pending_') && <span className="text-[10px] text-amber-500 mt-0.5">⏳ Aguardando 1º Acesso</span>}
+                      </div>
+                      {isLeader && (
+                        <button onClick={() => startEdit(user)} className="text-slate-500 hover:text-amber-400 transition-colors p-0.5 ml-2" title="Editar Nome do Técnico">
+                          <Edit size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                  
+                  <td className="p-4 text-emerald-400 font-medium">
+                    {userTeam ? (
+                      <div className="flex items-center gap-2">
+                        <ShieldDisplay shield={userTeam.shield} size="small" /> 
+                        <span>{String(userTeam.name)}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500 text-xs bg-slate-950 px-2 py-1 rounded border border-slate-800">Sem time</span>
+                        {isLeader && (
+                          <button 
+                            onClick={() => {
+                              setLinkingTeamUserId(user.id);
+                              setNewTeamName('');
+                              setNewTeamShield(null);
+                            }}
+                            className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/30 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1"
+                          >
+                            <PlusCircle size={12}/> Cadastrar Time
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </td>
+
+                  <td className="p-4 text-slate-300">
+                    <div className="flex items-center gap-1.5 font-mono text-xs">
+                      <span>{String(user.whatsapp || '-')}</span>
+                    </div>
+                  </td>
+                  <td className="p-4 text-slate-400">
+                    <div className="flex items-center gap-1.5">
+                      <span>{String(user.email || '-')}</span>
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    {user.role === 'leader' && <span className="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20"><Crown size={12}/> Líder Supremo</span>}
+                    {user.role === 'kaioh' && <span className="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20"><Star size={12}/> Senhor Kaioh</span>}
+                    {(user.role === 'member' || !user.role) && <span className="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-slate-400 bg-slate-500/10 px-2 py-1 rounded border border-slate-500/20"><User size={12}/> Membro</span>}
+                  </td>
+                  <td className="p-4 text-center">
+                    {isMe ? (
+                      <span className="text-xs text-slate-500 italic">Intocável</span>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <select 
+                          value={user.role || 'member'} 
+                          onChange={(e) => onUpdateUserRole(user.id, e.target.value)}
+                          className="bg-slate-950 border border-slate-700 text-slate-300 rounded-lg p-2 text-xs outline-none focus:border-emerald-500 transition-colors cursor-pointer"
+                        >
+                          <option value="member">Membro</option>
+                          <option value="kaioh">Kaioh</option>
+                          <option value="leader">Líder</option>
+                        </select>
+                        
+                        {isLeader && (
+                          expelConfirmId === user.id ? (
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => { onExpelUser(user.id); setExpelConfirmId(null); }} className="bg-red-600 hover:bg-red-500 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-colors">Confirmar</button>
+                              <button onClick={() => setExpelConfirmId(null)} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1.5 rounded-lg text-xs transition-colors">Cancelar</button>
+                            </div>
+                          ) : (
+                            <button 
+                              onClick={() => setExpelConfirmId(user.id)}
+                              className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                            >
+                              <XCircle size={14} /> Expulsar
+                            </button>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* MODAL DE VINCULAR EQUIPA */}
+      {linkingTeamUserId && (() => {
+        const userToLink = users.find(u => u.id === linkingTeamUserId) || {};
+        return (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-md w-full space-y-5 shadow-2xl">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Shield className="text-emerald-500" size={20} />
+                  Vincular Time ao Técnico
+                </h3>
+                <button onClick={() => setLinkingTeamUserId(null)} className="text-slate-400 hover:text-white">
+                  <X size={18} />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Técnico Selecionado</label>
+                  <input type="text" readOnly value={String(userToLink.name || 'Técnico')} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-400 text-sm outline-none cursor-not-allowed" />
+                </div>
+
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                  <label className="block text-xs text-slate-400 mb-2">Escudo do Time</label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-slate-900 rounded-xl border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                      <ShieldDisplay shield={newTeamShield} size="large" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="cursor-pointer bg-slate-800 hover:bg-emerald-600 text-white transition-colors px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 max-w-[150px]">
+                        <UploadCloud size={14} />
+                        Enviar Imagem
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], setNewTeamShield)} />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Nome do Time</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Kame FC" 
+                    value={newTeamName} 
+                    onChange={e => setNewTeamName(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white text-sm outline-none transition-colors" 
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button variant="outline" onClick={() => setLinkingTeamUserId(null)} className="flex-1 text-xs py-2">Cancelar</Button>
+                <Button 
+                  onClick={async () => {
+                    if (!newTeamName || !newTeamName.trim()) {
+                      showToast('Por favor, introduza o nome da equipa.', 'error');
+                      return;
+                    }
+                    const success = await onLinkTeam(linkingTeamUserId, newTeamName, newTeamShield);
+                    if (success) {
+                      setLinkingTeamUserId(null);
+                    }
+                  }} 
+                  className="flex-1 text-xs py-2 bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/50"
+                >
+                  Vincular time ao técnico
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+};
+
 const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
@@ -2266,7 +2596,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
 
                 <div className="flex items-center justify-between w-full gap-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0 justify-start">
-                    <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
+                    <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="normal" /></div>
                     <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate group-hover:text-emerald-400 transition-colors">{String(tA?.name || 'Time A')}</span>
                   </div>
                   
@@ -2284,7 +2614,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
 
                   <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
                     <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate text-right group-hover:text-emerald-400 transition-colors">{String(tB?.name || 'Time B')}</span>
-                    <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
+                    <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="normal" /></div>
                   </div>
                 </div>
                 
@@ -2484,8 +2814,8 @@ export default function App() {
     { id: 'profile', label: 'Meu Perfil', icon: User },
     { id: 'teams_list', label: 'Times', icon: Shield },
     { id: 'competitions', label: 'Competições', icon: Medal },
-    { id: 'submit', label: 'Registrar', icon: Camera },
     ...(currentUser.role === 'leader' || currentUser.role === 'kaioh' ? [
+      { id: 'submit', label: 'Registrar', icon: Camera },
       { id: 'validation', label: 'Validação', icon: CheckSquare },
       { id: 'members_list', label: 'Técnicos', icon: Crown },
       { id: 'create_comp', label: 'Nova Comp', icon: PlusCircle },
