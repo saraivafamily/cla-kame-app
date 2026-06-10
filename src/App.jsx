@@ -1822,8 +1822,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
   // =========================================================================
   // 🔑 CHAVE DA INTELIGÊNCIA ARTIFICIAL EMBUTIDA (EXCLUSIVO PARA LÍDERES)
-  // Substitua o texto "COLE_A_SUA_CHAVE_AQUI" pela sua chave gerada no Google
-  // Exemplo: const GEMINI_API_KEY = "AIzaSyB8...";
+  // Substitua o texto "SUA_NOVA_CHAVE_AQUI" pela chave que começa com AIzaSy...
   // =========================================================================
   const GEMINI_API_KEY = "AQ.Ab8RN6KSCLNXfiui9cwEqCH3KL9lCfo7U-xOaG9Oo3CKJbI0Qw"; 
   // =========================================================================
@@ -1893,8 +1892,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
       const currentKeyToUse = GEMINI_API_KEY.trim();
 
-      if (!currentKeyToUse || currentKeyToUse === "COLE_A_SUA_CHAVE_AQUI" || currentKeyToUse.length < 20) {
-        showToast("Você não colou a Chave no código-fonte! Edite o App.jsx e tente novamente.", "error");
+      if (!currentKeyToUse || currentKeyToUse === "SUA_NOVA_CHAVE_AQUI" || currentKeyToUse.length < 30 || currentKeyToUse.startsWith('AQ.')) {
+        showToast("Chave inválida! Você precisa colar sua nova chave AIzaSy... no arquivo App.jsx.", "error");
         return;
       }
 
@@ -1931,29 +1930,31 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        let url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${encodeURIComponent(currentKeyToUse)}`;
+        // Usa o modelo estável padrão
+        let url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(currentKeyToUse)}`;
         let response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
 
         if (!response.ok) {
            const errJson = await response.json().catch(() => ({}));
            const errMsg = errJson?.error?.message || "";
            
-           if (errMsg.includes("not found") || errMsg.includes("is not supported")) {
-              url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${encodeURIComponent(currentKeyToUse)}`;
+           // Se der erro 404, tenta o modelo PRO estável
+           if (response.status === 404 || errMsg.includes("not found")) {
+              url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${encodeURIComponent(currentKeyToUse)}`;
               response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
               
               if (!response.ok) {
                  const fallbackErr = await response.json().catch(() => ({}));
-                 throw new Error(fallbackErr?.error?.message || "Erro no modelo secundário.");
+                 throw new Error(fallbackErr?.error?.message || "Erro desconhecido no servidor do Google.");
               }
            } else {
-              throw new Error(errMsg || "Erro de conexão com o Google IA.");
+              throw new Error(errMsg || `Falha na requisição. Código: ${response.status}`);
            }
         }
 
         const resultJson = await response.json();
 
-        if (!resultJson || !resultJson.candidates) throw new Error("A IA processou mas retornou vazio.");
+        if (!resultJson || !resultJson.candidates) throw new Error("A IA processou a imagem mas não retornou nada.");
 
         let textResponse = resultJson.candidates[0].content.parts[0].text.trim();
         textResponse = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -1987,16 +1988,8 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         showToast("Dados extraídos do Print pela IA!", "success");
 
       } catch (error) {
-        console.error("Erro IA:", error);
-        if (error.message.includes("API key not valid") || error.message.includes("API_KEY_INVALID")) {
-            showToast("Sua chave embutida é inválida.", "error");
-        } else if (error.message.includes("API key expired")) {
-            showToast("A chave embutida expirou! Por favor, gere uma nova.", "error");
-        } else if (error.message.includes("not found") || error.message.includes("Generative Language API")) {
-            showToast("A chave não tem permissão para usar a IA. Crie uma nova.", "error");
-        } else {
-            showToast(`Erro Google: ${error.message.substring(0, 60)}. Preencha manualmente.`, "error");
-        }
+        console.error("Erro completo da IA:", error);
+        showToast(`Erro Google: ${error.message.substring(0, 80)}.`, "error");
       } finally {
         setIsAnalyzing(false);
         setImageUploaded(true);
