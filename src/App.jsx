@@ -1823,7 +1823,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   // =========================================================================
   // 🔑 CHAVE DA INTELIGÊNCIA ARTIFICIAL (DEFINITIVA E EMBUTIDA)
   // =========================================================================
-  const GEMINI_API_KEY = "AQ.Ab8RN6KSCLNXfiui9cwEqCH3KL9lCfo7U-xOaG9Oo3CKJbI0Qw"; 
+  const GEMINI_API_KEY = "AQ.Ab8RN6LZlcOY5CoZYA-xHMu8EXBmwS53mtPjW3L-KXv2R6NXWQ"; 
   // =========================================================================
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
