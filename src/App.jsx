@@ -1664,7 +1664,139 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 };
 
 const MatchDetails = ({ match, teams, competitions, onBack }) => {
-// ... existing code ... (Deixe este componente como está)
+  if (!match) return null;
+  const getTeam = (id) => (teams || []).find(t => t.id === id);
+  const tA = getTeam(match.teamA);
+  const tB = getTeam(match.teamB);
+  const compName = (competitions || []).find(c => c.id === match.compId)?.name || 'Campeonato';
+  const roundNum = String(match.roundId || '').replace('r', '');
+
+  const goals = match.goals || [];
+
+  return (
+    <div className="animate-in fade-in duration-500 space-y-6 max-w-2xl mx-auto pb-12">
+      <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4">
+        <ArrowLeft size={20} /> Voltar
+      </button>
+
+      <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
+        {/* Topo */}
+        <div className="bg-slate-950/50 p-4 border-b border-slate-800 flex justify-between items-center">
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-bold block mb-0.5">Resumo do Jogo</span>
+            <h2 className="text-xs md:text-sm font-bold text-slate-300 truncate max-w-[200px] md:max-w-xs">{String(compName)}</h2>
+          </div>
+          <span className="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-full font-bold shrink-0">
+            Rodada {String(roundNum)}
+          </span>
+        </div>
+
+        {/* Placar Principal */}
+        <div className="p-6 md:p-8 flex items-center justify-between gap-2 bg-gradient-to-b from-slate-900 to-slate-950">
+          <div className="flex-1 flex flex-col items-center text-center gap-2 min-w-0">
+            <ShieldDisplay shield={tA?.shield} size="large" />
+            <span className="font-bold text-xs md:text-base text-white truncate w-full">{String(tA?.name || 'Equipa A')}</span>
+            <span className="text-[10px] text-slate-500 truncate w-full">Técnico: {String(tA?.coach || 'NPC')}</span>
+          </div>
+
+          <div className="flex flex-col items-center justify-center shrink-0 bg-slate-950/80 px-4 py-3 md:px-6 md:py-4 rounded-xl border border-slate-800 shadow-inner">
+            <div className="flex items-center gap-3 md:gap-5">
+              {match.penaltiesA !== null && match.penaltiesA !== undefined && (
+                <span className="text-sm md:text-lg font-bold text-amber-500">({match.penaltiesA})</span>
+              )}
+              <span className="text-3xl md:text-4xl font-black text-emerald-400 tracking-tight">{String(match.scoreA)}</span>
+              <span className="text-[10px] font-black text-slate-600">X</span>
+              <span className="text-3xl md:text-4xl font-black text-emerald-400 tracking-tight">{String(match.scoreB)}</span>
+              {match.penaltiesB !== null && match.penaltiesB !== undefined && (
+                <span className="text-sm md:text-lg font-bold text-amber-500">({match.penaltiesB})</span>
+              )}
+            </div>
+            <span className="text-[9px] uppercase font-bold tracking-widest text-emerald-500 mt-2.5 px-2 py-0.5 bg-emerald-500/10 rounded border border-emerald-500/20">
+              {match.status === 'approved' ? '✓ Oficializado' : '⏳ Em validação'}
+            </span>
+          </div>
+
+          <div className="flex-1 flex flex-col items-center text-center gap-2 min-w-0">
+            <ShieldDisplay shield={tB?.shield} size="large" />
+            <span className="font-bold text-xs md:text-base text-white truncate w-full">{String(tB?.name || 'Equipa B')}</span>
+            <span className="text-[10px] text-slate-500 truncate w-full">Técnico: {String(tB?.coach || 'NPC')}</span>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Marcadores de Gols */}
+          <div>
+            <h3 className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-3 flex items-center gap-2">
+              <Activity size={14} className="text-emerald-500" /> Linha do Tempo dos Golos
+            </h3>
+            
+            {goals.length === 0 ? (
+              <p className="text-xs text-slate-500 italic p-4 bg-slate-950/50 rounded-xl border border-slate-800/40 text-center">Nenhum golo registrado nesta partida.</p>
+            ) : (
+              <div className="space-y-2 bg-slate-950/40 p-4 rounded-xl border border-slate-800">
+                {goals.map((g, idx) => {
+                  const isA = g.teamId === match.teamA;
+                  return (
+                    <div key={idx} className={`flex items-start gap-2.5 text-xs md:text-sm ${isA ? 'flex-row' : 'flex-row-reverse'}`}>
+                      <span className="text-base mt-0.5">⚽</span>
+                      <div className={`flex flex-col ${isA ? 'items-start' : 'items-end'}`}>
+                        <span className="font-bold text-slate-200">{String(g.player)}</span>
+                        {g.assist && <span className="text-[10px] text-slate-400 font-medium">👟 {String(g.assist)}</span>}
+                        <span className="text-[9px] text-emerald-400 font-semibold mt-0.5">{String(g.minute)}' Minuto</span>
+                      </div>
+                      <span className="text-[10px] text-slate-600 font-mono mt-1">({isA ? 'Casa' : 'Fora'})</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Relatório / Observações */}
+          {match.observacoes && (
+            <div>
+              <h3 className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-3 flex items-center gap-2">
+                <MessageCircle size={14} className="text-emerald-500" /> Observações do Técnico
+              </h3>
+              <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 text-xs md:text-sm text-slate-300 italic">
+                "{String(match.observacoes)}"
+              </div>
+            </div>
+          )}
+
+          {/* Captura de Tela (Mídia) */}
+          <div>
+            <h3 className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-3 flex items-center gap-2">
+              <Camera size={14} className="text-emerald-500" /> Print de Validação
+            </h3>
+            {match.imageUrl ? (
+              <div className="bg-slate-950 p-1.5 rounded-xl border border-slate-800 overflow-hidden relative group">
+                <img 
+                  src={match.imageUrl} 
+                  alt="Print do Jogo" 
+                  className="w-full rounded-lg object-contain max-h-[350px] cursor-pointer hover:scale-[1.01] transition-transform duration-200"
+                  onClick={() => window.open(match.imageUrl, '_blank')}
+                />
+                <div className="absolute bottom-3 right-3 bg-slate-900/95 text-slate-300 px-2 py-1 rounded text-[9px] font-semibold backdrop-blur-sm border border-slate-700 pointer-events-none">
+                  Clique para ver imagem ampliada 🗖
+                </div>
+              </div>
+            ) : (
+              <div className="p-8 bg-slate-950/30 rounded-xl border border-slate-800 border-dashed text-center text-slate-500 text-xs">
+                Nenhum print ou imagem comprovativa anexada a este resultado.
+              </div>
+            )}
+          </div>
+
+          {/* Detalhes do Envio */}
+          <div className="pt-3 border-t border-slate-800 flex justify-between items-center text-[9px] text-slate-500">
+            <span>Enviado por: <strong className="text-slate-400">{String(match.submittedBy)}</strong></span>
+            <span>Ref: {String(match.id)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, showToast }) => {
@@ -1776,13 +1908,12 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     processScreenshot(file, async (base64) => {
       setMatchImageBase64(base64);
 
-      // CORREÇÃO: Lê a chave atualizada diretamente do disco do navegador 
-      // no exato milissegundo do clique, evitando que vá vazia
+      // BLINDAGEM CONTRA OAUTH ERROR: Só executa se a chave existir de verdade
       let currentKeyToUse = localStorage.getItem('claKame_gemini_key') || aiKey || "";
       currentKeyToUse = currentKeyToUse.trim();
 
       if (!currentKeyToUse || currentKeyToUse.length < 20) {
-        showToast("Por favor, cole a sua API Key e clique em Salvar antes de enviar a foto.", "error");
+        showToast("Por favor, cole a sua API Key na engrenagem acima antes de enviar a foto.", "error");
         setShowKeyConfig(true);
         return;
       }
@@ -1791,8 +1922,9 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); setPenaltiesA(''); setPenaltiesB('');
 
       try {
-        // Agora envia o endereço sem a chave aparente
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
+        // CORREÇÃO DEFINITIVA: A chave volta a ir pelo link (parâmetro ?key=), 
+        // evitando confusões com servidores antigos ou Vertex AI.
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(currentKeyToUse)}`;
 
         const b64Data = base64.split(',')[1];
         const mimeType = base64.match(/data:(.*?);base64/)[1];
@@ -1822,23 +1954,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        // CORREÇÃO: Enviamos a chave como um Cabeçalho de Segurança Privado (x-goog-api-key)
-        // Isso resolve o erro de "Expected OAuth 2" definitivamente e agrada aos servidores do Google
-        const response = await fetch(url, {
-           method: 'POST',
-           headers: {
-             'Content-Type': 'application/json',
-             'x-goog-api-key': currentKeyToUse
-           },
-           body: JSON.stringify(payload)
+        const result = await fetchWithBackoff(url, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(payload) 
         });
-
-        if (!response.ok) {
-            const errJson = await response.json().catch(() => ({}));
-            throw new Error(errJson?.error?.message || "Erro de conexão com o Google IA.");
-        }
-
-        const result = await response.json();
 
         if (!result || !result.candidates) throw new Error("A IA processou mas retornou vazio.");
 
@@ -1875,11 +1995,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
       } catch (error) {
         console.error("Erro IA:", error);
-        if (error.message.includes('OAuth') || error.message.includes('authentication') || error.message.includes('API_KEY_INVALID')) {
-            showToast("Chave não tem permissão de IA. Gere uma em: aistudio.google.com", "error");
-        } else {
-            showToast(`Erro Google: ${error.message.substring(0, 70)}. Preencha manualmente.`, "error");
-        }
+        showToast(`Erro Google: ${error.message.substring(0, 70)}. Preencha manualmente.`, "error");
       } finally {
         setIsAnalyzing(false);
         setImageUploaded(true);
@@ -2901,4 +3017,3 @@ export default function App() {
     </div>
   );
 }
-      
