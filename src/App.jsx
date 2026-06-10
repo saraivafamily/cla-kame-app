@@ -1349,6 +1349,7 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEd
 };
 
 const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch }) => {
+  const [subTab, setSubTab] = useState('overview'); // 'overview' | 'scorers'
   const getTeam = (id) => (teams || []).find(t => t.id === id);
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
@@ -1377,6 +1378,21 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     return { isPlayed: false, text: 'Desconhecido', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
   };
 
+  const topScorers = useMemo(() => {
+    const scorersMap = {};
+    (matches || []).filter(m => m.compId === comp?.id && m.status === 'approved').forEach(match => {
+      (match.goals || []).forEach(goal => {
+        if (!goal.player || goal.player.trim() === '') return;
+        const key = `${goal.player.toLowerCase().trim()}-${goal.teamId}`;
+        if (!scorersMap[key]) {
+          scorersMap[key] = { player: goal.player.trim(), teamId: goal.teamId, count: 0 };
+        }
+        scorersMap[key].count += 1;
+      });
+    });
+    return Object.values(scorersMap).sort((a, b) => b.count - a.count);
+  }, [matches, comp?.id]);
+
   if (!comp) return null;
 
   return (
@@ -1392,75 +1408,126 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm font-medium">Em Andamento</span>
       </div>
 
-      <Standings matches={matches} teams={(teams || []).filter(t => (comp.teams || []).includes(t.id))} compId={comp.id} compName={null} />
-
-      <div className="mt-8">
-        <h3 className="text-xl font-bold text-white mb-4">Rodadas</h3>
-        {(comp.rounds && comp.rounds.length > 0) ? (
-          <div className="space-y-6">
-            {comp.rounds.map((round) => (
-              <div key={round.id} className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
-                <div className="bg-slate-950/50 p-4 border-b border-slate-800 flex justify-between items-center"><h4 className="font-bold text-white flex items-center gap-2">{round.status === 'locked' ? <Lock size={16} className="text-slate-500"/> : <PlayCircle size={16} className="text-emerald-500"/>} Rodada {String(round.number)}</h4>{round.status === 'locked' ? (isAdmin ? <Button variant="outline" className="text-xs py-1 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10" onClick={() => onReleaseRound(comp.id, round.id)}>Liberar Rodada</Button> : <span className="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded-full">Bloqueada</span>) : <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">Liberada</span>}</div>
-                <div className="p-4 grid gap-3">
-                  {(round.matches || []).map(match => { 
-                    const tA = getTeam(match.teamA); 
-                    const tB = getTeam(match.teamB); 
-                    const statusUI = getMatchStatusDisplay(match.id); 
-                    return (
-                      <div 
-                        key={match.id} 
-                        onClick={() => {
-                          if (statusUI.isPlayed && onSelectMatch) {
-                            const matchSubmissions = (matches || []).filter(m => m.matchId === match.id && m.compId === comp.id && m.status !== 'rejected');
-                            matchSubmissions.sort((a, b) => parseInt(String(b.id).split('_')[1] || '0') - parseInt(String(a.id).split('_')[1] || '0'));
-                            const submittedMatch = matchSubmissions.find(m => m.status === 'approved') || matchSubmissions.find(m => m.status === 'pending');
-                            if (submittedMatch) onSelectMatch(submittedMatch);
-                          }
-                        }}
-                        className={`bg-slate-950 p-3 rounded-xl border border-slate-800/50 flex flex-col gap-2 ${statusUI.isPlayed ? 'cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition-all group' : ''}`}
-                      >
-                        <div className="flex items-center justify-between w-full gap-1.5">
-                          <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-start">
-                            <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
-                            <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate group-hover:text-emerald-400 transition-colors">{String(tA?.name || 'Time A')}</span>
-                          </div>
-                          
-                          <div className={`flex items-center justify-center gap-1 md:gap-2 px-2 py-1 md:px-3 rounded-lg border shrink-0 transition-colors ${statusUI.isPlayed ? 'group-hover:border-emerald-500/50' : ''} ${statusUI.bg}`}>
-                            {statusUI.penaltiesA !== null && statusUI.penaltiesA !== undefined && (
-                              <span className="text-[10px] text-amber-400 font-bold mr-1">({statusUI.penaltiesA})</span>
-                            )}
-                            <span className={`font-bold text-sm md:text-base ${statusUI.color}`}>{statusUI.isPlayed ? String(statusUI.scoreA) : '-'}</span>
-                            <span className="text-[10px] md:text-xs text-slate-500 font-bold mx-0.5">X</span>
-                            <span className={`font-bold text-sm md:text-base ${statusUI.color}`}>{statusUI.isPlayed ? String(statusUI.scoreB) : '-'}</span>
-                            {statusUI.penaltiesB !== null && statusUI.penaltiesB !== undefined && (
-                              <span className="text-[10px] text-amber-400 font-bold ml-1">({statusUI.penaltiesB})</span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
-                            <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate text-right group-hover:text-emerald-400 transition-colors">{String(tB?.name || 'Time B')}</span>
-                            <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
-                          </div>
-                        </div>
-                        {statusUI.text !== 'Oficial' && (
-                          <div className="flex justify-center mt-1">
-                            <span className={`text-[9px] uppercase tracking-wider font-bold ${statusUI.color}`}>{String(statusUI.text)}</span>
-                          </div>
-                        )}
-                        {statusUI.isPlayed && statusUI.text === 'Oficial' && (
-                          <div className="flex justify-center mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Clique para Detalhes</span>
-                          </div>
-                        )}
-                      </div>
-                    ); 
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : ( <p className="text-slate-500 text-center py-8 bg-slate-900 rounded-xl border border-slate-800">Nenhuma rodada gerada.</p> )}
+      <div className="flex p-1 bg-slate-950 rounded-xl mb-6 border border-slate-800">
+        <button onClick={() => setSubTab('overview')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${subTab === 'overview' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Classificação & Jogos</button>
+        <button onClick={() => setSubTab('scorers')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${subTab === 'scorers' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Artilharia ⚽</button>
       </div>
+
+      {subTab === 'overview' && (
+        <div className="space-y-8 animate-in fade-in">
+          <Standings matches={matches} teams={(teams || []).filter(t => (comp.teams || []).includes(t.id))} compId={comp.id} compName={null} />
+
+          <div>
+            <h3 className="text-xl font-bold text-white mb-4">Rodadas</h3>
+            {(comp.rounds && comp.rounds.length > 0) ? (
+              <div className="space-y-6">
+                {comp.rounds.map((round) => (
+                  <div key={round.id} className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+                    <div className="bg-slate-950/50 p-4 border-b border-slate-800 flex justify-between items-center"><h4 className="font-bold text-white flex items-center gap-2">{round.status === 'locked' ? <Lock size={16} className="text-slate-500"/> : <PlayCircle size={16} className="text-emerald-500"/>} Rodada {String(round.number)}</h4>{round.status === 'locked' ? (isAdmin ? <Button variant="outline" className="text-xs py-1 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10" onClick={() => onReleaseRound(comp.id, round.id)}>Liberar Rodada</Button> : <span className="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded-full">Bloqueada</span>) : <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">Liberada</span>}</div>
+                    <div className="p-4 grid gap-3">
+                      {(round.matches || []).map(match => { 
+                        const tA = getTeam(match.teamA); 
+                        const tB = getTeam(match.teamB); 
+                        const statusUI = getMatchStatusDisplay(match.id); 
+                        return (
+                          <div 
+                            key={match.id} 
+                            onClick={() => {
+                              if (statusUI.isPlayed && onSelectMatch) {
+                                const matchSubmissions = (matches || []).filter(m => m.matchId === match.id && m.compId === comp.id && m.status !== 'rejected');
+                                matchSubmissions.sort((a, b) => parseInt(String(b.id).split('_')[1] || '0') - parseInt(String(a.id).split('_')[1] || '0'));
+                                const submittedMatch = matchSubmissions.find(m => m.status === 'approved') || matchSubmissions.find(m => m.status === 'pending');
+                                if (submittedMatch) onSelectMatch(submittedMatch);
+                              }
+                            }}
+                            className={`bg-slate-950 p-3 rounded-xl border border-slate-800/50 flex flex-col gap-2 ${statusUI.isPlayed ? 'cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition-all group' : ''}`}
+                          >
+                            <div className="flex items-center justify-between w-full gap-1.5">
+                              <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-start">
+                                <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
+                                <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate group-hover:text-emerald-400 transition-colors">{String(tA?.name || 'Time A')}</span>
+                              </div>
+                              
+                              <div className={`flex items-center justify-center gap-1 md:gap-2 px-2 py-1 md:px-3 rounded-lg border shrink-0 transition-colors ${statusUI.isPlayed ? 'group-hover:border-emerald-500/50' : ''} ${statusUI.bg}`}>
+                                {statusUI.penaltiesA !== null && statusUI.penaltiesA !== undefined && (
+                                  <span className="text-[10px] text-amber-400 font-bold mr-1">({statusUI.penaltiesA})</span>
+                                )}
+                                <span className={`font-bold text-sm md:text-base ${statusUI.color}`}>{statusUI.isPlayed ? String(statusUI.scoreA) : '-'}</span>
+                                <span className="text-[10px] md:text-xs text-slate-500 font-bold mx-0.5">X</span>
+                                <span className={`font-bold text-sm md:text-base ${statusUI.color}`}>{statusUI.isPlayed ? String(statusUI.scoreB) : '-'}</span>
+                                {statusUI.penaltiesB !== null && statusUI.penaltiesB !== undefined && (
+                                  <span className="text-[10px] text-amber-400 font-bold ml-1">({statusUI.penaltiesB})</span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
+                                <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate text-right group-hover:text-emerald-400 transition-colors">{String(tB?.name || 'Time B')}</span>
+                                <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
+                              </div>
+                            </div>
+                            {statusUI.text !== 'Oficial' && (
+                              <div className="flex justify-center mt-1">
+                                <span className={`text-[9px] uppercase tracking-wider font-bold ${statusUI.color}`}>{String(statusUI.text)}</span>
+                              </div>
+                            )}
+                            {statusUI.isPlayed && statusUI.text === 'Oficial' && (
+                              <div className="flex justify-center mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Clique para Detalhes</span>
+                              </div>
+                            )}
+                          </div>
+                        ); 
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : ( <p className="text-slate-500 text-center py-8 bg-slate-900 rounded-xl border border-slate-800">Nenhuma rodada gerada.</p> )}
+          </div>
+        </div>
+      )}
+
+      {subTab === 'scorers' && (
+        <div className="animate-in fade-in slide-in-from-right-4">
+          <h3 className="text-xl font-bold text-white mb-4">Tabela de Artilharia</h3>
+          <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto shadow-xl">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-slate-950/50 text-slate-400 font-medium border-b border-slate-800">
+                <tr>
+                  <th className="p-4 w-12 text-center">#</th>
+                  <th className="p-4">Jogador</th>
+                  <th className="p-4">Time</th>
+                  <th className="p-4 text-center">Gols</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50">
+                {topScorers.length === 0 ? (
+                  <tr><td colSpan="4" className="p-4 text-center text-slate-500">Nenhum gol registrado ou aprovado nesta competição.</td></tr>
+                ) : (
+                  topScorers.map((scorer, index) => {
+                    const team = getTeam(scorer.teamId);
+                    return (
+                      <tr key={index} className="hover:bg-slate-800/50 transition-colors">
+                        <td className="p-4 text-center font-bold text-slate-500">
+                          {index === 0 ? <span className="text-amber-400 text-lg">🥇</span> : index === 1 ? <span className="text-slate-300 text-lg">🥈</span> : index === 2 ? <span className="text-amber-700 text-lg">🥉</span> : `${index + 1}`}
+                        </td>
+                        <td className="p-4 font-bold text-white flex items-center gap-2">⚽ {scorer.player}</td>
+                        <td className="p-4 text-slate-300">
+                          <div className="flex items-center gap-2">
+                            <ShieldDisplay shield={team?.shield} size="small" />
+                            <span className="truncate max-w-[120px] md:max-w-[200px]">{team?.name || 'Desconhecido'}</span>
+                          </div>
+                        </td>
+                        <td className="p-4 text-center font-black text-emerald-400 text-lg">{scorer.count}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
