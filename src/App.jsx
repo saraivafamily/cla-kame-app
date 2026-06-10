@@ -1821,10 +1821,9 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [imageUploaded, setImageUploaded] = useState(false);
 
   // =========================================================================
-  // 🔑 CHAVE DA INTELIGÊNCIA ARTIFICIAL EMBUTIDA (EXCLUSIVO PARA LÍDERES)
-  // Substitua o texto "SUA_NOVA_CHAVE_AQUI" pela chave que começa com AIzaSy...
+  // 🔑 CHAVE DA INTELIGÊNCIA ARTIFICIAL (DEFINITIVA E EMBUTIDA)
   // =========================================================================
-  const GEMINI_API_KEY = "AQ.Ab8RN6IjWM0j2jk-DRkhgRJyOdh7Z01J38hwGMBFitm8lT_Cbg"; 
+  const GEMINI_API_KEY = "AQ.Ab8RN6KSCLNXfiui9cwEqCH3KL9lCfo7U-xOaG9Oo3CKJbI0Qw"; 
   // =========================================================================
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
@@ -1890,10 +1889,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     processScreenshot(file, async (base64) => {
       setMatchImageBase64(base64);
 
-      const currentKeyToUse = GEMINI_API_KEY.trim();
-
-      if (!currentKeyToUse || currentKeyToUse === "SUA_NOVA_CHAVE_AQUI" || currentKeyToUse.length < 30) {
-        showToast("Chave inválida! Você precisa colar sua chave no arquivo App.jsx.", "error");
+      if (!GEMINI_API_KEY || GEMINI_API_KEY.trim() === "") {
+        showToast("Chave da IA não configurada no código.", "error");
         return;
       }
 
@@ -1930,31 +1927,32 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        // Usa o modelo estável padrão
-        let url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(currentKeyToUse)}`;
-        let response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        // Ligação Limpa e Direta (sem fallbacks ou rotas que causam confusão)
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': GEMINI_API_KEY.trim()
+          },
+          body: JSON.stringify(payload)
+        });
 
         if (!response.ok) {
            const errJson = await response.json().catch(() => ({}));
            const errMsg = errJson?.error?.message || "";
            
-           // Se der erro 404, tenta o modelo PRO estável
            if (response.status === 404 || errMsg.includes("not found")) {
-              url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${encodeURIComponent(currentKeyToUse)}`;
-              response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-              
-              if (!response.ok) {
-                 const fallbackErr = await response.json().catch(() => ({}));
-                 throw new Error(fallbackErr?.error?.message || "Erro desconhecido no servidor do Google.");
-              }
+              throw new Error("API DESLIGADA: Acesse o Google Cloud e clique em 'ATIVAR' a Generative Language API no seu projeto.");
+           } else if (response.status === 401 || errMsg.includes("OAuth") || errMsg.includes("credentials")) {
+              throw new Error("CHAVE INVÁLIDA: A chave inserida foi rejeitada. Verifique se copiou corretamente.");
            } else {
-              throw new Error(errMsg || `Falha na requisição. Código: ${response.status}`);
+              throw new Error(errMsg || `Erro de conexão: ${response.status}`);
            }
         }
 
         const resultJson = await response.json();
 
-        if (!resultJson || !resultJson.candidates) throw new Error("A IA processou a imagem mas não retornou nada.");
+        if (!resultJson || !resultJson.candidates) throw new Error("A IA não conseguiu ler o placar.");
 
         let textResponse = resultJson.candidates[0].content.parts[0].text.trim();
         textResponse = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -1988,8 +1986,8 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         showToast("Dados extraídos do Print pela IA!", "success");
 
       } catch (error) {
-        console.error("Erro completo da IA:", error);
-        showToast(`Erro Google: ${error.message.substring(0, 80)}.`, "error");
+        console.error("Erro IA:", error);
+        showToast(error.message, "error");
       } finally {
         setIsAnalyzing(false);
         setImageUploaded(true);
@@ -2086,7 +2084,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
               <div className="flex justify-between items-center mb-2">
                 <label className="block text-sm font-bold text-emerald-400">Anexar Print (Opcional)</label>
               </div>
-              <p className="text-xs text-slate-500 mb-3">Opcionalmente, anexe o print do resultado. A nossa IA tentará preencher tudo automaticamente para você.</p>
+              <p className="text-xs text-slate-500 mb-3">A nossa IA fará a leitura automática do print.</p>
               <label className={`border-2 border-dashed rounded-xl p-4 text-center transition-colors cursor-pointer relative overflow-hidden block ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-900'}`}>
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isAnalyzing} />
                 {isAnalyzing && (
