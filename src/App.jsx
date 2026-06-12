@@ -1894,27 +1894,25 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [selectedMatchId, setSelectedMatchId] = useState('');
   const [availableMatches, setAvailableMatches] = useState([]);
   
-  const [teamA, setTeamA] = useState(null); 
+  const [teamA, setTeamA] = useState(null);
   const [teamB, setTeamB] = useState(null);
-  
-  const [scoreA, setScoreA] = useState(''); 
+  const [scoreA, setScoreA] = useState('');
   const [scoreB, setScoreB] = useState('');
   const [penaltiesA, setPenaltiesA] = useState('');
   const [penaltiesB, setPenaltiesB] = useState('');
 
-  const [goalsA, setGoalsA] = useState([]); 
+  const [goalsA, setGoalsA] = useState([]);
   const [goalsB, setGoalsB] = useState([]);
   const [observacoes, setObservacoes] = useState('');
   
   const [matchImageBase64, setMatchImageBase64] = useState(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false); 
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [imageUploaded, setImageUploaded] = useState(false);
 
   // =========================================================================
-  // 🔑 CHAVE DA INTELIGÊNCIA ARTIFICIAL (DEFINITIVA E EMBUTIDA)
-  // A sua chave original. O sistema saberá automaticamente quando a usar.
+  // 🔑 CHAVE DA INTELIGÊNCIA ARTIFICIAL (SUPORTE NATIVO A CHAVES "AQ.")
   // =========================================================================
-  const GEMINI_API_KEY = "AQ.Ab8RN6LZlcOY5CoZYA-xHMu8EXBmwS53mtPjW3L-KXv2R6NXWQ"; 
+  const GEMINI_API_KEY = "AQ.Ab8RN6JGu4m1_96rupb7tB0BQ9l3NwKNxrxUhO9Bt8h7rVy-Hg";
   // =========================================================================
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
@@ -1927,43 +1925,47 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const isTie = scoreA !== '' && scoreB !== '' && scoreA === scoreB;
 
   useEffect(() => {
-    setSelectedMatchId(''); resetMatchData();
-    if (!selectedCompId) { setAvailableMatches([]); return; }
-    
-    if (selectedComp && Array.isArray(selectedComp.rounds)) {
+    setSelectedMatchId('');
+    resetAI();
+    if (!selectedCompId) {
+      setAvailableMatches([]);
+      return;
+    }
+    const comp = competitions.find(c => c.id === selectedCompId);
+    if (comp && comp.rounds) {
       let toPlay = [];
-      selectedComp.rounds.filter(r => r.status === 'released').forEach(round => {
-        if (Array.isArray(round.matches)) {
-          round.matches.forEach(rm => {
-            const alreadySubmitted = matches.some(m => m.matchId === rm.id && (m.status === 'pending' || m.status === 'approved'));
-            if (!alreadySubmitted && (isAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
-              toPlay.push({ ...rm, roundId: round.id });
-            }
-          });
-        }
+      comp.rounds.filter(r => r.status === 'released').forEach(round => {
+        round.matches.forEach(rm => {
+          const alreadySubmitted = matches.some(m => m.matchId === rm.id && (m.status === 'pending' || m.status === 'approved'));
+          if (!alreadySubmitted && (isAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
+            toPlay.push({ ...rm, roundId: round.id });
+          }
+        });
       });
       setAvailableMatches(toPlay);
     }
   }, [selectedCompId, competitions, matches]);
 
   useEffect(() => {
-    resetMatchData();
+    resetAI();
     if (selectedMatchId) {
       const match = availableMatches.find(m => m.id === selectedMatchId);
-      if (match) { 
-        setTeamA(teams.find(t => t.id === match.teamA)); 
-        setTeamB(teams.find(t => t.id === match.teamB)); 
+      if (match) {
+        setTeamA(teams.find(t => t.id === match.teamA));
+        setTeamB(teams.find(t => t.id === match.teamB));
       }
-    } else { 
-      setTeamA(null); setTeamB(null); 
+    } else {
+      setTeamA(null); setTeamB(null);
     }
   }, [selectedMatchId, availableMatches, teams]);
 
-  const resetMatchData = () => { 
-    setScoreA(''); setScoreB(''); 
+  const resetAI = () => {
+    setScoreA(''); setScoreB('');
     setPenaltiesA(''); setPenaltiesB('');
-    setGoalsA([]); setGoalsB([]); 
-    setObservacoes(''); setImageUploaded(false); setMatchImageBase64(null);
+    setGoalsA([]); setGoalsB([]);
+    setObservacoes('');
+    setImageUploaded(false);
+    setMatchImageBase64(null);
   };
 
   const calculateSimilarity = (str1, str2) => {
@@ -1983,14 +1985,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); setPenaltiesA(''); setPenaltiesB('');
 
       try {
-        // 🔥 CAMALEÃO DE AMBIENTE: Deteta se estamos no painel de testes (Canvas) ou na Vercel
-        const isCanvasPreview = typeof window !== 'undefined' && window.location.hostname.includes('usercontent.goog');
-        
-        // Se estivermos a testar, usa a IA gratuita do sistema e limpa a chave. 
-        // Se estivermos na Vercel, usa o modelo de Produção e a sua chave AQ... embutida.
-        const modelToUse = isCanvasPreview ? 'gemini-2.5-flash-preview-09-2025' : 'gemini-1.5-flash';
-        const keyToUse = isCanvasPreview ? '' : GEMINI_API_KEY.trim();
-
         const payload = {
           contents: [{ 
             role: "user", 
@@ -2020,13 +2014,23 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${encodeURIComponent(keyToUse)}`;
+        const isOAuth = GEMINI_API_KEY.startsWith('AQ');
         
+        // Define a rota e os cabeçalhos com base no tipo de chave
+        const url = isOAuth 
+          ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`
+          : `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY.trim()}`;
+
+        const headers = { 'Content-Type': 'application/json' };
+        
+        // Se a chave for "AQ...", envia como Token de Autorização OAuth 2.0 oficial
+        if (isOAuth) {
+          headers['Authorization'] = `Bearer ${GEMINI_API_KEY.trim()}`;
+        }
+
         const response = await fetch(url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: headers,
           body: JSON.stringify(payload)
         });
 
@@ -2069,15 +2073,18 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           setGoalsB(data.leftGoals || []);
         }
 
-        showToast("Dados extraídos do Print pela IA!", "success");
+        if (showToast) showToast("Dados extraídos do Print pela IA!", "success");
 
       } catch (error) {
         console.error("Erro IA:", error);
-        
-        if (error.message.includes("API_KEY_INVALID") || error.message.includes("OAuth") || error.message.includes("authentication credentials")) {
-            showToast("Erro na Chave (Vercel): A sua chave AQ... não é compatível. Por favor, preencha o placar manualmente.", "error");
+        if (showToast) {
+          if (error.message.includes("API_KEY_INVALID") || error.message.includes("OAuth") || error.message.includes("authentication credentials")) {
+              showToast("A chave de acesso expirou ou é inválida. Tente preencher manualmente.", "error");
+          } else {
+              showToast(`Falha na IA: ${error.message.substring(0, 50)}. Preencha manualmente.`, "error");
+          }
         } else {
-            showToast(`Falha na IA: ${error.message.substring(0, 50)}. Preencha manualmente.`, "error");
+          alert(`Falha na IA: ${error.message}`);
         }
       } finally {
         setIsAnalyzing(false);
@@ -2106,7 +2113,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     if(!selectedCompId || !selectedMatchId || scoreA === '' || scoreB === '') return;
     
     if (isCup && isTie && (penaltiesA === '' || penaltiesB === '')) {
-      showToast("Numa Copa, o jogo não pode terminar empatado. Preencha os Pênaltis!", "error");
+      if(showToast) showToast("Numa Copa, o jogo não pode terminar empatado. Preencha os Pênaltis!", "error");
       return;
     }
 
@@ -2135,7 +2142,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
       imageUrl: matchImageBase64
     });
     setSelectedCompId('');
-    showToast("Partida enviada para validação dos Líderes!", "success");
+    if(showToast) showToast("Partida enviada para validação dos Líderes!", "success");
   };
 
   return (
@@ -2144,145 +2151,217 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
       <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-6">
         <div>
-          <label className="block text-sm font-medium text-slate-400 mb-2">1. Selecione o Campeonato</label>
+          <label className="block text-sm font-medium text-slate-400 mb-2">1. Competição</label>
           <select value={selectedCompId} onChange={e => setSelectedCompId(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
             <option value="">Escolha um campeonato...</option>
             {visibleCompetitions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
-        
+
         {selectedCompId && (
           <div className="animate-in fade-in">
-            <label className="block text-sm font-medium text-slate-400 mb-2">2. Selecione a Partida</label>
+            <label className="block text-sm font-medium text-slate-400 mb-2">2. Selecione a Partida Liberada</label>
             {availableMatches.length > 0 ? (
               <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
                 <option value="">Qual jogo você jogou?</option>
                 {availableMatches.map(m => {
-                  const tA = teams.find(t=>t.id===m.teamA)?.name || 'Time A'; 
-                  const tB = teams.find(t=>t.id===m.teamB)?.name || 'Time B';
-                  const formattedRoundId = String(m.roundId || '').replace('r', '');
-                  return <option key={m.id} value={m.id}>Rodada {formattedRoundId} - {tA} x {tB}</option>
+                  const tA = teams.find(t=>t.id===m.teamA)?.name;
+                  const tB = teams.find(t=>t.id===m.teamB)?.name;
+                  return <option key={m.id} value={m.id}>Rodada {String(m.roundId || '').replace('r','')} - {tA} x {tB}</option>
                 })}
               </select>
-            ) : <div className="p-3 bg-slate-950 rounded border border-slate-800 text-slate-500 text-sm">Nenhuma partida pendente.</div>}
+            ) : <div className="p-3 bg-slate-950 rounded border border-slate-800 text-slate-500 text-sm">Nenhuma partida pendente de envio para você nesta competição.</div>}
           </div>
         )}
 
         {selectedMatchId && (
-          <div className="animate-in slide-in-from-top-4 border-t border-slate-800 pt-6 mt-6">
-            
-            <div className="mb-6 p-4 border border-slate-800 bg-slate-950 rounded-xl">
-              <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-bold text-emerald-400">Anexar Print (Opcional)</label>
-              </div>
-              <p className="text-xs text-slate-500 mb-3">A nossa IA fará a leitura automática do print.</p>
-              <label className={`border-2 border-dashed rounded-xl p-4 text-center transition-colors cursor-pointer relative overflow-hidden block ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-900'}`}>
+          <div className="animate-in slide-in-from-top-4">
+            <label className="block text-sm font-medium text-slate-400 mb-2">3. Envie o Print do Resultado</label>
+            <div className="mb-6">
+              <label className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer relative overflow-hidden block ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-950'}`}>
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isAnalyzing} />
-                {isAnalyzing && (
-                  <div className="absolute inset-0 bg-emerald-500/5 flex flex-col items-center justify-center space-y-2 z-10">
-                    <div className="w-6 h-6 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-emerald-400 font-medium text-sm">IA analisando o print...</p>
+                {isAnalyzing ? (
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-emerald-400 font-medium">IA analisando o print...</p>
                   </div>
-                )}
-                {matchImageBase64 ? (
+                ) : imageUploaded ? (
                   <div className="flex flex-col items-center space-y-2">
-                    <CheckCircle className="text-emerald-500" size={24} />
-                    <p className="text-emerald-400 font-medium text-sm">Print Anexado!</p>
+                    <CheckCircle className="text-emerald-500" size={40} />
+                    <p className="text-emerald-400 font-medium">Dados extraídos com sucesso!</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center space-y-2">
-                    <UploadCloud className="text-slate-500" size={28} />
-                    <p className="text-white font-medium text-sm">Clique para anexar o print</p>
+                  <div className="flex flex-col items-center space-y-3">
+                    <UploadCloud className="text-slate-500" size={40} />
+                    <p className="text-white font-medium">Clique para enviar a foto e usar a IA</p>
                   </div>
                 )}
               </label>
             </div>
+          </div>
+        )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <h3 className="text-sm font-semibold text-white flex items-center gap-1.5"><Edit size={16} className="text-slate-400"/> Preencha o Resultado:</h3>
-              
-              <div className="flex flex-col items-center gap-4 w-full bg-slate-950 p-4 md:p-6 rounded-2xl border border-slate-800 shadow-xl">
-                <div className="flex items-center justify-between w-full gap-2 border-b border-slate-800/50 pb-4 mb-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-start">
-                    <div className="shrink-0"><ShieldDisplay shield={teamA?.shield} size="normal" /></div>
-                    <span className="font-bold text-sm md:text-base text-white truncate">{teamA?.name}</span>
+        {imageUploaded && (
+          <form onSubmit={handleSubmit} className="animate-in slide-in-from-bottom-4 space-y-6 pt-4 border-t border-slate-800">
+            <label className="block text-sm font-medium text-amber-400 mb-2 flex items-center gap-2"><AlertCircle size={16}/> Confirme os dados lidos pela IA</label>
+            
+            <div className="flex flex-col md:flex-row gap-6 items-start bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <div className="flex-1 w-full space-y-3">
+                <div className="text-center font-bold text-lg text-slate-300 flex items-center justify-center gap-2"><ShieldDisplay shield={teamA?.shield} size="small" /> {teamA?.name}</div>
+                <input type="number" value={scoreA} onChange={e=>setScoreA(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none" required />
+                
+                {isCup && isTie && (
+                  <div className="mt-2">
+                    <label className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Pênaltis A</label>
+                    <input type="number" required value={penaltiesA} onChange={e=>setPenaltiesA(e.target.value)} className="w-full bg-slate-900 border border-amber-500/50 text-center font-bold text-lg text-amber-400 rounded p-2 outline-none focus:border-amber-500" />
                   </div>
+                )}
 
-                  <div className="flex flex-col items-center shrink-0">
-                    <div className="flex items-center justify-center gap-2">
-                      <input type="number" required value={scoreA} onChange={e=>setScoreA(e.target.value)} className="w-12 md:w-16 bg-slate-900 border border-slate-700 text-center font-bold text-xl md:text-2xl text-emerald-400 rounded-lg p-2 outline-none focus:border-emerald-500 transition-colors" />
-                      <span className="text-xs text-slate-500 font-bold">X</span>
-                      <input type="number" required value={scoreB} onChange={e=>setScoreB(e.target.value)} className="w-12 md:w-16 bg-slate-900 border border-slate-700 text-center font-bold text-xl md:text-2xl text-emerald-400 rounded-lg p-2 outline-none focus:border-emerald-500 transition-colors" />
-                    </div>
-
-                    {isCup && isTie && (
-                      <div className="flex flex-col items-center mt-4 w-full animate-in fade-in slide-in-from-top-2 bg-slate-900/50 p-2 rounded-lg border border-amber-500/20">
-                        <span className="text-[9px] uppercase tracking-widest text-amber-500 font-bold mb-1">Penalidades</span>
-                        <div className="flex items-center justify-center gap-1.5">
-                          <input type="number" required value={penaltiesA} onChange={e=>setPenaltiesA(e.target.value)} className="w-10 bg-slate-950 border border-amber-500/50 text-center font-bold text-sm text-amber-400 rounded outline-none focus:border-amber-500 transition-colors" />
-                          <span className="text-[10px] text-slate-500 font-bold">X</span>
-                          <input type="number" required value={penaltiesB} onChange={e=>setPenaltiesB(e.target.value)} className="w-10 bg-slate-950 border border-amber-500/50 text-center font-bold text-sm text-amber-400 rounded outline-none focus:border-amber-500 transition-colors" />
-                        </div>
+                <div className="space-y-2 pt-2">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Gols</span>
+                  {goalsA.map((g, i) => (
+                    <div key={i} className="flex flex-col gap-1 bg-slate-800 p-2 rounded">
+                      <input type="text" value={g.player} onChange={e=>handleGoalChange('A', i, 'player', e.target.value)} placeholder="Goleador" className="w-full bg-slate-950 text-xs text-white px-2 py-1 rounded border border-slate-700 outline-none" required />
+                      <div className="flex gap-1">
+                        <input type="text" value={g.assist || ''} onChange={e=>handleGoalChange('A', i, 'assist', e.target.value)} placeholder="Assistência" className="flex-1 bg-slate-950 text-[10px] text-slate-400 px-2 py-1 rounded border border-slate-700 outline-none" />
+                        <input type="number" value={g.minute} onChange={e=>handleGoalChange('A', i, 'minute', e.target.value)} placeholder="Min" className="w-12 bg-slate-950 text-xs text-emerald-400 text-center px-1 py-1 rounded border border-slate-700 outline-none" required />
+                        <button type="button" onClick={()=>handleRemoveGoal('A', i)} className="text-red-400 p-1 hover:text-red-300"><X size={12}/></button>
                       </div>
+                    </div>
+                  ))}
+                  <button type="button" onClick={()=>handleAddGoal('A')} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar Gol</button>
+                </div>
+              </div>
+              
+              <div className="text-slate-500 font-bold text-xl self-center pt-8 hidden md:block">X</div>
+              
+              <div className="flex-1 w-full space-y-3">
+                <div className="text-center font-bold text-lg text-slate-300 flex items-center justify-center gap-2">{teamB?.name} <ShieldDisplay shield={teamB?.shield} size="small" /></div>
+                <input type="number" value={scoreB} onChange={e=>setScoreB(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none" required />
+                
+                {isCup && isTie && (
+                  <div className="mt-2">
+                    <label className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Pênaltis B</label>
+                    <input type="number" required value={penaltiesB} onChange={e=>setPenaltiesB(e.target.value)} className="w-full bg-slate-900 border border-amber-500/50 text-center font-bold text-lg text-amber-400 rounded p-2 outline-none focus:border-amber-500" />
+                  </div>
+                )}
+
+                <div className="space-y-2 pt-2">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block text-right">Gols</span>
+                  {goalsB.map((g, i) => (
+                    <div key={i} className="flex flex-col gap-1 bg-slate-800 p-2 rounded">
+                      <input type="text" value={g.player} onChange={e=>handleGoalChange('B', i, 'player', e.target.value)} placeholder="Goleador" className="w-full bg-slate-950 text-xs text-white px-2 py-1 rounded border border-slate-700 outline-none text-right" required />
+                      <div className="flex gap-1">
+                        <button type="button" onClick={()=>handleRemoveGoal('B', i)} className="text-red-400 p-1 hover:text-red-300"><X size={12}/></button>
+                        <input type="number" value={g.minute} onChange={e=>handleGoalChange('B', i, 'minute', e.target.value)} placeholder="Min" className="w-12 bg-slate-950 text-xs text-emerald-400 text-center px-1 py-1 rounded border border-slate-700 outline-none" required />
+                        <input type="text" value={g.assist || ''} onChange={e=>handleGoalChange('B', i, 'assist', e.target.value)} placeholder="Assistência" className="flex-1 bg-slate-950 text-[10px] text-slate-400 px-2 py-1 rounded border border-slate-700 outline-none text-right" />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex justify-end">
+                    <button type="button" onClick={()=>handleAddGoal('B')} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar Gol</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-400 block">Observações (Opcional)</label>
+              <textarea placeholder="Ocorreu alguma queda de conexão? Relate aqui..." value={observacoes} onChange={e=>setObservacoes(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-slate-300 text-sm h-24 outline-none resize-none transition-colors" />
+            </div>
+
+            <Button type="submit" className="w-full py-4 text-lg">Enviar Partida para Líderes</Button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch }) => {
+  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  
+  const visibleCompIds = (competitions || [])
+    .filter(c => c.teams?.some(t => userTeamIds.includes(t)))
+    .map(c => c.id);
+
+  const recentMatches = (matches || [])
+    .filter(m => (isAdmin || visibleCompIds.includes(m.compId)) && m.status !== 'rejected')
+    .reverse()
+    .slice(0, 8);
+    
+  const getTeam = (id) => (teams || []).find(t => t.id === id);
+  
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="bg-gradient-to-r from-emerald-900/50 to-slate-900 p-6 rounded-2xl border border-emerald-900/50">
+        <h2 className="text-2xl font-bold text-white mb-2">QG Clã Kame</h2>
+        <p className="text-slate-400">Gerencie e acompanhe seus resultados do DLS.</p>
+      </div>
+      <div>
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados Enviados</h3>
+        <div className="space-y-3">
+          {recentMatches.length === 0 && <p className="text-slate-500 text-sm p-4 bg-slate-900 rounded-xl border border-slate-800">Nenhum resultado submetido ainda.</p>}
+          {recentMatches.map(m => {
+            const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
+            return (
+              <div 
+                key={m.id} 
+                onClick={() => onSelectMatch && onSelectMatch(m)}
+                className="bg-slate-900 p-3 md:p-4 rounded-xl border border-slate-800 flex flex-col gap-3 shadow-sm cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition-all group relative"
+              >
+                {isAdmin && (
+                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all bg-slate-900/90 backdrop-blur-sm p-1 rounded-lg border border-slate-700/50 z-10" onClick={e => e.stopPropagation()}>
+                    {deleteConfirmId === m.id ? (
+                      <div className="flex items-center gap-1 px-1">
+                        <button onClick={(e) => { e.stopPropagation(); onDeleteMatch(m.id); setDeleteConfirmId(null); }} className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs font-bold transition-colors">Excluir</button>
+                        <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(null); }} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-xs transition-colors">Cancelar</button>
+                      </div>
+                    ) : (
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(m.id); }} className="text-slate-400 hover:text-red-400 p-1.5 transition-colors" title="Excluir Resultado permanentemente">
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between w-full gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-start">
+                    <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="normal" /></div>
+                    <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate group-hover:text-emerald-400 transition-colors">{String(tA?.name || 'Time A')}</span>
+                  </div>
+                  
+                  <div className="flex items-center justify-center gap-1.5 md:gap-2 px-2 md:px-3 py-1 bg-slate-950 rounded-lg border border-slate-800 shrink-0">
+                    {m.penaltiesA !== null && m.penaltiesA !== undefined && (
+                      <span className="text-[10px] text-amber-400 font-bold mr-1">({m.penaltiesA})</span>
+                    )}
+                    <span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreA) : '?'}</span>
+                    <span className="text-[10px] md:text-xs text-slate-500 font-bold mx-0.5">X</span>
+                    <span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreB) : '?'}</span>
+                    {m.penaltiesB !== null && m.penaltiesB !== undefined && (
+                      <span className="text-[10px] text-amber-400 font-bold ml-1">({m.penaltiesB})</span>
                     )}
                   </div>
 
                   <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
-                    <span className="font-bold text-sm md:text-base text-white truncate text-right">{teamB?.name}</span>
-                    <div className="shrink-0"><ShieldDisplay shield={teamB?.shield} size="normal" /></div>
+                    <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate text-right group-hover:text-emerald-400 transition-colors">{String(tB?.name || 'Time B')}</span>
+                    <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="normal" /></div>
                   </div>
                 </div>
-
-                <div className="flex items-start justify-between w-full gap-4 mt-2">
-                  <div className="flex-1 w-full space-y-2">
-                    <span className="text-[10px] text-slate-500 uppercase font-bold block text-left">Gols e Assistências (Opcional)</span>
-                    {goalsA.map((g, index) => (
-                      <div key={index} className="flex gap-2 items-center bg-slate-900 border border-slate-800 rounded p-2">
-                        <div className="flex flex-col flex-1 gap-1.5">
-                           <input type="text" placeholder="Goleador (⚽)" value={g.player} onChange={e=>handleGoalChange('A', index, 'player', e.target.value)} className="bg-slate-950 text-[10px] md:text-xs text-white outline-none w-full px-2 py-1.5 rounded border border-slate-800 focus:border-emerald-500" required />
-                           <input type="text" placeholder="Assistência (👟)" value={g.assist || ''} onChange={e=>handleGoalChange('A', index, 'assist', e.target.value)} className="bg-slate-950 text-[10px] md:text-xs text-slate-400 outline-none w-full px-2 py-1.5 rounded border border-slate-800 focus:border-emerald-500" />
-                        </div>
-                        <div className="flex flex-col items-center gap-1">
-                           <input type="number" placeholder="Min" value={g.minute} onChange={e=>handleGoalChange('A', index, 'minute', e.target.value)} className="w-12 bg-slate-950 px-1 py-1.5 rounded border border-slate-800 text-[10px] md:text-xs text-emerald-400 text-center outline-none font-bold focus:border-emerald-500" required />
-                           <button type="button" onClick={() => handleRemoveGoal('A', index)} className="text-red-500 hover:text-red-400 p-1 bg-red-500/10 rounded"><X size={12} /></button>
-                        </div>
-                      </div>
-                    ))}
-                    <button type="button" onClick={() => handleAddGoal('A')} className="text-[10px] md:text-xs text-emerald-400 hover:underline flex items-center gap-1">+ Adicionar Gol</button>
-                  </div>
-
-                  <div className="w-4 shrink-0"></div>
-
-                  <div className="flex-1 w-full space-y-2">
-                    <span className="text-[10px] text-slate-500 uppercase font-bold block text-right">Gols e Assistências (Opcional)</span>
-                    {goalsB.map((g, index) => (
-                      <div key={index} className="flex gap-2 items-center bg-slate-900 border border-slate-800 rounded p-2 flex-row-reverse">
-                        <div className="flex flex-col flex-1 gap-1.5">
-                           <input type="text" placeholder="Goleador (⚽)" value={g.player} onChange={e=>handleGoalChange('B', index, 'player', e.target.value)} className="bg-slate-950 text-[10px] md:text-xs text-white outline-none w-full px-2 py-1.5 rounded border border-slate-800 focus:border-emerald-500 text-right" required />
-                           <input type="text" placeholder="Assistência (👟)" value={g.assist || ''} onChange={e=>handleGoalChange('B', index, 'assist', e.target.value)} className="bg-slate-950 text-[10px] md:text-xs text-slate-400 outline-none w-full px-2 py-1.5 rounded border border-slate-800 focus:border-emerald-500 text-right" />
-                        </div>
-                        <div className="flex flex-col items-center gap-1">
-                           <input type="number" placeholder="Min" value={g.minute} onChange={e=>handleGoalChange('B', index, 'minute', e.target.value)} className="w-12 bg-slate-950 px-1 py-1.5 rounded border border-slate-800 text-[10px] md:text-xs text-emerald-400 text-center outline-none font-bold focus:border-emerald-500" required />
-                           <button type="button" onClick={() => handleRemoveGoal('B', index)} className="text-red-500 hover:text-red-400 p-1 bg-red-500/10 rounded"><X size={12} /></button>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="flex justify-end">
-                      <button type="button" onClick={() => handleAddGoal('B')} className="text-[10px] md:text-xs text-emerald-400 hover:underline flex items-center gap-1">+ Adicionar Gol</button>
-                    </div>
-                  </div>
+                
+                <div className="flex justify-center border-t border-slate-800/50 pt-2 flex-col items-center gap-1">
+                  {m.status === 'approved' ? (
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">✅ Oficializado • Clique para detalhes</span>
+                  ) : (
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 font-medium">⏳ Aguardando Validação • Clique para detalhes</span>
+                  )}
                 </div>
               </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-400 block">Observações (Opcional)</label>
-                <textarea placeholder="Ocorreu alguma queda de conexão? Relate aqui..." value={observacoes} onChange={e=>setObservacoes(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-slate-300 text-sm h-24 outline-none resize-none transition-colors" />
-              </div>
-
-              <Button type="submit" className="w-full py-4 text-lg shadow-emerald-950/50 shadow-2xl">Enviar Partida para Nuvem</Button>
-            </form>
-          </div>
-        )}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -2676,95 +2755,6 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
           </div>
         );
       })()}
-    </div>
-  );
-};
-
-const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch }) => {
-  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-  const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
-  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
-  
-  const visibleCompIds = (competitions || [])
-    .filter(c => c.teams?.some(t => userTeamIds.includes(t)))
-    .map(c => c.id);
-
-  const recentMatches = (matches || [])
-    .filter(m => (isAdmin || visibleCompIds.includes(m.compId)) && m.status !== 'rejected')
-    .reverse()
-    .slice(0, 8);
-    
-  const getTeam = (id) => (teams || []).find(t => t.id === id);
-  
-  return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="bg-gradient-to-r from-emerald-900/50 to-slate-900 p-6 rounded-2xl border border-emerald-900/50">
-        <h2 className="text-2xl font-bold text-white mb-2">QG Clã Kame</h2>
-        <p className="text-slate-400">Gerencie e acompanhe seus resultados do DLS.</p>
-      </div>
-      <div>
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados Enviados</h3>
-        <div className="space-y-3">
-          {recentMatches.length === 0 && <p className="text-slate-500 text-sm p-4 bg-slate-900 rounded-xl border border-slate-800">Nenhum resultado submetido ainda.</p>}
-          {recentMatches.map(m => {
-            const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
-            return (
-              <div 
-                key={m.id} 
-                onClick={() => onSelectMatch && onSelectMatch(m)}
-                className="bg-slate-900 p-3 md:p-4 rounded-xl border border-slate-800 flex flex-col gap-3 shadow-sm cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition-all group relative"
-              >
-                {isAdmin && (
-                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all bg-slate-900/90 backdrop-blur-sm p-1 rounded-lg border border-slate-700/50 z-10" onClick={e => e.stopPropagation()}>
-                    {deleteConfirmId === m.id ? (
-                      <div className="flex items-center gap-1 px-1">
-                        <button onClick={(e) => { e.stopPropagation(); onDeleteMatch(m.id); setDeleteConfirmId(null); }} className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs font-bold transition-colors">Excluir</button>
-                        <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(null); }} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-xs transition-colors">Cancelar</button>
-                      </div>
-                    ) : (
-                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(m.id); }} className="text-slate-400 hover:text-red-400 p-1.5 transition-colors" title="Excluir Resultado permanentemente">
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between w-full gap-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-start">
-                    <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="normal" /></div>
-                    <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate group-hover:text-emerald-400 transition-colors">{String(tA?.name || 'Time A')}</span>
-                  </div>
-                  
-                  <div className="flex items-center justify-center gap-1.5 md:gap-2 px-2 md:px-3 py-1 bg-slate-950 rounded-lg border border-slate-800 shrink-0">
-                    {m.penaltiesA !== null && m.penaltiesA !== undefined && (
-                      <span className="text-[10px] text-amber-400 font-bold mr-1">({m.penaltiesA})</span>
-                    )}
-                    <span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreA) : '?'}</span>
-                    <span className="text-[10px] md:text-xs text-slate-500 font-bold mx-0.5">X</span>
-                    <span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreB) : '?'}</span>
-                    {m.penaltiesB !== null && m.penaltiesB !== undefined && (
-                      <span className="text-[10px] text-amber-400 font-bold ml-1">({m.penaltiesB})</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
-                    <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate text-right group-hover:text-emerald-400 transition-colors">{String(tB?.name || 'Time B')}</span>
-                    <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="normal" /></div>
-                  </div>
-                </div>
-                
-                <div className="flex justify-center border-t border-slate-800/50 pt-2 flex-col items-center gap-1">
-                  {m.status === 'approved' ? (
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">✅ Oficializado • Clique para detalhes</span>
-                  ) : (
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 font-medium">⏳ Aguardando Validação • Clique para detalhes</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 };
