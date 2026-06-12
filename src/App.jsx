@@ -1409,6 +1409,7 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEd
 const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch }) => {
   const [subTab, setSubTab] = useState('overview'); // 'overview' | 'scorers' | 'assists'
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [exportingRoundId, setExportingRoundId] = useState(null); // Controle de loading da imagem
   const getTeam = (id) => (teams || []).find(t => t.id === id);
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
@@ -1467,6 +1468,62 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     return Object.values(assistsMap).sort((a, b) => b.count - a.count);
   }, [matches, comp?.id]);
 
+  // Função que captura a tela da rodada e salva o PNG
+  const handleReleaseAndExport = async (round) => {
+    try {
+      setExportingRoundId(round.id);
+      
+      let html2canvas = window.html2canvas;
+      if (!html2canvas) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+        html2canvas = window.html2canvas;
+      }
+
+      // Pequeno atraso para garantir que a renderização estabilizou
+      await new Promise(r => setTimeout(r, 300));
+
+      const element = document.getElementById(`round-capture-${round.id}`);
+      if (element) {
+        // Adiciona uma marca d'água invisível na UI que aparecerá apenas no print gerado
+        const watermark = document.createElement('div');
+        watermark.innerHTML = `<div class="p-3 bg-slate-950 text-center border-t border-slate-800 text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-relaxed">🏆 ${comp.name} • Rodada Oficial<br/>Gerado pelo App do Clã Kame</div>`;
+        element.appendChild(watermark);
+
+        const canvas = await html2canvas(element, {
+          backgroundColor: '#0f172a', // Cor de fundo principal (slate-950)
+          scale: 2, // Exportação em HD
+          useCORS: true,
+          windowWidth: element.scrollWidth, // FORÇA A LARGURA REAL PARA NÃO CORTAR
+          windowHeight: element.scrollHeight, // FORÇA A ALTURA REAL
+          // Ignora todos os elementos que tiverem a classe "no-export" (botões, lixeiras, etc)
+          ignoreElements: (el) => el.classList && el.classList.contains('no-export')
+        });
+        
+        element.removeChild(watermark);
+
+        const image = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.href = image;
+        link.download = `${String(comp.name).replace(/\s+/g, '_')}_Rodada_${round.number}.png`;
+        link.click();
+      }
+    } catch (error) {
+      console.error("Erro ao gerar imagem da rodada:", error);
+    } finally {
+      setExportingRoundId(null);
+      // Dispara a liberação oficial da rodada no banco de dados só após o print
+      if (round.status === 'locked' && onReleaseRound) {
+        onReleaseRound(comp.id, round.id);
+      }
+    }
+  };
+
   if (!comp) return null;
 
   return (
@@ -1497,9 +1554,40 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             {(comp.rounds && comp.rounds.length > 0) ? (
               <div className="space-y-6">
                 {comp.rounds.map((round) => (
-                  <div key={round.id} className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
-                    <div className="bg-slate-950/50 p-4 border-b border-slate-800 flex justify-between items-center"><h4 className="font-bold text-white flex items-center gap-2">{round.status === 'locked' ? <Lock size={16} className="text-slate-500"/> : <PlayCircle size={16} className="text-emerald-500"/>} Rodada {String(round.number)}</h4>{round.status === 'locked' ? (isAdmin ? <Button variant="outline" className="text-xs py-1 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10" onClick={() => onReleaseRound(comp.id, round.id)}>Liberar Rodada</Button> : <span className="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded-full">Bloqueada</span>) : <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">Liberada</span>}</div>
-                    <div className="p-4 grid gap-3">
+                  <div key={round.id} id={`round-capture-${round.id}`} className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden relative">
+                    <div className="bg-slate-950/50 p-4 border-b border-slate-800 flex justify-between items-center">
+                      <h4 className="font-bold text-white flex items-center gap-2">
+                        {round.status === 'locked' ? <Lock size={16} className="text-slate-500 no-export"/> : <PlayCircle size={16} className="text-emerald-500 no-export"/>} 
+                        Rodada {String(round.number)}
+                      </h4>
+                      <div className="no-export flex items-center gap-2">
+                        {round.status === 'locked' ? (
+                          isAdmin ? (
+                            <Button 
+                              variant="outline" 
+                              className="text-xs py-1 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10" 
+                              disabled={exportingRoundId === round.id}
+                              onClick={() => handleReleaseAndExport(round)}
+                            >
+                              {exportingRoundId === round.id ? <><Camera size={14} className="animate-pulse"/> Gerando PNG...</> : 'Liberar Rodada'}
+                            </Button>
+                          ) : (
+                            <span className="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded-full">Bloqueada</span>
+                          )
+                        ) : (
+                          <>
+                            {isAdmin && (
+                              <button onClick={() => handleReleaseAndExport(round)} className="text-slate-500 hover:text-emerald-400 transition-colors p-1" title="Baixar Imagem da Rodada Novamente">
+                                <Camera size={16} />
+                              </button>
+                            )}
+                            <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">Liberada</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="p-4 flex flex-col gap-3 w-full">
                       {(round.matches || []).map(match => { 
                         const tA = getTeam(match.teamA); 
                         const tB = getTeam(match.teamB); 
@@ -1515,10 +1603,10 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                 if (submittedMatch) onSelectMatch(submittedMatch);
                               }
                             }}
-                            className={`bg-slate-950 p-3 rounded-xl border border-slate-800/50 flex flex-col gap-2 relative ${statusUI.isPlayed ? 'cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition-all group' : ''}`}
+                            className={`bg-slate-950 p-4 rounded-xl border border-slate-800/50 flex flex-col gap-2 relative w-full ${statusUI.isPlayed ? 'cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition-all group' : ''}`}
                           >
                             {isAdmin && statusUI.isPlayed && statusUI.submittedMatchId && (
-                              <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all bg-slate-900/90 backdrop-blur-sm p-1 rounded-lg border border-slate-700/50 z-10" onClick={e => e.stopPropagation()}>
+                              <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all bg-slate-900/90 backdrop-blur-sm p-1 rounded-lg border border-slate-700/50 z-10 no-export" onClick={e => e.stopPropagation()}>
                                 {deleteConfirmId === statusUI.submittedMatchId ? (
                                   <div className="flex items-center gap-1 px-1">
                                     <button onClick={(e) => { e.stopPropagation(); onDeleteMatch(statusUI.submittedMatchId); setDeleteConfirmId(null); }} className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs font-bold transition-colors">Excluir</button>
@@ -1531,36 +1619,38 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                 )}
                               </div>
                             )}
-                            <div className="flex items-center justify-between w-full gap-1.5">
-                              <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-start">
-                                <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
-                                <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate group-hover:text-emerald-400 transition-colors">{String(tA?.name || 'Time A')}</span>
+                            <div className="flex items-center justify-between w-full gap-3">
+                              <div className="flex items-center gap-2 flex-1 justify-end">
+                                <span className="font-bold text-xs md:text-sm text-slate-200 text-right leading-snug break-words whitespace-normal" style={{ wordBreak: 'break-word' }}>{String(tA?.name || 'Time A')}</span>
+                                <div className="shrink-0 flex items-center justify-center"><ShieldDisplay shield={tA?.shield} size="small" /></div>
                               </div>
                               
-                              <div className={`flex items-center justify-center gap-1 md:gap-2 px-2 py-1 md:px-3 rounded-lg border shrink-0 transition-colors ${statusUI.isPlayed ? 'group-hover:border-emerald-500/50' : ''} ${statusUI.bg}`}>
-                                {statusUI.penaltiesA !== null && statusUI.penaltiesA !== undefined && (
-                                  <span className="text-[10px] text-amber-400 font-bold mr-1">({statusUI.penaltiesA})</span>
-                                )}
-                                <span className={`font-bold text-sm md:text-base ${statusUI.color}`}>{statusUI.isPlayed ? String(statusUI.scoreA) : '-'}</span>
-                                <span className="text-[10px] md:text-xs text-slate-500 font-bold mx-0.5">X</span>
-                                <span className={`font-bold text-sm md:text-base ${statusUI.color}`}>{statusUI.isPlayed ? String(statusUI.scoreB) : '-'}</span>
-                                {statusUI.penaltiesB !== null && statusUI.penaltiesB !== undefined && (
-                                  <span className="text-[10px] text-amber-400 font-bold ml-1">({statusUI.penaltiesB})</span>
-                                )}
+                              <div className={`flex flex-col items-center justify-center px-3 py-2 rounded-lg border shrink-0 min-w-[80px] md:min-w-[100px] transition-colors ${statusUI.isPlayed ? 'group-hover:border-emerald-500/50' : ''} ${statusUI.bg}`}>
+                                <div className="flex items-center gap-1.5">
+                                  {statusUI.penaltiesA !== null && statusUI.penaltiesA !== undefined && (
+                                    <span className="text-[10px] text-amber-400 font-bold">({statusUI.penaltiesA})</span>
+                                  )}
+                                  <span className={`font-bold text-sm md:text-base ${statusUI.color}`}>{statusUI.isPlayed ? String(statusUI.scoreA) : '-'}</span>
+                                  <span className="text-[10px] text-slate-500 font-bold mx-0.5">X</span>
+                                  <span className={`font-bold text-sm md:text-base ${statusUI.color}`}>{statusUI.isPlayed ? String(statusUI.scoreB) : '-'}</span>
+                                  {statusUI.penaltiesB !== null && statusUI.penaltiesB !== undefined && (
+                                    <span className="text-[10px] text-amber-400 font-bold">({statusUI.penaltiesB})</span>
+                                  )}
+                                </div>
                               </div>
 
-                              <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
-                                <span className="font-medium text-[11px] md:text-sm text-slate-200 truncate text-right group-hover:text-emerald-400 transition-colors">{String(tB?.name || 'Time B')}</span>
-                                <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
+                              <div className="flex items-center gap-2 flex-1 justify-start">
+                                <div className="shrink-0 flex items-center justify-center"><ShieldDisplay shield={tB?.shield} size="small" /></div>
+                                <span className="font-bold text-xs md:text-sm text-slate-200 text-left leading-snug break-words whitespace-normal" style={{ wordBreak: 'break-word' }}>{String(tB?.name || 'Time B')}</span>
                               </div>
                             </div>
                             {statusUI.text !== 'Oficial' && (
-                              <div className="flex justify-center mt-1">
+                              <div className="flex justify-center mt-1 no-export">
                                 <span className={`text-[9px] uppercase tracking-wider font-bold ${statusUI.color}`}>{String(statusUI.text)}</span>
                               </div>
                             )}
                             {statusUI.isPlayed && statusUI.text === 'Oficial' && (
-                              <div className="flex justify-center mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex justify-center mt-1 opacity-0 group-hover:opacity-100 transition-opacity no-export">
                                 <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Clique para Detalhes</span>
                               </div>
                             )}
@@ -1822,7 +1912,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
   // =========================================================================
   // 🔑 CHAVE DA INTELIGÊNCIA ARTIFICIAL (DEFINITIVA E EMBUTIDA)
-  // Cole a sua chave AQ... dentro das aspas abaixo:
+  // A sua chave original. O sistema saberá automaticamente quando a usar.
   // =========================================================================
   const GEMINI_API_KEY = "AQ.Ab8RN6LZlcOY5CoZYA-xHMu8EXBmwS53mtPjW3L-KXv2R6NXWQ"; 
   // =========================================================================
@@ -1889,20 +1979,18 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
     processScreenshot(file, async (base64) => {
       setMatchImageBase64(base64);
-
-      const currentKeyToUse = GEMINI_API_KEY.trim();
-
-      // BARREIRA REMOVIDA: Agora aceita livremente a sua chave AQ...
-      if (!currentKeyToUse || currentKeyToUse.includes("COLE") || currentKeyToUse.length < 20) {
-        showToast("ERRO: Por favor, cole a sua chave no ficheiro App.jsx.", "error");
-        setIsAnalyzing(false);
-        return;
-      }
-
       setIsAnalyzing(true);
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); setPenaltiesA(''); setPenaltiesB('');
 
       try {
+        // 🔥 CAMALEÃO DE AMBIENTE: Deteta se estamos no painel de testes (Canvas) ou na Vercel
+        const isCanvasPreview = typeof window !== 'undefined' && window.location.hostname.includes('usercontent.goog');
+        
+        // Se estivermos a testar, usa a IA gratuita do sistema e limpa a chave. 
+        // Se estivermos na Vercel, usa o modelo de Produção e a sua chave AQ... embutida.
+        const modelToUse = isCanvasPreview ? 'gemini-2.5-flash-preview-09-2025' : 'gemini-1.5-flash';
+        const keyToUse = isCanvasPreview ? '' : GEMINI_API_KEY.trim();
+
         const payload = {
           contents: [{ 
             role: "user", 
@@ -1932,7 +2020,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${currentKeyToUse}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${encodeURIComponent(keyToUse)}`;
         
         const response = await fetch(url, {
           method: 'POST',
@@ -1985,7 +2073,12 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
       } catch (error) {
         console.error("Erro IA:", error);
-        showToast(error.message, "error");
+        
+        if (error.message.includes("API_KEY_INVALID") || error.message.includes("OAuth") || error.message.includes("authentication credentials")) {
+            showToast("Erro na Chave (Vercel): A sua chave AQ... não é compatível. Por favor, preencha o placar manualmente.", "error");
+        } else {
+            showToast(`Falha na IA: ${error.message.substring(0, 50)}. Preencha manualmente.`, "error");
+        }
       } finally {
         setIsAnalyzing(false);
         setImageUploaded(true);
@@ -2194,6 +2287,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     </div>
   );
 };
+
 const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToast }) => {
   const pending = (matches || []).filter(m => m.status === 'pending');
   const getTeam = (id) => (teams || []).find(t => t.id === id);
