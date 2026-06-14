@@ -2269,8 +2269,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        const apiKey = "";
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${firebaseConfig.apiKey}`;
 
         let resultJson;
         let lastError;
