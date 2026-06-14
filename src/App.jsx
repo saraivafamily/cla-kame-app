@@ -1558,12 +1558,10 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [imageUploaded, setImageUploaded] = useState(false);
 
-  // =========================================================================
-  // 🔑 CHAVE DA INTELIGÊNCIA ARTIFICIAL DEFINITIVA (GEMINI API)
-  // Cole a sua chave AQAQ... dentro das aspas abaixo!
-  // =========================================================================
-  const GEMINI_API_KEY = "AQ.Ab8RN6LMSZ-07hXnXEBbyemhEP_nxfs-4-MdKBWi29MCtzu4ag";
-  // =========================================================================
+  // NOVO: Controle de Chave da IA Direto pelo Usuário no Navegador
+  const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [tempKey, setTempKey] = useState('');
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
@@ -1625,12 +1623,22 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     return words1.filter(w => words2.includes(w)).length;
   };
 
+  const handleSaveApiKey = () => {
+    if (tempKey.trim() !== '') {
+      localStorage.setItem('gemini_api_key', tempKey.trim());
+      setUserApiKey(tempKey.trim());
+      setShowKeyInput(false);
+      showToast("Chave da IA ativada com sucesso no seu navegador!", "success");
+    }
+  };
+
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === "COLE_AQUI_A_SUA_CHAVE_AQAQ") {
-      showToast("Líder, você esqueceu de colar a chave da IA no código (App.jsx)!", "error");
+    if (!userApiKey) {
+      setShowKeyInput(true);
+      showToast("Por favor, cole a sua chave do Gemini primeiro.", "error");
       return;
     }
 
@@ -1672,7 +1680,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        const safeKey = encodeURIComponent(GEMINI_API_KEY.trim());
+        const safeKey = encodeURIComponent(userApiKey.trim());
         const endpoints = [
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`,
@@ -1697,7 +1705,10 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
                
                if (response.status === 403 || response.status === 400) {
-                 throw new Error("A chave da IA que está no código é inválida. Atualize no GitHub.");
+                 localStorage.removeItem('gemini_api_key');
+                 setUserApiKey('');
+                 setShowKeyInput(true);
+                 throw new Error("Sua Chave da IA é inválida. Verifique se copiou tudo corretamente.");
                }
                throw new Error(`Erro Google: ${errorMsg}`);
             }
@@ -1813,10 +1824,25 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida</h2>
+        <button onClick={() => setShowKeyInput(!showKeyInput)} className="text-xs flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors">
+          <Key size={14}/> IA Config
+        </button>
       </div>
 
       <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-6">
         
+        {showKeyInput && (
+          <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl animate-in slide-in-from-top-4">
+            <h3 className="text-sm font-bold text-amber-400 mb-2 flex items-center gap-2"><Key size={16}/> Chave de Ativação do Gemini</h3>
+            <p className="text-xs text-slate-400 mb-3">Para usar a leitura inteligente de Prints, cole a sua chave exclusiva do <b>Google AI Studio</b>. Ela ficará salva apenas no seu navegador.</p>
+            <div className="flex gap-2">
+              <input type="password" value={tempKey} onChange={e=>setTempKey(e.target.value)} placeholder="Ex: AIzaSy... ou AQAQ..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
+              <button onClick={handleSaveApiKey} className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-amber-900/50">Salvar</button>
+            </div>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] text-emerald-400 hover:underline mt-2 inline-block">Clique aqui para gerar uma chave grátis ➔</a>
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-medium text-slate-400 mb-2">1. Competição</label>
           <select value={selectedCompId} onChange={e => setSelectedCompId(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
