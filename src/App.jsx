@@ -1613,12 +1613,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); setPenaltiesA(''); setPenaltiesB('');
 
       try {
-        const payload = {
-          contents: [{ 
-            role: "user", 
-            parts: [ 
-              { text: `
-Analise o placar final deste jogo de Dream League Soccer (DLS).
+        const prompt = `Analise o placar final deste jogo de Dream League Soccer (DLS).
 REGRAS:
 1. O escudo do lado ESQUERDO tem um placar. O escudo do lado DIREITO tem um placar.
 2. Na lista central, identifique quem fez gol. GOLS possuem o ícone de uma BOLA DE FUTEBOL (⚽) ao lado.
@@ -1634,21 +1629,35 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
   "rightTeamName": "nome lido no escudo da direita",
   "rightScore": 0,
   "rightGoals": [{"player": "Nome do Goleador", "assist": "", "minute": "90"}]
-}
-              `}, 
-              { inlineData: { mimeType: "image/png", data: base64.split(',')[1] } } 
+}`;
+        
+        const mimeType = base64.match(/data:(.*?);base64/)[1];
+        const base64ImageData = base64.split(',')[1];
+
+        const payload = {
+          contents: [{ 
+            role: "user", 
+            parts: [ 
+              { text: prompt }, 
+              { inlineData: { mimeType: mimeType, data: base64ImageData } } 
             ] 
           }],
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${userApiKey}`;
+        const safeKey = encodeURIComponent(userApiKey.trim());
+        const endpoints = [
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${safeKey}`
+        ];
 
         let resultJson;
         let lastError;
-        const delays = [1000, 2000, 4000];
 
-        for (let attempt = 0; attempt <= delays.length; attempt++) {
+        for (const url of endpoints) {
+          if (resultJson) break; // Sucesso num endpoint anterior
+          
           try {
             const response = await fetch(url, {
               method: 'POST',
@@ -1657,24 +1666,23 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             });
 
             if (!response.ok) {
+               const errData = await response.json().catch(() => null);
+               const errorMsg = errData?.error?.message || `Erro ${response.status}`;
+               
                if (response.status === 403 || response.status === 400) {
                  localStorage.removeItem('gemini_api_key');
                  setUserApiKey('');
                  setShowKeyInput(true);
-                 throw new Error("Sua Chave da IA é inválida ou não tem as permissões do Google AI Studio.");
+                 throw new Error("Sua Chave da IA é inválida. Verifique se copiou tudo corretamente.");
                }
-               throw new Error(`Erro do servidor Google: ${response.status}`);
+               throw new Error(`Erro Google: ${errorMsg}`);
             }
 
             resultJson = await response.json();
-            break; 
           } catch (error) {
             lastError = error;
-            if (attempt < delays.length && !error.message.includes('inválida')) {
-              await new Promise(resolve => setTimeout(resolve, delays[attempt]));
-            } else {
-              break;
-            }
+            // Se for erro de permissão (403/400), não tenta os outros links
+            if (error.message.includes("inválida")) throw error;
           }
         }
 
