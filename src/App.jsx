@@ -20,7 +20,7 @@ import {
   Home, Trophy, Medal, Camera, CheckSquare, Users, 
   LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, 
   Activity, PlusCircle, ArrowLeft, PlayCircle, Lock,
-  Shield, MessageCircle, Edit, Save, X, User, Crown, Star, Send, Trash2, UserPlus, Key
+  Shield, MessageCircle, Edit, Save, X, User, Crown, Star, Send, Trash2, UserPlus, Key, LayoutGrid, List
 } from 'lucide-react';
 
 // ==========================================
@@ -865,6 +865,7 @@ const Standings = ({ matches, teams, comp }) => {
 const TeamsList = ({ teams, currentUser, onEditTeam, competitions, matches }) => {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', coach: '', whatsapp: '', shield: '' });
+  const [viewMode, setViewMode] = useState('grid');
 
   const userTeamIds = useMemo(() => (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id), [teams, currentUser]);
 
@@ -912,9 +913,15 @@ const TeamsList = ({ teams, currentUser, onEditTeam, competitions, matches }) =>
 
   return (
     <div className="animate-in fade-in duration-500">
-      <div className="flex items-center gap-3 mb-6">
-        <Shield className="text-emerald-500" size={28} />
-        <h2 className="text-2xl font-bold text-white">Mural de Times</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Shield className="text-emerald-500" size={28} />
+          <h2 className="text-2xl font-bold text-white">Mural de Times</h2>
+        </div>
+        <div className="flex p-1 bg-slate-950 rounded-lg border border-slate-800">
+          <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`} title="Ver em Grade"><LayoutGrid size={16} /></button>
+          <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`} title="Ver em Lista"><List size={16} /></button>
+        </div>
       </div>
       
       {(!teams || teams.length === 0) ? (
@@ -922,12 +929,12 @@ const TeamsList = ({ teams, currentUser, onEditTeam, competitions, matches }) =>
           Nenhum time registrado no clã ainda.
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+        <div className={viewMode === 'grid' ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4" : "flex flex-col gap-3"}>
           {(teams || []).map(team => {
             if (editingId === team.id) {
               return (
-                <div key={team.id} className="bg-slate-900 p-3 rounded-xl border border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)] flex flex-col justify-between gap-3">
-                  <div className="flex flex-col items-center gap-2">
+                <div key={team.id} className={`bg-slate-900 p-3 rounded-xl border border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)] flex ${viewMode === 'list' ? 'flex-col md:flex-row items-start md:items-center justify-between gap-4' : 'flex-col justify-between gap-3'}`}>
+                  <div className={`flex items-center gap-2 ${viewMode === 'list' ? 'flex-row w-full flex-wrap' : 'flex-col'}`}>
                     <div className="shrink-0 pt-1">
                       <label className="cursor-pointer relative group flex flex-col items-center">
                         <div className="relative">
@@ -939,18 +946,46 @@ const TeamsList = ({ teams, currentUser, onEditTeam, competitions, matches }) =>
                         <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], (base64) => setEditData({...editData, shield: base64}))} />
                       </label>
                     </div>
-                    <div className="flex-1 space-y-1.5 w-full mt-1">
+                    <div className={`flex-1 space-y-1.5 w-full ${viewMode === 'list' ? 'flex flex-col sm:flex-row gap-2 space-y-0 mt-0' : 'mt-1'}`}>
                       <input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} placeholder="Time" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
                       <input type="text" value={editData.coach} onChange={e=>setEditData({...editData, coach: e.target.value})} placeholder="Técnico" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
                       <input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} placeholder="WhatsApp" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
                     </div>
                   </div>
-                  <div className="flex gap-1.5 mt-1">
-                    <Button variant="outline" onClick={() => setEditingId(null)} className="flex-1 py-1.5 text-[10px] px-0 hover:text-white"><X size={12}/></Button>
-                    <Button onClick={() => saveEdit(team)} className="flex-1 py-1.5 text-[10px] px-0"><Save size={12}/></Button>
+                  <div className={`flex gap-1.5 ${viewMode === 'list' ? 'w-full md:w-auto shrink-0 justify-end' : 'mt-1'}`}>
+                    <Button variant="outline" onClick={() => setEditingId(null)} className="flex-1 md:flex-none py-1.5 text-[10px] px-3 hover:text-white"><X size={12}/> {viewMode === 'list' && <span className="hidden sm:inline">Cancelar</span>}</Button>
+                    <Button onClick={() => saveEdit(team)} className="flex-1 md:flex-none py-1.5 text-[10px] px-3"><Save size={12}/> {viewMode === 'list' && <span className="hidden sm:inline">Salvar</span>}</Button>
                   </div>
                 </div>
               );
+            }
+
+            if (viewMode === 'list') {
+               return (
+                <div key={team.id} className="relative bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group">
+                  <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
+                    <div className="shrink-0"><ShieldDisplay shield={team.shield} size="normal" /></div>
+                    <div className="flex-1 min-w-0 pr-10 sm:pr-0">
+                      <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate">{String(team.name)}</h3>
+                      <p className="text-[10px] md:text-xs text-slate-400 mt-0.5 truncate"><span className="text-slate-300 font-medium">{String(team.coach || 'Sem técnico')}</span> • {team.whatsapp || 'Sem WhatsApp'}</p>
+                    </div>
+                  </div>
+                  
+                  {currentUser?.role === 'leader' && (
+                    <button onClick={() => startEdit(team)} className="absolute top-3 sm:top-auto sm:relative right-3 sm:right-auto text-slate-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors sm:opacity-0 sm:group-hover:opacity-100 shrink-0" title="Editar Time">
+                      <Edit size={16} />
+                    </button>
+                  )}
+                  
+                  <Button 
+                    onClick={() => handleWhatsApp(team.whatsapp)}
+                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-3 text-xs disabled:bg-slate-800 disabled:text-slate-500 shrink-0"
+                    disabled={!team.whatsapp || !hasPendingMatch(team.id)}
+                  >
+                    <MessageCircle size={16} /> <span className="sm:hidden lg:inline">Chamar</span>
+                  </Button>
+                </div>
+               );
             }
 
             return (
@@ -1523,10 +1558,12 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [imageUploaded, setImageUploaded] = useState(false);
 
-  // NOVO: Controle de Chave da IA Direto pelo Usuário no Navegador
-  const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
-  const [showKeyInput, setShowKeyInput] = useState(false);
-  const [tempKey, setTempKey] = useState('');
+  // =========================================================================
+  // 🔑 CHAVE DA INTELIGÊNCIA ARTIFICIAL DEFINITIVA (GEMINI API)
+  // Cole a sua chave AQAQ... dentro das aspas abaixo!
+  // =========================================================================
+  const GEMINI_API_KEY = "AQ.Ab8RN6LMSZ-07hXnXEBbyemhEP_nxfs-4-MdKBWi29MCtzu4ag";
+  // =========================================================================
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
@@ -1588,22 +1625,12 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     return words1.filter(w => words2.includes(w)).length;
   };
 
-  const handleSaveApiKey = () => {
-    if (tempKey.trim() !== '') {
-      localStorage.setItem('gemini_api_key', tempKey.trim());
-      setUserApiKey(tempKey.trim());
-      setShowKeyInput(false);
-      showToast("Chave da IA ativada com sucesso no seu navegador!", "success");
-    }
-  };
-
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (!userApiKey) {
-      setShowKeyInput(true);
-      showToast("Por favor, cole a sua chave do Gemini primeiro.", "error");
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === "COLE_AQUI_A_SUA_CHAVE_AQAQ") {
+      showToast("Líder, você esqueceu de colar a chave da IA no código (App.jsx)!", "error");
       return;
     }
 
@@ -1645,7 +1672,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        const safeKey = encodeURIComponent(userApiKey.trim());
+        const safeKey = encodeURIComponent(GEMINI_API_KEY.trim());
         const endpoints = [
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`,
@@ -1670,10 +1697,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
                
                if (response.status === 403 || response.status === 400) {
-                 localStorage.removeItem('gemini_api_key');
-                 setUserApiKey('');
-                 setShowKeyInput(true);
-                 throw new Error("Sua Chave da IA é inválida. Verifique se copiou tudo corretamente.");
+                 throw new Error("A chave da IA que está no código é inválida. Atualize no GitHub.");
                }
                throw new Error(`Erro Google: ${errorMsg}`);
             }
@@ -1789,25 +1813,10 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida</h2>
-        <button onClick={() => setShowKeyInput(!showKeyInput)} className="text-xs flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors">
-          <Key size={14}/> IA Config
-        </button>
       </div>
 
       <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-6">
         
-        {showKeyInput && (
-          <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl animate-in slide-in-from-top-4">
-            <h3 className="text-sm font-bold text-amber-400 mb-2 flex items-center gap-2"><Key size={16}/> Chave de Ativação do Gemini</h3>
-            <p className="text-xs text-slate-400 mb-3">Para usar a leitura inteligente de Prints, cole a sua chave exclusiva do <b>Google AI Studio</b>. Ela ficará salva apenas no seu navegador.</p>
-            <div className="flex gap-2">
-              <input type="password" value={tempKey} onChange={e=>setTempKey(e.target.value)} placeholder="Ex: AIzaSy... ou AQAQ..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
-              <button onClick={handleSaveApiKey} className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-amber-900/50">Salvar</button>
-            </div>
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] text-emerald-400 hover:underline mt-2 inline-block">Clique aqui para gerar uma chave grátis ➔</a>
-          </div>
-        )}
-
         <div>
           <label className="block text-sm font-medium text-slate-400 mb-2">1. Competição</label>
           <select value={selectedCompId} onChange={e => setSelectedCompId(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
