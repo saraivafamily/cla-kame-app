@@ -1856,14 +1856,14 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             <label className="block text-sm font-medium text-slate-400 mb-2">2. Selecione a Partida Liberada</label>
             {availableMatches.length > 0 ? (
               <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
-                <option value="">Qual jogo você jogou?</option>
+                <option value="">Registrar qual jogo?</option>
                 {availableMatches.map(m => {
                   const tA = (teams || []).find(t=>t.id===m.teamA)?.name;
                   const tB = (teams || []).find(t=>t.id===m.teamB)?.name;
                   return <option key={m.id} value={m.id}>Rodada {String(m.roundId || '').replace('r','')} - {tA} x {tB}</option>
                 })}
               </select>
-            ) : <div className="p-3 bg-slate-950 rounded border border-slate-800 text-slate-500 text-sm">Nenhuma partida pendente de envio para você nesta competição.</div>}
+            ) : <div className="p-3 bg-slate-950 rounded border border-slate-800 text-slate-500 text-sm">Tudo limpo!.</div>}
           </div>
         )}
 
@@ -1996,7 +1996,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
       <div>
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados Enviados</h3>
         <div className="space-y-3">
-          {recentMatches.length === 0 && <p className="text-slate-500 text-sm p-4 bg-slate-900 rounded-xl border border-slate-800">Nenhum resultado submetido ainda.</p>}
+          {recentMatches.length === 0 && <p className="text-slate-500 text-sm p-4 bg-slate-900 rounded-xl border border-slate-800">Nenhum resultado registrado ainda.</p>}
           {recentMatches.map(m => {
             const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
             return (
@@ -2155,7 +2155,7 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
 
                     {m.observacoes && (
                       <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm">
-                        <p className="text-amber-400 font-semibold mb-1 text-xs">Observações do Técnico:</p>
+                        <p className="text-amber-400 font-semibold mb-1 text-xs">Observações sobre a partida:</p>
                         <p className="text-slate-300 italic">"{String(m.observacoes)}"</p>
                       </div>
                     )}
