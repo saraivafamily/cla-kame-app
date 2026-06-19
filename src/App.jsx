@@ -1613,6 +1613,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     </div>
   );
 };
+
 const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
