@@ -99,8 +99,6 @@ const calculateStandings = (matches, teams, compId) => {
   return Object.values(table).map(t => ({ ...t, gd: t.gf - t.ga })).sort((a, b) => { if (b.pts !== a.pts) return b.pts - a.pts; if (b.w !== a.w) return b.w - a.w; if (b.gd !== a.gd) return b.gd - a.gd; return b.gf - a.gf; });
 };
 
-/* --- Componentes UI --- */
-
 const AppSettings = ({ currentUser, showToast }) => {
   const [cmd, setCmd] = useState(''); const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [logs, setLogs] = useState(['[SISTEMA] Console de Batalha iniciado. Aguardando comandos do Líder...']);
@@ -332,148 +330,304 @@ const Standings = ({ matches, teams, comp }) => {
   );
 };
 
-const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast }) => {
-  const [subTab, setSubTab] = useState('overview'); 
-  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
-  const [exportingRoundId, setExportingRoundId] = useState(null); 
-  const [editingMatchTeams, setEditingMatchTeams] = useState(null); 
-
-  const getTeam = (id) => (teams || []).find(t => t && t.id === id);
+const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-  const safeCompTeams = Array.isArray(comp?.teams) ? comp.teams : [];
+  const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   
-  const getMatchStatusDisplay = (matchId) => {
-    const matchSubmissions = (matches || []).filter(m => m && m.matchId === matchId && m.compId === comp?.id && m.status !== 'rejected');
-    if (matchSubmissions.length === 0) return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
-    matchSubmissions.sort((a, b) => parseInt(String(b.id).split('_')[1] || '0') - parseInt(String(a.id).split('_')[1] || '0'));
-    const sm = matchSubmissions.find(m => m.status === 'approved') || matchSubmissions.find(m => m.status === 'pending');
-    if (!sm) return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
-    if (sm.status === 'approved') return { submittedMatchId: sm.id, isPlayed: true, scoreA: sm.scoreA, scoreB: sm.scoreB, penaltiesA: sm.penaltiesA, penaltiesB: sm.penaltiesB, text: 'Oficial', color: 'text-emerald-400', bg: 'bg-slate-950 border-emerald-900/50' };
-    if (sm.status === 'pending') return { submittedMatchId: sm.id, isPlayed: true, scoreA: sm.scoreA, scoreB: sm.scoreB, penaltiesA: sm.penaltiesA, penaltiesB: sm.penaltiesB, text: 'Em Validação', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
-    return { isPlayed: false, text: 'Desconhecido', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
+  const visibleCompIds = (competitions || []).filter(c => c && c.teams?.some(t => userTeamIds.includes(t))).map(c => c.id);
+  const recentMatches = (matches || []).filter(m => m && (isAdmin || visibleCompIds.includes(m.compId)) && m.status !== 'rejected').sort((a, b) => parseInt(b.id.split('_')[1] || '0') - parseInt(a.id.split('_')[1] || '0')).slice(0, 8);
+  const getTeam = (id) => (teams || []).find(t => t && t.id === id);
+  
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="bg-gradient-to-r from-emerald-900/50 to-slate-900 p-6 rounded-2xl border border-emerald-900/50 shadow-xl">
+        <h2 className="text-2xl font-bold text-white mb-2">QG Clã Kame</h2>
+        <p className="text-slate-400">Gerencie e acompanhe seus resultados do DLS.</p>
+      </div>
+      <div>
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados Enviados</h3>
+        <div className="space-y-3">
+          {recentMatches.length === 0 && <p className="text-slate-500 text-sm p-4 bg-slate-900 rounded-xl border border-slate-800">Nenhum resultado submetido ainda.</p>}
+          {recentMatches.map(m => {
+            if (!m) return null;
+            const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
+            return (
+              <div key={m.id} onClick={() => onSelectMatch && onSelectMatch(m)} className="bg-slate-900 p-3 md:p-4 rounded-xl border border-slate-800 flex flex-col gap-3 shadow-sm cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition-all group relative">
+                {isAdmin && (
+                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all bg-slate-900/90 backdrop-blur-sm p-1 rounded-lg border border-slate-700/50 z-10" onClick={e => e.stopPropagation()}>
+                    {deleteConfirmId === m.id ? ( <div className="flex items-center gap-1 px-1"><button onClick={(e) => { e.stopPropagation(); onDeleteMatch(m.id); setDeleteConfirmId(null); }} className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs font-bold transition-colors">Excluir</button><button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(null); }} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-xs transition-colors">Cancelar</button></div> ) : ( <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(m.id); }} className="text-slate-400 hover:text-red-400 p-1.5 transition-colors"><Trash2 size={14} /></button> )}
+                  </div>
+                )}
+                <div className="flex items-center justify-between w-full gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-start"><div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="normal" /></div><span className="font-medium text-[11px] md:text-sm text-slate-200 truncate group-hover:text-emerald-400 transition-colors">{String(tA?.name || 'Time A')}</span></div>
+                  <div className="flex items-center justify-center gap-1.5 md:gap-2 px-2 md:px-3 py-1 bg-slate-950 rounded-lg border border-slate-800 shrink-0">{m.penaltiesA !== null && m.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mr-1">({m.penaltiesA})</span>}<span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreA) : '?'}</span><span className="text-[10px] md:text-xs text-slate-500 font-bold mx-0.5">X</span><span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreB) : '?'}</span>{m.penaltiesB !== null && m.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold ml-1">({m.penaltiesB})</span>}</div>
+                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-end"><span className="font-medium text-[11px] md:text-sm text-slate-200 truncate text-right group-hover:text-emerald-400 transition-colors">{String(tB?.name || 'Time B')}</span><div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="normal" /></div></div>
+                </div>
+                <div className="flex justify-center border-t border-slate-800/50 pt-2 flex-col items-center gap-1">{m.status === 'approved' ? <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">✅ Oficializado • Clique para detalhes</span> : <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 font-medium">⏳ Aguardando Validação • Clique para detalhes</span>}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToast }) => {
+  const pending = (matches || []).filter(m => m && m.status === 'pending');
+  const getTeam = (id) => (teams || []).find(t => t && t.id === id);
+  const getCompName = (id) => (competitions || []).find(c => c && c.id === id)?.name || 'Competição Desconhecida';
+  const [editedScores, setEditedScores] = useState({});
+
+  const handleScoreChange = (matchId, field, value) => { setEditedScores(prev => ({ ...prev, [matchId]: { ...prev[matchId], [field]: value } })); };
+  const getFormattedGoals = (teamId, allGoals, align) => {
+    const goals = (allGoals || []).filter(g => g.teamId === teamId);
+    if (goals.length === 0) return <span className={`text-[10px] md:text-xs text-slate-600 block text-${align}`}>Nenhum gol</span>;
+    return (
+      <div className={`space-y-1.5 text-[10px] md:text-xs text-slate-400 flex flex-col ${align === 'right' ? 'items-end text-right' : 'items-start text-left'}`}>
+        {goals.map((g, i) => (
+          <div key={i} className={`flex gap-1.5 items-start ${align === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
+            <span className="text-emerald-400 font-bold mt-0.5">{String(g.minute)}'</span>
+            <div className={`flex flex-col min-w-0 ${align === 'right' ? 'items-end' : 'items-start'}`}><span className="truncate font-medium text-slate-200">{String(g.player)}</span>{g.assist && <span className="text-[8.5px] text-slate-500 truncate">👟 {String(g.assist)}</span>}</div>
+          </div>
+        ))}
+      </div>
+    );
   };
-
-  const topScorers = useMemo(() => {
-    const sMap = {}; (matches || []).filter(m => m && m.compId === comp?.id && m.status === 'approved').forEach(m => { (m.goals || []).forEach(g => { if (!g.player || g.player.trim() === '') return; const k = `${g.player.toLowerCase().trim()}-${g.teamId}`; if (!sMap[k]) sMap[k] = { player: g.player.trim(), teamId: g.teamId, count: 0 }; sMap[k].count++; }); });
-    return Object.values(sMap).sort((a, b) => b.count - a.count);
-  }, [matches, comp?.id]);
-
-  const topAssists = useMemo(() => {
-    const aMap = {}; (matches || []).filter(m => m && m.compId === comp?.id && m.status === 'approved').forEach(m => { (m.goals || []).forEach(g => { if (!g.assist || g.assist.trim() === '') return; const k = `${g.assist.toLowerCase().trim()}-${g.teamId}`; if (!aMap[k]) aMap[k] = { player: g.assist.trim(), teamId: g.teamId, count: 0 }; aMap[k].count++; }); });
-    return Object.values(aMap).sort((a, b) => b.count - a.count);
-  }, [matches, comp?.id]);
-
-  const handleReleaseAndExport = async (round) => {
-    try {
-      setExportingRoundId(round.id); let html2canvas = window.html2canvas;
-      if (!html2canvas) { await new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; script.onload = resolve; script.onerror = reject; document.head.appendChild(script); }); html2canvas = window.html2canvas; }
-      await new Promise(r => setTimeout(r, 300)); const element = document.getElementById(`round-capture-${round.id}`);
-      if (element) { const watermark = document.createElement('div'); watermark.innerHTML = `<div class="p-3 bg-slate-950 text-center border-t border-slate-800 text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-relaxed">🏆 ${comp.name} • Rodada Oficial<br/>Gerado pelo App do Clã Kame</div>`; element.appendChild(watermark); const canvas = await html2canvas(element, { backgroundColor: '#0f172a', scale: 2, useCORS: true, windowWidth: element.scrollWidth, windowHeight: element.scrollHeight, ignoreElements: (el) => el.classList && el.classList.contains('no-export') }); element.removeChild(watermark); const link = document.createElement("a"); link.href = canvas.toDataURL("image/png"); link.download = `${String(comp.name).replace(/\s+/g, '_')}_Rodada_${round.number}.png`; link.click(); }
-    } catch (error) { console.error("Erro exportação:", error); } finally { setExportingRoundId(null); if (round.status === 'locked' && onReleaseRound) onReleaseRound(comp.id, round.id); }
-  };
-
-  if (!comp) return null;
 
   return (
-    <div className="animate-in fade-in duration-500 space-y-6">
-      <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4"><ArrowLeft size={20} /> Voltar para Competições</button>
-      <div className="bg-gradient-to-r from-emerald-900/40 to-slate-900 p-6 rounded-2xl border border-emerald-900/50 flex justify-between items-center shadow-xl">
-        <div><h2 className="text-3xl font-bold text-white mb-2">{String(comp.name)}</h2><p className="text-emerald-400 flex items-center gap-2"><Trophy size={16}/> {comp.format === 'league' ? 'Pontos Corridos' : comp.format === 'groups' ? 'Fase de Grupos' : 'Mata-Mata'}</p></div>
-      </div>
-      <div className="flex flex-col md:flex-row p-1 bg-slate-950 rounded-xl mb-6 border border-slate-800 gap-1 shadow-md">
-        <button onClick={() => setSubTab('overview')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${subTab === 'overview' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Classificação & Jogos</button>
-        <button onClick={() => setSubTab('scorers')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${subTab === 'scorers' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Artilharia ⚽</button>
-        <button onClick={() => setSubTab('assists')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${subTab === 'assists' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Assistências 👟</button>
-      </div>
-
-      {subTab === 'overview' && (
-        <div className="space-y-8 animate-in fade-in">
-          <Standings matches={matches} teams={(teams || []).filter(t => t && safeCompTeams.includes(t.id))} comp={comp} />
-          <div>
-            <h3 className="text-xl font-bold text-white mb-4">Rodadas e Jogos</h3>
-            {(comp.rounds && comp.rounds.length > 0) ? (
-              <div className="space-y-6">
-                {comp.rounds.map((round) => (
-                  <div key={round.id} id={`round-capture-${round.id}`} className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-lg relative">
-                    <div className="bg-slate-950/50 p-4 border-b border-slate-800 flex justify-between items-center">
-                      <h4 className="font-bold text-white flex items-center gap-2">{round.status === 'locked' ? <Lock size={16} className="text-slate-500 no-export"/> : <Play size={16} className="text-emerald-500 no-export"/>} Rodada {String(round.number)}</h4>
-                      <div className="no-export flex items-center gap-2">
-                        {round.status === 'locked' ? ( isAdmin ? <Button variant="outline" className="text-xs py-1 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10" disabled={exportingRoundId === round.id} onClick={() => handleReleaseAndExport(round)}>{exportingRoundId === round.id ? 'Gerando...' : 'Liberar Rodada'}</Button> : <span className="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded-full">Bloqueada</span> ) : ( <> {isAdmin && <button onClick={() => handleReleaseAndExport(round)} className="text-slate-500 hover:text-emerald-400 transition-colors p-1"><Camera size={16} /></button>} <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">Liberada</span> </> )}
-                      </div>
-                    </div>
-                    <div className="p-4 flex flex-col gap-3 w-full">
-                      {(() => {
-                        const gm = (round.matches || []).reduce((acc, match) => { const key = match.groupId || 'Sem Grupo'; if (!acc[key]) acc[key] = []; acc[key].push(match); return acc; }, {});
-                        return Object.keys(gm).map(groupKey => (
-                          <div key={groupKey} className="space-y-3 mb-4 last:mb-0">
-                            {comp.format === 'groups' && !round.id.toString().startsWith('ko_') && ( <div className="text-[10px] font-bold text-emerald-400 border-b border-slate-800 pb-1 uppercase tracking-widest">{groupKey === 'Sem Grupo' ? 'Outros / Manuais' : `Grupo ${groupKey}`}</div> )}
-                            {gm[groupKey].map((match) => {
-                              const tA = getTeam(match.teamA); const tB = getTeam(match.teamB); const sUI = getMatchStatusDisplay(match.id); 
-                              const nA = tA?.name || match.placeholderA || (match.teamA ? 'Time Removido' : 'Aguardando Sorteio');
-                              const nB = tB?.name || match.placeholderB || (match.teamB ? 'Time Removido' : 'Aguardando Sorteio');
-
-                              return (
-                                <div key={match.id} onClick={() => { if (sUI.isPlayed && onSelectMatch && !editingMatchTeams) { const ms = (matches || []).filter(m => m && m.matchId === match.id && m.compId === comp.id && m.status !== 'rejected'); ms.sort((a, b) => parseInt(String(b.id).split('_')[1] || '0') - parseInt(String(a.id).split('_')[1] || '0')); const sm = ms.find(m => m.status === 'approved') || ms.find(m => m.status === 'pending'); if (sm) onSelectMatch(sm); } }} className={`bg-slate-950 p-4 rounded-xl border border-slate-800/50 flex flex-col gap-2 relative w-full ${sUI.isPlayed && !editingMatchTeams ? 'cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition-all group' : 'group'}`}>
-                                  {editingMatchTeams?.matchId === match.id ? (
-                                    <div className="flex flex-col md:flex-row items-center w-full gap-2 p-3 bg-slate-900 border border-amber-500/50 rounded-xl no-export" onClick={e=>e.stopPropagation()}>
-                                      <select value={editingMatchTeams.teamA} onChange={e=>setEditingMatchTeams({...editingMatchTeams, teamA: e.target.value})} className={inputClass}><option value="">{String(match.placeholderA || 'Nenhum')}</option>{safeCompTeams.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{String(t.name)}</option> : null; })}</select>
-                                      <span className="text-xs text-slate-500 font-bold hidden md:block">X</span>
-                                      <select value={editingMatchTeams.teamB} onChange={e=>setEditingMatchTeams({...editingMatchTeams, teamB: e.target.value})} className={inputClass}><option value="">{String(match.placeholderB || 'Nenhum')}</option>{safeCompTeams.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{String(t.name)}</option> : null; })}</select>
-                                      <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0"><Button onClick={async () => { const newRounds = comp.rounds.map(r => r.id === editingMatchTeams.roundId ? { ...r, matches: r.matches.map(m => m.id === editingMatchTeams.matchId ? { ...m, teamA: editingMatchTeams.teamA, teamB: editingMatchTeams.teamB } : m) } : r); await onEditComp({ ...comp, rounds: newRounds }); setEditingMatchTeams(null); if(showToast) showToast("Partida atualizada com sucesso!", "success"); }} className="flex-1 md:flex-none py-2 text-xs bg-emerald-600 hover:bg-emerald-500"><Save size={14}/></Button><Button onClick={()=>setEditingMatchTeams(null)} variant="outline" className="flex-1 md:flex-none py-2 text-xs border-slate-600 text-slate-400"><X size={14}/></Button></div>
-                                    </div>
-                                  ) : (
-                                    <>
-                                      {isAdmin && !sUI.isPlayed && <button onClick={(e) => { e.stopPropagation(); setEditingMatchTeams({ roundId: round.id, matchId: match.id, teamA: match.teamA, teamB: match.teamB }); }} className="absolute top-2 left-2 text-slate-500 hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-slate-900 border border-slate-700 rounded-lg z-10 no-export shadow-lg flex items-center gap-1 text-[10px] font-bold"><Edit size={12} /> Editar</button>}
-                                      {isAdmin && sUI.isPlayed && sUI.submittedMatchId && ( <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all bg-slate-900/90 backdrop-blur-sm p-1 rounded-lg border border-slate-700/50 z-10 no-export" onClick={e => e.stopPropagation()}>{deleteConfirmId === sUI.submittedMatchId ? ( <div className="flex items-center gap-1 px-1"><button onClick={(e) => { e.stopPropagation(); onDeleteMatch(sUI.submittedMatchId); setDeleteConfirmId(null); }} className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs font-bold transition-colors">Excluir</button><button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(null); }} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-xs transition-colors">Cancelar</button></div> ) : ( <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(sUI.submittedMatchId); }} className="text-slate-400 hover:text-red-400 p-1.5 transition-colors"><Trash2 size={14} /></button> )}</div> )}
-                                      <div className="flex items-center justify-between w-full gap-3">
-                                        <div className="flex items-center gap-2 flex-1 justify-end"><span className={`font-bold text-xs md:text-sm text-right leading-snug break-words whitespace-normal ${tA ? 'text-slate-200' : 'text-slate-500 italic'}`} style={{ wordBreak: 'break-word' }}>{String(nA)}</span>{tA && <div className="shrink-0 flex items-center justify-center"><ShieldDisplay shield={tA.shield} size="small" /></div>}</div>
-                                        <div className={`flex flex-col items-center justify-center px-3 py-2 rounded-lg border shrink-0 min-w-[80px] md:min-w-[100px] transition-colors ${sUI.bg}`}><div className="flex items-center gap-1.5">{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold">({sUI.penaltiesA})</span>}<span className={`font-bold text-sm md:text-base ${sUI.color}`}>{sUI.isPlayed ? String(sUI.scoreA) : '-'}</span><span className="text-[10px] text-slate-500 font-bold mx-0.5">X</span><span className={`font-bold text-sm md:text-base ${sUI.color}`}>{sUI.isPlayed ? String(sUI.scoreB) : '-'}</span>{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold">({sUI.penaltiesB})</span>}</div></div>
-                                        <div className="flex items-center gap-2 flex-1 justify-start">{tB && <div className="shrink-0 flex items-center justify-center"><ShieldDisplay shield={tB.shield} size="small" /></div>}<span className={`font-bold text-xs md:text-sm text-left leading-snug break-words whitespace-normal ${tB ? 'text-slate-200' : 'text-slate-500 italic'}`} style={{ wordBreak: 'break-word' }}>{String(nB)}</span></div>
-                                      </div>
-                                      {sUI.text !== 'Oficial' && <div className="flex justify-center mt-1 no-export"><span className={`text-[9px] uppercase tracking-wider font-bold ${sUI.color}`}>{String(sUI.text)}</span></div>}
-                                      {sUI.isPlayed && sUI.text === 'Oficial' && <div className="flex justify-center mt-1 opacity-0 group-hover:opacity-100 transition-opacity no-export"><span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Clique para Detalhes</span></div>}
-                                    </>
-                                  )}
-                                </div>
-                              );
-                            })}
+    <div className="animate-in fade-in">
+      <div className="flex items-center justify-between mb-6"><h2 className="text-2xl font-bold text-white flex items-center gap-2"><CheckSquare className="text-amber-500" /> Validação na Nuvem</h2><span className="bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-sm">{pending.length} Pendentes</span></div>
+      {pending.length === 0 ? (
+        <div className="bg-slate-900 p-12 rounded-2xl border border-slate-800 text-center shadow-xl"><CheckCircle className="text-emerald-500 mx-auto mb-4" size={48} /><p className="text-slate-400">Nenhum jogo aguardando validação.</p></div>
+      ) : (
+        <div className="grid gap-6">
+          {pending.map(m => {
+            if (!m) return null; const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
+            return (
+              <div key={m.id} className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col gap-5 shadow-xl">
+                <div className="text-center text-xs font-bold text-amber-500 uppercase tracking-widest bg-amber-500/5 py-2 rounded-lg border border-amber-500/10 mb-2">🏆 {String(getCompName(m.compId))}</div>
+                <div className="flex flex-col md:flex-row items-stretch gap-6">
+                  <div className="flex-1 space-y-4">
+                    <div className="flex flex-col items-center gap-3 w-full bg-slate-950 p-4 rounded-xl border border-slate-800/50">
+                      <div className="flex items-center justify-between w-full gap-2 border-b border-slate-800/50 pb-3">
+                        <div className="flex items-center gap-2 flex-1 min-w-0 justify-start"><div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="normal" /></div><span className="font-bold text-sm md:text-base text-white truncate">{String(tA?.name || 'Time A')}</span></div>
+                        <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-slate-900 rounded-lg border border-slate-700 shrink-0 relative flex-col">
+                          <div className="flex items-center gap-2">
+                             <input type="number" value={editedScores[m.id]?.scoreA !== undefined ? editedScores[m.id].scoreA : m.scoreA} onChange={(e) => handleScoreChange(m.id, 'scoreA', e.target.value)} className="w-12 md:w-16 bg-slate-950 border border-slate-800 text-center font-bold text-xl md:text-2xl text-emerald-400 rounded outline-none focus:border-emerald-500 transition-colors" />
+                             <span className="text-[10px] md:text-xs text-slate-500 font-bold mx-1">X</span>
+                             <input type="number" value={editedScores[m.id]?.scoreB !== undefined ? editedScores[m.id].scoreB : m.scoreB} onChange={(e) => handleScoreChange(m.id, 'scoreB', e.target.value)} className="w-12 md:w-16 bg-slate-950 border border-slate-800 text-center font-bold text-xl md:text-2xl text-emerald-400 rounded outline-none focus:border-emerald-500 transition-colors" />
                           </div>
-                        ));
-                      })()}
+                          {m.penaltiesA !== null && m.penaltiesA !== undefined && (
+                            <div className="flex items-center justify-center gap-1 mt-1 bg-slate-950 px-2 py-1 rounded border border-amber-500/20">
+                              <span className="text-[8px] tracking-widest uppercase text-amber-500 font-bold mr-1">Pênaltis:</span><input type="number" value={editedScores[m.id]?.penaltiesA !== undefined ? editedScores[m.id].penaltiesA : m.penaltiesA} onChange={(e) => handleScoreChange(m.id, 'penaltiesA', e.target.value)} className="w-8 bg-slate-900 border border-amber-500/30 text-center font-bold text-xs text-amber-400 rounded outline-none focus:border-amber-500" /><span className="text-[9px] text-slate-500 font-bold">X</span><input type="number" value={editedScores[m.id]?.penaltiesB !== undefined ? editedScores[m.id].penaltiesB : m.penaltiesB} onChange={(e) => handleScoreChange(m.id, 'penaltiesB', e.target.value)} className="w-8 bg-slate-900 border border-amber-500/30 text-center font-bold text-xs text-amber-400 rounded outline-none focus:border-amber-500" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-1 min-w-0 justify-end"><span className="font-bold text-sm md:text-base text-white truncate text-right">{String(tB?.name || 'Time B')}</span><div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="normal" /></div></div>
+                      </div>
+                      <div className="flex items-start justify-between w-full pt-1"><div className="flex-1 min-w-0">{getFormattedGoals(m.teamA, m.goals || [], 'left')}</div><div className="w-[40px] shrink-0"></div><div className="flex-1 min-w-0">{getFormattedGoals(m.teamB, m.goals || [], 'right')}</div></div>
+                    </div>
+                    {m.observacoes && <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm"><p className="text-amber-400 font-semibold mb-1 text-xs">Observações do Técnico:</p><p className="text-slate-300 italic">"{String(m.observacoes)}"</p></div>}
+                    <div className="text-[10px] text-slate-500 text-center md:text-left">Enviado por: <span className="text-slate-400 font-semibold">{String(m.submittedBy)}</span></div>
+                  </div>
+                  <div className="md:w-48 bg-slate-950 rounded-xl border border-slate-800 flex flex-col items-center justify-center p-4 text-center gap-2 relative overflow-hidden">
+                    {typeof m.imageUrl === 'string' && m.imageUrl.startsWith('data:image') ? (
+                      <><img src={m.imageUrl} alt="Print da Partida" onClick={() => window.open(m.imageUrl, '_blank')} className="absolute inset-0 w-full h-full object-cover opacity-50 hover:opacity-100 transition-opacity cursor-pointer z-0" /><span className="text-[10px] font-bold text-white bg-black/60 px-2 py-1 rounded z-10 pointer-events-none shadow-xl">CLIQUE PARA AMPLIAR</span></>
+                    ) : ( <><Shield size={32} className="text-slate-600 animate-pulse" /><span className="text-xs text-slate-400 font-semibold z-10 drop-shadow-md">Nenhum Print</span><span className="text-[10px] text-slate-600 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 z-10">Envio Manual</span></> )}
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end pt-3 border-t border-slate-800/50">
+                  <Button variant="outline" className="border-red-500/50 text-red-400" onClick={() => { onUpdateStatus(m.id, 'rejected'); showToast("Jogo Rejeitado!", "error"); }}><XCircle size={16}/> Rejeitar</Button>
+                  <Button onClick={() => { onUpdateStatus(m.id, 'approved', editedScores[m.id]); showToast("Jogo Aprovado e validado!", "success"); }}><CheckCircle size={16}/> Aprovar e computar pontos</Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const TeamsList = ({ teams, currentUser, onEditTeam, competitions, matches }) => {
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({ name: '', coach: '', whatsapp: '', shield: '' });
+  const [viewMode, setViewMode] = useState('grid');
+  const userTeamIds = useMemo(() => (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id), [teams, currentUser]);
+
+  const hasPendingMatch = (targetTeamId) => {
+    if (!currentUser || userTeamIds.length === 0 || userTeamIds.includes(targetTeamId)) return false;
+    let canPlay = false;
+    (competitions || []).forEach(comp => {
+      if (comp && comp.rounds && Array.isArray(comp.rounds)) {
+        comp.rounds.filter(r => r.status === 'released').forEach(round => {
+          if (Array.isArray(round.matches)) {
+            round.matches.forEach(rm => {
+              const alreadySubmitted = (matches || []).some(m => m && m.matchId === rm.id && (m.status === 'pending' || m.status === 'approved'));
+              if (!alreadySubmitted) {
+                const isUserInvolved = userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB);
+                const isTargetInvolved = rm.teamA === targetTeamId || rm.teamB === targetTeamId;
+                if (isUserInvolved && isTargetInvolved) canPlay = true;
+              }
+            });
+          }
+        });
+      }
+    });
+    return canPlay;
+  };
+
+  const handleWhatsApp = (phone) => {
+    if (!phone) return;
+    const cleanPhone = String(phone).replace(/\D/g, ''); 
+    window.open(`https://wa.me/${cleanPhone}`, '_blank');
+  };
+
+  const startEdit = (team) => {
+    if (!team) return;
+    setEditingId(team.id);
+    setEditData({ name: team.name || '', coach: team.coach || '', whatsapp: team.whatsapp || '', shield: team.shield || '🛡️' });
+  };
+
+  const saveEdit = (team) => {
+    if (!editData.name || !editData.coach) return;
+    onEditTeam({ ...team, ...editData });
+    setEditingId(null);
+  };
+
+  return (
+    <div className="animate-in fade-in duration-500">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3"><Shield className="text-emerald-500" size={28} /><h2 className="text-2xl font-bold text-white">Mural de Times</h2></div>
+        <div className="flex p-1 bg-slate-950 rounded-lg border border-slate-800">
+          <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`} title="Ver em Grade"><LayoutGrid size={16} /></button>
+          <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`} title="Ver em Lista"><List size={16} /></button>
+        </div>
+      </div>
+      
+      {(!teams || teams.length === 0) ? (
+        <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center text-slate-500">Nenhum time registrado no clã ainda.</div>
+      ) : (
+        <div className={viewMode === 'grid' ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4" : "flex flex-col gap-3"}>
+          {(teams || []).map(team => {
+            if (!team) return null;
+            if (editingId === team.id) {
+              return (
+                <div key={team.id} className={`bg-slate-900 p-3 rounded-xl border border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)] flex ${viewMode === 'list' ? 'flex-col md:flex-row items-start md:items-center justify-between gap-4' : 'flex-col justify-between gap-3'}`}>
+                  <div className={`flex items-center gap-2 ${viewMode === 'list' ? 'flex-row w-full flex-wrap' : 'flex-col'}`}>
+                    <div className="shrink-0 pt-1">
+                      <label className="cursor-pointer relative group flex flex-col items-center">
+                        <div className="relative">
+                          <ShieldDisplay shield={editData.shield} size="normal" />
+                          <div className="absolute -bottom-1 -right-2 bg-emerald-600 rounded-full p-1 shadow-lg group-hover:scale-110 transition-transform flex items-center justify-center"><UploadCloud size={10} className="text-white" /></div>
+                        </div>
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], (base64) => setEditData({...editData, shield: base64}))} />
+                      </label>
+                    </div>
+                    <div className={`flex-1 space-y-1.5 w-full ${viewMode === 'list' ? 'flex flex-col sm:flex-row gap-2 space-y-0 mt-0' : 'mt-1'}`}>
+                      <input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} placeholder="Time" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
+                      <input type="text" value={editData.coach} onChange={e=>setEditData({...editData, coach: e.target.value})} placeholder="Técnico" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
+                      <input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} placeholder="WhatsApp" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
                     </div>
                   </div>
-                ))}
+                  <div className={`flex gap-1.5 ${viewMode === 'list' ? 'w-full md:w-auto shrink-0 justify-end' : 'mt-1'}`}>
+                    <Button variant="outline" onClick={() => setEditingId(null)} className="flex-1 md:flex-none py-1.5 text-[10px] px-3 hover:text-white"><X size={12}/> {viewMode === 'list' && <span className="hidden sm:inline">Cancelar</span>}</Button>
+                    <Button onClick={() => saveEdit(team)} className="flex-1 md:flex-none py-1.5 text-[10px] px-3"><Save size={12}/> {viewMode === 'list' && <span className="hidden sm:inline">Salvar</span>}</Button>
+                  </div>
+                </div>
+              );
+            }
+
+            if (viewMode === 'list') {
+               return (
+                <div key={team.id} className="relative bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group">
+                  <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
+                    <div className="shrink-0"><ShieldDisplay shield={team.shield} size="normal" /></div>
+                    <div className="flex-1 min-w-0 pr-10 sm:pr-0">
+                      <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate">{String(team.name || 'Time')}</h3>
+                      <p className="text-[10px] md:text-xs text-slate-400 mt-0.5 truncate"><span className="text-slate-300 font-medium">{String(team.coach || 'Sem técnico')}</span> • {String(team.whatsapp || 'Sem WhatsApp')}</p>
+                    </div>
+                  </div>
+                  {currentUser?.role === 'leader' && (
+                    <button onClick={() => startEdit(team)} className="absolute top-3 sm:top-auto sm:relative right-3 sm:right-auto text-slate-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors sm:opacity-0 sm:group-hover:opacity-100 shrink-0" title="Editar Time"><Edit size={16} /></button>
+                  )}
+                  <Button onClick={() => handleWhatsApp(team.whatsapp)} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-3 text-xs disabled:bg-slate-800 disabled:text-slate-500 shrink-0" disabled={!team.whatsapp || !hasPendingMatch(team.id)}>
+                    <MessageCircle size={16} /> <span className="sm:hidden lg:inline">Chamar</span>
+                  </Button>
+                </div>
+               );
+            }
+
+            return (
+              <div key={team.id} className="relative bg-slate-900 p-3 md:p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-3 group">
+                {currentUser?.role === 'leader' && (
+                  <button onClick={() => startEdit(team)} className="absolute top-2 right-2 text-slate-500 hover:text-emerald-400 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-slate-800" title="Editar Time"><Edit size={14} /></button>
+                )}
+                <div className="flex flex-col items-center text-center gap-2 mt-2">
+                  <div className="shrink-0"><ShieldDisplay shield={team.shield} size="normal" /></div>
+                  <div className="w-full">
+                    <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate px-2">{String(team.name || 'Time')}</h3>
+                    <p className="text-[9px] md:text-[10px] text-slate-400 mt-1 truncate px-1"><span className="text-slate-300 font-medium">{String(team.coach || 'Sem técnico')}</span></p>
+                  </div>
+                </div>
+                <Button onClick={() => handleWhatsApp(team.whatsapp)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-1 py-1.5 text-[10px] md:text-xs px-2 disabled:bg-slate-800 disabled:text-slate-500" disabled={!team.whatsapp || !hasPendingMatch(team.id)}>
+                  <MessageCircle size={14} /> Chamar
+                </Button>
               </div>
-            ) : ( <p className="text-slate-500 text-center py-8 bg-slate-900 rounded-xl border border-slate-800">Nenhuma rodada gerada.</p> )}
-          </div>
+            );
+          })}
         </div>
       )}
+    </div>
+  );
+};
 
-      {subTab === 'scorers' && (
-        <div className="animate-in fade-in slide-in-from-right-4">
-          <h3 className="text-xl font-bold text-white mb-4">Tabela de Artilharia</h3>
-          <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto shadow-xl">
-            <table className="w-full text-left text-sm whitespace-nowrap"><thead className="bg-slate-950/50 text-slate-400 font-medium border-b border-slate-800"><tr><th className="p-4 w-12 text-center">#</th><th className="p-4">Jogador</th><th className="p-4">Time</th><th className="p-4 text-center">Gols</th></tr></thead>
-              <tbody className="divide-y divide-slate-800/50">
-                {topScorers.length === 0 ? <tr><td colSpan="4" className="p-4 text-center text-slate-500">Nenhum gol registrado.</td></tr> : topScorers.map((s, i) => { const tm = getTeam(s.teamId); return <tr key={i} className="hover:bg-slate-800/50 transition-colors"><td className="p-4 text-center font-bold text-slate-500">{i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`}</td><td className="p-4 font-bold text-white flex items-center gap-2">⚽ {s.player}</td><td className="p-4 text-slate-300"><div className="flex items-center gap-2"><ShieldDisplay shield={tm?.shield} size="small" /><span className="truncate max-w-[120px] md:max-w-[200px]">{tm?.name || 'Desconhecido'}</span></div></td><td className="p-4 text-center font-black text-emerald-400 text-lg">{s.count}</td></tr>; })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onEditComp, onDeleteComp }) => {
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({ name: '', format: 'league', deadline: '', teams: [] });
 
-      {subTab === 'assists' && (
-        <div className="animate-in fade-in slide-in-from-right-4">
-          <h3 className="text-xl font-bold text-white mb-4">Líderes de Assistências</h3>
-          <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto shadow-xl">
-            <table className="w-full text-left text-sm whitespace-nowrap"><thead className="bg-slate-950/50 text-slate-400 font-medium border-b border-slate-800"><tr><th className="p-4 w-12 text-center">#</th><th className="p-4">Jogador</th><th className="p-4">Time</th><th className="p-4 text-center">Assistências</th></tr></thead>
-              <tbody className="divide-y divide-slate-800/50">
-                {topAssists.length === 0 ? <tr><td colSpan="4" className="p-4 text-center text-slate-500">Nenhuma assistência registrada.</td></tr> : topAssists.map((a, i) => { const tm = getTeam(a.teamId); return <tr key={i} className="hover:bg-slate-800/50 transition-colors"><td className="p-4 text-center font-bold text-slate-500">{i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`}</td><td className="p-4 font-bold text-white flex items-center gap-2">👟 {a.player}</td><td className="p-4 text-slate-300"><div className="flex items-center gap-2"><ShieldDisplay shield={tm?.shield} size="small" /><span className="truncate max-w-[120px] md:max-w-[200px]">{tm?.name || 'Desconhecido'}</span></div></td><td className="p-4 text-center font-black text-blue-400 text-lg">{a.count}</td></tr>; })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
+  const visibleComps = (competitions || []).filter(c => c && (isAdmin || (Array.isArray(c.teams) ? c.teams : []).some(t => userTeamIds.includes(t))));
+
+  const startEdit = (comp, e) => { e.stopPropagation(); setEditingId(comp.id); setEditData({ name: comp.name || '', format: comp.format || 'league', deadline: comp.deadline || '', teams: Array.isArray(comp.teams) ? comp.teams : [] }); };
+  const toggleEditTeam = (teamId) => { setEditData(prev => { const safeTeams = Array.isArray(prev.teams) ? prev.teams : []; return { ...prev, teams: safeTeams.includes(teamId) ? safeTeams.filter(id => id !== teamId) : [...safeTeams, teamId] }; }); };
+
+  const saveEdit = async (comp, e) => { e.stopPropagation(); if (editData.name) { let newRounds = comp.rounds || []; const editTeams = Array.isArray(editData.teams) ? editData.teams : []; await onEditComp({ ...comp, ...editData, teamCount: editTeams.length, teams: editTeams, rounds: newRounds }); setEditingId(null); } };
+
+  return (
+    <div className="animate-in fade-in duration-500">
+      <div className="flex items-center gap-3 mb-6"><Medal className="text-emerald-500" size={28} /><h2 className="text-2xl font-bold text-white">Competições</h2></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {visibleComps.length === 0 && <p className="text-slate-500 col-span-2">Nenhuma competição ativa.</p>}
+        {visibleComps.map(comp => {
+          if (!comp) return null; const safeCompTeams = Array.isArray(comp.teams) ? comp.teams : []; const isPart = safeCompTeams.some(t => userTeamIds.includes(t));
+          if (editingId === comp.id) {
+            return (
+              <div key={comp.id} className="bg-slate-900 p-6 rounded-2xl border border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)] flex flex-col gap-4 relative z-10" onClick={e => e.stopPropagation()}>
+                <div className="space-y-3 w-full">
+                  <div><label className="text-xs text-slate-400">Nome da Competição</label><input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} className={inputClass} /></div>
+                  <div className="pt-3 border-t border-slate-800">
+                    <div className="flex justify-between items-center mb-2"><label className="text-xs text-slate-400 font-bold">Equipas</label></div>
+                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                      {(teams || []).map(t => { if (!t) return null; const isSelected = (editData.teams || []).includes(t.id); return ( <div key={t.id} onClick={() => toggleEditTeam(t.id)} className={`cursor-pointer flex items-center gap-2 p-2 rounded-lg border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}><ShieldDisplay shield={t.shield} size="small" /><span className={`font-medium text-[10px] truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{String(t.name || 'Time')}</span></div> ); })}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-2"><Button variant="outline" onClick={(e) => { e.stopPropagation(); setEditingId(null); }} className="flex-1 py-2 text-slate-400"><X size={16}/> Cancelar</Button><Button onClick={(e) => saveEdit(comp, e)} className="flex-1 py-2 bg-amber-600 hover:bg-amber-500 shadow-amber-900/50"><Save size={16}/> Guardar</Button></div>
+              </div>
+            );
+          }
+          return (
+            <div key={comp.id} onClick={() => onSelectComp(comp.id)} className={`relative cursor-pointer bg-slate-900 p-6 rounded-2xl border transition-all hover:scale-[1.02] group ${isAdmin && isPart ? 'border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)]' : isPart ? 'border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-slate-800 hover:border-slate-700'}`}>
+              <div className="flex justify-between items-start mb-2 pr-16"><h3 className="text-xl font-bold text-white">{String(comp.name)}</h3></div>
+              <p className="text-sm text-slate-400 mb-4">{safeCompTeams.length} equipas</p>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -660,7 +814,10 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         {(imageUploaded || isManualMode) && (
           <form onSubmit={handleSubmit} className="animate-in slide-in-from-bottom-4 space-y-6 pt-4 border-t border-slate-800">
             <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-medium text-amber-400 flex items-center gap-2"><AlertCircle size={16}/> {matchImageBase64 ? 'Confirme os dados lidos pela IA' : 'Preencha os dados da partida'}</label>
+              <label className="text-sm font-medium text-amber-400 flex items-center gap-2">
+                <AlertCircle size={16}/> 
+                {matchImageBase64 ? 'Confirme os dados lidos pela IA' : 'Preencha os dados da partida'}
+              </label>
               <button type="button" onClick={resetAI} className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1 transition-colors"><ArrowLeft size={12}/> Voltar / Refazer</button>
             </div>
             
@@ -680,9 +837,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                   <button type="button" onClick={()=>handleAddGoal('A')} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar Gol</button>
                 </div>
               </div>
-              
               <div className="text-slate-500 font-bold text-xl self-center pt-8 hidden md:block">X</div>
-              
               <div className="flex-1 w-full space-y-3">
                 <div className="text-center font-bold text-lg text-slate-300 flex items-center justify-center gap-2">{String(teamB?.name || 'Time B')} <ShieldDisplay shield={teamB?.shield} size="small" /></div>
                 <input type="number" value={scoreB} onChange={e=>setScoreB(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none" required />
@@ -709,127 +864,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           </form>
         )}
       </div>
-    </div>
-  );
-};
-
-const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch }) => {
-  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-  const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
-  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
-  
-  const visibleCompIds = (competitions || []).filter(c => c && c.teams?.some(t => userTeamIds.includes(t))).map(c => c.id);
-  const recentMatches = (matches || []).filter(m => m && (isAdmin || visibleCompIds.includes(m.compId)) && m.status !== 'rejected').sort((a, b) => parseInt(b.id.split('_')[1] || '0') - parseInt(a.id.split('_')[1] || '0')).slice(0, 8);
-  const getTeam = (id) => (teams || []).find(t => t && t.id === id);
-  
-  return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="bg-gradient-to-r from-emerald-900/50 to-slate-900 p-6 rounded-2xl border border-emerald-900/50 shadow-xl">
-        <h2 className="text-2xl font-bold text-white mb-2">QG Clã Kame</h2>
-        <p className="text-slate-400">Gerencie e acompanhe seus resultados do DLS.</p>
-      </div>
-      <div>
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados Enviados</h3>
-        <div className="space-y-3">
-          {recentMatches.length === 0 && <p className="text-slate-500 text-sm p-4 bg-slate-900 rounded-xl border border-slate-800">Nenhum resultado submetido ainda.</p>}
-          {recentMatches.map(m => {
-            if (!m) return null;
-            const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
-            return (
-              <div key={m.id} onClick={() => onSelectMatch && onSelectMatch(m)} className="bg-slate-900 p-3 md:p-4 rounded-xl border border-slate-800 flex flex-col gap-3 shadow-sm cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition-all group relative">
-                {isAdmin && (
-                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all bg-slate-900/90 backdrop-blur-sm p-1 rounded-lg border border-slate-700/50 z-10" onClick={e => e.stopPropagation()}>
-                    {deleteConfirmId === m.id ? ( <div className="flex items-center gap-1 px-1"><button onClick={(e) => { e.stopPropagation(); onDeleteMatch(m.id); setDeleteConfirmId(null); }} className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs font-bold transition-colors">Excluir</button><button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(null); }} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-xs transition-colors">Cancelar</button></div> ) : ( <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(m.id); }} className="text-slate-400 hover:text-red-400 p-1.5 transition-colors"><Trash2 size={14} /></button> )}
-                  </div>
-                )}
-                <div className="flex items-center justify-between w-full gap-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-start"><div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="normal" /></div><span className="font-medium text-[11px] md:text-sm text-slate-200 truncate group-hover:text-emerald-400 transition-colors">{String(tA?.name || 'Time A')}</span></div>
-                  <div className="flex items-center justify-center gap-1.5 md:gap-2 px-2 md:px-3 py-1 bg-slate-950 rounded-lg border border-slate-800 shrink-0">{m.penaltiesA !== null && m.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mr-1">({m.penaltiesA})</span>}<span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreA) : '?'}</span><span className="text-[10px] md:text-xs text-slate-500 font-bold mx-0.5">X</span><span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreB) : '?'}</span>{m.penaltiesB !== null && m.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold ml-1">({m.penaltiesB})</span>}</div>
-                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-end"><span className="font-medium text-[11px] md:text-sm text-slate-200 truncate text-right group-hover:text-emerald-400 transition-colors">{String(tB?.name || 'Time B')}</span><div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="normal" /></div></div>
-                </div>
-                <div className="flex justify-center border-t border-slate-800/50 pt-2 flex-col items-center gap-1">{m.status === 'approved' ? <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">✅ Oficializado • Clique para detalhes</span> : <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 font-medium">⏳ Aguardando Validação • Clique para detalhes</span>}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToast }) => {
-  const pending = (matches || []).filter(m => m && m.status === 'pending');
-  const getTeam = (id) => (teams || []).find(t => t && t.id === id);
-  const getCompName = (id) => (competitions || []).find(c => c && c.id === id)?.name || 'Competição Desconhecida';
-  const [editedScores, setEditedScores] = useState({});
-
-  const handleScoreChange = (matchId, field, value) => { setEditedScores(prev => ({ ...prev, [matchId]: { ...prev[matchId], [field]: value } })); };
-  const getFormattedGoals = (teamId, allGoals, align) => {
-    const goals = (allGoals || []).filter(g => g.teamId === teamId);
-    if (goals.length === 0) return <span className={`text-[10px] md:text-xs text-slate-600 block text-${align}`}>Nenhum gol</span>;
-    return (
-      <div className={`space-y-1.5 text-[10px] md:text-xs text-slate-400 flex flex-col ${align === 'right' ? 'items-end text-right' : 'items-start text-left'}`}>
-        {goals.map((g, i) => (
-          <div key={i} className={`flex gap-1.5 items-start ${align === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
-            <span className="text-emerald-400 font-bold mt-0.5">{String(g.minute)}'</span>
-            <div className={`flex flex-col min-w-0 ${align === 'right' ? 'items-end' : 'items-start'}`}><span className="truncate font-medium text-slate-200">{String(g.player)}</span>{g.assist && <span className="text-[8.5px] text-slate-500 truncate">👟 {String(g.assist)}</span>}</div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  return (
-    <div className="animate-in fade-in">
-      <div className="flex items-center justify-between mb-6"><h2 className="text-2xl font-bold text-white flex items-center gap-2"><CheckSquare className="text-amber-500" /> Validação na Nuvem</h2><span className="bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-sm">{pending.length} Pendentes</span></div>
-      {pending.length === 0 ? (
-        <div className="bg-slate-900 p-12 rounded-2xl border border-slate-800 text-center shadow-xl"><CheckCircle className="text-emerald-500 mx-auto mb-4" size={48} /><p className="text-slate-400">Nenhum jogo aguardando validação.</p></div>
-      ) : (
-        <div className="grid gap-6">
-          {pending.map(m => {
-            if (!m) return null; const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
-            return (
-              <div key={m.id} className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col gap-5 shadow-xl">
-                <div className="text-center text-xs font-bold text-amber-500 uppercase tracking-widest bg-amber-500/5 py-2 rounded-lg border border-amber-500/10 mb-2">🏆 {String(getCompName(m.compId))}</div>
-                <div className="flex flex-col md:flex-row items-stretch gap-6">
-                  <div className="flex-1 space-y-4">
-                    <div className="flex flex-col items-center gap-3 w-full bg-slate-950 p-4 rounded-xl border border-slate-800/50">
-                      <div className="flex items-center justify-between w-full gap-2 border-b border-slate-800/50 pb-3">
-                        <div className="flex items-center gap-2 flex-1 min-w-0 justify-start"><div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="normal" /></div><span className="font-bold text-sm md:text-base text-white truncate">{String(tA?.name || 'Time A')}</span></div>
-                        <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-slate-900 rounded-lg border border-slate-700 shrink-0 relative flex-col">
-                          <div className="flex items-center gap-2">
-                             <input type="number" value={editedScores[m.id]?.scoreA !== undefined ? editedScores[m.id].scoreA : m.scoreA} onChange={(e) => handleScoreChange(m.id, 'scoreA', e.target.value)} className="w-12 md:w-16 bg-slate-950 border border-slate-800 text-center font-bold text-xl md:text-2xl text-emerald-400 rounded outline-none focus:border-emerald-500 transition-colors" />
-                             <span className="text-[10px] md:text-xs text-slate-500 font-bold mx-1">X</span>
-                             <input type="number" value={editedScores[m.id]?.scoreB !== undefined ? editedScores[m.id].scoreB : m.scoreB} onChange={(e) => handleScoreChange(m.id, 'scoreB', e.target.value)} className="w-12 md:w-16 bg-slate-950 border border-slate-800 text-center font-bold text-xl md:text-2xl text-emerald-400 rounded outline-none focus:border-emerald-500 transition-colors" />
-                          </div>
-                          {m.penaltiesA !== null && m.penaltiesA !== undefined && (
-                            <div className="flex items-center justify-center gap-1 mt-1 bg-slate-950 px-2 py-1 rounded border border-amber-500/20">
-                              <span className="text-[8px] tracking-widest uppercase text-amber-500 font-bold mr-1">Pênaltis:</span><input type="number" value={editedScores[m.id]?.penaltiesA !== undefined ? editedScores[m.id].penaltiesA : m.penaltiesA} onChange={(e) => handleScoreChange(m.id, 'penaltiesA', e.target.value)} className="w-8 bg-slate-900 border border-amber-500/30 text-center font-bold text-xs text-amber-400 rounded outline-none focus:border-amber-500" /><span className="text-[9px] text-slate-500 font-bold">X</span><input type="number" value={editedScores[m.id]?.penaltiesB !== undefined ? editedScores[m.id].penaltiesB : m.penaltiesB} onChange={(e) => handleScoreChange(m.id, 'penaltiesB', e.target.value)} className="w-8 bg-slate-900 border border-amber-500/30 text-center font-bold text-xs text-amber-400 rounded outline-none focus:border-amber-500" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 flex-1 min-w-0 justify-end"><span className="font-bold text-sm md:text-base text-white truncate text-right">{String(tB?.name || 'Time B')}</span><div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="normal" /></div></div>
-                      </div>
-                      <div className="flex items-start justify-between w-full pt-1"><div className="flex-1 min-w-0">{getFormattedGoals(m.teamA, m.goals || [], 'left')}</div><div className="w-[40px] shrink-0"></div><div className="flex-1 min-w-0">{getFormattedGoals(m.teamB, m.goals || [], 'right')}</div></div>
-                    </div>
-                    {m.observacoes && <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm"><p className="text-amber-400 font-semibold mb-1 text-xs">Observações do Técnico:</p><p className="text-slate-300 italic">"{String(m.observacoes)}"</p></div>}
-                    <div className="text-[10px] text-slate-500 text-center md:text-left">Enviado por: <span className="text-slate-400 font-semibold">{String(m.submittedBy)}</span></div>
-                  </div>
-                  <div className="md:w-48 bg-slate-950 rounded-xl border border-slate-800 flex flex-col items-center justify-center p-4 text-center gap-2 relative overflow-hidden">
-                    {typeof m.imageUrl === 'string' && m.imageUrl.startsWith('data:image') ? (
-                      <><img src={m.imageUrl} alt="Print da Partida" onClick={() => window.open(m.imageUrl, '_blank')} className="absolute inset-0 w-full h-full object-cover opacity-50 hover:opacity-100 transition-opacity cursor-pointer z-0" /><span className="text-[10px] font-bold text-white bg-black/60 px-2 py-1 rounded z-10 pointer-events-none shadow-xl">CLIQUE PARA AMPLIAR</span></>
-                    ) : ( <><Shield size={32} className="text-slate-600 animate-pulse" /><span className="text-xs text-slate-400 font-semibold z-10 drop-shadow-md">Nenhum Print</span><span className="text-[10px] text-slate-600 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 z-10">Envio Manual</span></> )}
-                  </div>
-                </div>
-                <div className="flex gap-2 justify-end pt-3 border-t border-slate-800/50">
-                  <Button variant="outline" className="border-red-500/50 text-red-400" onClick={() => { onUpdateStatus(m.id, 'rejected'); showToast("Jogo Rejeitado!", "error"); }}><XCircle size={16}/> Rejeitar</Button>
-                  <Button onClick={() => { onUpdateStatus(m.id, 'approved', editedScores[m.id]); showToast("Jogo Aprovado e validado!", "success"); }}><CheckCircle size={16}/> Aprovar e computar pontos</Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 };
