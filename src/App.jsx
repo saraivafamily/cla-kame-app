@@ -659,34 +659,129 @@ const CreateTeam = ({ onCreate }) => {
 
 const TeamsList = ({ teams, currentUser, onEditTeam }) => {
   const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ name: '', coach: '', whatsapp: '' });
+  const [editData, setEditData] = useState({ name: '', coach: '', whatsapp: '', shield: '' });
+  const [viewMode, setViewMode] = useState('grid');
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  const handleWhatsApp = (phone) => { if (!phone) return; window.open(`https://wa.me/${String(phone).replace(/\D/g, '')}`, '_blank'); };
+  const startEdit = (team) => { if (!team) return; setEditingId(team.id); setEditData({ name: team.name || '', coach: team.coach || '', whatsapp: team.whatsapp || '', shield: team.shield || '🛡️' }); };
+  const saveEdit = (team) => { if (!editData.name || !editData.coach) return; onEditTeam({ ...team, ...editData }); setEditingId(null); };
 
-  const handleWhatsApp = (phone) => { if (phone) window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank'); };
-  const startEdit = (team) => { setEditingId(team.id); setEditData({ name: team.name, coach: team.coach || '', whatsapp: team.whatsapp || '' }); };
-  const saveEdit = (team) => { if (editData.name) { onEditTeam({ ...team, ...editData }); setEditingId(null); } };
+  // Filtro de busca inteligente (por nome do time ou técnico)
+  const filteredTeams = (teams || []).filter(t => 
+    t && (
+      String(t.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+      String(t.coach || '').toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  );
 
   return (
-    <div className="animate-in fade-in duration-500">
-      <div className="flex items-center gap-3 mb-6"><Shield className="text-emerald-500" size={28} /><h2 className="text-2xl font-bold text-white">Mural de Times</h2></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {teams.map(team => {
-          if (editingId === team.id) {
+    <div className="animate-in fade-in duration-500 space-y-6 pb-12">
+      
+      {/* Cabeçalho com Total de Times e Barra de Pesquisa */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 p-4 md:p-6 rounded-2xl border border-slate-800 shadow-xl">
+        <div className="flex items-center gap-3">
+          <Shield className="text-emerald-500" size={32} />
+          <div>
+            <h2 className="text-xl md:text-2xl font-bold text-white">Mural de Times</h2>
+            <p className="text-xs text-emerald-400 font-bold tracking-widest uppercase mt-0.5">{(teams || []).length} Times Cadastrados</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <input 
+            type="text" 
+            placeholder="Procurar time ou técnico..." 
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="flex-1 md:w-64 bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-2 text-white outline-none transition-colors text-sm"
+          />
+          <div className="flex p-1 bg-slate-950 rounded-lg border border-slate-700 shrink-0">
+            <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`} title="Ver em Grade"><LayoutGrid size={16} /></button>
+            <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`} title="Ver em Lista"><List size={16} /></button>
+          </div>
+        </div>
+      </div>
+      
+      {filteredTeams.length === 0 ? ( 
+        <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center text-slate-500">
+          {searchTerm ? 'Nenhum time encontrado com essa busca.' : 'Nenhum time registrado no clã ainda.'}
+        </div> 
+      ) : (
+        <div className={viewMode === 'grid' ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4" : "flex flex-col gap-3"}>
+          {filteredTeams.map(team => {
+            if (!team) return null;
+            
+            /* MODO EDIÇÃO */
+            if (editingId === team.id) {
+              return (
+                <div key={team.id} className={`bg-slate-900 p-3 rounded-xl border border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)] flex ${viewMode === 'list' ? 'flex-col md:flex-row items-start md:items-center justify-between gap-4' : 'flex-col justify-between gap-3'}`}>
+                  <div className={`flex items-center gap-2 ${viewMode === 'list' ? 'flex-row w-full flex-wrap' : 'flex-col'}`}>
+                    <div className="shrink-0 pt-1">
+                      <label className="cursor-pointer relative group flex flex-col items-center">
+                        <div className="relative">
+                          <ShieldDisplay shield={editData.shield} size="normal" />
+                          <div className="absolute -bottom-1 -right-2 bg-emerald-600 rounded-full p-1 shadow-lg group-hover:scale-110 transition-transform flex items-center justify-center"><UploadCloud size={10} className="text-white" /></div>
+                        </div>
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], (base64) => setEditData({...editData, shield: base64}))} />
+                      </label>
+                    </div>
+                    <div className={`flex-1 space-y-1.5 w-full ${viewMode === 'list' ? 'flex flex-col sm:flex-row gap-2 space-y-0 mt-0' : 'mt-1'}`}>
+                      <input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} placeholder="Time" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
+                      <input type="text" value={editData.coach} onChange={e=>setEditData({...editData, coach: e.target.value})} placeholder="Técnico" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
+                      <input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} placeholder="WhatsApp" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
+                    </div>
+                  </div>
+                  <div className={`flex gap-1.5 ${viewMode === 'list' ? 'w-full md:w-auto shrink-0 justify-end' : 'mt-1'}`}>
+                    <Button variant="outline" onClick={() => setEditingId(null)} className="flex-1 md:flex-none py-1.5 text-[10px] px-3 hover:text-white"><X size={12}/> {viewMode === 'list' && <span className="hidden sm:inline">Cancelar</span>}</Button>
+                    <Button onClick={() => saveEdit(team)} className="flex-1 md:flex-none py-1.5 text-[10px] px-3"><Save size={12}/> {viewMode === 'list' && <span className="hidden sm:inline">Salvar</span>}</Button>
+                  </div>
+                </div>
+              );
+            }
+
+            /* MODO VISUALIZAÇÃO EM LISTA */
+            if (viewMode === 'list') {
+               return (
+                <div key={team.id} className="relative bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group">
+                  <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
+                    <div className="shrink-0"><ShieldDisplay shield={team.shield} size="normal" /></div>
+                    <div className="flex-1 min-w-0 pr-10 sm:pr-0">
+                      <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate">{String(team.name || 'Time')}</h3>
+                      <p className="text-[10px] md:text-xs text-slate-400 mt-0.5 truncate"><span className="text-slate-300 font-medium">{String(team.coach || 'Sem técnico')}</span> • {String(team.whatsapp || 'Sem WhatsApp')}</p>
+                    </div>
+                  </div>
+                  {currentUser?.role === 'leader' && (
+                    <button onClick={() => startEdit(team)} className="absolute top-3 sm:top-auto sm:relative right-3 sm:right-auto text-slate-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors sm:opacity-0 sm:group-hover:opacity-100 shrink-0" title="Editar Time"><Edit size={16} /></button>
+                  )}
+                  <Button onClick={() => handleWhatsApp(team.whatsapp)} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-3 text-xs disabled:bg-slate-800 disabled:text-slate-500 shrink-0" disabled={!team.whatsapp}>
+                    <MessageCircle size={16} /> <span className="sm:hidden lg:inline">Chamar</span>
+                  </Button>
+                </div>
+               );
+            }
+
+            /* MODO VISUALIZAÇÃO EM GRADE (Padrão) */
             return (
-              <div key={team.id} className="bg-slate-900 p-6 rounded-2xl border border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)] flex flex-col justify-between gap-4">
-                <div className="flex items-start gap-4"><span className="text-5xl mt-2">{team.shield}</span><div className="flex-1 space-y-2 w-full"><input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm" /><input type="text" value={editData.coach} onChange={e=>setEditData({...editData, coach: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm" /><input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm" /></div></div>
-                <div className="flex gap-2 mt-2"><Button variant="outline" onClick={() => setEditingId(null)} className="flex-1 py-2 text-slate-400 hover:text-white"><X size={16}/> Cancelar</Button><Button onClick={() => saveEdit(team)} className="flex-1 py-2"><Save size={16}/> Salvar</Button></div>
+              <div key={team.id} className="relative bg-slate-900 p-3 md:p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-3 group">
+                {currentUser?.role === 'leader' && (
+                  <button onClick={() => startEdit(team)} className="absolute top-2 right-2 text-slate-500 hover:text-emerald-400 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-slate-800" title="Editar Time"><Edit size={14} /></button>
+                )}
+                <div className="flex flex-col items-center text-center gap-2 mt-2">
+                  <div className="shrink-0"><ShieldDisplay shield={team.shield} size="normal" /></div>
+                  <div className="w-full">
+                    <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate px-2">{String(team.name || 'Time')}</h3>
+                    <p className="text-[9px] md:text-[10px] text-slate-400 mt-1 truncate px-1"><span className="text-slate-300 font-medium">{String(team.coach || 'Sem técnico')}</span></p>
+                  </div>
+                </div>
+                <Button onClick={() => handleWhatsApp(team.whatsapp)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-1 py-1.5 text-[10px] md:text-xs px-2 disabled:bg-slate-800 disabled:text-slate-500" disabled={!team.whatsapp}>
+                  <MessageCircle size={14} /> Chamar
+                </Button>
               </div>
             );
-          }
-          return (
-            <div key={team.id} className="relative bg-slate-900 p-6 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 group">
-              {currentUser?.role === 'leader' && <button onClick={() => startEdit(team)} className="absolute top-4 right-4 text-slate-500 hover:text-emerald-400 opacity-0 group-hover:opacity-100 p-2"><Edit size={18} /></button>}
-              <div className="flex items-center gap-4"><span className="text-5xl">{team.shield}</span><div><h3 className="text-xl font-bold text-white pr-8">{team.name}</h3><p className="text-sm text-slate-400">Técnico: <span className="text-slate-300 font-medium">{team.coach || 'Não informado'}</span></p></div></div>
-              <Button onClick={() => handleWhatsApp(team.whatsapp)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-2" disabled={!team.whatsapp}><MessageCircle size={18} /> Chamar pra Batalha</Button>
-            </div>
-          );
-        })}
-      </div>
+          })}
+        </div>
+      )}
     </div>
   );
 };
