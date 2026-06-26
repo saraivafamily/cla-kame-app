@@ -785,7 +785,6 @@ const TeamsList = ({ teams, currentUser, onEditTeam }) => {
     </div>
   );
 };
-
 const Profile = ({ currentUser, teams, matches, competitions }) => {
   const userTeams = teams.filter(t => t.ownerId === currentUser.id);
 
