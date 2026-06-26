@@ -113,152 +113,675 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
   return <button type={type} onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant]} ${className}`}>{children}</button>;
 };
 
-const LoginScreen = ({ users, onLogin, onFirstAccess }) => {
+const LoginScreen = ({ users, onLogin, onRegister }) => {
   const [view, setView] = useState('login'); 
+  const [step, setStep] = useState(1); 
+  const [formData, setFormData] = useState({ firstName: '', lastName: '', teamName: '', whatsapp: '', password: '' });
   const [loginData, setLoginData] = useState({ identifier: '', password: '' });
   const [loginError, setLoginError] = useState('');
-  const [showForgot, setShowForgot] = useState(false);
-  const [faEmail, setFaEmail] = useState('');
-  const [faUser, setFaUser] = useState(null);
   const [code, setCode] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
+  const [showForgot, setShowForgot] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault(); 
+  const handleSendCode = (e) => {
+    e.preventDefault();
+    setIsSending(true);
+    setTimeout(() => { setIsSending(false); setStep(2); }, 1500);
+  };
+
+  const handleLoginSubmit = (e) => {
+    e.preventDefault();
     setLoginError('');
-    try { 
-      await onLogin(loginData.identifier, loginData.password); 
-    } catch (error) { 
-      setLoginError(error.message || 'Erro nas credenciais.'); 
+    const foundUser = users.find(u => 
+      (u.name.toLowerCase() === loginData.identifier.toLowerCase() || u.whatsapp === loginData.identifier) && 
+      u.password === loginData.password
+    );
+    if (foundUser) {
+      onLogin(foundUser.id, rememberMe); 
+    } else {
+      setLoginError('Credenciais inválidas. Verifique os dados e tente novamente.');
     }
-  };
-
-  const handleRequestCode = (e) => {
-    e.preventDefault(); 
-    setLoginError('');
-    const cleanInput = faEmail.trim().toLowerCase(); 
-    const cleanPhone = cleanInput.replace(/\D/g, '');
-    
-    const user = (users || []).find(u => u && (
-      (u.email && String(u.email).toLowerCase() === cleanInput) || 
-      (cleanPhone.length >= 8 && String(u.whatsapp) === cleanPhone)
-    ));
-    
-    if (!user) { 
-      setLoginError('Cadastro não localizado. Fale com um Líder.'); 
-      return; 
-    }
-    if (!String(user.id).startsWith('pending_')) { 
-      setLoginError('Esta conta já está ativada. Volte e faça o login normalmente.'); 
-      return; 
-    }
-    
-    setFaUser(user); 
-    setIsSending(true); 
-    setTimeout(() => { 
-      setIsSending(false); 
-      setView('fa_code'); 
-    }, 1200);
-  };
-
-  const handleVerifyCode = (e) => { 
-    e.preventDefault(); 
-    setIsSending(true); 
-    setTimeout(() => { 
-      setIsSending(false); 
-      setView('fa_pass'); 
-    }, 1000); 
-  };
-
-  const handleSavePassword = async (e) => { 
-    e.preventDefault(); 
-    if (newPassword.length < 6) { 
-      setLoginError('A senha deve ter no mínimo 6 caracteres.'); 
-      return; 
-    } 
-    try { 
-      await onFirstAccess(faUser, faEmail, faUser?.whatsapp || '', newPassword); 
-    } catch (error) { 
-      setLoginError(error.message); 
-    } 
   };
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 max-w-md w-full shadow-2xl">
         <div className="text-center mb-6">
-          <div className="flex justify-center mb-4">
-            <img src={LOGO_URL} alt="Clã Kame" className="max-w-[100px]" />
-          </div>
-          <h1 className="text-xl font-bold text-white">Clã Kame DLS</h1>
+          <div className="text-5xl mb-3">🐢</div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Clã Kame</h1>
+          <p className="text-slate-400 mt-2 text-sm">Sistema de Gestão DLS na Nuvem</p>
         </div>
-        
+
+        <div className="flex p-1 bg-slate-950 rounded-xl mb-6">
+          <button onClick={() => setView('login')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${view === 'login' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Entrar</button>
+          <button onClick={() => {setView('register'); setStep(1);}} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${view === 'register' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Criar Conta</button>
+        </div>
+
         {view === 'login' && (
           <form onSubmit={handleLoginSubmit} className="space-y-4 animate-in fade-in duration-300">
-            {loginError && <div className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{String(loginError)}</div>}
+            {loginError && (
+              <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg border border-red-500/20 flex items-center gap-2">
+                <AlertCircle size={16} className="shrink-0" /><span>{loginError}</span>
+              </div>
+            )}
             <div>
-              <label className="text-xs text-slate-400 block mb-1">E-mail ou WhatsApp</label>
-              <input required value={loginData.identifier} onChange={e=>setLoginData({...loginData, identifier: e.target.value})} className={inputClass} placeholder="Digite seu acesso..." />
+              <label className="text-xs text-slate-400 mb-1 block">WhatsApp ou Nome do Técnico</label>
+              <input required value={loginData.identifier} onChange={e=>setLoginData({...loginData, identifier: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm transition-all" placeholder="Ex: Vitor ou 5511999999999" />
             </div>
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Senha</label>
-              <input required type="password" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} className={inputClass} placeholder="••••••••" />
+              <label className="text-xs text-slate-400 mb-1 block">Senha</label>
+              <input required type="password" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm transition-all" placeholder="••••••••" />
             </div>
-            <div className="text-right">
-              <button type="button" onClick={() => setShowForgot(!showForgot)} className="text-xs text-emerald-400 hover:underline">Esqueci a senha</button>
+            <div className="flex items-center justify-between mt-2">
+              <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer hover:text-slate-300 transition-colors">
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-900 w-4 h-4 cursor-pointer" />
+                Manter conectado
+              </label>
+              <button type="button" onClick={() => setShowForgot(true)} className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors underline underline-offset-2">Esqueci a senha</button>
             </div>
-            {showForgot && <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg text-xs text-emerald-400 text-center animate-in fade-in">Em breve: Recuperação automática por WhatsApp! Fale com um líder por agora.</div>}
-            
-            <Button type="submit" className="w-full py-3">Entrar na Arena</Button>
-            
-            <div className="text-center pt-5 border-t border-slate-800/50 mt-6">
-              <p className="text-xs text-slate-500 mb-2">Foi convidado e ainda não tem acesso?</p>
-              <button type="button" onClick={() => {setView('fa_email'); setLoginError('');}} className="text-sm font-bold text-emerald-400 hover:text-emerald-300 underline">Primeiro Acesso / Ativar Conta</button>
-            </div>
+            {showForgot && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg text-xs text-emerald-400 text-center animate-in fade-in">
+                Enviaremos um link de redefinição para o seu WhatsApp cadastrado!
+              </div>
+            )}
+            <Button type="submit" className="w-full mt-4 py-3">Entrar na Batalha</Button>
           </form>
         )}
 
-        {view === 'fa_email' && (
-          <form onSubmit={handleRequestCode} className="space-y-4 animate-in slide-in-from-right-4 duration-300">
-            <h2 className="text-lg font-bold text-white text-center mb-2">Primeiro Acesso</h2>
-            <p className="text-xs text-slate-400 text-center mb-4">Insira o e-mail ou WhatsApp cadastrado pelo Líder.</p>
-            {loginError && <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg border border-red-500/20">{String(loginError)}</div>}
-            <div>
-              <input required placeholder="Ex: tecnico@email.com" type="text" value={faEmail} onChange={e=>setFaEmail(e.target.value)} className={inputClass} />
+        {view === 'register' && step === 1 && (
+          <form onSubmit={handleSendCode} className="space-y-4 animate-in slide-in-from-right-4 duration-300">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Nome</label>
+                <input required value={formData.firstName} onChange={e=>setFormData({...formData, firstName: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 text-sm" placeholder="Ex: Don" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Sobrenome</label>
+                <input required value={formData.lastName} onChange={e=>setFormData({...formData, lastName: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 text-sm" placeholder="Ex: Luck" />
+              </div>
             </div>
-            <Button type="submit" disabled={isSending} className="w-full py-3">{isSending ? 'Buscando...' : 'Verificar Cadastro'}</Button>
-            <button type="button" onClick={() => {setView('login'); setLoginError('');}} className="w-full text-xs text-slate-500 hover:text-white mt-4">Voltar para o Login</button>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Nome do Time</label>
+              <input required value={formData.teamName} onChange={e=>setFormData({...formData, teamName: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 text-sm" placeholder="Ex: Luckers FC" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">WhatsApp (com DDD)</label>
+              <input required type="tel" value={formData.whatsapp} onChange={e=>setFormData({...formData, whatsapp: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 text-sm" placeholder="Ex: 11999999999" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Crie uma Senha</label>
+              <input required type="password" value={formData.password} onChange={e=>setFormData({...formData, password: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 text-sm" placeholder="Min. 6 caracteres" minLength={6} />
+            </div>
+            <Button type="submit" disabled={isSending} className="w-full mt-2 py-3">
+              {isSending ? 'Enviando Código...' : 'Enviar Código via WhatsApp'}
+            </Button>
           </form>
         )}
 
-        {view === 'fa_code' && (
-           <form onSubmit={handleVerifyCode} className="space-y-4 animate-in slide-in-from-right-4 duration-300 text-center">
+        {view === 'register' && step === 2 && (
+           <form onSubmit={(e) => { e.preventDefault(); onRegister(formData); }} className="space-y-4 animate-in slide-in-from-right-4 duration-300 text-center">
              <div className="bg-emerald-500/10 text-emerald-400 p-4 rounded-xl mb-4 text-sm border border-emerald-500/20">
-               Enviamos um código para o WhatsApp final <br/>
-               <b className="text-lg tracking-wider text-white mt-1 inline-block">***{String(faUser?.whatsapp || '').slice(-4)}</b>
+               Código de 4 dígitos enviado para <br/><b className="text-lg tracking-wider text-white mt-1 inline-block">{formData.whatsapp}</b>
+               <span className="text-xs text-slate-400 mt-4 block p-2 bg-slate-950 rounded-lg border border-slate-800">
+                 (Teste: Digite qualquer código, ex: <b>1234</b>)
+               </span>
              </div>
              <div>
-               <input required type="text" maxLength={4} value={code} onChange={e=>setCode(e.target.value)} className="w-40 mx-auto text-center tracking-[0.7em] font-bold text-3xl bg-slate-950 border border-slate-700 rounded-xl p-4 text-white outline-none focus:border-emerald-500 block" placeholder="0000" />
+               <input required type="text" maxLength={4} value={code} onChange={e=>setCode(e.target.value)} className="w-40 mx-auto text-center tracking-[0.7em] font-bold text-3xl bg-slate-950 border border-slate-700 rounded-xl p-4 text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/50" placeholder="0000" />
              </div>
-             <Button type="submit" disabled={code.length < 4 || isSending} className="w-full py-4 text-lg mt-4 shadow-xl">{isSending ? 'Verificando...' : 'Validar Código'}</Button>
-             <button type="button" onClick={()=>setView('fa_email')} className="text-sm text-slate-500 hover:text-white mt-4 underline">Voltar</button>
-           </form>
-        )}
-
-        {view === 'fa_pass' && (
-           <form onSubmit={handleSavePassword} className="space-y-4 animate-in slide-in-from-right-4 duration-300">
-             <h2 className="text-lg font-bold text-emerald-400 text-center mb-2">Quase lá, {String(faUser?.name || '').split(' ')[0]}!</h2>
-             <p className="text-xs text-slate-400 text-center mb-4">Crie a sua senha de acesso oficial.</p>
-             {loginError && <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg border border-red-500/20">{String(loginError)}</div>}
-             <div>
-               <label className="text-xs text-slate-400 block mb-1">Crie a sua Senha</label>
-               <input required type="password" minLength={6} value={newPassword} onChange={e=>setNewPassword(e.target.value)} className={inputClass} placeholder="No mínimo 6 caracteres" />
-             </div>
-             <Button type="submit" className="w-full py-4 text-lg mt-4 shadow-xl">Salvar Senha e Entrar</Button>
+             <Button type="submit" disabled={code.length < 4} className="w-full py-4 text-lg mt-4 shadow-xl">Verificar e Criar Conta</Button>
+             <button type="button" onClick={()=>setStep(1)} className="text-sm text-slate-500 hover:text-white mt-4 underline underline-offset-4">Voltar e corrigir número</button>
            </form>
         )}
       </div>
+    </div>
+  );
+};
+
+const Standings = ({ matches, teams, compId, compName }) => {
+  const table = useMemo(() => calculateStandings(matches, teams, compId), [matches, teams, compId]);
+
+  return (
+    <div className="animate-in fade-in duration-500">
+      {compName && (
+        <div className="flex items-center gap-3 mb-6">
+          <Trophy className="text-amber-400" size={28} />
+          <h2 className="text-2xl font-bold text-white">Tabela - {compName}</h2>
+        </div>
+      )}
+      <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto">
+        <table className="w-full text-left text-sm whitespace-nowrap">
+          <thead className="bg-slate-950/50 text-slate-400 font-medium">
+            <tr>
+              <th className="p-4 w-12 text-center">#</th>
+              <th className="p-4">Time</th>
+              <th className="p-4 text-center">PTS</th>
+              <th className="p-4 text-center">J</th>
+              <th className="p-4 text-center">V</th>
+              <th className="p-4 text-center">E</th>
+              <th className="p-4 text-center">D</th>
+              <th className="p-4 text-center">GP</th>
+              <th className="p-4 text-center">GC</th>
+              <th className="p-4 text-center">SG</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800/50">
+            {table.filter(t => t.p > 0 || table.length > 0).map((row, index) => (
+              <tr key={row.id} className="hover:bg-slate-800/50 transition-colors">
+                <td className="p-4 text-center font-bold text-slate-500">{index + 1}</td>
+                <td className="p-4 font-medium text-white flex items-center gap-2"><span className="text-xl">{row.shield}</span> {row.name}</td>
+                <td className="p-4 text-center font-bold text-emerald-400">{row.pts}</td>
+                <td className="p-4 text-center text-slate-300">{row.p}</td>
+                <td className="p-4 text-center text-slate-300">{row.w}</td>
+                <td className="p-4 text-center text-slate-300">{row.d}</td>
+                <td className="p-4 text-center text-slate-300">{row.l}</td>
+                <td className="p-4 text-center text-slate-400">{row.gf}</td>
+                <td className="p-4 text-center text-slate-400">{row.ga}</td>
+                <td className="p-4 text-center text-slate-400 font-medium">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
+              </tr>
+            ))}
+            {table.length === 0 && <tr><td colSpan="10" className="p-4 text-center text-slate-500">Nenhum time registrado.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound }) => {
+  const getTeam = (id) => teams.find(t => t.id === id);
+
+  const getMatchStatusDisplay = (matchId) => {
+    const submittedMatch = matches.find(m => m.matchId === matchId);
+    if (!submittedMatch) return { text: 'Aguardando Jogo', color: 'text-slate-400', bg: 'bg-slate-800' };
+    if (submittedMatch.status === 'approved') return { text: `${submittedMatch.scoreA} - ${submittedMatch.scoreB}`, color: 'text-emerald-400 font-bold text-lg', bg: 'bg-slate-950 border border-emerald-900' };
+    if (submittedMatch.status === 'pending') return { text: 'Em Validação', color: 'text-amber-400', bg: 'bg-amber-500/10' };
+    if (submittedMatch.status === 'rejected') return { text: 'Rejeitado (Rejogar)', color: 'text-red-400', bg: 'bg-red-500/10' };
+    return { text: 'Desconhecido', color: 'text-slate-400', bg: 'bg-slate-800' };
+  };
+
+  return (
+    <div className="animate-in fade-in duration-500 space-y-6">
+      <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4"><ArrowLeft size={20} /> Voltar para Competições</button>
+      <div className="bg-gradient-to-r from-emerald-900/40 to-slate-900 p-6 rounded-2xl border border-emerald-900/50 flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-bold text-white mb-2">{comp.name}</h2>
+          <p className="text-emerald-400 flex items-center gap-2"><Trophy size={16}/> {comp.format === 'league' ? 'Pontos Corridos' : 'Mata-Mata'}</p>
+        </div>
+        <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm font-medium">Em Andamento</span>
+      </div>
+
+      <Standings matches={matches} teams={teams} compId={comp.id} />
+
+      <div className="mt-8">
+        <h3 className="text-xl font-bold text-white mb-4">Rodadas</h3>
+        {comp.rounds?.length > 0 ? (
+          <div className="space-y-6">
+            {comp.rounds.map((round) => (
+              <div key={round.id} className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+                <div className="bg-slate-950/50 p-4 border-b border-slate-800 flex justify-between items-center">
+                  <h4 className="font-bold text-white flex items-center gap-2">
+                    {round.status === 'locked' ? <Lock size={16} className="text-slate-500"/> : <PlayCircle size={16} className="text-emerald-500"/>}
+                    Rodada {round.number}
+                  </h4>
+                  {round.status === 'locked' ? (
+                    currentUser.role === 'leader' ? (
+                      <Button variant="outline" className="text-xs py-1 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10" onClick={() => onReleaseRound(comp.id, round.id)}>Liberar Rodada</Button>
+                    ) : ( <span className="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded-full">Bloqueada</span> )
+                  ) : ( <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">Liberada para Jogar</span> )}
+                </div>
+                <div className="p-4 grid gap-3">
+                  {round.matches.map(match => {
+                    const tA = getTeam(match.teamA); const tB = getTeam(match.teamB); const statusUI = getMatchStatusDisplay(match.id);
+                    return (
+                      <div key={match.id} className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800/50">
+                        <div className="flex-1 text-right font-medium text-slate-200">{tA?.name} <span className="ml-2 text-xl">{tA?.shield}</span></div>
+                        <div className={`mx-4 px-4 py-2 rounded-lg text-sm text-center min-w-[120px] ${statusUI.bg} ${statusUI.color}`}>{statusUI.text}</div>
+                        <div className="flex-1 text-left font-medium text-slate-200"><span className="mr-2 text-xl">{tB?.shield}</span> {tB?.name}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : ( <p className="text-slate-500 text-center py-8 bg-slate-900 rounded-xl border border-slate-800">Nenhuma rodada gerada.</p> )}
+      </div>
+    </div>
+  );
+};
+
+const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser }) => {
+  const [selectedCompId, setSelectedCompId] = useState('');
+  const [selectedMatchId, setSelectedMatchId] = useState('');
+  const [availableMatches, setAvailableMatches] = useState([]);
+  
+  const [teamA, setTeamA] = useState(null); const [teamB, setTeamB] = useState(null);
+  const [scoreA, setScoreA] = useState(''); const [scoreB, setScoreB] = useState('');
+  const [goalsA, setGoalsA] = useState([]); const [goalsB, setGoalsB] = useState([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false); const [imageUploaded, setImageUploaded] = useState(false);
+
+  const userTeamIds = teams.filter(t => t.ownerId === currentUser.id).map(t => t.id);
+  const visibleCompetitions = competitions.filter(c => currentUser.role === 'leader' || c.teams?.some(tId => userTeamIds.includes(tId)));
+
+  useEffect(() => {
+    setSelectedMatchId(''); resetAI();
+    if (!selectedCompId) { setAvailableMatches([]); return; }
+    const comp = competitions.find(c => c.id === selectedCompId);
+    if (comp && comp.rounds) {
+      let toPlay = [];
+      comp.rounds.filter(r => r.status === 'released').forEach(round => {
+        round.matches.forEach(rm => {
+          const alreadySubmitted = matches.some(m => m.matchId === rm.id && (m.status === 'pending' || m.status === 'approved'));
+          if (!alreadySubmitted && (currentUser.role === 'leader' || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
+            toPlay.push({ ...rm, roundId: round.id });
+          }
+        });
+      });
+      setAvailableMatches(toPlay);
+    }
+  }, [selectedCompId, competitions, matches]);
+
+  useEffect(() => {
+    resetAI();
+    if (selectedMatchId) {
+      const match = availableMatches.find(m => m.id === selectedMatchId);
+      if (match) { setTeamA(teams.find(t => t.id === match.teamA)); setTeamB(teams.find(t => t.id === match.teamB)); }
+    } else { setTeamA(null); setTeamB(null); }
+  }, [selectedMatchId, availableMatches, teams]);
+
+  const resetAI = () => { setScoreA(''); setScoreB(''); setGoalsA([]); setGoalsB([]); setImageUploaded(false); };
+
+  const simulateAIAnalysis = () => {
+    if (!selectedMatchId) return;
+    setIsAnalyzing(true);
+    setTimeout(() => {
+      const sA = Math.floor(Math.random() * 4); const sB = Math.floor(Math.random() * 4);
+      setScoreA(sA.toString()); setScoreB(sB.toString());
+      const mockPlayers = ['Goku', 'Vegeta', 'Gohan', 'Piccolo', 'Kuririn', 'Trunks'];
+      setGoalsA(Array.from({length: sA}, () => ({ player: mockPlayers[Math.floor(Math.random()*3)], minute: Math.floor(Math.random()*90)+1 })).sort((a,b)=>a.minute-b.minute));
+      setGoalsB(Array.from({length: sB}, () => ({ player: mockPlayers[Math.floor(Math.random()*3)+3], minute: Math.floor(Math.random()*90)+1 })).sort((a,b)=>a.minute-b.minute));
+      setIsAnalyzing(false); setImageUploaded(true);
+    }, 2000);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if(!selectedCompId || !selectedMatchId || scoreA === '' || scoreB === '') return;
+    const matchDetails = availableMatches.find(m => m.id === selectedMatchId);
+    onSubmit({
+      id: `m_${Date.now()}`,
+      compId: selectedCompId, roundId: matchDetails.roundId, matchId: selectedMatchId,
+      teamA: teamA.id, teamB: teamB.id, scoreA: parseInt(scoreA), scoreB: parseInt(scoreB),
+      goals: [...goalsA.map(g => ({ teamId: teamA.id, player: g.player, minute: g.minute })), ...goalsB.map(g => ({ teamId: teamB.id, player: g.player, minute: g.minute }))],
+      status: 'pending', submittedBy: currentUser.id, imageUrl: 'simulated_image_url'
+    });
+    setSelectedCompId('');
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12">
+      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida (IA)</h2>
+      <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-slate-400 mb-2">1. Selecione o Campeonato</label>
+          <select value={selectedCompId} onChange={e => setSelectedCompId(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
+            <option value="">Escolha um campeonato...</option>
+            {visibleCompetitions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+
+        {selectedCompId && (
+          <div className="animate-in fade-in">
+            <label className="block text-sm font-medium text-slate-400 mb-2">2. Selecione a Partida Liberada</label>
+            {availableMatches.length > 0 ? (
+              <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
+                <option value="">Qual jogo você jogou?</option>
+                {availableMatches.map(m => {
+                  const tA = teams.find(t=>t.id===m.teamA)?.name; const tB = teams.find(t=>t.id===m.teamB)?.name;
+                  return <option key={m.id} value={m.id}>Rodada {m.roundId.replace('r','')} - {tA} x {tB}</option>
+                })}
+              </select>
+            ) : <div className="p-3 bg-slate-950 rounded border border-slate-800 text-slate-500 text-sm">Nenhuma partida pendente para você.</div>}
+          </div>
+        )}
+
+        {selectedMatchId && (
+          <div className="animate-in slide-in-from-top-4">
+            <label className="block text-sm font-medium text-slate-400 mb-2">3. Envie o Print do Resultado</label>
+            <div className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${imageUploaded ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-950'}`} onClick={!isAnalyzing ? simulateAIAnalysis : undefined}>
+              {isAnalyzing ? (
+                <div className="flex flex-col items-center space-y-3"><div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div><p className="text-emerald-400 font-medium">IA lendo placar e gols...</p></div>
+              ) : imageUploaded ? (
+                <div className="flex flex-col items-center space-y-2"><CheckCircle className="text-emerald-500" size={40} /><p className="text-emerald-400 font-medium">Dados extraídos com sucesso!</p></div>
+              ) : (
+                <div className="flex flex-col items-center space-y-3"><UploadCloud className="text-slate-500" size={40} /><p className="text-white font-medium">Clique para simular upload do print</p></div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {imageUploaded && (
+          <form onSubmit={handleSubmit} className="animate-in slide-in-from-bottom-4 space-y-6 pt-4 border-t border-slate-800">
+            <label className="block text-sm font-medium text-amber-400 mb-2 flex items-center gap-2"><AlertCircle size={16}/> Confirme os dados da IA</label>
+            <div className="flex flex-col md:flex-row gap-6 items-start bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <div className="flex-1 w-full space-y-3">
+                <div className="text-center font-bold text-lg text-slate-300 flex items-center justify-center gap-2">{teamA?.shield} {teamA?.name}</div>
+                <input type="number" value={scoreA} readOnly className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-emerald-400 text-center text-3xl font-bold cursor-not-allowed opacity-80" />
+                <div className="space-y-1">{goalsA.map((g, i) => <div key={i} className="text-xs bg-slate-800 p-2 rounded text-slate-300 flex justify-between"><span>{g.player}</span><span className="text-emerald-400">{g.minute}'</span></div>)}</div>
+              </div>
+              <div className="text-slate-500 font-bold text-xl self-center pt-8">X</div>
+              <div className="flex-1 w-full space-y-3">
+                <div className="text-center font-bold text-lg text-slate-300 flex items-center justify-center gap-2">{teamB?.name} {teamB?.shield}</div>
+                <input type="number" value={scoreB} readOnly className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-emerald-400 text-center text-3xl font-bold cursor-not-allowed opacity-80" />
+                <div className="space-y-1">{goalsB.map((g, i) => <div key={i} className="text-xs bg-slate-800 p-2 rounded text-slate-300 flex justify-between"><span>{g.player}</span><span className="text-emerald-400">{g.minute}'</span></div>)}</div>
+              </div>
+            </div>
+            <Button type="submit" className="w-full py-3 text-lg">Enviar Partida para Nuvem</Button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const Dashboard = ({ matches, teams }) => {
+  const recentMatches = [...matches].reverse().slice(0, 5);
+  const getTeam = (id) => teams.find(t => t.id === id);
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="bg-gradient-to-r from-emerald-900/50 to-slate-900 p-6 rounded-2xl border border-emerald-900/50">
+        <h2 className="text-2xl font-bold text-white mb-2">QG Nuvem Clã Kame</h2>
+        <p className="text-slate-400">Dados sincronizados em tempo real com todos os líderes e membros.</p>
+      </div>
+      <div>
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados da Nuvem</h3>
+        <div className="space-y-3">
+          {recentMatches.length === 0 && <p className="text-slate-500 text-sm">Nenhum resultado enviado na nuvem.</p>}
+          {recentMatches.map(m => {
+            const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
+            return (
+              <div key={m.id} className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="text-right flex-1 font-medium text-slate-200">{tA?.name} <span className="ml-1 text-xl">{tA?.shield}</span></div>
+                  <div className="bg-slate-950 px-4 py-2 rounded-lg font-bold text-xl text-emerald-400 border border-slate-800">
+                    {m.status === 'approved' || m.status === 'pending' ? `${m.scoreA} - ${m.scoreB}` : '? - ?'}
+                  </div>
+                  <div className="flex-1 font-medium text-slate-200"><span className="mr-1 text-xl">{tB?.shield}</span> {tB?.name}</div>
+                </div>
+                <div className="ml-4 w-24 text-right">
+                  {m.status === 'approved' ? <span className="text-xs text-emerald-400">✅ Oficial</span> : m.status === 'rejected' ? <span className="text-xs text-red-400">❌ Rejeitado</span> : <span className="text-xs text-amber-400">⏳ Pendente</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp }) => {
+  const userTeamIds = teams.filter(t => t.ownerId === currentUser.id).map(t => t.id);
+  const visibleComps = competitions.filter(c => currentUser.role === 'leader' || c.teams?.some(t => userTeamIds.includes(t)));
+
+  return (
+    <div className="animate-in fade-in duration-500">
+      <div className="flex items-center gap-3 mb-6"><Medal className="text-emerald-500" size={28} /><h2 className="text-2xl font-bold text-white">Competições</h2></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {visibleComps.length === 0 && <p className="text-slate-500 col-span-2">Nenhuma competição cadastrada.</p>}
+        {visibleComps.map(comp => {
+          const isPart = comp.teams?.some(t => userTeamIds.includes(t));
+          return (
+            <div key={comp.id} onClick={() => onSelectComp(comp.id)} className={`cursor-pointer bg-slate-900 p-6 rounded-2xl border transition-all hover:scale-[1.02] ${currentUser.role === 'leader' && isPart ? 'border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)]' : isPart ? 'border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-slate-800 hover:border-slate-700'}`}>
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="text-xl font-bold text-white">{comp.name}</h3>
+                {isPart && <span className={`text-xs px-2 py-1 rounded-md font-bold ${currentUser.role === 'leader' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>Você Participa</span>}
+              </div>
+              <p className="text-sm text-slate-400 mb-4">{comp.format === 'league' ? 'Liga' : 'Copa'} • {comp.teams?.length || 0} equipes</p>
+              <div className="text-xs text-slate-500 flex justify-between items-center"><span>Ver Tabela e Jogos ➔</span></div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const ValidationPanel = ({ matches, teams, onUpdateStatus }) => {
+  const pending = matches.filter(m => m.status === 'pending');
+  const getTeam = (id) => teams.find(t => t.id === id);
+  return (
+    <div className="animate-in fade-in">
+      <div className="flex items-center justify-between mb-6"><h2 className="text-2xl font-bold text-white flex items-center gap-2"><CheckSquare className="text-amber-500" /> Validação na Nuvem</h2><span className="bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-sm">{pending.length} Pendentes</span></div>
+      {pending.length === 0 ? (
+        <div className="bg-slate-900 p-12 rounded-2xl border border-slate-800 text-center"><CheckCircle className="text-emerald-500 mx-auto mb-4" size={48} /><p className="text-slate-400">Nenhum jogo aguardando validação.</p></div>
+      ) : (
+        <div className="grid gap-4">
+          {pending.map(m => (
+            <div key={m.id} className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-center gap-6">
+              <div className="flex items-center gap-4 flex-1 w-full justify-center">
+                <div className="text-right flex-1 font-bold text-white">{getTeam(m.teamA)?.name}</div>
+                <div className="bg-slate-950 px-4 py-2 rounded-lg font-bold text-2xl text-emerald-400 border border-slate-800">{m.scoreA} - {m.scoreB}</div>
+                <div className="flex-1 font-bold text-white">{getTeam(m.teamB)?.name}</div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="border-red-500/50 text-red-400" onClick={() => onUpdateStatus(m.id, 'rejected')}><XCircle size={16}/> Rejeitar</Button>
+                <Button onClick={() => onUpdateStatus(m.id, 'approved')}><CheckCircle size={16}/> Aprovar</Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CreateCompetition = ({ teams, onCreate }) => {
+  const [name, setName] = useState(''); const [format, setFormat] = useState('league');
+  const [teamCount, setTeamCount] = useState(''); const [deadline, setDeadline] = useState('');
+  const [prize, setPrize] = useState('');
+  const [selectedTeams, setSelectedTeams] = useState([]);
+  const [error, setError] = useState('');
+
+  const toggleTeam = (teamId) => { setSelectedTeams(selectedTeams.includes(teamId) ? selectedTeams.filter(id => id !== teamId) : [...selectedTeams, teamId]); };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!name || !format || !teamCount || !deadline) return setError('Preencha todos os campos.');
+    if (selectedTeams.length !== parseInt(teamCount)) return setError(`Selecione exatamente ${teamCount} times.`);
+    
+    setError('');
+    const roundMatches = [];
+    let matchCounter = 1;
+    for (let i = 0; i < selectedTeams.length - 1; i += 2) {
+      roundMatches.push({ id: `m${matchCounter}_new_r1`, teamA: selectedTeams[i], teamB: selectedTeams[i+1], status: 'pending_play' });
+      matchCounter++;
+    }
+
+    onCreate({ 
+      id: `c${Date.now()}`, name, format, deadline, prize, status: 'active', teams: selectedTeams, 
+      rounds: roundMatches.length > 0 ? [{ id: 'r1', number: 1, status: 'locked', matches: roundMatches }] : []
+    });
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
+      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><PlusCircle className="text-emerald-500"/> Nova Competição</h2>
+      <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 space-y-6">
+        {error && <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3"><AlertCircle size={20} /><p className="text-sm font-medium">{error}</p></div>}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Nome</label><input type="text" placeholder="Ex: Liga de Inverno" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none" required /></div>
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Formato</label><select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none"><option value="league">Pontos Corridos</option><option value="cup">Mata-Mata</option></select></div>
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Qtd. Times</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none" required /></div>
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Prazo Final</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-emerald-500 outline-none" required /></div>
+          <div className="space-y-2 col-span-1 md:col-span-2"><label className="text-sm font-medium text-slate-400">Premiação</label><input type="text" placeholder="Ex: Troféu + R$ 100,00" value={prize} onChange={e=>setPrize(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-emerald-500 outline-none" /></div>
+        </div>
+        <div className="pt-4 border-t border-slate-800">
+          <label className="text-sm font-medium text-slate-400 block mb-4">Selecione as Equipes ({selectedTeams.length} marcadas)</label>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {teams.map(t => {
+              const isSelected = selectedTeams.includes(t.id);
+              return (
+                <div key={t.id} onClick={() => toggleTeam(t.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-slate-950 border-slate-800'}`}>
+                  <span className="text-2xl">{t.shield}</span><span className={`font-medium text-sm ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{t.name}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <Button type="submit" className="w-full py-4 text-lg mt-4">Criar na Nuvem</Button>
+      </form>
+    </div>
+  );
+};
+
+const CreateTeam = ({ onCreate }) => {
+  const [name, setName] = useState(''); const [coach, setCoach] = useState(''); const [whatsapp, setWhatsapp] = useState('');
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if(!name || !coach || !whatsapp) return;
+    onCreate({ id: `t${Date.now()}`, name, coach, whatsapp, ownerId: 'u1', shield: '🛡️' });
+  };
+  return (
+    <div className="max-w-xl mx-auto animate-in fade-in pb-12">
+      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Users className="text-emerald-500"/> Novo Time</h2>
+      <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 space-y-5">
+        <div><label className="block text-sm font-medium text-slate-400 mb-1">Nome do Time</label><input type="text" placeholder="Ex: Kame FC" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none" required /></div>
+        <div><label className="block text-sm font-medium text-slate-400 mb-1">Nome do Técnico</label><input type="text" placeholder="Ex: Mestre Kame" value={coach} onChange={e=>setCoach(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none" required /></div>
+        <div><label className="block text-sm font-medium text-slate-400 mb-1">WhatsApp</label><input type="tel" placeholder="Ex: (11) 99999-9999" value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none" required /></div>
+        <Button type="submit" className="w-full py-4 text-lg mt-2">Cadastrar na Nuvem</Button>
+      </form>
+    </div>
+  );
+};
+
+const TeamsList = ({ teams, currentUser, onEditTeam }) => {
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({ name: '', coach: '', whatsapp: '', shield: '' });
+  const [viewMode, setViewMode] = useState('grid');
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  const handleWhatsApp = (phone) => { if (!phone) return; window.open(`https://wa.me/${String(phone).replace(/\D/g, '')}`, '_blank'); };
+  const startEdit = (team) => { if (!team) return; setEditingId(team.id); setEditData({ name: team.name || '', coach: team.coach || '', whatsapp: team.whatsapp || '', shield: team.shield || '🛡️' }); };
+  const saveEdit = (team) => { if (!editData.name || !editData.coach) return; onEditTeam({ ...team, ...editData }); setEditingId(null); };
+
+  // Filtro de busca inteligente (por nome do time ou técnico)
+  const filteredTeams = (teams || []).filter(t => 
+    t && (
+      String(t.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+      String(t.coach || '').toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  );
+
+  return (
+    <div className="animate-in fade-in duration-500 space-y-6 pb-12">
+      
+      {/* Cabeçalho com Total de Times e Barra de Pesquisa */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 p-4 md:p-6 rounded-2xl border border-slate-800 shadow-xl">
+        <div className="flex items-center gap-3">
+          <Shield className="text-emerald-500" size={32} />
+          <div>
+            <h2 className="text-xl md:text-2xl font-bold text-white">Mural de Times</h2>
+            <p className="text-xs text-emerald-400 font-bold tracking-widest uppercase mt-0.5">{(teams || []).length} Times Cadastrados</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <input 
+            type="text" 
+            placeholder="Procurar time ou técnico..." 
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="flex-1 md:w-64 bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg p-2 text-white outline-none transition-colors text-sm"
+          />
+          <div className="flex p-1 bg-slate-950 rounded-lg border border-slate-700 shrink-0">
+            <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`} title="Ver em Grade"><LayoutGrid size={16} /></button>
+            <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`} title="Ver em Lista"><List size={16} /></button>
+          </div>
+        </div>
+      </div>
+      
+      {filteredTeams.length === 0 ? ( 
+        <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center text-slate-500">
+          {searchTerm ? 'Nenhum time encontrado com essa busca.' : 'Nenhum time registrado no clã ainda.'}
+        </div> 
+      ) : (
+        <div className={viewMode === 'grid' ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4" : "flex flex-col gap-3"}>
+          {filteredTeams.map(team => {
+            if (!team) return null;
+            
+            /* MODO EDIÇÃO */
+            if (editingId === team.id) {
+              return (
+                <div key={team.id} className={`bg-slate-900 p-3 rounded-xl border border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)] flex ${viewMode === 'list' ? 'flex-col md:flex-row items-start md:items-center justify-between gap-4' : 'flex-col justify-between gap-3'}`}>
+                  <div className={`flex items-center gap-2 ${viewMode === 'list' ? 'flex-row w-full flex-wrap' : 'flex-col'}`}>
+                    <div className="shrink-0 pt-1">
+                      <label className="cursor-pointer relative group flex flex-col items-center">
+                        <div className="relative">
+                          <ShieldDisplay shield={editData.shield} size="normal" />
+                          <div className="absolute -bottom-1 -right-2 bg-emerald-600 rounded-full p-1 shadow-lg group-hover:scale-110 transition-transform flex items-center justify-center"><UploadCloud size={10} className="text-white" /></div>
+                        </div>
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], (base64) => setEditData({...editData, shield: base64}))} />
+                      </label>
+                    </div>
+                    <div className={`flex-1 space-y-1.5 w-full ${viewMode === 'list' ? 'flex flex-col sm:flex-row gap-2 space-y-0 mt-0' : 'mt-1'}`}>
+                      <input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} placeholder="Time" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
+                      <input type="text" value={editData.coach} onChange={e=>setEditData({...editData, coach: e.target.value})} placeholder="Técnico" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
+                      <input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} placeholder="WhatsApp" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500 transition-colors" />
+                    </div>
+                  </div>
+                  <div className={`flex gap-1.5 ${viewMode === 'list' ? 'w-full md:w-auto shrink-0 justify-end' : 'mt-1'}`}>
+                    <Button variant="outline" onClick={() => setEditingId(null)} className="flex-1 md:flex-none py-1.5 text-[10px] px-3 hover:text-white"><X size={12}/> {viewMode === 'list' && <span className="hidden sm:inline">Cancelar</span>}</Button>
+                    <Button onClick={() => saveEdit(team)} className="flex-1 md:flex-none py-1.5 text-[10px] px-3"><Save size={12}/> {viewMode === 'list' && <span className="hidden sm:inline">Salvar</span>}</Button>
+                  </div>
+                </div>
+              );
+            }
+
+            /* MODO VISUALIZAÇÃO EM LISTA */
+            if (viewMode === 'list') {
+               return (
+                <div key={team.id} className="relative bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group">
+                  <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
+                    <div className="shrink-0"><ShieldDisplay shield={team.shield} size="normal" /></div>
+                    <div className="flex-1 min-w-0 pr-10 sm:pr-0">
+                      <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate">{String(team.name || 'Time')}</h3>
+                      <p className="text-[10px] md:text-xs text-slate-400 mt-0.5 truncate"><span className="text-slate-300 font-medium">{String(team.coach || 'Sem técnico')}</span> • {String(team.whatsapp || 'Sem WhatsApp')}</p>
+                    </div>
+                  </div>
+                  {currentUser?.role === 'leader' && (
+                    <button onClick={() => startEdit(team)} className="absolute top-3 sm:top-auto sm:relative right-3 sm:right-auto text-slate-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors sm:opacity-0 sm:group-hover:opacity-100 shrink-0" title="Editar Time"><Edit size={16} /></button>
+                  )}
+                  <Button onClick={() => handleWhatsApp(team.whatsapp)} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-3 text-xs disabled:bg-slate-800 disabled:text-slate-500 shrink-0" disabled={!team.whatsapp}>
+                    <MessageCircle size={16} /> <span className="sm:hidden lg:inline">Chamar</span>
+                  </Button>
+                </div>
+               );
+            }
+
+            /* MODO VISUALIZAÇÃO EM GRADE (Padrão) */
+            return (
+              <div key={team.id} className="relative bg-slate-900 p-3 md:p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-3 group">
+                {currentUser?.role === 'leader' && (
+                  <button onClick={() => startEdit(team)} className="absolute top-2 right-2 text-slate-500 hover:text-emerald-400 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-slate-800" title="Editar Time"><Edit size={14} /></button>
+                )}
+                <div className="flex flex-col items-center text-center gap-2 mt-2">
+                  <div className="shrink-0"><ShieldDisplay shield={team.shield} size="normal" /></div>
+                  <div className="w-full">
+                    <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate px-2">{String(team.name || 'Time')}</h3>
+                    <p className="text-[9px] md:text-[10px] text-slate-400 mt-1 truncate px-1"><span className="text-slate-300 font-medium">{String(team.coach || 'Sem técnico')}</span></p>
+                  </div>
+                </div>
+                <Button onClick={() => handleWhatsApp(team.whatsapp)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-1 py-1.5 text-[10px] md:text-xs px-2 disabled:bg-slate-800 disabled:text-slate-500" disabled={!team.whatsapp}>
+                  <MessageCircle size={14} /> Chamar
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
