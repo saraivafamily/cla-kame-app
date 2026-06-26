@@ -760,33 +760,6 @@ const CreateTeamFull = ({ onCreate, showToast }) => {
   );
 };
 
-const CreateCompetition = ({ teams, onCreate, showToast }) => {
-  const [name, setName] = useState(''); const [format, setFormat] = useState('league'); const [selected, setSelected] = useState([]); const [error, setError] = useState(''); const [draft, setDraft] = useState(null);
-  const toggle = (id) => { setSelected(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]); };
-  const handleNext = () => { if(!name || selected.length < 2) { setError("Insira o nome e marque ao menos 2 times."); return; } setError(""); const id=`c${Date.now()}`; setDraft(format==='cup'?generateCupBracket(selected,id):generateRoundRobin(selected,id)); };
-  const handleLaunch = () => { let cId=`c${Date.now()}`; const rounds=draft.map((r,i)=>({id:`r${i+1}`,number:i+1,status:i===0?'released':'locked',matches:r.matches.map((m,j)=>({id:`${cId}_m${j}_r${i+1}`,teamA:m.teamA,teamB:m.teamB,placeholderA:m.placeholderA||'',placeholderB:m.placeholderB||'',status:'pending_play'}))})); onCreate({id:cId,name,format,status:'active',teams:selected,rounds}); showToast("Torneio criado!"); setDraft(null); setName(''); setSelected([]); };
-  return (
-    <div className="max-w-xl mx-auto bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4 animate-in fade-in">
-      <h2 className="text-lg font-bold text-white flex items-center gap-2"><PlusCircle size={18}/> Novo Campeonato</h2>
-      {error && <div className="text-xs text-amber-400 bg-amber-500/10 p-3 rounded border border-amber-500/20">{error}</div>}
-      {!draft ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4"><div><input placeholder="Nome da Liga" value={name} onChange={e=>setName(e.target.value)} className={inputClass}/></div><div><select value={format} onChange={e=>setFormat(e.target.value)} className={inputClass}><option value="league">Pontos Corridos</option><option value="cup">Mata-Mata (Copa)</option></select></div></div>
-          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-40 overflow-y-auto space-y-1">
-            {teams.map(t=>(<div key={t.id} onClick={()=>toggle(t.id)} className={`flex items-center gap-2 p-2 rounded cursor-pointer text-xs border ${selected.includes(t.id)?'bg-emerald-500/10 border-emerald-500 text-emerald-400':'border-slate-800 text-slate-400'}`}><ShieldDisplay shield={t.shield} size="small"/>{t.name}</div>))}
-          </div>
-          <Button onClick={handleNext} className="w-full">Gerar Tabela de Jogos</Button>
-        </div>
-      ) : (
-        <div className="space-y-4 text-center">
-          <div className="bg-emerald-500/10 text-emerald-400 p-3 rounded text-xs font-bold">Confrontos e Rodadas gerados automaticamente! Tudo pronto para o lançamento.</div>
-          <div className="flex gap-3"><Button variant="outline" onClick={()=>setDraft(null)} className="flex-1">Voltar</Button><Button onClick={handleLaunch} className="flex-1">Lançar Oficialmente</Button></div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 const MembersList = ({ users = [], teams = [], onUpdateUserRole, onExpelUser, showToast }) => {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl animate-in fade-in">
