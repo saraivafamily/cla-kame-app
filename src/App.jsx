@@ -604,7 +604,7 @@ const CreateCompetition = ({ teams, onCreate }) => {
       </form>
     </div>
   );
-  };
+};
 
 const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
