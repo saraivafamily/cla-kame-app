@@ -1095,22 +1095,68 @@ export default function App() {
   const handleExpelUser = async (userId) => { if (userId === currentUser.id) return; const t = teams.find(x=>x.ownerId===userId); if(t) await deleteDoc(getPublicDocPath('teams', t.id)); await deleteDoc(getPublicDocPath('users', userId)); showToast("Removido!"); };
 
   const formatarParaEmail = (texto) => { const textoLimpo = String(texto).trim().toLowerCase(); if (textoLimpo.includes('@')) return textoLimpo; return textoLimpo.replace(/[-\s().]/g, '') + '@clakame.com'; };
-  const handleFirstAccess = async (userDoc, emailDigitado, whatsappDigitado, newPassword) => {
-    const emailToUse = (userDoc && userDoc.email) ? userDoc.email : formatarParaEmail(emailDigitado || whatsappDigitado);
-    try { await createUserWithEmailAndPassword(auth, emailToUse, newPassword); showToast("Conta ativada!"); } catch (error) { showToast(error.message, "error"); }
+  const handleRegister = async (data) => {
+    const email = data.email.trim().toLowerCase();
+    const cleanPhone = data.whatsapp.replace(/\D/g, '');
+    const fullName = `${data.firstName} ${data.lastName}`.trim();
+    
+    // Cria a conta no Firebase e desloga imediatamente para ir pra espera
+    const userCredential = await createUserWithEmailAndPassword(auth, email, data.password);
+    const uid = userCredential.user.uid;
+    
+    const newUser = { id: uid, name: fullName, email: email, whatsapp: cleanPhone, role: 'member', status: 'pending' };
+    const newTeam = { id: `t_${uid}`, name: data.teamName, coach: fullName, whatsapp: cleanPhone, ownerId: uid, shield: '🛡️' };
+    
+    await setDoc(getPublicDocPath('users', uid), newUser);
+    await setDoc(getPublicDocPath('teams', newTeam.id), newTeam);
+    
+    await signOut(auth);
+    showToast("Cadastro realizado! Aguarde a aprovação.", "success");
   };
 
   const handleLogin = async (identifier, password) => {
     const cleanPhone = String(identifier).replace(/\D/g, '');
-    if (users.length === 0 && (String(identifier).toLowerCase().includes('savio') || cleanPhone === '91998270658')) { const masterUser = { id: 'u_master', name: 'Sávio Saraiva', role: 'leader', whatsapp: '91998270658', email: 'saviosaraiva777@gmail.com', password: password }; await setDoc(getPublicDocPath('users', 'u_master'), masterUser); setCurrentUser(masterUser); setCurrentTab('dashboard'); return; }
-    let emFake = formatarParaEmail(identifier); if (users.length > 0) { const found = users.find(u => u && ((u.email && u.email.toLowerCase() === identifier.trim().toLowerCase()) || (cleanPhone.length >= 8 && String(u.whatsapp) === cleanPhone))); if (found?.email) emFake = found.email; }
-    try { await signInWithEmailAndPassword(auth, emFake, password); } catch (e) { throw new Error("Acesso negado. Verifique os dados."); }
+    if (users.length === 0 && (String(identifier).toLowerCase().includes('savio') || cleanPhone === '91998270658')) { const masterUser = { id: 'u_master', name: 'Sávio Saraiva', role: 'leader', whatsapp: '91998270658', email: 'saviosaraiva777@gmail.com', password: password, status: 'active' }; await setDoc(getPublicDocPath('users', 'u_master'), masterUser); setCurrentUser(masterUser); setCurrentTab('dashboard'); return; }
+    
+    let emFake = formatarParaEmail(identifier); 
+    let foundUser = null;
+    if (users.length > 0) { 
+      foundUser = users.find(u => u && ((u.email && u.email.toLowerCase() === identifier.trim().toLowerCase()) || (cleanPhone.length >= 8 && String(u.whatsapp) === cleanPhone))); 
+      if (foundUser?.email) emFake = foundUser.email; 
+    }
+    
+    // Bloqueia o login e gera o aviso se a conta não estiver validada
+    if (foundUser && foundUser.status === 'pending') {
+      throw new Error("Aguardando aprovação dos líderes.");
+    }
+    
+    try { await signInWithEmailAndPassword(auth, emFake, password); } 
+    catch (e) { throw new Error("Acesso negado. Verifique os dados."); }
   };
+
+  const handleApproveUser = async (userId) => {
+    await updateDoc(getPublicDocPath('users', userId), { status: 'active' });
+    showToast("Técnico aprovado com sucesso!", "success");
+  };
+
 
   useEffect(() => { const unsub = onAuthStateChanged(auth, (fbUser) => { if (fbUser && users.length > 0) { const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); if (found) setCurrentUser(found); } }); return () => unsub(); }, [users]);
 
   if (isFirebaseLoading) return (<div className="min-h-screen bg-slate-950 text-amber-400 flex items-center justify-center font-sans font-bold text-sm shadow-xl animate-pulse">🛡️ Carregando Arena Kame...</div>);
-  if (!currentUser) return <LoginScreen users={users} onLogin={handleLogin} onFirstAccess={handleFirstAccess} />;
+ if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} />;
+
+  if (currentUser.status === 'pending') {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div className="bg-slate-900 p-8 rounded-2xl border border-amber-500/30 text-center max-w-sm shadow-xl">
+          <div className="text-amber-500 mb-4 flex justify-center"><AlertCircle size={48}/></div>
+          <h2 className="text-xl font-bold text-white mb-2">Conta em Análise</h2>
+          <p className="text-slate-400 text-sm mb-6">Aguardando aprovação dos líderes do clã. Você será avisado quando for liberado!</p>
+          <Button onClick={() => {setCurrentUser(null); signOut(auth);}} className="w-full">Sair</Button>
+        </div>
+      </div>
+    );
+  }
 
   const isLeaderOrKaioh = currentUser.role === 'leader' || currentUser.role === 'kaioh';
   
@@ -1168,7 +1214,7 @@ export default function App() {
       case 'create_comp': return <CreateCompetition teams={teams} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
       case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;
-      case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
+      case 'members_list': return <MembersList users={users} teams={teams} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
       default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
     }
   };
