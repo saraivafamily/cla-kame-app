@@ -1042,21 +1042,52 @@ const CreateTeamFull = ({ onCreate, showToast }) => {
   );
 };
 
-const MembersList = ({ users = [], teams = [], onUpdateUserRole, onExpelUser, showToast }) => {
+const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, onExpelUser, onApproveUser, showToast }) => {
+  const pendingUsers = users.filter(u => u.status === 'pending');
+  const activeUsers = users.filter(u => u.status !== 'pending');
+  
+  // Verificação de segurança: Apenas Líderes (Líder Supremo e Kaioh) podem aprovar/rejeitar
+  const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl animate-in fade-in">
-      <div className="p-4 border-b border-slate-800 flex items-center gap-2"><Award className="text-emerald-500"/><h2 className="font-bold text-white text-base">Gestão de Elenco / Técnicos</h2></div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs whitespace-nowrap"><thead className="bg-slate-950/60 text-slate-400 font-bold border-b border-slate-800"><tr><th className="p-3">Técnico</th><th className="p-3">Clube</th><th className="p-3">WhatsApp</th><th className="p-3">Cargo</th><th className="p-3 text-center">Ação</th></tr></thead>
-        <tbody className="divide-y divide-slate-800/40">
-          {users.map(u=>{ const t=teams.find(x=>x.ownerId===u.id); return(
-            <tr key={u.id} className="hover:bg-slate-950/40">
-              <td className="p-3 font-bold text-slate-200">{u.name}</td><td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-slate-400">{u.whatsapp}</td>
-              <td className="p-3"><select value={u.role} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-slate-900 text-slate-300 border border-slate-700 rounded p-1 outline-none"><option value="member">Membro</option><option value="kaioh">Kaioh</option><option value="leader">Líder</option></select></td>
-              <td className="p-3 text-center"><button onClick={()=>{if(window.confirm('Expulsar membro?')) onExpelUser(u.id)}} className="text-slate-500 hover:text-red-400 transition-colors"><XCircle size={14}/></button></td>
-            </tr>
-          )})}
-        </tbody></table>
+    <div className="space-y-6 animate-in fade-in">
+      {isLeader && pendingUsers.length > 0 && (
+        <div className="bg-slate-900 border border-amber-500/50 rounded-2xl overflow-hidden shadow-xl">
+          <div className="p-4 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2"><CheckCircle className="text-amber-500"/><h2 className="font-bold text-amber-500 text-base">Aguardando Aprovação ({pendingUsers.length})</h2></div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs whitespace-nowrap"><thead className="text-slate-400 font-bold border-b border-slate-800"><tr><th className="p-3">Técnico</th><th className="p-3">Clube</th><th className="p-3">WhatsApp</th><th className="p-3 text-center">Ação</th></tr></thead>
+            <tbody className="divide-y divide-slate-800/40">
+              {pendingUsers.map(u => {
+                const t = teams.find(x => x.ownerId === u.id);
+                return (
+                  <tr key={u.id} className="hover:bg-slate-950/40">
+                    <td className="p-3 font-bold text-slate-200">{u.name}</td><td className="p-3 text-amber-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-slate-400">{u.whatsapp}</td>
+                    <td className="p-3 flex justify-center gap-2">
+                      <button onClick={()=>{if(window.confirm('Rejeitar cadastro?')) onExpelUser(u.id)}} className="bg-red-500/10 text-red-400 px-3 py-1.5 rounded hover:bg-red-500/20 transition-colors">Rejeitar</button>
+                      <button onClick={()=>onApproveUser(u.id)} className="bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded hover:bg-emerald-500/20 transition-colors">Aprovar</button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody></table>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div className="p-4 border-b border-slate-800 flex items-center gap-2"><Award className="text-emerald-500"/><h2 className="font-bold text-white text-base">Gestão de Elenco / Técnicos</h2></div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs whitespace-nowrap"><thead className="bg-slate-950/60 text-slate-400 font-bold border-b border-slate-800"><tr><th className="p-3">Técnico</th><th className="p-3">Clube</th><th className="p-3">WhatsApp</th><th className="p-3">Cargo</th><th className="p-3 text-center">Ação</th></tr></thead>
+          <tbody className="divide-y divide-slate-800/40">
+            {activeUsers.map(u=>{ const t=teams.find(x=>x.ownerId===u.id); return(
+              <tr key={u.id} className="hover:bg-slate-950/40">
+                <td className="p-3 font-bold text-slate-200">{u.name}</td><td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-slate-400">{u.whatsapp}</td>
+                <td className="p-3"><select value={u.role} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-slate-900 text-slate-300 border border-slate-700 rounded p-1 outline-none"><option value="member">Membro</option><option value="kaioh">Kaioh</option><option value="leader">Líder</option></select></td>
+                <td className="p-3 text-center"><button onClick={()=>{if(window.confirm('Expulsar membro?')) onExpelUser(u.id)}} className="text-slate-500 hover:text-red-400 transition-colors"><XCircle size={14}/></button></td>
+              </tr>
+            )})}
+          </tbody></table>
+        </div>
       </div>
     </div>
   );
