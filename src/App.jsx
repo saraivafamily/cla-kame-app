@@ -644,14 +644,14 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                             const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                             return (
                               <div key={m.id} onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className={`bg-slate-900 p-3 rounded-lg border border-slate-800 flex items-center justify-between text-xs cursor-pointer hover:border-slate-700`}>
-                                <div className="flex-1 flex items-center justify-end gap-2 overflow-hidden">
-                                  <span className="truncate font-bold text-slate-200">{tA?.name || m.placeholderA}</span>
+                                <div className="flex-1 flex items-center justify-end gap-2">
+                                  <span className="font-bold text-slate-200 text-right break-words">{tA?.name || m.placeholderA}</span>
                                   <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
                                 </div>
                                 <div className={`mx-3 px-3 py-1 border rounded font-mono font-bold shrink-0 shadow-inner ${sUI.bg} ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</div>
-                                <div className="flex-1 flex items-center justify-start gap-2 overflow-hidden">
+                                <div className="flex-1 flex items-center justify-start gap-2">
                                   <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
-                                  <span className="truncate font-bold text-slate-200">{tB?.name || m.placeholderB}</span>
+                                  <span className="font-bold text-slate-200 text-left break-words">{tB?.name || m.placeholderB}</span>
                                 </div>
                               </div>
                             )
