@@ -574,7 +574,7 @@ const CreateCompetition = ({ teams, onCreate }) => {
           <div className="flex justify-between items-end mb-4"><label className="text-sm font-medium text-slate-400">Selecione as Equipes ({selectedTeams.length} marcadas)</label></div>
           {teams.length === 0 ? <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado.</p> : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {teams.map(team => { const isSelected = selectedTeams.includes(team.id); return ( <div key={team.id} onClick={() => toggleTeam(team.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-slate-950 border-slate-800 hover:border-slate-600'}`}><span className="text-2xl">{team.shield}</span><span className={`font-medium text-sm ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{team.name}</span></div> ); })}
+              {teams.map(team => { const isSelected = selectedTeams.includes(team.id); return ( <div key={team.id} onClick={() => toggleTeam(team.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-slate-950 border-slate-800 hover:border-slate-600'}`}><ShieldDisplay shield={team.shield} />span><span className={`font-medium text-sm ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{team.name}</span></div> ); })}
             </div>
           )}
         </div>
