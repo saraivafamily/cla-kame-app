@@ -1170,7 +1170,6 @@ export default function App() {
     showToast("Técnico aprovado com sucesso!", "success");
   };
 
-
   useEffect(() => { const unsub = onAuthStateChanged(auth, (fbUser) => { if (fbUser && users.length > 0) { const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); if (found) setCurrentUser(found); } }); return () => unsub(); }, [users]);
 
   if (isFirebaseLoading) return (<div className="min-h-screen bg-slate-950 text-amber-400 flex items-center justify-center font-sans font-bold text-sm shadow-xl animate-pulse">🛡️ Carregando Arena Kame...</div>);
@@ -1188,6 +1187,7 @@ export default function App() {
       </div>
     );
   }
+
 
   const isLeaderOrKaioh = currentUser.role === 'leader' || currentUser.role === 'kaioh';
   
@@ -1245,7 +1245,9 @@ export default function App() {
       case 'create_comp': return <CreateCompetition teams={teams} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
       case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;
-      case 'members_list': return <MembersList users={users} teams={teams} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
+      
+
+      case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
       default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
     }
   };
