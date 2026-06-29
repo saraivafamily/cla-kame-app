@@ -1046,9 +1046,10 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
   const pendingUsers = users.filter(u => u.status === 'pending');
   const activeUsers = users.filter(u => u.status !== 'pending');
   
-  // Verificação de segurança
-  const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-  const isSupremeLeader = currentUser?.role === 'leader'; // Apenas o mestre edita os dados
+  // Verificação de segurança com acesso irrestrito para o e-mail Master
+  const isSuperAdmin = currentUser?.email === 'saviosaraiva777@gmail.com';
+  const isLeader = isSuperAdmin || currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const isSupremeLeader = isSuperAdmin || currentUser?.role === 'leader'; 
   
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', whatsapp: '' });
@@ -1120,7 +1121,7 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
               return(
                 <tr key={u.id} className="hover:bg-slate-950/40">
                   <td className="p-3 font-bold text-slate-200">{u.name}</td><td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-slate-400">{u.whatsapp}</td>
-                  <td className="p-3"><select disabled={!isSupremeLeader} value={u.role} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-slate-900 text-slate-300 border border-slate-700 rounded p-1 outline-none disabled:opacity-50"><option value="member">Membro</option><option value="kaioh">Kaioh</option><option value="leader">Líder</option></select></td>
+                  <td className="p-3"><select disabled={!isSupremeLeader && currentUser?.id !== u.id} value={u.role} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-slate-900 text-slate-300 border border-slate-700 rounded p-1 outline-none disabled:opacity-50"><option value="member">Membro</option><option value="kaioh">Kaioh</option><option value="leader">Líder</option></select></td>
                   <td className="p-3 flex justify-center gap-3 items-center">
                     {isSupremeLeader && <button onClick={()=>startEdit(u)} className="text-slate-500 hover:text-emerald-400 transition-colors p-1" title="Editar Técnico"><Edit size={16}/></button>}
                     {isLeader && <button onClick={()=>{if(window.confirm('Expulsar membro?')) onExpelUser(u.id)}} className="text-slate-500 hover:text-red-400 transition-colors p-1" title="Expulsar"><XCircle size={16}/></button>}
@@ -1308,7 +1309,7 @@ export default function App() {
       whatsapp: updatedData.whatsapp
     });
     
-    // Opcional: Atualizar também o nome do técnico no time dele para não ficar divergente
+    // Atualizar também o nome do técnico no time dele para não ficar divergente
     const userTeam = teams.find(t => t.ownerId === userId);
     if (userTeam) {
       await updateDoc(getPublicDocPath('teams', userTeam.id), {
@@ -1332,10 +1333,9 @@ export default function App() {
       case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} showToast={showToast} />;
       case 'create_comp': return <CreateCompetition teams={teams} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
-      case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;
-      
-
+      case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
       case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
+      
       default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
     }
   };
