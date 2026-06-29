@@ -472,7 +472,8 @@ const Standings = ({ matches, teams, comp }) => {
                         const isQualified = index < (comp.qualifiersPerGroup || 2);
                         return (
                           <tr key={row.id} className={`hover:bg-slate-800/50 transition-colors ${isQualified ? 'bg-emerald-500/5' : ''}`}>
-                            <td className={`p-4 text-center font-bold ${isQualified ? 'text-emerald-400' : 'text-slate-500'}`}>{index + 1}</td><td className="p-4 font-medium text-white flex items-center gap-2"><span className="text-xl">{row.shield}</span> {String(row.name)}</td>
+                            <td className={`p-4 text-center font-bold ${isQualified ? 'text-emerald-400' : 'text-slate-500'}`}>{index + 1}</td>
+                            <td className="p-4 font-medium text-white flex items-center gap-2"><ShieldDisplay shield={row.shield} size="small" /> {String(row.name)}</td>
                             <td className="p-4 text-center font-bold text-emerald-400">{row.pts}</td><td className="p-4 text-center text-slate-300">{row.p}</td><td className="p-4 text-center text-slate-300">{row.w}</td><td className="p-4 text-center text-slate-300">{row.d}</td><td className="p-4 text-center text-slate-300">{row.l}</td><td className="p-4 text-center text-slate-400">{row.gf}</td><td className="p-4 text-center text-slate-400">{row.ga}</td><td className="p-4 text-center text-slate-400 font-medium">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
                           </tr>
                         );
@@ -494,7 +495,7 @@ const Standings = ({ matches, teams, comp }) => {
                 return table.filter(t => t.p > 0 || table.length > 0).map((row, index) => (
                   <tr key={row.id} className="hover:bg-slate-800/50 transition-colors">
                     <td className="p-4 text-center font-bold text-slate-500">{index + 1}</td>
-                    <td className="p-4 font-medium text-white flex items-center gap-2"><span className="text-xl">{row.shield}</span> {row.name}</td>
+                    <td className="p-4 font-medium text-white flex items-center gap-2"><ShieldDisplay shield={row.shield} size="small" /> {String(row.name)}</td>
                     <td className="p-4 text-center font-bold text-emerald-400">{row.pts}</td><td className="p-4 text-center text-slate-300">{row.p}</td><td className="p-4 text-center text-slate-300">{row.w}</td><td className="p-4 text-center text-slate-300">{row.d}</td><td className="p-4 text-center text-slate-300">{row.l}</td><td className="p-4 text-center text-slate-400">{row.gf}</td><td className="p-4 text-center text-slate-400">{row.ga}</td><td className="p-4 text-center text-slate-400 font-medium">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
                   </tr>
                 ));
@@ -503,6 +504,58 @@ const Standings = ({ matches, teams, comp }) => {
           </table>
         )}
       </div>
+    </div>
+  );
+};
+
+const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast }) => {
+  const [subTab, setSubTab] = useState('overview'); 
+  if (!comp) return (<div className="text-center py-12"><p className="text-slate-400">Torneio não localizado.</p><button onClick={onBack} className="text-emerald-400 underline">Voltar</button></div>);
+  const getTeam = (id) => (teams || []).find(t => t && t.id === id); const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const getMatchStatusDisplay = (matchId) => {
+    const ms = (matches || []).filter(m => m && m.matchId === matchId && m.compId === comp.id && m.status !== 'rejected');
+    if(ms.length === 0) return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
+    const sm = ms.find(m => m.status === 'approved') || ms.find(m => m.status === 'pending');
+    if(!sm) return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
+    if(sm.status === 'approved') return { submittedMatchId: sm.id, isPlayed: true, scoreA: sm.scoreA, scoreB: sm.scoreB, penaltiesA: sm.penaltiesA, penaltiesB: sm.penaltiesB, text: 'Oficial', color: 'text-emerald-400', bg: 'bg-slate-950 border-emerald-900/50' };
+    return { submittedMatchId: sm.id, isPlayed: true, scoreA: sm.scoreA, scoreB: sm.scoreB, penaltiesA: sm.penaltiesA, penaltiesB: sm.penaltiesB, text: 'Validando', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
+      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800"><h2 className="text-xl font-bold text-white">{String(comp.name)}</h2><p className="text-xs text-emerald-400 mt-1 uppercase font-bold">{comp.format === 'league' ? 'Liga' : comp.format === 'groups' ? 'Fase de Grupos' : 'Mata-Mata'}</p></div>
+      <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800"><button onClick={()=>setSubTab('overview')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold ${subTab==='overview'?'bg-emerald-600 text-white':'text-slate-500'}`}>Tabela & Jogos</button></div>
+      {subTab === 'overview' && (
+        <div className="space-y-6">
+          <Standings matches={matches} teams={(teams || []).filter(t => t && comp.teams?.includes(t.id))} comp={comp} />
+          <div className="space-y-4">
+            {(comp.rounds || []).map((round) => (
+              <div key={round?.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-slate-950/60 p-3 border-b border-slate-800 flex justify-between items-center"><span className="text-xs font-bold text-white">Rodada {String(round?.number || '')}</span>{isAdmin && round?.status === 'locked' && <Button onClick={()=>onReleaseRound(comp.id, round.id)} className="py-1 text-[10px]">Liberar</Button>}</div>
+                <div className="p-3 space-y-2">
+                  {(round?.matches || []).map((m) => {
+                    const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                    return (
+                      <div key={m.id} onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className={`bg-slate-950 p-3 rounded-lg border border-slate-900 flex items-center justify-between text-xs cursor-pointer hover:border-slate-700`}>
+                        <div className="flex-1 flex items-center justify-end gap-2 overflow-hidden">
+                          <span className="truncate font-bold text-slate-200">{tA?.name || m.placeholderA}</span>
+                          <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
+                        </div>
+                        <div className={`mx-3 px-3 py-1 border rounded font-mono font-bold shrink-0 ${sUI.bg} ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</div>
+                        <div className="flex-1 flex items-center justify-start gap-2 overflow-hidden">
+                          <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
+                          <span className="truncate font-bold text-slate-200">{tB?.name || m.placeholderB}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
