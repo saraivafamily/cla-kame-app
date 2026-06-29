@@ -1350,7 +1350,7 @@ export default function App() {
   const isLeaderOrKaioh = currentUser.role === 'leader' || currentUser.role === 'kaioh';
   
   // Note que 'settings' foi removida da lista.
-  const TABS = [
+ const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home }, 
     { id: 'profile', label: 'Meu Perfil', icon: User },
     { id: 'teams_list', label: 'Times', icon: Shield }, 
@@ -1362,9 +1362,7 @@ export default function App() {
       { id: 'create_comp', label: 'Nova Comp', icon: PlusCircle }, 
       { id: 'create_team', label: 'Convidar Técnico', icon: Users },
       { id: 'create_team_manual', label: 'Time Simples', icon: UserPlus } 
-    ] : [ 
-      { id: 'submit', label: 'Registrar', icon: Camera } 
-    ]),
+    ] : []), // <-- Deixe os colchetes vazios aqui
   ];
 
   const handleUpdateMatchStatus = async (id, st, updatedData = null) => {
