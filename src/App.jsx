@@ -446,6 +446,7 @@ const TeamsList = ({ teams, currentUser, onEditTeam }) => {
     </div>
   );
 };
+
 const Standings = ({ matches, teams, comp }) => {
   const isGroupsFormat = comp?.format === 'groups' && comp?.groups;
   return (
