@@ -1042,12 +1042,30 @@ const CreateTeamFull = ({ onCreate, showToast }) => {
   );
 };
 
-const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, onExpelUser, onApproveUser, showToast }) => {
+const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, onExpelUser, onApproveUser, onEditUser, showToast }) => {
   const pendingUsers = users.filter(u => u.status === 'pending');
   const activeUsers = users.filter(u => u.status !== 'pending');
   
-  // Verificação de segurança: Apenas Líderes (Líder Supremo e Kaioh) podem aprovar/rejeitar
+  // Verificação de segurança
   const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const isSupremeLeader = currentUser?.role === 'leader'; // Apenas o mestre edita os dados
+  
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({ name: '', whatsapp: '' });
+
+  const startEdit = (u) => {
+    setEditingId(u.id);
+    setEditData({ name: u.name, whatsapp: u.whatsapp });
+  };
+
+  const saveEdit = (u) => {
+    if (!editData.name || !editData.whatsapp) {
+      showToast("Preencha o nome e WhatsApp", "error");
+      return;
+    }
+    onEditUser(u.id, editData);
+    setEditingId(null);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in">
@@ -1079,13 +1097,37 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs whitespace-nowrap"><thead className="bg-slate-950/60 text-slate-400 font-bold border-b border-slate-800"><tr><th className="p-3">Técnico</th><th className="p-3">Clube</th><th className="p-3">WhatsApp</th><th className="p-3">Cargo</th><th className="p-3 text-center">Ação</th></tr></thead>
           <tbody className="divide-y divide-slate-800/40">
-            {activeUsers.map(u=>{ const t=teams.find(x=>x.ownerId===u.id); return(
-              <tr key={u.id} className="hover:bg-slate-950/40">
-                <td className="p-3 font-bold text-slate-200">{u.name}</td><td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-slate-400">{u.whatsapp}</td>
-                <td className="p-3"><select value={u.role} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-slate-900 text-slate-300 border border-slate-700 rounded p-1 outline-none"><option value="member">Membro</option><option value="kaioh">Kaioh</option><option value="leader">Líder</option></select></td>
-                <td className="p-3 text-center"><button onClick={()=>{if(window.confirm('Expulsar membro?')) onExpelUser(u.id)}} className="text-slate-500 hover:text-red-400 transition-colors"><XCircle size={14}/></button></td>
-              </tr>
-            )})}
+            {activeUsers.map(u=>{ 
+              const t=teams.find(x=>x.ownerId===u.id); 
+              
+              // Modo de Edição
+              if (editingId === u.id) {
+                return (
+                  <tr key={u.id} className="bg-slate-950/80">
+                    <td className="p-3"><input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} className="bg-slate-900 border border-slate-700 rounded p-1 text-white w-full outline-none focus:border-emerald-500" /></td>
+                    <td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td>
+                    <td className="p-3"><input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} className="bg-slate-900 border border-slate-700 rounded p-1 text-white w-full outline-none focus:border-emerald-500" /></td>
+                    <td className="p-3"><span className="text-slate-500 italic">Editando...</span></td>
+                    <td className="p-3 flex justify-center gap-2">
+                      <button onClick={()=>setEditingId(null)} className="bg-slate-800 text-slate-400 px-3 py-1.5 rounded hover:bg-slate-700 transition-colors">Cancelar</button>
+                      <button onClick={()=>saveEdit(u)} className="bg-emerald-600 text-white px-3 py-1.5 rounded hover:bg-emerald-500 shadow-lg transition-colors">Salvar</button>
+                    </td>
+                  </tr>
+                );
+              }
+
+              // Visualização Normal
+              return(
+                <tr key={u.id} className="hover:bg-slate-950/40">
+                  <td className="p-3 font-bold text-slate-200">{u.name}</td><td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-slate-400">{u.whatsapp}</td>
+                  <td className="p-3"><select disabled={!isSupremeLeader} value={u.role} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-slate-900 text-slate-300 border border-slate-700 rounded p-1 outline-none disabled:opacity-50"><option value="member">Membro</option><option value="kaioh">Kaioh</option><option value="leader">Líder</option></select></td>
+                  <td className="p-3 flex justify-center gap-3 items-center">
+                    {isSupremeLeader && <button onClick={()=>startEdit(u)} className="text-slate-500 hover:text-emerald-400 transition-colors p-1" title="Editar Técnico"><Edit size={16}/></button>}
+                    {isLeader && <button onClick={()=>{if(window.confirm('Expulsar membro?')) onExpelUser(u.id)}} className="text-slate-500 hover:text-red-400 transition-colors p-1" title="Expulsar"><XCircle size={16}/></button>}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody></table>
         </div>
       </div>
