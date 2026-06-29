@@ -1121,30 +1121,33 @@ export default function App() {
   const handleSelectComp = (id) => { setSelectedCompId(id); setCurrentTab('comp_details'); };
   const handleSelectMatch = (match) => { setSelectedMatch(match); setPrevTab(currentTab); setCurrentTab('match_details'); };
   const handleDeleteMatch = async (matchId) => { await deleteDoc(getPublicDocPath('matches', matchId)); showToast("Placar excluído!", "success"); };
-  const handleEditTeam = async (updatedTeam) => { 
+   const handleEditTeam = async (updatedTeam) => { 
     const oldTeam = teams.find(t => t.id === updatedTeam.id);
     
     // Verifica se o time era "Manual" e agora está sendo vinculado a um "Técnico"
     if (oldTeam && oldTeam.ownerId === 'manual' && updatedTeam.ownerId !== 'manual') {
       const userId = updatedTeam.ownerId;
       
+      // Busca os dados do usuário real que acabou de ser vinculado
+      const linkedUser = users.find(u => u.id === userId);
+      
+      if (linkedUser) {
+        // Sincroniza os dados: O time absorve o Nome e WhatsApp reais do técnico cadastrado
+        updatedTeam.coach = linkedUser.name;
+        updatedTeam.whatsapp = linkedUser.whatsapp;
+      }
+      
       // 1. Apaga o time provisório vazio que foi criado quando o técnico se cadastrou
       try { 
         await deleteDoc(getPublicDocPath('teams', `t_${userId}`)); 
       } catch(e) {}
-      
-      // 2. Sincroniza os dados: o Perfil do Usuário recebe o nome e WhatsApp oficiais do time
-      await updateDoc(getPublicDocPath('users', userId), { 
-        name: updatedTeam.coach, 
-        whatsapp: updatedTeam.whatsapp 
-      });
       
       showToast("Técnico vinculado e histórico migrado!", "success");
     } else {
       showToast("Time atualizado!", "success");
     }
     
-    // 3. Salva a nova posse e dados do time na nuvem
+    // 2. Salva a nova posse e dados do time na nuvem
     await updateDoc(getPublicDocPath('teams', updatedTeam.id), updatedTeam); 
   };
   const handleCreateTeamAndUser = async ({ user, team }) => { await setDoc(getPublicDocPath('users', user.id), user); await setDoc(getPublicDocPath('teams', team.id), team); setCurrentTab('teams_list'); showToast("Treinador registrado!"); return true; };
