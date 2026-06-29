@@ -511,7 +511,6 @@ const Standings = ({ matches, teams, comp }) => {
 const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast }) => {
   const [subTab, setSubTab] = useState('overview'); 
   const [expandedRoundId, setExpandedRoundId] = useState(null);
-  const captureRef = useRef(null);
 
   if (!comp) return (<div className="text-center py-12"><p className="text-slate-400">Torneio não localizado.</p><button onClick={onBack} className="text-emerald-400 underline">Voltar</button></div>);
   
@@ -550,22 +549,32 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     };
   }, [matches, comp.id]);
 
-  // Função mágica que cria o Print da Tela sem precisar de bibliotecas instaladas
-  const handleCapture = () => {
+  // Função mágica que cria o Print Isolado de Seções Específicas
+  const captureSection = (elementId, fileName) => {
     showToast("Preparando imagem de alta qualidade...", "success");
-    const script = document.createElement('script');
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-    script.onload = () => {
-      const element = captureRef.current;
+    const captureAndDownload = () => {
+      const element = document.getElementById(elementId);
+      if (!element) {
+        showToast("Erro ao encontrar a tabela.", "error");
+        return;
+      }
       window.html2canvas(element, { backgroundColor: '#020617', scale: 2, useCORS: true }).then(canvas => {
         const link = document.createElement('a');
-        link.download = `Resumo-${comp.name}.png`;
+        link.download = `${fileName}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
         showToast("Imagem salva com sucesso!", "success");
       });
     };
-    document.body.appendChild(script);
+
+    if (window.html2canvas) {
+      captureAndDownload();
+    } else {
+      const script = document.createElement('script');
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      script.onload = captureAndDownload;
+      document.body.appendChild(script);
+    }
   };
 
   const toggleRound = (id) => {
@@ -573,15 +582,14 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in">
+    <div className="space-y-6 animate-in fade-in pb-10">
       <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
       
-      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex justify-between items-center">
+      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-xl font-bold text-white">{String(comp.name)}</h2>
           <p className="text-xs text-emerald-400 mt-1 uppercase font-bold">{comp.format === 'league' ? 'Liga' : comp.format === 'groups' ? 'Fase de Grupos' : 'Mata-Mata'}</p>
         </div>
-        <Button onClick={handleCapture} className="text-xs py-2 px-3 shadow-lg" variant="outline"><Camera size={16}/> <span className="hidden sm:inline">Salvar Imagem</span></Button>
       </div>
       
       <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800">
@@ -589,15 +597,24 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         <button onClick={()=>setSubTab('stats')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Estatísticas</button>
       </div>
       
-      {/* Container que a câmera vai capturar */}
-      <div ref={captureRef} className="space-y-6 bg-slate-950 p-2 md:p-4 rounded-2xl">
-        
+      <div className="space-y-8 mt-4">
         {subTab === 'overview' && (
-          <>
-            <Standings matches={matches} teams={(teams || []).filter(t => t && comp.teams?.includes(t.id))} comp={comp} />
+          <div className="space-y-8 animate-in slide-in-from-left-4">
+            
+            {/* Bloco da Tabela Isolada */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-end mb-2">
+                <h3 className="text-lg font-bold text-white pl-2">Classificação</h3>
+                <Button onClick={() => captureSection('capture-standings', `Tabela-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar Tabela</Button>
+              </div>
+              <div id="capture-standings" className="bg-slate-950 p-3 sm:p-5 rounded-2xl border border-slate-800">
+                <h3 className="text-center font-black text-emerald-400 mb-4 text-sm uppercase tracking-widest">{comp.name}</h3>
+                <Standings matches={matches} teams={(teams || []).filter(t => t && comp.teams?.includes(t.id))} comp={comp} />
+              </div>
+            </div>
             
             <div className="space-y-3 pt-4 border-t border-slate-800/50">
-              <h3 className="text-lg font-bold text-white mb-2 pl-2">Rodadas e Confrontos</h3>
+              <h3 className="text-lg font-bold text-white mb-4 pl-2">Rodadas e Confrontos</h3>
               {(comp.rounds || []).map((round) => {
                 const isExpanded = expandedRoundId === round.id;
                 return (
@@ -614,73 +631,102 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                     </button>
                     
                     {isExpanded && (
-                      <div className="p-3 space-y-2 bg-slate-900 border-t border-slate-800 animate-in slide-in-from-top-2">
-                        {(round?.matches || []).map((m) => {
-                          const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
-                          return (
-                            <div key={m.id} onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className={`bg-slate-950 p-3 rounded-lg border border-slate-900 flex items-center justify-between text-xs cursor-pointer hover:border-slate-700`}>
-                              <div className="flex-1 flex items-center justify-end gap-2 overflow-hidden">
-                                <span className="truncate font-bold text-slate-200">{tA?.name || m.placeholderA}</span>
-                                <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
+                      <div className="bg-slate-900 border-t border-slate-800 animate-in slide-in-from-top-2 p-3">
+                        <div className="flex justify-end mb-3 px-1">
+                           <Button onClick={() => captureSection(`capture-round-${round.id}`, `Rodada-${round.number}-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-md" variant="outline"><Camera size={12}/> Print da Rodada</Button>
+                        </div>
+                        
+                        {/* Bloco Isolado da Rodada para Foto */}
+                        <div id={`capture-round-${round.id}`} className="bg-slate-950 p-4 rounded-xl border border-slate-800/50 space-y-3">
+                          <h4 className="text-center font-bold text-white mb-4 text-xs uppercase tracking-widest">{comp.name} <span className="text-emerald-400">• Rodada {round.number}</span></h4>
+                          
+                          {(round?.matches || []).map((m) => {
+                            const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                            return (
+                              <div key={m.id} onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className={`bg-slate-900 p-3 rounded-lg border border-slate-800 flex items-center justify-between text-xs cursor-pointer hover:border-slate-700`}>
+                                <div className="flex-1 flex items-center justify-end gap-2 overflow-hidden">
+                                  <span className="truncate font-bold text-slate-200">{tA?.name || m.placeholderA}</span>
+                                  <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
+                                </div>
+                                <div className={`mx-3 px-3 py-1 border rounded font-mono font-bold shrink-0 shadow-inner ${sUI.bg} ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</div>
+                                <div className="flex-1 flex items-center justify-start gap-2 overflow-hidden">
+                                  <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
+                                  <span className="truncate font-bold text-slate-200">{tB?.name || m.placeholderB}</span>
+                                </div>
                               </div>
-                              <div className={`mx-3 px-3 py-1 border rounded font-mono font-bold shrink-0 shadow-inner ${sUI.bg} ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</div>
-                              <div className="flex-1 flex items-center justify-start gap-2 overflow-hidden">
-                                <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
-                                <span className="truncate font-bold text-slate-200">{tB?.name || m.placeholderB}</span>
-                              </div>
-                            </div>
-                          )
-                        })}
+                            )
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
                 )
               })}
             </div>
-          </>
+          </div>
         )}
 
         {subTab === 'stats' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-right-4">
-            {/* Bloco de Artilharia */}
-            <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl">
-              <div className="bg-slate-950/80 p-4 border-b border-slate-800 flex justify-between items-center">
-                <h3 className="font-bold text-emerald-400 text-lg">⚽ Artilharia</h3>
-                <span className="text-xs font-bold text-slate-500 bg-slate-900 px-2 py-1 rounded">Top 15</span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
+            
+            {/* Bloco Isolado de Artilharia */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-end mb-2">
+                <h3 className="text-lg font-bold text-white pl-2">Top Goleadores</h3>
+                <Button onClick={() => captureSection('capture-scorers', `Artilharia-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar</Button>
               </div>
-              <div className="divide-y divide-slate-800/50">
-                {topScorers.length === 0 ? <p className="p-6 text-sm text-slate-500 text-center">Nenhum gol validado até o momento.</p> : topScorers.map((s, idx) => (
-                  <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <span className={`font-black w-6 text-center ${idx === 0 ? 'text-amber-400 text-lg' : idx === 1 ? 'text-slate-300' : idx === 2 ? 'text-amber-700' : 'text-slate-600'}`}>{idx + 1}º</span>
-                      <ShieldDisplay shield={getTeam(s.teamId)?.shield} size="small" />
-                      <span className="font-bold text-slate-200 text-sm">{s.player}</span>
+              <div id="capture-scorers" className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl p-2 sm:p-4">
+                <div className="bg-slate-950/80 p-4 border border-slate-800 rounded-xl mb-4 flex flex-col items-center justify-center">
+                  <h3 className="font-bold text-emerald-400 text-lg uppercase tracking-widest text-center">⚽ Artilharia</h3>
+                  <span className="text-[10px] font-bold text-slate-400 mt-1">{comp.name}</span>
+                </div>
+                <div className="divide-y divide-slate-800/50 bg-slate-950 rounded-xl border border-slate-800">
+                  {topScorers.length === 0 ? <p className="p-6 text-sm text-slate-500 text-center">Nenhum gol validado até o momento.</p> : topScorers.map((s, idx) => (
+                    <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span className={`font-black w-6 text-center ${idx === 0 ? 'text-amber-400 text-lg' : idx === 1 ? 'text-slate-300 text-lg' : idx === 2 ? 'text-amber-700 text-lg' : 'text-slate-600'}`}>{idx + 1}º</span>
+                        <ShieldDisplay shield={getTeam(s.teamId)?.shield} size="normal" />
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-200 text-sm md:text-base leading-tight">{s.player}</span>
+                          <span className="text-[10px] md:text-xs text-slate-400 font-medium">{getTeam(s.teamId)?.name}</span>
+                        </div>
+                      </div>
+                      <div className="bg-slate-900 px-4 py-2 rounded-lg border border-slate-800 text-emerald-400 font-black text-lg">{s.count}</div>
                     </div>
-                    <div className="bg-slate-950 px-3 py-1 rounded border border-slate-800 text-emerald-400 font-black">{s.count}</div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* Bloco de Assistências */}
-            <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl">
-              <div className="bg-slate-950/80 p-4 border-b border-slate-800 flex justify-between items-center">
-                <h3 className="font-bold text-blue-400 flex items-center gap-2 text-lg"><Star size={20}/> Assistências</h3>
-                <span className="text-xs font-bold text-slate-500 bg-slate-900 px-2 py-1 rounded">Top 15</span>
+            {/* Bloco Isolado de Assistências */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-end mb-2">
+                <h3 className="text-lg font-bold text-white pl-2">Top Garçons</h3>
+                <Button onClick={() => captureSection('capture-assists', `Assistencias-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar</Button>
               </div>
-              <div className="divide-y divide-slate-800/50">
-                {topAssists.length === 0 ? <p className="p-6 text-sm text-slate-500 text-center">Nenhuma assistência validada até o momento.</p> : topAssists.map((a, idx) => (
-                  <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <span className={`font-black w-6 text-center ${idx === 0 ? 'text-amber-400 text-lg' : idx === 1 ? 'text-slate-300' : idx === 2 ? 'text-amber-700' : 'text-slate-600'}`}>{idx + 1}º</span>
-                      <ShieldDisplay shield={getTeam(a.teamId)?.shield} size="small" />
-                      <span className="font-bold text-slate-200 text-sm">{a.player}</span>
+              <div id="capture-assists" className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl p-2 sm:p-4">
+                <div className="bg-slate-950/80 p-4 border border-slate-800 rounded-xl mb-4 flex flex-col items-center justify-center">
+                  <h3 className="font-bold text-blue-400 text-lg uppercase tracking-widest text-center flex items-center gap-2"><Star size={20}/> Assistências</h3>
+                  <span className="text-[10px] font-bold text-slate-400 mt-1">{comp.name}</span>
+                </div>
+                <div className="divide-y divide-slate-800/50 bg-slate-950 rounded-xl border border-slate-800">
+                  {topAssists.length === 0 ? <p className="p-6 text-sm text-slate-500 text-center">Nenhuma assistência validada até o momento.</p> : topAssists.map((a, idx) => (
+                    <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span className={`font-black w-6 text-center ${idx === 0 ? 'text-amber-400 text-lg' : idx === 1 ? 'text-slate-300 text-lg' : idx === 2 ? 'text-amber-700 text-lg' : 'text-slate-600'}`}>{idx + 1}º</span>
+                        <ShieldDisplay shield={getTeam(a.teamId)?.shield} size="normal" />
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-200 text-sm md:text-base leading-tight">{a.player}</span>
+                          <span className="text-[10px] md:text-xs text-slate-400 font-medium">{getTeam(a.teamId)?.name}</span>
+                        </div>
+                      </div>
+                      <div className="bg-slate-900 px-4 py-2 rounded-lg border border-slate-800 text-blue-400 font-black text-lg">{a.count}</div>
                     </div>
-                    <div className="bg-slate-950 px-3 py-1 rounded border border-slate-800 text-blue-400 font-black">{a.count}</div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
+
           </div>
         )}
       </div>
