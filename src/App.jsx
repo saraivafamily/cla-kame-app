@@ -1302,6 +1302,24 @@ export default function App() {
     }
   };
 
+  const handleEditUser = async (userId, updatedData) => {
+    await updateDoc(getPublicDocPath('users', userId), {
+      name: updatedData.name,
+      whatsapp: updatedData.whatsapp
+    });
+    
+    // Opcional: Atualizar também o nome do técnico no time dele para não ficar divergente
+    const userTeam = teams.find(t => t.ownerId === userId);
+    if (userTeam) {
+      await updateDoc(getPublicDocPath('teams', userTeam.id), {
+        coach: updatedData.name,
+        whatsapp: updatedData.whatsapp
+      });
+    }
+    
+    showToast("Dados do técnico atualizados com sucesso!", "success");
+  };
+  
   const renderContent = () => {
     switch (currentTab) {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
@@ -1317,7 +1335,7 @@ export default function App() {
       case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;
       
 
-      case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
+      case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
       default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
     }
   };
