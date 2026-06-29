@@ -604,6 +604,8 @@ const CreateCompetition = ({ teams, onCreate }) => {
       </form>
     </div>
   );
+  };
+
 const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
