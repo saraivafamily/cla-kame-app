@@ -97,84 +97,70 @@ const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2) =
   } return { groups, rounds };
 };
 
-const LoginScreen = ({ users, onLogin, onFirstAccess }) => {
+const LoginScreen = ({ onLogin, onRegister }) => {
   const [view, setView] = useState('login'); 
   const [loginData, setLoginData] = useState({ identifier: '', password: '' });
-  const [loginError, setLoginError] = useState('');
-  const [showForgot, setShowForgot] = useState(false);
-  const [faEmail, setFaEmail] = useState('');
-  const [faUser, setFaUser] = useState(null);
-  const [code, setCode] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
+  const [regData, setRegData] = useState({ firstName: '', lastName: '', teamName: '', email: '', whatsapp: '', password: '' });
+  const [error, setError] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleLoginSubmit = async (e) => {
-    e.preventDefault(); setLoginError('');
+    e.preventDefault(); setError(''); setIsProcessing(true);
     try { await onLogin(loginData.identifier, loginData.password); } 
-    catch (error) { setLoginError(error.message || 'Erro nas credenciais.'); }
+    catch (err) { setError(err.message || 'Erro nas credenciais.'); }
+    setIsProcessing(false);
   };
 
-  const handleRequestCode = (e) => {
-    e.preventDefault(); setLoginError('');
-    const cleanInput = faEmail.trim().toLowerCase(); 
-    const cleanPhone = cleanInput.replace(/\D/g, '');
-    const user = (users || []).find(u => u && ((u.email && String(u.email).toLowerCase() === cleanInput) || (cleanPhone.length >= 8 && String(u.whatsapp) === cleanPhone)));
-    
-    if (!user) { setLoginError('Cadastro não localizado. Fale com um Líder.'); return; }
-    if (!String(user.id).startsWith('pending_')) { setLoginError('Esta conta já está ativada. Volte e faça o login normalmente.'); return; }
-    
-    setFaUser(user); setIsSending(true); 
-    setTimeout(() => { setIsSending(false); setView('fa_code'); }, 1200);
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault(); setError(''); setIsProcessing(true);
+    try { 
+      await onRegister(regData); 
+      setView('login');
+      setRegData({ firstName: '', lastName: '', teamName: '', email: '', whatsapp: '', password: '' });
+    } 
+    catch (err) { setError(err.message); }
+    setIsProcessing(false);
   };
-
-  const handleVerifyCode = (e) => { e.preventDefault(); setIsSending(true); setTimeout(() => { setIsSending(false); setView('fa_pass'); }, 1000); };
-  const handleSavePassword = async (e) => { e.preventDefault(); if (newPassword.length < 6) { setLoginError('A senha deve ter no mínimo 6 caracteres.'); return; } try { await onFirstAccess(faUser, faEmail, faUser?.whatsapp || '', newPassword); } catch (error) { setLoginError(error.message); } };
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 max-w-md w-full shadow-2xl">
-        <div className="text-center mb-6"><div className="flex justify-center mb-4"><img src={LOGO_URL} alt="Clã Kame" className="max-w-[100px]" /></div><h1 className="text-xl font-bold text-white">Clã Kame DLS</h1></div>
+        <div className="text-center mb-6">
+          <div className="flex justify-center mb-4"><img src={LOGO_URL} alt="Clã Kame" className="max-w-[100px]" /></div>
+          <h1 className="text-xl font-bold text-white">Clã Kame DLS</h1>
+        </div>
         
         {view === 'login' && (
           <form onSubmit={handleLoginSubmit} className="space-y-4 animate-in fade-in duration-300">
-            {loginError && <div className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{String(loginError)}</div>}
+            {error && <div className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</div>}
             <div><label className="text-xs text-slate-400 block mb-1">E-mail ou WhatsApp</label><input required value={loginData.identifier} onChange={e=>setLoginData({...loginData, identifier: e.target.value})} className={inputClass} placeholder="Digite seu acesso..." /></div>
             <div><label className="text-xs text-slate-400 block mb-1">Senha</label><input required type="password" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} className={inputClass} placeholder="••••••••" /></div>
-            <div className="text-right"><button type="button" onClick={() => setShowForgot(!showForgot)} className="text-xs text-emerald-400 hover:underline">Esqueci a senha</button></div>
-            {showForgot && <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg text-xs text-emerald-400 text-center animate-in fade-in">Em breve: Recuperação automática por WhatsApp! Fale com um líder por agora.</div>}
-            <Button type="submit" className="w-full py-3">Entrar na Arena</Button>
-            <div className="text-center pt-5 border-t border-slate-800/50 mt-6"><p className="text-xs text-slate-500 mb-2">Foi convidado e ainda não tem acesso?</p><button type="button" onClick={() => {setView('fa_email'); setLoginError('');}} className="text-sm font-bold text-emerald-400 hover:text-emerald-300 underline">Primeiro Acesso / Ativar Conta</button></div>
+            <Button type="submit" disabled={isProcessing} className="w-full py-3">{isProcessing ? 'Entrando...' : 'Entrar na Arena'}</Button>
+            <div className="text-center pt-5 border-t border-slate-800/50 mt-6">
+              <p className="text-xs text-slate-500 mb-2">Ainda não faz parte do clã?</p>
+              <button type="button" onClick={() => {setView('register'); setError('');}} className="text-sm font-bold text-emerald-400 hover:text-emerald-300 underline">Primeiro Acesso (Cadastrar)</button>
+            </div>
           </form>
         )}
 
-        {view === 'fa_email' && (
-          <form onSubmit={handleRequestCode} className="space-y-4 animate-in slide-in-from-right-4 duration-300">
-            <h2 className="text-lg font-bold text-white text-center mb-2">Primeiro Acesso</h2>
-            <p className="text-xs text-slate-400 text-center mb-4">Insira o e-mail ou WhatsApp cadastrado pelo Líder.</p>
-            {loginError && <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg border border-red-500/20">{String(loginError)}</div>}
-            <div><input required placeholder="Ex: tecnico@email.com" type="text" value={faEmail} onChange={e=>setFaEmail(e.target.value)} className={inputClass} /></div>
-            <Button type="submit" disabled={isSending} className="w-full py-3">{isSending ? 'Buscando...' : 'Verificar Cadastro'}</Button>
-            <button type="button" onClick={() => {setView('login'); setLoginError('');}} className="w-full text-xs text-slate-500 hover:text-white mt-4">Voltar para o Login</button>
+        {view === 'register' && (
+          <form onSubmit={handleRegisterSubmit} className="space-y-3 animate-in slide-in-from-right-4 duration-300">
+            <h2 className="text-lg font-bold text-white text-center mb-1">Cadastro de Técnico</h2>
+            <p className="text-[10px] text-slate-400 text-center mb-4">Preencha seus dados para solicitar acesso.</p>
+            {error && <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</div>}
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div><input required placeholder="Nome" value={regData.firstName} onChange={e=>setRegData({...regData, firstName: e.target.value})} className={inputClass} /></div>
+              <div><input required placeholder="Sobrenome" value={regData.lastName} onChange={e=>setRegData({...regData, lastName: e.target.value})} className={inputClass} /></div>
+            </div>
+            <div><input required placeholder="Nome do Clube" value={regData.teamName} onChange={e=>setRegData({...regData, teamName: e.target.value})} className={inputClass} /></div>
+            <div><input required type="email" placeholder="E-mail" value={regData.email} onChange={e=>setRegData({...regData, email: e.target.value})} className={inputClass} /></div>
+            <div><input required type="tel" placeholder="WhatsApp (com DDD)" value={regData.whatsapp} onChange={e=>setRegData({...regData, whatsapp: e.target.value})} className={inputClass} /></div>
+            <div><input required type="password" maxLength={8} placeholder="Crie uma Senha (máx 8 dígitos)" value={regData.password} onChange={e=>setRegData({...regData, password: e.target.value})} className={inputClass} /></div>
+            
+            <Button type="submit" disabled={isProcessing} className="w-full py-3 mt-2">{isProcessing ? 'Enviando...' : 'Solicitar Entrada no Clã'}</Button>
+            <button type="button" onClick={() => {setView('login'); setError('');}} className="w-full text-xs text-slate-500 hover:text-white mt-2 pb-2">Voltar para o Login</button>
           </form>
-        )}
-
-        {view === 'fa_code' && (
-           <form onSubmit={handleVerifyCode} className="space-y-4 animate-in slide-in-from-right-4 duration-300 text-center">
-             <div className="bg-emerald-500/10 text-emerald-400 p-4 rounded-xl mb-4 text-sm border border-emerald-500/20">Enviamos um código para o WhatsApp final <br/><b className="text-lg tracking-wider text-white mt-1 inline-block">***{String(faUser?.whatsapp || '').slice(-4)}</b></div>
-             <div><input required type="text" maxLength={4} value={code} onChange={e=>setCode(e.target.value)} className="w-40 mx-auto text-center tracking-[0.7em] font-bold text-3xl bg-slate-950 border border-slate-700 rounded-xl p-4 text-white outline-none focus:border-emerald-500 block" placeholder="0000" /></div>
-             <Button type="submit" disabled={code.length < 4 || isSending} className="w-full py-4 text-lg mt-4 shadow-xl">{isSending ? 'Verificando...' : 'Validar Código'}</Button>
-             <button type="button" onClick={()=>setView('fa_email')} className="text-sm text-slate-500 hover:text-white mt-4 underline">Voltar</button>
-           </form>
-        )}
-
-        {view === 'fa_pass' && (
-           <form onSubmit={handleSavePassword} className="space-y-4 animate-in slide-in-from-right-4 duration-300">
-             <h2 className="text-lg font-bold text-emerald-400 text-center mb-2">Quase lá, {String(faUser?.name || '').split(' ')[0]}!</h2>
-             <p className="text-xs text-slate-400 text-center mb-4">Crie a sua senha de acesso oficial.</p>
-             {loginError && <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg border border-red-500/20">{String(loginError)}</div>}
-             <div><label className="text-xs text-slate-400 block mb-1">Crie a sua Senha</label><input required type="password" minLength={6} value={newPassword} onChange={e=>setNewPassword(e.target.value)} className={inputClass} placeholder="No mínimo 6 caracteres" /></div>
-             <Button type="submit" className="w-full py-4 text-lg mt-4 shadow-xl">Salvar Senha e Entrar</Button>
-           </form>
         )}
       </div>
     </div>
