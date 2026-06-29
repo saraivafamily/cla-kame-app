@@ -321,11 +321,89 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch })
   );
 };
 
-const TeamsList = ({ teams, users, currentUser, onEditTeam }) => {
+const TeamStatsModal = ({ team, matches, teams, onClose }) => {
+  if (!team) return null;
+  
+  // Filtra as partidas oficiais do time e calcula as estatísticas
+  const teamMatches = (matches || []).filter(m => m.status === 'approved' && (m.teamA === team.id || m.teamB === team.id));
+  let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0; let biggestWin = null; let maxGd = -1;
+
+  teamMatches.forEach(m => {
+    const isTeamA = m.teamA === team.id;
+    const scoreFor = isTeamA ? m.scoreA : m.scoreB;
+    const scoreAgainst = isTeamA ? m.scoreB : m.scoreA;
+    gf += scoreFor; ga += scoreAgainst;
+    if (scoreFor > scoreAgainst) { 
+      wins++; const gd = scoreFor - scoreAgainst; 
+      if (gd > maxGd) { maxGd = gd; biggestWin = { scoreFor, scoreAgainst, oppId: isTeamA ? m.teamB : m.teamA }; } 
+    } 
+    else if (scoreFor === scoreAgainst) { draws++; } 
+    else { losses++; }
+  });
+
+  // Sistema de Conquistas
+  const conquistas = [];
+  if (wins > 0) conquistas.push({ icon: '🌟', title: '1ª Vitória', desc: 'Venceu uma partida oficial' });
+  if (gf >= 10) conquistas.push({ icon: '⚽', title: 'Goleador', desc: 'Marcou 10 ou mais gols' });
+  if (wins >= 5) conquistas.push({ icon: '🔥', title: 'Em Chamas', desc: 'Alcançou 5 vitórias' });
+  if (teamMatches.length >= 3 && losses === 0) conquistas.push({ icon: '🛡️', title: 'Muralha', desc: 'Invicto após 3+ jogos' });
+  if (biggestWin && (biggestWin.scoreFor - biggestWin.scoreAgainst) >= 3) conquistas.push({ icon: '⚡', title: 'Impiedoso', desc: 'Venceu com 3+ gols de diferença' });
+  if (draws >= 3) conquistas.push({ icon: '🤝', title: 'Rei do Empate', desc: 'Empatou 3 ou mais vezes' });
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl" onClick={e => e.stopPropagation()}>
+        
+        {/* Cabeçalho */}
+        <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-slate-800 p-4 sm:p-6 flex justify-between items-center z-10">
+          <div className="flex items-center gap-4">
+            <ShieldDisplay shield={team.shield} size="normal" />
+            <div>
+              <h3 className="font-bold text-white text-lg md:text-xl leading-tight">{team.name}</h3>
+              <p className="text-xs text-emerald-400 font-medium uppercase tracking-widest mt-1">Técnico: {team.coach}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white p-2 bg-slate-800 hover:bg-slate-700 rounded-full transition-colors"><X size={18}/></button>
+        </div>
+        
+        {/* Corpo com Estatísticas */}
+        <div className="p-4 sm:p-6 space-y-8">
+          <div>
+            <h4 className="text-sm font-bold text-slate-400 mb-3 flex items-center gap-2"><Activity size={16}/> Resumo da Temporada</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center"><p className="text-slate-500 text-[10px] uppercase font-bold mb-1">Jogos</p><p className="text-2xl font-bold text-white">{teamMatches.length}</p></div>
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center"><p className="text-slate-500 text-[10px] uppercase font-bold mb-1">Vitórias</p><p className="text-2xl font-bold text-emerald-400">{wins}</p></div>
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center"><p className="text-slate-500 text-[10px] uppercase font-bold mb-1">Gols Pró</p><p className="text-2xl font-bold text-blue-400">{gf}</p></div>
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center"><p className="text-slate-500 text-[10px] uppercase font-bold mb-1">Aprov.</p><p className="text-2xl font-bold text-amber-400">{teamMatches.length > 0 ? Math.round((wins * 3 + draws) / (teamMatches.length * 3) * 100) : 0}%</p></div>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-bold text-slate-400 mb-3 flex items-center gap-2"><Medal size={16} className="text-amber-400"/> Sala de Troféus</h4>
+            {conquistas.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {conquistas.map((c, i) => (
+                  <div key={i} className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center flex flex-col items-center">
+                    <span className="text-3xl mb-2 drop-shadow-md">{c.icon}</span><p className="text-xs font-bold text-white">{c.title}</p><p className="text-[9px] text-slate-500 mt-1 leading-tight">{c.desc}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 text-center p-6 bg-slate-950 rounded-xl border border-slate-800 border-dashed">Nenhuma conquista desbloqueada ainda.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const TeamsList = ({ teams, users, currentUser, matches, onEditTeam }) => {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', coach: '', whatsapp: '', shield: '', ownerId: 'manual' });
   const [viewMode, setViewMode] = useState('grid');
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewingTeam, setViewingTeam] = useState(null); // Estado que controla a abertura das estatísticas
   
   const handleWhatsApp = (phone) => { if (!phone) return; window.open(`https://wa.me/${String(phone).replace(/\D/g, '')}`, '_blank'); };
   const startEdit = (team) => { if (!team) return; setEditingId(team.id); setEditData({ name: team.name || '', coach: team.coach || '', whatsapp: team.whatsapp || '', shield: team.shield || '🛡️', ownerId: team.ownerId || 'manual' }); };
@@ -379,7 +457,6 @@ const TeamsList = ({ teams, users, currentUser, onEditTeam }) => {
                       <input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} placeholder="Time" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500" />
                       <input type="text" value={editData.coach} onChange={e=>setEditData({...editData, coach: e.target.value})} placeholder="Técnico" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500" />
                       <input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} placeholder="WhatsApp" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500" />
-                      {/* Novo Campo de Vínculo */}
                       <select value={editData.ownerId} onChange={e=>setEditData({...editData, ownerId: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500">
                         <option value="manual">👤 Conta Manual</option>
                         {(users || []).map(u => <option key={u.id} value={u.id}>📱 Vincular: {u.name}</option>)}
@@ -387,8 +464,8 @@ const TeamsList = ({ teams, users, currentUser, onEditTeam }) => {
                     </div>
                   </div>
                   <div className={`flex gap-1.5 ${viewMode === 'list' ? 'w-full md:w-auto shrink-0 justify-end' : 'mt-1'}`}>
-                    <Button variant="outline" onClick={() => setEditingId(null)} className="flex-1 md:flex-none py-1.5 text-[10px] px-3"><X size={12}/> {viewMode === 'list' && <span className="hidden sm:inline">Cancelar</span>}</Button>
-                    <Button onClick={() => saveEdit(team)} className="flex-1 md:flex-none py-1.5 text-[10px] px-3"><Save size={12}/> {viewMode === 'list' && <span className="hidden sm:inline">Salvar</span>}</Button>
+                    <Button variant="outline" onClick={(e) => { e.stopPropagation(); setEditingId(null); }} className="flex-1 md:flex-none py-1.5 text-[10px] px-3"><X size={12}/> {viewMode === 'list' && <span className="hidden sm:inline">Cancelar</span>}</Button>
+                    <Button onClick={(e) => { e.stopPropagation(); saveEdit(team); }} className="flex-1 md:flex-none py-1.5 text-[10px] px-3"><Save size={12}/> {viewMode === 'list' && <span className="hidden sm:inline">Salvar</span>}</Button>
                   </div>
                 </div>
               );
@@ -396,21 +473,21 @@ const TeamsList = ({ teams, users, currentUser, onEditTeam }) => {
 
             if (viewMode === 'list') {
                return (
-                <div key={safeTeamId} className="relative bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group">
+                <div key={safeTeamId} onClick={() => setViewingTeam(team)} className="relative bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-800 hover:border-emerald-500/50 hover:shadow-lg transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group cursor-pointer">
                   <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
                     <div className="shrink-0"><ShieldDisplay shield={team.shield} size="normal" /></div>
                     <div className="flex-1 min-w-0 pr-10 sm:pr-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate">{String(team.name || 'Time')}</h3>
+                        <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate group-hover:text-emerald-400 transition-colors">{String(team.name || 'Time')}</h3>
                         {team.ownerId === 'manual' && <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 rounded uppercase font-bold shrink-0">Sem Acesso</span>}
                       </div>
                       <p className="text-[10px] md:text-xs text-slate-400 mt-0.5 truncate"><span className="text-slate-300 font-medium">{String(team.coach || 'Sem técnico')}</span> • {String(team.whatsapp || 'Sem WhatsApp')}</p>
                     </div>
                   </div>
                   {currentUser?.role === 'leader' && ( 
-                    <button onClick={() => startEdit(team)} className="absolute top-3 sm:top-auto sm:relative right-3 sm:right-auto text-slate-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors sm:opacity-0 sm:group-hover:opacity-100 shrink-0"><Edit size={16} /></button> 
+                    <button onClick={(e) => { e.stopPropagation(); startEdit(team); }} className="absolute top-3 sm:top-auto sm:relative right-3 sm:right-auto text-slate-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors sm:opacity-0 sm:group-hover:opacity-100 shrink-0 z-10"><Edit size={16} /></button> 
                   )}
-                  <Button onClick={() => handleWhatsApp(team.whatsapp)} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-3 text-xs disabled:bg-slate-800 disabled:text-slate-500 shrink-0" disabled={!team.whatsapp}>
+                  <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-3 text-xs disabled:bg-slate-800 disabled:text-slate-500 shrink-0 z-10" disabled={!team.whatsapp}>
                     <MessageCircle size={16} /> <span className="sm:hidden lg:inline">Chamar</span>
                   </Button>
                 </div>
@@ -418,27 +495,37 @@ const TeamsList = ({ teams, users, currentUser, onEditTeam }) => {
             }
 
             return (
-              <div key={safeTeamId} className="relative bg-slate-900 p-3 md:p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-3 group">
+              <div key={safeTeamId} onClick={() => setViewingTeam(team)} className="relative bg-slate-900 p-3 md:p-4 rounded-xl border border-slate-800 hover:border-emerald-500/50 hover:shadow-lg transition-all flex flex-col justify-between gap-3 group cursor-pointer">
                 {currentUser?.role === 'leader' && ( 
-                  <button onClick={() => startEdit(team)} className="absolute top-2 right-2 text-slate-500 hover:text-emerald-400 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-slate-800"><Edit size={14} /></button> 
+                  <button onClick={(e) => { e.stopPropagation(); startEdit(team); }} className="absolute top-2 right-2 text-slate-500 hover:text-emerald-400 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-slate-800 z-10"><Edit size={14} /></button> 
                 )}
                 <div className="flex flex-col items-center text-center gap-2 mt-2">
-                  <div className="shrink-0 relative">
+                  <div className="shrink-0 relative group-hover:scale-105 transition-transform">
                     <ShieldDisplay shield={team.shield} size="normal" />
                     {team.ownerId === 'manual' && <span className="absolute -top-2 -right-2 text-[8px] bg-amber-500/20 text-amber-400 px-1 rounded shadow" title="Conta Manual">👤</span>}
                   </div>
                   <div className="w-full">
-                    <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate px-2">{String(team.name || 'Time')}</h3>
+                    <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate px-2 group-hover:text-emerald-400 transition-colors">{String(team.name || 'Time')}</h3>
                     <p className="text-[9px] md:text-[10px] text-slate-400 mt-1 truncate px-1"><span className="text-slate-300 font-medium">{String(team.coach || 'Sem técnico')}</span></p>
                   </div>
                 </div>
-                <Button onClick={() => handleWhatsApp(team.whatsapp)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-1 py-1.5 text-[10px] md:text-xs px-2 disabled:bg-slate-800 disabled:text-slate-500" disabled={!team.whatsapp}>
+                <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-1 py-1.5 text-[10px] md:text-xs px-2 disabled:bg-slate-800 disabled:text-slate-500 z-10" disabled={!team.whatsapp}>
                   <MessageCircle size={14} /> Chamar
                 </Button>
               </div>
             );
           })}
         </div>
+      )}
+      
+      {/* Aqui é onde a Mágica acontece! O Modal é renderizado caso exista uma equipe selecionada */}
+      {viewingTeam && (
+        <TeamStatsModal 
+          team={viewingTeam} 
+          matches={matches} 
+          teams={teams} 
+          onClose={() => setViewingTeam(null)} 
+        />
       )}
     </div>
   );
@@ -1325,7 +1412,7 @@ export default function App() {
     switch (currentTab) {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
-      case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} onEditTeam={handleEditTeam} />;
+      case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} onEditComp={c => updateDoc(getPublicDocPath('competitions', c.id), c)} showToast={showToast} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
