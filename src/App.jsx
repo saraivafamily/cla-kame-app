@@ -999,18 +999,61 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     const file = e.target.files[0]; if (!file) return;
     processScreenshot(file, async (base64) => {
       setMatchImageBase64(base64); setIsAnalyzing(true); setImageUploaded(false);
-      try {
-        const prompt = `Analise o placar final deste jogo de Dream League Soccer (DLS). Retorne EXATAMENTE formato JSON sem markdown: {"leftTeamName":"","leftScore":0,"leftGoals":[{"player":"","assist":"","minute":""}],"rightTeamName":"","rightScore":0,"rightGoals":[]}`;
-        const payload = { contents: [{ role: "user", parts: [ { text: prompt }, { inlineData: { mimeType: base64.match(/data:(.*?);base64/)[1], data: base64.split(',')[1] } } ] }], generationConfig: { responseMimeType: "application/json" } };
-        const safeKey = userApiKey ? encodeURIComponent(userApiKey.trim()) : '';
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${safeKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if(!response.ok) throw new Error("Falha no servidor Google.");
-        const result = await response.json(); let text = result.candidates[0].content.parts[0].text.trim().replace(/```json/gi, '').replace(/```/g, '').trim();
-        const data = JSON.parse(text);
-        setScoreA(String(data.leftScore || 0)); setScoreB(String(data.rightScore || 0)); setGoalsA(data.leftGoals || []); setGoalsB(data.rightGoals || []); setImageUploaded(true); showToast("Leitura IA concluída!", "success");
-      } catch (error) { setIsManualMode(true); showToast("IA indisponível. Preenchimento liberado.", "error"); } finally { setIsAnalyzing(false); }
-    });
-  };
+       try {
+      showToast("Analisando imagem...", "info");
+      
+      const apiKey = ""; // A chave é injetada automaticamente
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+      
+      // Remove o cabeçalho base64 para a API não dar erro de formatação
+      const base64Data = matchData.proofImage.includes(',') 
+        ? matchData.proofImage.split(',')[1] 
+        : matchData.proofImage;
+        
+      const mimeType = matchData.proofImage.split(';')[0].split(':')[1] || "image/jpeg";
+
+      const payload = {
+        contents: [{
+          role: "user",
+          parts: [
+            { text: "Analise este placar de jogo. Retorne APENAS um objeto JSON válido, sem blocos de código ou formatação markdown, com esta exata estrutura: {\"scoreA\": número, \"scoreB\": número}." },
+            { inlineData: { mimeType: mimeType, data: base64Data } }
+          ]
+        }],
+        generationConfig: {
+          responseMimeType: "application/json" // Força a API a não errar o formato
+        }
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) throw new Error(`Erro na API (${response.status})`);
+
+      const data = await response.json();
+      const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!textResult) throw new Error("A IA não conseguiu ler a imagem.");
+      
+      const aiResult = JSON.parse(textResult);
+      
+      // Atualiza os inputs na tela com os gols encontrados
+      setMatchData(prev => ({
+        ...prev,
+        scoreA: aiResult.scoreA !== undefined ? String(aiResult.scoreA) : prev.scoreA,
+        scoreB: aiResult.scoreB !== undefined ? String(aiResult.scoreB) : prev.scoreB,
+      }));
+      
+      showToast("Leitura concluída com sucesso!", "success");
+      
+    } catch (err) {
+      console.error("Erro na IA:", err);
+      showToast("Erro na leitura inteligente. Preencha manualmente.", "error");
+    }
+
 
   const handleFormSubmit = (e) => {
     e.preventDefault(); const matchDetails = availableMatches.find(m => m.id === selectedMatchId);
