@@ -510,8 +510,14 @@ const Standings = ({ matches, teams, comp }) => {
 
 const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast }) => {
   const [subTab, setSubTab] = useState('overview'); 
+  const [expandedRoundId, setExpandedRoundId] = useState(null);
+  const captureRef = useRef(null);
+
   if (!comp) return (<div className="text-center py-12"><p className="text-slate-400">Torneio não localizado.</p><button onClick={onBack} className="text-emerald-400 underline">Voltar</button></div>);
-  const getTeam = (id) => (teams || []).find(t => t && t.id === id); const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  
+  const getTeam = (id) => (teams || []).find(t => t && t.id === id); 
+  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  
   const getMatchStatusDisplay = (matchId) => {
     const ms = (matches || []).filter(m => m && m.matchId === matchId && m.compId === comp.id && m.status !== 'rejected');
     if(ms.length === 0) return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
@@ -521,41 +527,163 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     return { submittedMatchId: sm.id, isPlayed: true, scoreA: sm.scoreA, scoreB: sm.scoreB, penaltiesA: sm.penaltiesA, penaltiesB: sm.penaltiesB, text: 'Validando', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
   };
 
+  // Motor Inteligente de Artilharia e Assistências
+  const { topScorers, topAssists } = useMemo(() => {
+    const scorers = {}; const assists = {};
+    (matches || []).filter(m => m.compId === comp.id && m.status === 'approved').forEach(m => {
+      (m.goals || []).forEach(g => {
+        if (g.player) {
+          const pKey = g.player.trim().toLowerCase() + '_' + g.teamId;
+          if(!scorers[pKey]) scorers[pKey] = { player: g.player, teamId: g.teamId, count: 0 };
+          scorers[pKey].count += 1;
+        }
+        if (g.assist) {
+          const aKey = g.assist.trim().toLowerCase() + '_' + g.teamId;
+          if(!assists[aKey]) assists[aKey] = { player: g.assist, teamId: g.teamId, count: 0 };
+          assists[aKey].count += 1;
+        }
+      });
+    });
+    return {
+      topScorers: Object.values(scorers).sort((a,b) => b.count - a.count).slice(0, 15),
+      topAssists: Object.values(assists).sort((a,b) => b.count - a.count).slice(0, 15)
+    };
+  }, [matches, comp.id]);
+
+  // Função mágica que cria o Print da Tela sem precisar de bibliotecas instaladas
+  const handleCapture = () => {
+    showToast("Preparando imagem de alta qualidade...", "success");
+    const script = document.createElement('script');
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+    script.onload = () => {
+      const element = captureRef.current;
+      window.html2canvas(element, { backgroundColor: '#020617', scale: 2, useCORS: true }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `Resumo-${comp.name}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast("Imagem salva com sucesso!", "success");
+      });
+    };
+    document.body.appendChild(script);
+  };
+
+  const toggleRound = (id) => {
+    setExpandedRoundId(prev => prev === id ? null : id);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in">
       <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
-      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800"><h2 className="text-xl font-bold text-white">{String(comp.name)}</h2><p className="text-xs text-emerald-400 mt-1 uppercase font-bold">{comp.format === 'league' ? 'Liga' : comp.format === 'groups' ? 'Fase de Grupos' : 'Mata-Mata'}</p></div>
-      <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800"><button onClick={()=>setSubTab('overview')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold ${subTab==='overview'?'bg-emerald-600 text-white':'text-slate-500'}`}>Tabela & Jogos</button></div>
-      {subTab === 'overview' && (
-        <div className="space-y-6">
-          <Standings matches={matches} teams={(teams || []).filter(t => t && comp.teams?.includes(t.id))} comp={comp} />
-          <div className="space-y-4">
-            {(comp.rounds || []).map((round) => (
-              <div key={round?.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                <div className="bg-slate-950/60 p-3 border-b border-slate-800 flex justify-between items-center"><span className="text-xs font-bold text-white">Rodada {String(round?.number || '')}</span>{isAdmin && round?.status === 'locked' && <Button onClick={()=>onReleaseRound(comp.id, round.id)} className="py-1 text-[10px]">Liberar</Button>}</div>
-                <div className="p-3 space-y-2">
-                  {(round?.matches || []).map((m) => {
-                    const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
-                    return (
-                      <div key={m.id} onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className={`bg-slate-950 p-3 rounded-lg border border-slate-900 flex items-center justify-between text-xs cursor-pointer hover:border-slate-700`}>
-                        <div className="flex-1 flex items-center justify-end gap-2 overflow-hidden">
-                          <span className="truncate font-bold text-slate-200">{tA?.name || m.placeholderA}</span>
-                          <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
-                        </div>
-                        <div className={`mx-3 px-3 py-1 border rounded font-mono font-bold shrink-0 ${sUI.bg} ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</div>
-                        <div className="flex-1 flex items-center justify-start gap-2 overflow-hidden">
-                          <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
-                          <span className="truncate font-bold text-slate-200">{tB?.name || m.placeholderB}</span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
+      
+      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-bold text-white">{String(comp.name)}</h2>
+          <p className="text-xs text-emerald-400 mt-1 uppercase font-bold">{comp.format === 'league' ? 'Liga' : comp.format === 'groups' ? 'Fase de Grupos' : 'Mata-Mata'}</p>
         </div>
-      )}
+        <Button onClick={handleCapture} className="text-xs py-2 px-3 shadow-lg" variant="outline"><Camera size={16}/> <span className="hidden sm:inline">Salvar Imagem</span></Button>
+      </div>
+      
+      <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800">
+        <button onClick={()=>setSubTab('overview')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Tabela & Jogos</button>
+        <button onClick={()=>setSubTab('stats')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Estatísticas</button>
+      </div>
+      
+      {/* Container que a câmera vai capturar */}
+      <div ref={captureRef} className="space-y-6 bg-slate-950 p-2 md:p-4 rounded-2xl">
+        
+        {subTab === 'overview' && (
+          <>
+            <Standings matches={matches} teams={(teams || []).filter(t => t && comp.teams?.includes(t.id))} comp={comp} />
+            
+            <div className="space-y-3 pt-4 border-t border-slate-800/50">
+              <h3 className="text-lg font-bold text-white mb-2 pl-2">Rodadas e Confrontos</h3>
+              {(comp.rounds || []).map((round) => {
+                const isExpanded = expandedRoundId === round.id;
+                return (
+                  <div key={round?.id} className={`bg-slate-900 border ${isExpanded ? 'border-emerald-500/50 shadow-lg' : 'border-slate-800 hover:border-slate-700'} rounded-xl overflow-hidden transition-all`}>
+                    <button onClick={() => toggleRound(round.id)} className="w-full bg-slate-950/60 p-4 flex justify-between items-center transition-colors outline-none">
+                      <span className={`text-sm font-bold flex items-center gap-2 ${isExpanded ? 'text-emerald-400' : 'text-white'}`}>
+                        {round.status === 'locked' ? <Lock size={16} className="text-slate-500"/> : <PlayCircle size={16} className="text-emerald-500"/>}
+                        Rodada {String(round?.number || '')}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        {isAdmin && round?.status === 'locked' && <Button onClick={(e)=>{e.stopPropagation(); onReleaseRound(comp.id, round.id)}} className="py-1 text-[10px]">Liberar</Button>}
+                        <span className={`font-bold transition-transform duration-300 ${isExpanded ? 'text-emerald-400 rotate-180' : 'text-slate-500'}`}>▼</span>
+                      </div>
+                    </button>
+                    
+                    {isExpanded && (
+                      <div className="p-3 space-y-2 bg-slate-900 border-t border-slate-800 animate-in slide-in-from-top-2">
+                        {(round?.matches || []).map((m) => {
+                          const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                          return (
+                            <div key={m.id} onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className={`bg-slate-950 p-3 rounded-lg border border-slate-900 flex items-center justify-between text-xs cursor-pointer hover:border-slate-700`}>
+                              <div className="flex-1 flex items-center justify-end gap-2 overflow-hidden">
+                                <span className="truncate font-bold text-slate-200">{tA?.name || m.placeholderA}</span>
+                                <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
+                              </div>
+                              <div className={`mx-3 px-3 py-1 border rounded font-mono font-bold shrink-0 shadow-inner ${sUI.bg} ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</div>
+                              <div className="flex-1 flex items-center justify-start gap-2 overflow-hidden">
+                                <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
+                                <span className="truncate font-bold text-slate-200">{tB?.name || m.placeholderB}</span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+
+        {subTab === 'stats' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-right-4">
+            {/* Bloco de Artilharia */}
+            <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl">
+              <div className="bg-slate-950/80 p-4 border-b border-slate-800 flex justify-between items-center">
+                <h3 className="font-bold text-emerald-400 text-lg">⚽ Artilharia</h3>
+                <span className="text-xs font-bold text-slate-500 bg-slate-900 px-2 py-1 rounded">Top 15</span>
+              </div>
+              <div className="divide-y divide-slate-800/50">
+                {topScorers.length === 0 ? <p className="p-6 text-sm text-slate-500 text-center">Nenhum gol validado até o momento.</p> : topScorers.map((s, idx) => (
+                  <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <span className={`font-black w-6 text-center ${idx === 0 ? 'text-amber-400 text-lg' : idx === 1 ? 'text-slate-300' : idx === 2 ? 'text-amber-700' : 'text-slate-600'}`}>{idx + 1}º</span>
+                      <ShieldDisplay shield={getTeam(s.teamId)?.shield} size="small" />
+                      <span className="font-bold text-slate-200 text-sm">{s.player}</span>
+                    </div>
+                    <div className="bg-slate-950 px-3 py-1 rounded border border-slate-800 text-emerald-400 font-black">{s.count}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Bloco de Assistências */}
+            <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl">
+              <div className="bg-slate-950/80 p-4 border-b border-slate-800 flex justify-between items-center">
+                <h3 className="font-bold text-blue-400 flex items-center gap-2 text-lg"><Star size={20}/> Assistências</h3>
+                <span className="text-xs font-bold text-slate-500 bg-slate-900 px-2 py-1 rounded">Top 15</span>
+              </div>
+              <div className="divide-y divide-slate-800/50">
+                {topAssists.length === 0 ? <p className="p-6 text-sm text-slate-500 text-center">Nenhuma assistência validada até o momento.</p> : topAssists.map((a, idx) => (
+                  <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <span className={`font-black w-6 text-center ${idx === 0 ? 'text-amber-400 text-lg' : idx === 1 ? 'text-slate-300' : idx === 2 ? 'text-amber-700' : 'text-slate-600'}`}>{idx + 1}º</span>
+                      <ShieldDisplay shield={getTeam(a.teamId)?.shield} size="small" />
+                      <span className="font-bold text-slate-200 text-sm">{a.player}</span>
+                    </div>
+                    <div className="bg-slate-950 px-3 py-1 rounded border border-slate-800 text-blue-400 font-black">{a.count}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
