@@ -571,18 +571,39 @@ const CreateCompetition = ({ teams, onCreate }) => {
           )}
         </div>
         <div className="pt-4 border-t border-slate-800">
-          <div className="flex justify-between items-end mb-4"><label className="text-sm font-medium text-slate-400">Selecione as Equipes ({selectedTeams.length} marcadas)</label></div>
-          {teams.length === 0 ? <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado.</p> : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {teams.map(team => { const isSelected = selectedTeams.includes(team.id); return ( <div key={team.id} onClick={() => toggleTeam(team.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-slate-950 border-slate-800 hover:border-slate-600'}`}><ShieldDisplay shield={team.shield} />span><span className={`font-medium text-sm ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{team.name}</span></div> ); })}
+          <div className="flex justify-between items-end mb-4">
+            <label className="text-sm font-medium text-slate-400">Selecione as Equipes ({selectedTeams.length} marcadas)</label>
+          </div>
+          
+          {teams.length === 0 ? (
+            <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado.</p>
+          ) : (
+            <div className="bg-slate-950 border border-slate-800 p-2 rounded-xl max-h-60 overflow-y-auto space-y-1 custom-scrollbar">
+              {teams.map(team => { 
+                const isSelected = selectedTeams.includes(team.id); 
+                return ( 
+                  <div 
+                    key={team.id} 
+                    onClick={() => toggleTeam(team.id)} 
+                    className={`cursor-pointer flex flex-col justify-center px-4 py-2.5 rounded-lg border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-transparent border-transparent hover:bg-slate-900'}`}
+                  >
+                    <span className={`font-bold text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>
+                      {team.name}
+                    </span>
+                    <span className={`text-[11px] truncate ${isSelected ? 'text-emerald-600/80' : 'text-slate-500'}`}>
+                      Técnico: {team.coach || 'Sem técnico'}
+                    </span>
+                  </div> 
+                ); 
+              })}
             </div>
           )}
         </div>
+        
         <Button type="submit" className="w-full py-4 text-lg mt-4">Criar Campeonato</Button>
       </form>
     </div>
   );
-};
 const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
