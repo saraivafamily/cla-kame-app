@@ -212,7 +212,7 @@ const Profile = ({ currentUser, teams, matches, competitions }) => {
           if (wins >= 50) conquistas.push({ icon: '🔥', title: 'ON FIRE', desc: 'Alcançou 50 vitórias no clã' });
           if (teamMatches.length >= 10 && losses === 0) conquistas.push({ icon: '🛡️', title: 'MURALHA', desc: 'Invicto após 10+ jogos' });
           if (biggestWin && (biggestWin.scoreFor - biggestWin.scoreAgainst) >= 5) conquistas.push({ icon: '⚡', title: 'IMPIEDOSO', desc: 'Venceu com 5+ gols de diferença' });
-          if (draws >= 20) conquistas.push({ icon: '🤝', title: 'REI DO EMPATE', desc: 'Empatou 20 ou mais vezes' });
+          if (draws >= 50) conquistas.push({ icon: '🤝', title: 'REI DO EMPATE', desc: 'Empatou 50 ou mais vezes' });
           
 
           const activeComps = competitions.filter(c => c.teams?.includes(team.id));
@@ -345,12 +345,13 @@ const TeamStatsModal = ({ team, matches, teams, onClose }) => {
 
   // Sistema de Conquistas
   const conquistas = [];
-  if (wins > 0) conquistas.push({ icon: '🌟', title: '1ª Vitória', desc: 'Venceu uma partida oficial' });
-  if (gf >= 10) conquistas.push({ icon: '⚽', title: 'Goleador', desc: 'Marcou 10 ou mais gols' });
-  if (wins >= 5) conquistas.push({ icon: '🔥', title: 'Em Chamas', desc: 'Alcançou 5 vitórias' });
-  if (teamMatches.length >= 3 && losses === 0) conquistas.push({ icon: '🛡️', title: 'Muralha', desc: 'Invicto após 3+ jogos' });
-  if (biggestWin && (biggestWin.scoreFor - biggestWin.scoreAgainst) >= 3) conquistas.push({ icon: '⚡', title: 'Impiedoso', desc: 'Venceu com 3+ gols de diferença' });
-  if (draws >= 3) conquistas.push({ icon: '🤝', title: 'Rei do Empate', desc: 'Empatou 3 ou mais vezes' });
+  if (wins > 0) conquistas.push({ icon: '🌟', title: '1ª VITÓRIA', desc: 'Venceu uma partida oficial' });
+  if (gf >= 100) conquistas.push({ icon: '⚽', title: 'GOLEADOR', desc: 'Marcou 100 ou mais gols' });
+  if (gf >= 500) conquistas.push({ icon: '⚽', title: 'MERCENÁRIO', desc: 'Marcou 500 ou mais gols' });
+  if (wins >= 50) conquistas.push({ icon: '🔥', title: 'ON FIRE', desc: 'Alcançou 50 vitórias' });
+  if (teamMatches.length >= 10 && losses === 0) conquistas.push({ icon: '🛡️', title: 'MURALHA', desc: 'Invicto após 10+ jogos' });
+  if (biggestWin && (biggestWin.scoreFor - biggestWin.scoreAgainst) >= 3) conquistas.push({ icon: '⚡', title: 'IMPIEDOSO', desc: 'Venceu com 5+ gols de diferença' });
+  if (draws >= 5) conquistas.push({ icon: '🤝', title: 'REI DO EMPATE', desc: 'Empatou 50 ou mais vezes' });
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
