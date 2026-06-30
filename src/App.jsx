@@ -970,8 +970,11 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [matchImageBase64, setMatchImageBase64] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [imageUploaded, setImageUploaded] = useState(false);
+  
+  // NOVO ESTADO: Controle do modo de preenchimento manual
+  const [isManualMode, setIsManualMode] = useState(false);
 
-  // NOVO: Controle de Chave da IA Direto pelo Usuário no Navegador
+  // Controle de Chave da IA Direto pelo Usuário no Navegador
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [tempKey, setTempKey] = useState('');
@@ -1027,6 +1030,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     setObservacoes('');
     setImageUploaded(false);
     setMatchImageBase64(null);
+    setIsManualMode(false); // Zerando o modo manual ao trocar de jogo
   };
 
   const calculateSimilarity = (str1, str2) => {
@@ -1104,7 +1108,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         let lastError;
 
         for (const url of endpoints) {
-          if (resultJson) break; // Sucesso num endpoint anterior
+          if (resultJson) break;
           
           try {
             const response = await fetch(url, {
@@ -1129,7 +1133,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             resultJson = await response.json();
           } catch (error) {
             lastError = error;
-            // Se for erro de permissão (403/400), não tenta os outros links
             if (error.message.includes("inválida")) throw error;
           }
         }
@@ -1280,10 +1283,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           </div>
         )}
 
-        {selectedMatchId && (
+        {/* Exibe o box de envio apenas se não estiver no modo manual */}
+        {selectedMatchId && !isManualMode && (
           <div className="animate-in slide-in-from-top-4">
             <label className="block text-sm font-medium text-slate-400 mb-2">3. Envie o Print do Resultado</label>
-            <div className="mb-6">
+            <div className="mb-2">
               <label className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer relative overflow-hidden block ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-950'}`}>
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isAnalyzing} />
                 {isAnalyzing ? (
@@ -1304,12 +1308,32 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                 )}
               </label>
             </div>
+            
+            {!imageUploaded && !isAnalyzing && (
+              <div className="text-center mt-4">
+                <button type="button" onClick={() => setIsManualMode(true)} className="text-sm text-slate-400 hover:text-emerald-400 transition-colors underline">
+                  Não tem o print? Preencher manualmente
+                </button>
+              </div>
+            )}
           </div>
         )}
 
-        {imageUploaded && (
+        {/* O formulário abre se enviou a imagem OU se ativou o modo manual */}
+        {(imageUploaded || isManualMode) && (
           <form onSubmit={handleSubmit} className="animate-in slide-in-from-bottom-4 space-y-6 pt-4 border-t border-slate-800">
-            <label className="block text-sm font-medium text-amber-400 mb-2 flex items-center gap-2"><AlertCircle size={16}/> Confirme os dados lidos pela IA</label>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-sm font-medium text-amber-400 flex items-center gap-2">
+                <AlertCircle size={16}/> 
+                {isManualMode ? "Preencha os dados da partida manualmente" : "Confirme os dados lidos pela IA"}
+              </label>
+              
+              {isManualMode && (
+                <button type="button" onClick={() => setIsManualMode(false)} className="text-xs text-slate-400 hover:text-white transition-colors underline">
+                  Voltar para envio de imagem
+                </button>
+              )}
+            </div>
             
             <div className="flex flex-col md:flex-row gap-6 items-start bg-slate-950 p-4 rounded-xl border border-slate-800">
               <div className="flex-1 w-full space-y-3">
@@ -1383,6 +1407,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     </div>
   );
 };
+
 const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToast }) => {
   const pending = (matches || []).filter(m => m && m.status === 'pending');
   const getTeam = (id) => (teams || []).find(t => t && t.id === id);
