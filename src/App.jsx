@@ -952,76 +952,96 @@ const MatchDetails = ({ match, teams, competitions, onBack }) => {
 };
 
 const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, showToast }) => {
-  const [selectedCompId, setSelectedCompId] = useState(''); const [selectedMatchId, setSelectedMatchId] = useState('');
+  const [selectedCompId, setSelectedCompId] = useState('');
+  const [selectedMatchId, setSelectedMatchId] = useState('');
   const [availableMatches, setAvailableMatches] = useState([]);
-  const [teamA, setTeamA] = useState(null); const [teamB, setTeamB] = useState(null);
-  const [scoreA, setScoreA] = useState(''); const [scoreB, setScoreB] = useState('');
-  const [penaltiesA, setPenaltiesA] = useState(''); const [penaltiesB, setPenaltiesB] = useState('');
-  const [goalsA, setGoalsA] = useState([]); const [goalsB, setGoalsB] = useState([]);
-  const [observacoes, setObservacoes] = useState('');
-  const [matchImageBase64, setMatchImageBase64] = useState(null); const [isAnalyzing, setIsAnalyzing] = useState(false); const [imageUploaded, setImageUploaded] = useState(false);
-  const [isManualMode, setIsManualMode] = useState(false);
   
-  // Como removemos a tela de Configurações, colocamos a Chave da IA aqui
-  const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
-  const [showKeyInput, setShowKeyInput] = useState(false); const [tempKey, setTempKey] = useState('');
+  const [teamA, setTeamA] = useState(null);
+  const [teamB, setTeamB] = useState(null);
+  const [scoreA, setScoreA] = useState('');
+  const [scoreB, setScoreB] = useState('');
+  const [goalsA, setGoalsA] = useState([]);
+  const [goalsB, setGoalsB] = useState([]);
+  
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [imageUploaded, setImageUploaded] = useState(false);
 
-  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-  const userTeamIds = useMemo(() => (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id), [teams, currentUser]);
-  const visibleCompetitions = useMemo(() => (competitions || []).filter(c => c && (isAdmin || c.teams?.some(tId => userTeamIds.includes(tId)))), [competitions, isAdmin, userTeamIds]);
-  const isCup = useMemo(() => { const c = competitions.find(x=>x.id===selectedCompId); return c?.format === 'cup' || selectedMatchId.includes('_ko_'); }, [selectedCompId, selectedMatchId, competitions]);
+  const userTeamIds = teams.filter(t => t.ownerId === currentUser.id).map(t => t.id);
+  const visibleCompetitions = competitions.filter(c => currentUser.role === 'leader' || c.teams?.some(tId => userTeamIds.includes(tId)));
 
   useEffect(() => {
-    setSelectedMatchId(''); resetAI(); if (!selectedCompId) { setAvailableMatches([]); return; }
-    const comp = competitions.find(c => c && c.id === selectedCompId);
-    if (comp?.rounds) {
-      let toPlay = []; comp.rounds.filter(r => r.status === 'released').forEach(round => {
-        (round.matches || []).forEach(rm => {
-          const alreadySubmitted = matches.some(m => m && m.matchId === rm.id && (m.status === 'pending' || m.status === 'approved'));
-          if (!alreadySubmitted && rm.teamA && rm.teamB && (isAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) { toPlay.push({ ...rm, roundId: round.id }); }
-        });
-      }); setAvailableMatches(toPlay);
+    setSelectedMatchId('');
+    resetAI();
+    if (!selectedCompId) {
+      setAvailableMatches([]);
+      return;
     }
-  }, [selectedCompId, competitions, matches, isAdmin, userTeamIds]);
+    const comp = competitions.find(c => c.id === selectedCompId);
+    if (comp && comp.rounds) {
+      let toPlay = [];
+      comp.rounds.filter(r => r.status === 'released').forEach(round => {
+        round.matches.forEach(rm => {
+          const alreadySubmitted = matches.some(m => m.matchId === rm.id && (m.status === 'pending' || m.status === 'approved'));
+          if (!alreadySubmitted) {
+            toPlay.push({ ...rm, roundId: round.id });
+          }
+        });
+      });
+      setAvailableMatches(toPlay);
+    }
+  }, [selectedCompId, competitions, matches]);
 
   useEffect(() => {
-    resetAI(); if (selectedMatchId) { const match = availableMatches.find(m => m.id === selectedMatchId); if (match) { setTeamA((teams || []).find(t => t && t.id === match.teamA)); setTeamB((teams || []).find(t => t && t.id === match.teamB)); } } else { setTeamA(null); setTeamB(null); }
+    resetAI();
+    if (selectedMatchId) {
+      const match = availableMatches.find(m => m.id === selectedMatchId);
+      if (match) {
+        setTeamA(teams.find(t => t.id === match.teamA));
+        setTeamB(teams.find(t => t.id === match.teamB));
+      }
+    } else {
+      setTeamA(null); setTeamB(null);
+    }
   }, [selectedMatchId, availableMatches, teams]);
 
-  const resetAI = () => { setScoreA(''); setScoreB(''); setPenaltiesA(''); setPenaltiesB(''); setGoalsA([]); setGoalsB([]); setObservacoes(''); setImageUploaded(false); setMatchImageBase64(null); setIsManualMode(false); };
-  const handleGoalChange = (team, index, field, value) => { if (team === 'A') { const updated = [...goalsA]; updated[index][field] = value; setGoalsA(updated); } else { const updated = [...goalsB]; updated[index][field] = value; setGoalsB(updated); } };
-  const handleAddGoal = (team) => { if (team === 'A') { setGoalsA([...goalsA, { player: '', assist: '', minute: '' }]); setScoreA((parseInt(scoreA || 0) + 1).toString()); } else { setGoalsB([...goalsB, { player: '', assist: '', minute: '' }]); setScoreB((parseInt(scoreB || 0) + 1).toString()); } };
-  const handleRemoveGoal = (team, index) => { if (team === 'A') { const updated = [...goalsA]; updated.splice(index, 1); setGoalsA(updated); setScoreA(Math.max(0, parseInt(scoreA || 0) - 1).toString()); } else { const updated = [...goalsB]; updated.splice(index, 1); setGoalsB(updated); setScoreB(Math.max(0, parseInt(scoreB || 0) - 1).toString()); } };
-
-  const handleSaveApiKey = () => { if (tempKey.trim() !== '') { localStorage.setItem('gemini_api_key', tempKey.trim()); setUserApiKey(tempKey.trim()); setShowKeyInput(false); showToast("Chave da IA salva!", "success"); } };
+  const resetAI = () => {
+    setScoreA(''); setScoreB('');
+    setGoalsA([]); setGoalsB([]);
+    setImageUploaded(false);
+  };
 
   const handleImageUpload = (e) => {
-    const file = e.target.files[0]; if (!file) return;
-    processScreenshot(file, async (base64) => {
-      setMatchImageBase64(base64); setIsAnalyzing(true); setImageUploaded(false);
-       try {
-      showToast("Analisando imagem...", "info");
-      
-      const apiKey = ""; // A chave é injetada automaticamente
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      analyzeImageWithAI(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const analyzeImageWithAI = async (base64Image) => {
+    if (!selectedMatchId) return;
+    setIsAnalyzing(true);
+    
+    try {
+      const apiKey = ""; // A chave é injetada automaticamente no ambiente
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
       
-      // Remove o cabeçalho base64 para a API não dar erro de formatação
-      const base64Data = matchData.proofImage.includes(',') 
-        ? matchData.proofImage.split(',')[1] 
-        : matchData.proofImage;
-        
-      const mimeType = matchData.proofImage.split(';')[0].split(':')[1] || "image/jpeg";
+      const base64Data = base64Image.split(',')[1];
+      const mimeType = base64Image.split(';')[0].split(':')[1] || "image/jpeg";
 
       const payload = {
         contents: [{
           role: "user",
           parts: [
-            { text: "Analise este placar de jogo. Retorne APENAS um objeto JSON válido, sem blocos de código ou formatação markdown, com esta exata estrutura: {\"scoreA\": número, \"scoreB\": número}." },
+            { text: "Analise este placar de jogo de futebol. Retorne APENAS um objeto JSON válido e limpo com esta exata estrutura: {\"scoreA\": número_gols_time_casa, \"scoreB\": número_gols_time_visitante}." },
             { inlineData: { mimeType: mimeType, data: base64Data } }
           ]
         }],
         generationConfig: {
-          responseMimeType: "application/json" // Força a API a não errar o formato
+          responseMimeType: "application/json"
         }
       };
 
@@ -1031,7 +1051,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
         body: JSON.stringify(payload)
       });
 
-      if (!response.ok) throw new Error(`Erro na API (${response.status})`);
+      if (!response.ok) throw new Error(`Erro de Comunicação com a IA (${response.status})`);
 
       const data = await response.json();
       const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -1040,77 +1060,110 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       
       const aiResult = JSON.parse(textResult);
       
-      // Atualiza os inputs na tela com os gols encontrados
-      setMatchData(prev => ({
-        ...prev,
-        scoreA: aiResult.scoreA !== undefined ? String(aiResult.scoreA) : prev.scoreA,
-        scoreB: aiResult.scoreB !== undefined ? String(aiResult.scoreB) : prev.scoreB,
-      }));
-      
-      showToast("Leitura concluída com sucesso!", "success");
+      setScoreA(aiResult.scoreA !== undefined ? String(aiResult.scoreA) : '');
+      setScoreB(aiResult.scoreB !== undefined ? String(aiResult.scoreB) : '');
+      setImageUploaded(true);
+      if(showToast) showToast("Placar extraído com sucesso!", "success");
       
     } catch (err) {
       console.error("Erro na IA:", err);
-      showToast("Erro na leitura inteligente. Preencha manualmente.", "error");
+      alert("Aviso: " + err.message + " Pode preencher manualmente.");
+    } finally {
+      setIsAnalyzing(false);
     }
+  };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if(!selectedCompId || !selectedMatchId || scoreA === '' || scoreB === '') return;
+    const matchDetails = availableMatches.find(m => m.id === selectedMatchId);
+    
+    // Como os golos ainda não têm interface complexa, enviamos arrays vazios por agora
+    const allGoals = [];
 
-  const handleFormSubmit = (e) => {
-    e.preventDefault(); const matchDetails = availableMatches.find(m => m.id === selectedMatchId);
-    const allGoals = [...goalsA.map(g=>({...g, teamId: teamA.id})), ...goalsB.map(g=>({...g, teamId: teamB.id}))];
-    onSubmit({ id: `m_${Date.now()}`, compId: selectedCompId, roundId: matchDetails.roundId, matchId: selectedMatchId, teamA: teamA.id, teamB: teamB.id, scoreA: parseInt(scoreA), scoreB: parseInt(scoreB), penaltiesA: (isCup && scoreA===scoreB) ? parseInt(penaltiesA):null, penaltiesB: (isCup && scoreA===scoreB) ? parseInt(penaltiesB):null, goals: allGoals, observacoes, status: 'pending', submittedBy: currentUser.name, imageUrl: matchImageBase64 });
+    onSubmit({
+      compId: selectedCompId,
+      roundId: matchDetails.roundId,
+      matchId: selectedMatchId,
+      teamA: teamA.id, 
+      teamB: teamB.id,
+      scoreA: parseInt(scoreA), 
+      scoreB: parseInt(scoreB),
+      goals: allGoals,
+      status: 'pending',
+      submittedBy: currentUser.id,
+      imageUrl: 'imagem_lida_por_ia'
+    });
     setSelectedCompId('');
   };
 
   return (
-    <div className="max-w-xl mx-auto bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4 animate-in fade-in">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2"><Camera size={18}/> Registrar Placar</h2>
-        <button onClick={() => setShowKeyInput(!showKeyInput)} className="text-xs flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors"><Key size={14}/> IA Config</button>
-      </div>
-
-      {showKeyInput && (
-        <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl animate-in slide-in-from-top-4">
-          <p className="text-xs text-slate-400 mb-3">Chave do Google AI Studio para leitura de prints.</p>
-          <div className="flex gap-2"><input type="password" value={tempKey} onChange={e=>setTempKey(e.target.value)} placeholder="Ex: AIzaSy..." className={inputClass} /><Button type="button" onClick={handleSaveApiKey} className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-sm">Salvar</Button></div>
+    <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12">
+      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida (IA)</h2>
+      <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-6">
+        
+        <div>
+          <label className="block text-sm font-medium text-slate-400 mb-2">1. Competição</label>
+          <select value={selectedCompId} onChange={e => setSelectedCompId(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
+            <option value="">Escolha um campeonato...</option>
+            {visibleCompetitions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
         </div>
-      )}
 
-      <div><label className="text-xs text-slate-400 block mb-1">Campeonato</label><select value={selectedCompId} onChange={e=>setSelectedCompId(e.target.value)} className={inputClass}><option value="">Selecione...</option>{visibleCompetitions.map(c=><option key={c.id} value={c.id}>{String(c.name)}</option>)}</select></div>
-      {selectedCompId && ( <div><label className="text-xs text-slate-400 block mb-1">Partida Liberada</label><select value={selectedMatchId} onChange={e=>setSelectedMatchId(e.target.value)} className={inputClass}><option value="">Selecione o jogo...</option>{availableMatches.map(m=>{const tA=(teams||[]).find(x=>x.id===m.teamA)?.name; const tB=(teams||[]).find(x=>x.id===m.teamB)?.name; return <option key={m.id} value={m.id}>{tA} x {tB}</option>})}</select></div> )}
-      {selectedMatchId && !imageUploaded && !isManualMode && (
-        <div className="space-y-4 border-t border-slate-800 pt-4 animate-in slide-in-from-top-2">
-          <label className="border border-dashed border-slate-700 bg-slate-950 p-6 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-slate-500">
-            <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-            <UploadCloud size={28} className="text-emerald-500 mb-2"/>
-            <span className="text-xs font-bold text-white">{isAnalyzing ? 'Analisando print pela IA...' : 'Enviar Print da Partida'}</span>
-          </label>
-          <div className="text-center text-xs text-slate-500 font-bold">OU</div>
-          <Button variant="outline" onClick={()=>setIsManualMode(true)} className="w-full text-xs py-3">Digitar Dados Manualmente</Button>
-        </div>
-      )}
-      {(imageUploaded || isManualMode) && (
-        <form onSubmit={handleFormSubmit} className="space-y-4 border-t border-slate-800 pt-4 animate-in slide-in-from-bottom-2">
-          <div className="flex items-center justify-between"><span className="text-xs text-amber-400 font-bold">Ajuste e Confirme os Dados:</span><button type="button" onClick={resetAI} className="text-[10px] text-slate-500 hover:text-white flex items-center gap-0.5"><ArrowLeft size={10}/> Reiniciar</button></div>
-          <div className="grid grid-cols-2 gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
-            <div className="text-center space-y-2"><span className="text-xs font-bold text-slate-300 block truncate">{teamA?.name}</span><input type="number" required value={scoreA} onChange={e=>setScoreA(e.target.value)} className="w-16 bg-slate-900 text-center font-black text-xl p-2 rounded text-emerald-400 border border-slate-700 focus:border-emerald-500 outline-none" />
-              {isCup && scoreA === scoreB && <div><label className="text-[9px] text-amber-500 font-bold block mb-1">Pênaltis</label><input type="number" required value={penaltiesA} onChange={e=>setPenaltiesA(e.target.value)} className="w-12 text-xs bg-slate-900 text-center p-1 rounded text-white border border-slate-700" /></div>}
-              {goalsA.map((g,i)=>(<div key={i} className="flex gap-1"><input required value={g.player} onChange={e=>handleGoalChange('A',i,'player',e.target.value)} className="bg-slate-900 text-[10px] p-1 rounded w-full text-white" placeholder="Autor"/><button type="button" onClick={()=>handleRemoveGoal('A',i)} className="text-red-400">×</button></div>))}
-              <button type="button" onClick={()=>handleAddGoal('A')} className="text-[9px] text-emerald-400 hover:underline block">+ Add Gol</button>
-            </div>
-            <div className="text-center space-y-2"><span className="text-xs font-bold text-slate-300 block truncate">{teamB?.name}</span><input type="number" required value={scoreB} onChange={e=>setScoreB(e.target.value)} className="w-16 bg-slate-900 text-center font-black text-xl p-2 rounded text-emerald-400 border border-slate-700 focus:border-emerald-500 outline-none" />
-              {isCup && scoreA === scoreB && <div><label className="text-[9px] text-amber-500 font-bold block mb-1">Pênaltis</label><input type="number" required value={penaltiesB} onChange={e=>setPenaltiesB(e.target.value)} className="w-12 text-xs bg-slate-900 text-center p-1 rounded text-white border border-slate-700" /></div>}
-              {goalsB.map((g,i)=>(<div key={i} className="flex gap-1"><input required value={g.player} onChange={e=>handleGoalChange('B',i,'player',e.target.value)} className="bg-slate-900 text-[10px] p-1 rounded w-full text-white" placeholder="Autor"/><button type="button" onClick={()=>handleRemoveGoal('B',i)} className="text-red-400">×</button></div>))}
-              <button type="button" onClick={()=>handleAddGoal('B')} className="text-[9px] text-emerald-400 hover:underline block">+ Add Gol</button>
-            </div>
+        {selectedCompId && (
+          <div className="animate-in fade-in">
+            <label className="block text-sm font-medium text-slate-400 mb-2">2. Selecione a Partida Liberada</label>
+            {availableMatches.length > 0 ? (
+              <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
+                <option value="">Qual jogo você jogou?</option>
+                {availableMatches.map(m => {
+                  const tA = teams.find(t=>t.id===m.teamA)?.name;
+                  const tB = teams.find(t=>t.id===m.teamB)?.name;
+                  return <option key={m.id} value={m.id}>Rodada {String(m.roundId).replace('r','')} - {tA} x {tB}</option>
+                })}
+              </select>
+            ) : <div className="p-3 bg-slate-950 rounded border border-slate-800 text-slate-500 text-sm">Nenhuma partida pendente de envio para você nesta competição.</div>}
           </div>
-          <div><label className="text-xs text-slate-400 block mb-1">Observações</label><textarea value={observacoes} onChange={e=>setObservacoes(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white h-16 outline-none resize-none" /></div>
-          <Button type="submit" className="w-full py-3">Enviar Resultado</Button>
-        </form>
-      )}
+        )}
+
+        {selectedMatchId && (
+          <div className="animate-in slide-in-from-top-4">
+            <label className="block text-sm font-medium text-slate-400 mb-2">3. Envie o Print do Resultado</label>
+            <label className={`block border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${imageUploaded ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-950'}`}>
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isAnalyzing} />
+              {isAnalyzing ? (
+                <div className="flex flex-col items-center space-y-3"><div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div><p className="text-emerald-400 font-medium">IA a analisar o placar...</p></div>
+              ) : imageUploaded ? (
+                <div className="flex flex-col items-center space-y-2"><CheckCircle className="text-emerald-500" size={40} /><p className="text-emerald-400 font-medium">Placar extraído! (Clique para alterar a foto)</p></div>
+              ) : (
+                <div className="flex flex-col items-center space-y-3"><UploadCloud className="text-slate-500" size={40} /><p className="text-white font-medium">Clique para selecionar o Print</p></div>
+              )}
+            </label>
+          </div>
+        )}
+
+        {imageUploaded && (
+          <form onSubmit={handleSubmit} className="animate-in slide-in-from-bottom-4 space-y-6 pt-4 border-t border-slate-800">
+            <label className="block text-sm font-medium text-amber-400 mb-2 flex items-center gap-2"><AlertCircle size={16}/> Revise os dados lidos pela Inteligência Artificial</label>
+            <div className="flex flex-col md:flex-row gap-6 items-start bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <div className="flex-1 w-full space-y-3">
+                <div className="text-center font-bold text-lg text-slate-300 flex items-center justify-center gap-2"><span className="text-2xl">{teamA?.shield}</span> {teamA?.name}</div>
+                <input type="number" value={scoreA} onChange={e=>setScoreA(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none" />
+              </div>
+              <div className="text-slate-500 font-bold text-xl self-center pt-8">X</div>
+              <div className="flex-1 w-full space-y-3">
+                <div className="text-center font-bold text-lg text-slate-300 flex items-center justify-center gap-2">{teamB?.name} <span className="text-2xl">{teamB?.shield}</span></div>
+                <input type="number" value={scoreB} onChange={e=>setScoreB(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none" />
+              </div>
+            </div>
+            <Button type="submit" className="w-full py-3 text-lg">Enviar Partida para Avaliação</Button>
+          </form>
+        )}
+      </div>
     </div>
   );
 };
+
 
 const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToast }) => {
   const pending = (matches || []).filter(m => m && m.status === 'pending');
