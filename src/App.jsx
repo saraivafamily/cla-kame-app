@@ -53,13 +53,44 @@ const calculateStandings = (matches, teams, compId) => {
   return Object.values(table).map(t => ({ ...t, gd: t.gf - t.ga })).sort((a, b) => { if (b.pts !== a.pts) return b.pts - a.pts; if (b.w !== a.w) return b.w - a.w; if (b.gd !== a.gd) return b.gd - a.gd; return b.gf - a.gf; });
 };
 
-const generateRoundRobin = (teamIds, compId) => {
+const resolveQualifiers = (comp, teams, matches) => {
+  const q = {};
+  if (!comp || !comp.groups || !comp.rounds) return q;
+  Object.keys(comp.groups).forEach((gName) => {
+    const groupMatches = comp.rounds.filter(r => !r.id.startsWith('ko_')).flatMap(r => r.matches.filter(m => m.groupId === gName));
+    const playedMatches = matches.filter(m => m.compId === comp.id && m.status === 'approved' && groupMatches.some(gm => gm.id === m.matchId));
+    
+    // Migração Automática: Se todos os jogos do grupo acabaram, injeta os times no mata-mata
+    if (playedMatches.length >= groupMatches.length && groupMatches.length > 0) {
+      const gTeams = teams.filter(t => comp.groups[gName].includes(t.id));
+      const gTable = calculateStandings(matches, gTeams, comp.id);
+      q[`1º Gr.${gName}`] = gTable[0]?.id;
+      q[`2º Gr.${gName}`] = gTable[1]?.id;
+      q[`3º Gr.${gName}`] = gTable[2]?.id;
+      q[`4º Gr.${gName}`] = gTable[3]?.id;
+    }
+  });
+  return q;
+};
+
+
+const generateRoundRobin = (teamIds, compId, isDouble = false) => {
   let teams = [...teamIds]; if (teams.length % 2 !== 0) teams.push(null);
   const n = teams.length; const h = n / 2; const rounds = []; let c = 1;
+  // Turno
   for (let r = 0; r < n - 1; r++) {
     const rm = []; for (let i = 0; i < h; i++) { const tA = teams[i]; const tB = teams[n - 1 - i]; if (tA !== null && tB !== null) { rm.push({ id: `${compId}_m${c}_r${r+1}`, teamA: tA, teamB: tB, status: 'pending_play' }); c++; } }
     rounds.push({ id: `r${r+1}`, number: r + 1, status: r === 0 ? 'released' : 'locked', matches: rm }); teams.splice(1, 0, teams.pop());
-  } return rounds;
+  } 
+  // Returno
+  if (isDouble) {
+    let rc = n; 
+    for (let r = 0; r < n - 1; r++) {
+      const rm = []; for (let i = 0; i < h; i++) { const tB = teams[i]; const tA = teams[n - 1 - i]; if (tA !== null && tB !== null) { rm.push({ id: `${compId}_m${c}_r${rc}`, teamA: tA, teamB: tB, status: 'pending_play' }); c++; } }
+      rounds.push({ id: `r${rc}`, number: rc, status: 'locked', matches: rm }); teams.splice(1, 0, teams.pop()); rc++;
+    }
+  }
+  return rounds;
 };
 
 const generateCupBracket = (teamIds, compId) => {
@@ -76,10 +107,10 @@ const generateCupBracket = (teamIds, compId) => {
   } return rounds;
 };
 
-const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2) => {
+const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2, isDouble = false) => {
   const sh = [...teamIds].sort(() => 0.5 - Math.random()); const groups = {}; const gn = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   for(let i=0; i<numGroups; i++) groups[gn[i]] = []; sh.forEach((t, i) => groups[gn[i % numGroups]].push(t));
-  let mr = 0; const agr = {}; Object.keys(groups).forEach(g => { const rrs = generateRoundRobin(groups[g], compId); mr = Math.max(mr, rrs.length); agr[g] = rrs; });
+  let mr = 0; const agr = {}; Object.keys(groups).forEach(g => { const rrs = generateRoundRobin(groups[g], compId, isDouble); mr = Math.max(mr, rrs.length); agr[g] = rrs; });
   const rounds = []; let mc = 1;
   for(let r=0; r<mr; r++) {
     const rm = []; Object.keys(groups).forEach(g => { if(agr[g][r]) { agr[g][r].matches.forEach(m => { rm.push({...m, id: `${compId}_m${mc}_r${r+1}`, groupId: g}); mc++; }); } });
@@ -92,7 +123,7 @@ const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2) =
       let pA = 'A Definir', pB = 'A Definir'; if (kr === 0) { if (qualifiers === 2 && numGroups % 2 === 0 && numGroups * 2 === p2) { const h = numGroups / 2; if (i < h) { pA = `1º Gr.${gn[i * 2]}`; pB = `2º Gr.${gn[i * 2 + 1]}`; } else { const off = i - h; pA = `1º Gr.${gn[off * 2 + 1]}`; pB = `2º Gr.${gn[off * 2]}`; } } else { pA = 'Vaga Aberta'; pB = 'Vaga Aberta'; } } else { pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`; }
       rm.push({ id: `${compId}_ko_m${mc}_kr${kr}`, teamA: '', teamB: '', placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
     }
-    let rl = 'Mata-Mata'; if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas';
+    let rl = 'Mata-Mata'; if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas'; else if (nm === 8) rl = 'Oitavas';
     rounds.push({ id: `ko_${kr}`, number: rl, status: 'locked', matches: rm });
   } return { groups, rounds };
 };
@@ -906,104 +937,270 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   );
 };
 
-const CreateCompetition = ({ teams, onCreate }) => {
-  const [name, setName] = useState('');
-  const [format, setFormat] = useState('league');
-  const [teamCount, setTeamCount] = useState('');
-  const [numGroups, setNumGroups] = useState('2');
-  const [qualifiers, setQualifiers] = useState('2');
-  const [deadline, setDeadline] = useState('');
-  const [selectedTeams, setSelectedTeams] = useState([]);
-  const [error, setError] = useState('');
+  const [subTab, setSubTab] = useState('overview'); 
+  const [expandedRoundId, setExpandedRoundId] = useState(null);
+  const [editMatchData, setEditMatchData] = useState(null);
 
-  const toggleTeam = (teamId) => {
-    if (selectedTeams.includes(teamId)) setSelectedTeams(selectedTeams.filter(id => id !== teamId));
-    else setSelectedTeams([...selectedTeams, teamId]);
+  const resolvedQualifiers = useMemo(() => resolveQualifiers(comp, teams, matches), [comp, teams, matches]);
+
+  if (!comp) return (<div className="text-center py-12"><p className="text-slate-400">Torneio não localizado.</p><button onClick={onBack} className="text-emerald-400 underline">Voltar</button></div>);
+  
+  const getTeam = (id) => (teams || []).find(t => t && t.id === id); 
+  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  
+  const getMatchStatusDisplay = (matchId) => {
+    const ms = (matches || []).filter(m => m && m.matchId === matchId && m.compId === comp.id && m.status !== 'rejected');
+    if(ms.length === 0) return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
+    const sm = ms.find(m => m.status === 'approved') || ms.find(m => m.status === 'pending');
+    if(!sm) return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
+    if(sm.status === 'approved') return { submittedMatchId: sm.id, isPlayed: true, scoreA: sm.scoreA, scoreB: sm.scoreB, penaltiesA: sm.penaltiesA, penaltiesB: sm.penaltiesB, text: 'Oficial', color: 'text-emerald-400', bg: 'bg-slate-950 border-emerald-900/50' };
+    return { submittedMatchId: sm.id, isPlayed: true, scoreA: sm.scoreA, scoreB: sm.scoreB, penaltiesA: sm.penaltiesA, penaltiesB: sm.penaltiesB, text: 'Validando', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!name || !format || !teamCount || !deadline) { setError('Preencha todos os campos do formulário.'); return; }
-    if (selectedTeams.length !== parseInt(teamCount)) { setError(`Atenção: O formato exige ${teamCount} times, mas selecionou ${selectedTeams.length}.`); return; }
-
-    setError('');
-    const compId = `c${Date.now()}`;
-    let finalRounds = [];
-    let groupsData = null;
-
-    if (format === 'groups') {
-      const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers));
-      finalRounds = res.rounds;
-      groupsData = res.groups;
-    } else if (format === 'cup') {
-      finalRounds = generateCupBracket(selectedTeams, compId);
-    } else {
-      finalRounds = generateRoundRobin(selectedTeams, compId);
-    }
-
-    onCreate({ 
-      id: compId, name, format, deadline, status: 'active', teams: selectedTeams, rounds: finalRounds,
-      ...(groupsData && { groups: groupsData, qualifiersPerGroup: parseInt(qualifiers) })
+  const { topScorers, topAssists } = useMemo(() => {
+    const scorers = {}; const assists = {};
+    (matches || []).filter(m => m.compId === comp.id && m.status === 'approved').forEach(m => {
+      (m.goals || []).forEach(g => {
+        if (g.player) {
+          const pKey = g.player.trim().toLowerCase() + '_' + g.teamId;
+          if(!scorers[pKey]) scorers[pKey] = { player: g.player, teamId: g.teamId, count: 0 };
+          scorers[pKey].count += 1;
+        }
+        if (g.assist) {
+          const aKey = g.assist.trim().toLowerCase() + '_' + g.teamId;
+          if(!assists[aKey]) assists[aKey] = { player: g.assist, teamId: g.teamId, count: 0 };
+          assists[aKey].count += 1;
+        }
+      });
     });
+    return {
+      topScorers: Object.values(scorers).sort((a,b) => b.count - a.count).slice(0, 15),
+      topAssists: Object.values(assists).sort((a,b) => b.count - a.count).slice(0, 15)
+    };
+  }, [matches, comp.id]);
+
+  const captureSection = (elementId, fileName) => {
+    showToast("Preparando imagem de alta qualidade...", "success");
+    const captureAndDownload = () => {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+      window.html2canvas(element, { backgroundColor: '#020617', scale: 2, useCORS: true }).then(canvas => {
+        const link = document.createElement('a'); link.download = `${fileName}.png`; link.href = canvas.toDataURL('image/png'); link.click();
+        showToast("Imagem salva com sucesso!", "success");
+      });
+    };
+    if (window.html2canvas) captureAndDownload();
+    else { const script = document.createElement('script'); script.src = "[https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js](https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js)"; script.onload = captureAndDownload; document.body.appendChild(script); }
   };
+
+  const toggleRound = (id) => setExpandedRoundId(prev => prev === id ? null : id);
+
+  const saveMatchEdit = () => {
+    const updatedRounds = comp.rounds.map(r => {
+      if (r.id === editMatchData.roundId) {
+        return {
+          ...r,
+          matches: r.matches.map(m => m.id === editMatchData.id ? { ...m, teamA: editMatchData.teamA, teamB: editMatchData.teamB } : m)
+        };
+      }
+      return r;
+    });
+    onEditComp({ ...comp, rounds: updatedRounds });
+    setEditMatchData(null);
+    showToast("Confronto atualizado permanentemente!", "success");
+  };
+
+  const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
 
   return (
-    <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><PlusCircle className="text-emerald-500"/> Nova Competição</h2>
-      <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 space-y-6">
-        {error && <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3"><AlertCircle size={20} /><p className="text-sm font-medium">{error}</p></div>}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Nome do Campeonato</label><input type="text" placeholder="Ex: Copa da Amazônia" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Formato</label>
-            <select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
-              <option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option>
-            </select>
-          </div>
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Qtd. de Times</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Prazo de Conclusão</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-          {format === 'groups' && (
-            <><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Quantidade de Grupos</label>
-                <select value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="2">2 Grupos</option><option value="4">4 Grupos</option><option value="8">8 Grupos</option></select>
-              </div><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Classificados por Grupo</label>
-                <select value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="1">1 Time</option><option value="2">2 Times</option><option value="4">4 Times</option></select>
-              </div></>
-          )}
+    <div className="space-y-6 animate-in fade-in pb-10">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
+      
+      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-white">{String(comp.name)}</h2>
+          <p className="text-xs text-emerald-400 mt-1 uppercase font-bold">
+            {comp.format === 'league' ? 'Liga' : comp.format === 'groups' ? 'Fase de Grupos' : 'Mata-Mata'}
+            {comp.createdBy && <span className="text-slate-400 ml-2 normal-case font-medium">• Resp: {comp.createdBy}</span>}
+          </p>
         </div>
-        <div className="pt-4 border-t border-slate-800">
-          <div className="flex justify-between items-end mb-4">
-            <label className="text-sm font-medium text-slate-400">Selecione as Equipes ({selectedTeams.length} marcadas)</label>
-          </div>
-          
-          {teams.length === 0 ? (
-            <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado.</p>
-          ) : (
-            <div className="bg-slate-950 border border-slate-800 p-2 rounded-xl max-h-60 overflow-y-auto space-y-1 custom-scrollbar">
-              {teams.map(team => { 
-                const isSelected = selectedTeams.includes(team.id); 
-                return ( 
-                  <div 
-                    key={team.id} 
-                    onClick={() => toggleTeam(team.id)} 
-                    className={`cursor-pointer flex flex-col justify-center px-4 py-2.5 rounded-lg border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-transparent border-transparent hover:bg-slate-900'}`}
-                  >
-                    <span className={`font-bold text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>
-                      {team.name}
-                    </span>
-                    <span className={`text-[11px] truncate ${isSelected ? 'text-emerald-600/80' : 'text-slate-500'}`}>
-                      Técnico: {team.coach || 'Sem técnico'}
-                    </span>
-                  </div> 
-                ); 
+      </div>
+      
+      <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800">
+        <button onClick={()=>setSubTab('overview')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Tabela & Jogos</button>
+        <button onClick={()=>setSubTab('stats')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Estatísticas</button>
+      </div>
+      
+      <div className="space-y-8 mt-4">
+        {subTab === 'overview' && (
+          <div className="space-y-8 animate-in slide-in-from-left-4">
+            
+            <div className="space-y-2">
+              <div className="flex justify-between items-end mb-2">
+                <h3 className="text-lg font-bold text-white pl-2">Classificação</h3>
+                <Button onClick={() => captureSection('capture-standings', `Tabela-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar Tabela</Button>
+              </div>
+              <div id="capture-standings" className="bg-slate-950 p-3 sm:p-5 rounded-2xl border border-slate-800">
+                <h3 className="text-center font-black text-emerald-400 mb-4 text-sm uppercase tracking-widest">{comp.name}</h3>
+                <Standings matches={matches} teams={compTeams} comp={comp} />
+              </div>
+            </div>
+            
+            <div className="space-y-3 pt-4 border-t border-slate-800/50">
+              <h3 className="text-lg font-bold text-white mb-4 pl-2">Rodadas e Confrontos</h3>
+              
+              {(comp.rounds || []).map((round) => {
+                const isExpanded = expandedRoundId === round.id;
+                return (
+                  <div key={round?.id} className={`bg-slate-900 border ${isExpanded ? 'border-emerald-500/50 shadow-lg' : 'border-slate-800 hover:border-slate-700'} rounded-xl overflow-hidden transition-all`}>
+                    <button onClick={() => toggleRound(round.id)} className="w-full bg-slate-950/60 p-4 flex justify-between items-center transition-colors outline-none">
+                      <span className={`text-sm font-bold flex items-center gap-2 ${isExpanded ? 'text-emerald-400' : 'text-white'}`}>
+                        {round.status === 'locked' ? <Lock size={16} className="text-slate-500"/> : <PlayCircle size={16} className="text-emerald-500"/>}
+                        Rodada {String(round?.number || '')}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        {isAdmin && round?.status === 'locked' && <Button onClick={(e)=>{e.stopPropagation(); onReleaseRound(comp.id, round.id)}} className="py-1 text-[10px]">Liberar</Button>}
+                        <span className={`font-bold transition-transform duration-300 ${isExpanded ? 'text-emerald-400 rotate-180' : 'text-slate-500'}`}>▼</span>
+                      </div>
+                    </button>
+                    
+                    {isExpanded && (
+                      <div className="bg-slate-900 border-t border-slate-800 animate-in slide-in-from-top-2 p-3">
+                        <div className="flex justify-end mb-3 px-1">
+                           <Button onClick={() => captureSection(`capture-round-${round.id}`, `Rodada-${round.number}-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-md" variant="outline"><Camera size={12}/> Print da Rodada</Button>
+                        </div>
+                        
+                        <div id={`capture-round-${round.id}`} className="bg-slate-950 p-4 rounded-xl border border-slate-800/50 space-y-3">
+                          <h4 className="text-center font-bold text-white mb-4 text-xs uppercase tracking-widest">{comp.name} <span className="text-emerald-400">• Rodada {round.number}</span></h4>
+                          
+                          {(round?.matches || []).map((m) => {
+                            // MÁGICA AO VIVO: Injeta classificados automaticamente se não tiverem fixos!
+                            let autoTeamA = m.teamA;
+                            let autoTeamB = m.teamB;
+                            if (!autoTeamA && m.placeholderA && resolvedQualifiers[m.placeholderA]) autoTeamA = resolvedQualifiers[m.placeholderA];
+                            if (!autoTeamB && m.placeholderB && resolvedQualifiers[m.placeholderB]) autoTeamB = resolvedQualifiers[m.placeholderB];
+
+                            const tA = getTeam(autoTeamA); const tB = getTeam(autoTeamB); const sUI = getMatchStatusDisplay(m.id);
+                            
+                            // MODO EDIÇÃO DO CONFRONTO
+                            if (editMatchData?.id === m.id) {
+                              return (
+                                <div key={m.id} className="bg-slate-900 p-3 rounded-lg border border-emerald-500/50 flex flex-col gap-3 shadow-lg">
+                                  <div className="flex items-center gap-2">
+                                    <select value={editMatchData.teamA || ''} onChange={e=>setEditMatchData({...editMatchData, teamA: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
+                                      <option value="">{m.placeholderA || 'Equipe A'}</option>
+                                      {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                    <span className="font-bold text-slate-500 text-xs">X</span>
+                                    <select value={editMatchData.teamB || ''} onChange={e=>setEditMatchData({...editMatchData, teamB: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
+                                      <option value="">{m.placeholderB || 'Equipe B'}</option>
+                                      {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="flex justify-end gap-2">
+                                    <Button variant="outline" onClick={()=>setEditMatchData(null)} className="py-1 px-3 text-[10px]">Cancelar</Button>
+                                    <Button onClick={saveMatchEdit} className="py-1 px-3 text-[10px]">Salvar Manual</Button>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div key={m.id} className="relative group">
+                                <div onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className={`bg-slate-900 p-3 rounded-lg border border-slate-800 flex items-center justify-between text-xs cursor-pointer hover:border-slate-700 transition-colors pr-10`}>
+                                  <div className="flex-1 flex items-center justify-end gap-2 overflow-hidden">
+                                    <span className="truncate font-bold text-slate-200">{tA?.name || m.placeholderA}</span>
+                                    <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
+                                  </div>
+                                  <div className={`mx-3 px-3 py-1 border rounded font-mono font-bold shrink-0 shadow-inner ${sUI.bg} ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</div>
+                                  <div className="flex-1 flex items-center justify-start gap-2 overflow-hidden">
+                                    <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
+                                    <span className="truncate font-bold text-slate-200">{tB?.name || m.placeholderB}</span>
+                                  </div>
+                                </div>
+                                {isAdmin && (
+                                  <button onClick={(e) => { e.stopPropagation(); setEditMatchData({ ...m, teamA: autoTeamA, teamB: autoTeamB, roundId: round.id }); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-emerald-400 p-2 bg-slate-950 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10" title="Editar Confronto Manualmente">
+                                    <Edit size={14} />
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
               })}
             </div>
-          )}
-        </div>
-        
-        <Button type="submit" className="w-full py-4 text-lg mt-4">Criar Campeonato</Button>
-      </form>
+          </div>
+        )}
+
+        {subTab === 'stats' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
+            <div className="space-y-2">
+              <div className="flex justify-between items-end mb-2">
+                <h3 className="text-lg font-bold text-white pl-2">Top Goleadores</h3>
+                <Button onClick={() => captureSection('capture-scorers', `Artilharia-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar</Button>
+              </div>
+              <div id="capture-scorers" className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl p-2 sm:p-4">
+                <div className="bg-slate-950/80 p-4 border border-slate-800 rounded-xl mb-4 flex flex-col items-center justify-center">
+                  <h3 className="font-bold text-emerald-400 text-lg uppercase tracking-widest text-center">⚽ Artilharia</h3>
+                  <span className="text-[10px] font-bold text-slate-400 mt-1">{comp.name}</span>
+                </div>
+                <div className="divide-y divide-slate-800/50 bg-slate-950 rounded-xl border border-slate-800">
+                  {topScorers.length === 0 ? <p className="p-6 text-sm text-slate-500 text-center">Nenhum gol validado até o momento.</p> : topScorers.map((s, idx) => (
+                    <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span className={`font-black w-6 text-center ${idx === 0 ? 'text-amber-400 text-lg' : idx === 1 ? 'text-slate-300 text-lg' : idx === 2 ? 'text-amber-700 text-lg' : 'text-slate-600'}`}>{idx + 1}º</span>
+                        <ShieldDisplay shield={getTeam(s.teamId)?.shield} size="normal" />
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-200 text-sm md:text-base leading-tight">{s.player}</span>
+                          <span className="text-[10px] md:text-xs text-slate-400 font-medium">{getTeam(s.teamId)?.name}</span>
+                        </div>
+                      </div>
+                      <div className="bg-slate-900 px-4 py-2 rounded-lg border border-slate-800 text-emerald-400 font-black text-lg">{s.count}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-end mb-2">
+                <h3 className="text-lg font-bold text-white pl-2">Top Garçons</h3>
+                <Button onClick={() => captureSection('capture-assists', `Assistencias-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar</Button>
+              </div>
+              <div id="capture-assists" className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl p-2 sm:p-4">
+                <div className="bg-slate-950/80 p-4 border border-slate-800 rounded-xl mb-4 flex flex-col items-center justify-center">
+                  <h3 className="font-bold text-blue-400 text-lg uppercase tracking-widest text-center flex items-center gap-2"><Star size={20}/> Assistências</h3>
+                  <span className="text-[10px] font-bold text-slate-400 mt-1">{comp.name}</span>
+                </div>
+                <div className="divide-y divide-slate-800/50 bg-slate-950 rounded-xl border border-slate-800">
+                  {topAssists.length === 0 ? <p className="p-6 text-sm text-slate-500 text-center">Nenhuma assistência validada até o momento.</p> : topAssists.map((a, idx) => (
+                    <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span className={`font-black w-6 text-center ${idx === 0 ? 'text-amber-400 text-lg' : idx === 1 ? 'text-slate-300 text-lg' : idx === 2 ? 'text-amber-700 text-lg' : 'text-slate-600'}`}>{idx + 1}º</span>
+                        <ShieldDisplay shield={getTeam(a.teamId)?.shield} size="normal" />
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-200 text-sm md:text-base leading-tight">{a.player}</span>
+                          <span className="text-[10px] md:text-xs text-slate-400 font-medium">{getTeam(a.teamId)?.name}</span>
+                        </div>
+                      </div>
+                      <div className="bg-slate-900 px-4 py-2 rounded-lg border border-slate-800 text-blue-400 font-black text-lg">{a.count}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
+
+
 
 const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
@@ -1072,9 +1269,13 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
   const visibleCompetitions = (competitions || []).filter(c => isAdmin || (c.teams || []).some(tId => userTeamIds.includes(tId)));
 
+  // Dentro de const SubmitMatch = ...
   const selectedComp = useMemo(() => (competitions || []).find(c => c.id === selectedCompId), [selectedCompId, competitions]);
   const isCup = selectedComp?.format === 'cup' || (selectedComp?.format === 'groups' && selectedMatchId.includes('_ko_'));
   const isTie = scoreA !== '' && scoreB !== '' && scoreA === scoreB;
+
+  // NOVO: Lê os classificados magicamente ao vivo
+  const resolvedQualifiers = useMemo(() => resolveQualifiers(selectedComp, teams, matches), [selectedComp, teams, matches]);
 
   useEffect(() => {
     setSelectedMatchId('');
@@ -1088,15 +1289,21 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       let toPlay = [];
       comp.rounds.filter(r => r.status === 'released').forEach(round => {
         round.matches.forEach(rm => {
+          // NOVO: Descobre quem são os times se eles foram auto-migrados
+          let tAId = rm.teamA;
+          let tBId = rm.teamB;
+          if (!tAId && rm.placeholderA && resolvedQualifiers[rm.placeholderA]) tAId = resolvedQualifiers[rm.placeholderA];
+          if (!tBId && rm.placeholderB && resolvedQualifiers[rm.placeholderB]) tBId = resolvedQualifiers[rm.placeholderB];
+
           const alreadySubmitted = matches.some(m => m.matchId === rm.id && (m.status === 'pending' || m.status === 'approved'));
-          if (!alreadySubmitted && rm.teamA && rm.teamB && (isAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
-            toPlay.push({ ...rm, roundId: round.id });
+          if (!alreadySubmitted && tAId && tBId && (isAdmin || userTeamIds.includes(tAId) || userTeamIds.includes(tBId))) {
+            toPlay.push({ ...rm, teamA: tAId, teamB: tBId, roundId: round.id });
           }
         });
       });
       setAvailableMatches(toPlay);
     }
-  }, [selectedCompId, competitions, matches]);
+  }, [selectedCompId, competitions, matches, resolvedQualifiers]); // Adicione resolvQualifiers aqui
 
   useEffect(() => {
     resetAI();
@@ -1839,7 +2046,7 @@ export default function App() {
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
-      case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} onEditComp={c => updateDoc(getPublicDocPath('competitions', c.id), c)} showToast={showToast} />;
+      case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} showToast={showToast} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(isLeaderOrKaioh ? 'validation' : 'dashboard'); })} />;
       case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} showToast={showToast} />;
