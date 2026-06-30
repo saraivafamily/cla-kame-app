@@ -1100,11 +1100,12 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        const safeKey = encodeURIComponent(userApiKey.trim());
+      const safeKey = encodeURIComponent(userApiKey.trim());
+        // LISTA ATUALIZADA COM MODELOS DE RESERVA
         const endpoints = [
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${safeKey}`
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${safeKey}`, // Se o flash falhar, tenta o PRO
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${safeKey}` // Alternativa super leve
         ];
 
         let resultJson;
