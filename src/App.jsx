@@ -198,7 +198,7 @@ const LoginScreen = ({ onLogin, onRegister }) => {
   );
 };
 
-const Profile = ({ currentUser, teams, matches, onUpdateUser }) => {
+const Profile = ({ currentUser, teams, matches, onUpdateUser, showToast }) => {
   const [isUploading, setIsUploading] = useState(false);
 
   const handleImageUpload = (e) => {
@@ -211,6 +211,8 @@ const Profile = ({ currentUser, teams, matches, onUpdateUser }) => {
       // Envia a imagem em base64 para o sistema principal salvar
       if (onUpdateUser) {
         onUpdateUser(currentUser.id, { avatar: reader.result });
+      } else {
+        if(showToast) showToast("Erro: A função de salvar não está conectada.", "error");
       }
       setIsUploading(false);
     };
@@ -240,28 +242,32 @@ const Profile = ({ currentUser, teams, matches, onUpdateUser }) => {
         <div className="px-6 pb-6 relative">
           <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 -mt-12 sm:-mt-16 mb-6">
             
-            {/* Avatar Interativo com Upload */}
-            <label className="relative group cursor-pointer z-10">
-              {currentUser.avatar ? (
-                <img src={currentUser.avatar} alt="Perfil" className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-slate-900 bg-slate-800 shadow-xl" />
-              ) : (
-                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-slate-800 border-4 border-slate-900 shadow-xl flex items-center justify-center text-4xl text-slate-500 font-bold">
-                  {currentUser.name.charAt(0).toUpperCase()}
+            {/* Avatar Interativo com Botão Visível */}
+            <div className="relative z-10">
+              <label className="cursor-pointer block relative group">
+                {currentUser.avatar ? (
+                  <img src={currentUser.avatar} alt="Perfil" className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-slate-900 bg-slate-800 shadow-xl" />
+                ) : (
+                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-slate-800 border-4 border-slate-900 shadow-xl flex items-center justify-center text-4xl text-slate-500 font-bold">
+                    {currentUser.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                
+                {/* BOTÃO DE CÂMERA FIXO E VISÍVEL */}
+                <div className="absolute bottom-0 right-0 bg-emerald-600 p-2 sm:p-3 rounded-full border-4 border-slate-900 shadow-lg group-hover:scale-110 transition-transform flex items-center justify-center">
+                  <Camera className="text-white" size={18} />
                 </div>
-              )}
-              <div className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center">
-                <Camera className="text-white mb-1" size={24} />
-                <span className="text-[10px] text-white font-bold">Alterar Foto</span>
-              </div>
-              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isUploading} />
-              
-              {/* Indicador de Carregamento */}
-              {isUploading && (
-                <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center">
-                  <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                </div>
-              )}
-            </label>
+                
+                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isUploading} />
+                
+                {/* Indicador de Carregamento */}
+                {isUploading && (
+                  <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center">
+                    <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+              </label>
+            </div>
             
             {/* Informações do Usuário */}
             <div className="text-center sm:text-left flex-1 mt-4 sm:mt-0">
@@ -296,6 +302,7 @@ const Profile = ({ currentUser, teams, matches, onUpdateUser }) => {
     </div>
   );
 };
+
 
 
       <div className="space-y-8">
@@ -1421,6 +1428,15 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     }
   };
 
+  const handleUpdateProfile = async (userId, data) => {
+    // Atualiza a tela imediatamente
+    setCurrentUser(prev => ({ ...prev, ...data }));
+    
+    // Salva permanentemente no Firebase
+    await updateDoc(getPublicDocPath('users', userId), data);
+    showToast("Foto de perfil atualizada!", "success");
+  };
+
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -2120,7 +2136,7 @@ export default function App() {
   const renderContent = () => {
     switch (currentTab) {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
-      case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
+      case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} onUpdateUser={handleUpdateProfile} showToast={showToast} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} showToast={showToast} />;
