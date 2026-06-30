@@ -198,28 +198,105 @@ const LoginScreen = ({ onLogin, onRegister }) => {
   );
 };
 
-const Profile = ({ currentUser, teams, matches, competitions }) => {
-  const userTeams = teams.filter(t => t.ownerId === currentUser.id);
+const Profile = ({ currentUser, teams, matches, onUpdateUser }) => {
+  const [isUploading, setIsUploading] = useState(false);
 
-  if (userTeams.length === 0) {
-    return (
-      <div className="animate-in fade-in text-center p-12 bg-slate-900 rounded-2xl border border-slate-800">
-        <span className="text-6xl mb-4 block">😢</span>
-        <h2 className="text-2xl font-bold text-white mb-2">Você ainda não tem um time</h2>
-        <p className="text-slate-400">Peça para um líder cadastrar seu time no Clã.</p>
-      </div>
-    );
-  }
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      // Envia a imagem em base64 para o sistema principal salvar
+      if (onUpdateUser) {
+        onUpdateUser(currentUser.id, { avatar: reader.result });
+      }
+      setIsUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const userTeams = (teams || []).filter(t => t.ownerId === currentUser.id);
+  const userMatches = (matches || []).filter(m => m.status === 'approved' && userTeams.some(t => t.id === m.teamA || t.id === m.teamB));
+  let wins = 0; let goals = 0;
+  
+  userMatches.forEach(m => {
+    const isA = userTeams.some(t => t.id === m.teamA);
+    const myScore = isA ? m.scoreA : m.scoreB;
+    const oppScore = isA ? m.scoreB : m.scoreA;
+    if (myScore > oppScore) wins++;
+    goals += myScore;
+  });
 
   return (
-    <div className="animate-in fade-in duration-500 space-y-6">
-      <div className="flex items-center gap-4 bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-lg">
-        <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center text-3xl border-2 border-emerald-500/30">👤</div>
-        <div>
-          <h2 className="text-2xl font-bold text-white">{currentUser.name}</h2>
-          <p className="text-emerald-400 font-bold tracking-widest text-xs uppercase mt-1">{ROLE_NAMES[currentUser.role] || 'Membro'}</p>
+    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in pb-12">
+      <h2 className="text-2xl font-bold text-white flex items-center gap-2"><User className="text-emerald-500" /> Meu Perfil</h2>
+      
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        {/* Capa de Fundo Elegante */}
+        <div className="h-32 bg-gradient-to-r from-emerald-900 to-slate-900"></div>
+        
+        <div className="px-6 pb-6 relative">
+          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 -mt-12 sm:-mt-16 mb-6">
+            
+            {/* Avatar Interativo com Upload */}
+            <label className="relative group cursor-pointer z-10">
+              {currentUser.avatar ? (
+                <img src={currentUser.avatar} alt="Perfil" className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-slate-900 bg-slate-800 shadow-xl" />
+              ) : (
+                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-slate-800 border-4 border-slate-900 shadow-xl flex items-center justify-center text-4xl text-slate-500 font-bold">
+                  {currentUser.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center">
+                <Camera className="text-white mb-1" size={24} />
+                <span className="text-[10px] text-white font-bold">Alterar Foto</span>
+              </div>
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isUploading} />
+              
+              {/* Indicador de Carregamento */}
+              {isUploading && (
+                <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
+            </label>
+            
+            {/* Informações do Usuário */}
+            <div className="text-center sm:text-left flex-1 mt-4 sm:mt-0">
+              <h3 className="text-2xl font-bold text-white">{currentUser.name}</h3>
+              <p className="text-emerald-400 text-sm font-bold uppercase tracking-widest">
+                {currentUser.role === 'leader' ? 'Líder Supremo' : currentUser.role === 'kaioh' ? 'Kaioh' : 'Membro'}
+              </p>
+            </div>
+          </div>
+
+          {/* Estatísticas Rápidas do Usuário */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
+              <p className="text-xs text-slate-500 uppercase font-bold mb-1">Clubes</p>
+              <p className="text-2xl font-bold text-white">{userTeams.length}</p>
+            </div>
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
+              <p className="text-xs text-slate-500 uppercase font-bold mb-1">Partidas</p>
+              <p className="text-2xl font-bold text-white">{userMatches.length}</p>
+            </div>
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
+              <p className="text-xs text-slate-500 uppercase font-bold mb-1">Vitórias</p>
+              <p className="text-2xl font-bold text-emerald-400">{wins}</p>
+            </div>
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
+              <p className="text-xs text-slate-500 uppercase font-bold mb-1">Gols Pró</p>
+              <p className="text-2xl font-bold text-blue-400">{goals}</p>
+            </div>
+          </div>
         </div>
       </div>
+    </div>
+  );
+};
+
 
       <div className="space-y-8">
         {userTeams.map(team => {
