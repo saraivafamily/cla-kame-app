@@ -598,6 +598,9 @@ const Standings = ({ matches, teams, comp }) => {
 const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast }) => {
   const [subTab, setSubTab] = useState('overview'); 
   const [expandedRoundId, setExpandedRoundId] = useState(null);
+  
+  // NOVO: Estados para a edição de confrontos
+  const [editMatchData, setEditMatchData] = useState(null);
 
   if (!comp) return (<div className="text-center py-12"><p className="text-slate-400">Torneio não localizado.</p><button onClick={onBack} className="text-emerald-400 underline">Voltar</button></div>);
   
@@ -613,7 +616,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     return { submittedMatchId: sm.id, isPlayed: true, scoreA: sm.scoreA, scoreB: sm.scoreB, penaltiesA: sm.penaltiesA, penaltiesB: sm.penaltiesB, text: 'Validando', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
   };
 
-  // Motor Inteligente de Artilharia e Assistências
   const { topScorers, topAssists } = useMemo(() => {
     const scorers = {}; const assists = {};
     (matches || []).filter(m => m.compId === comp.id && m.status === 'approved').forEach(m => {
@@ -636,15 +638,11 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     };
   }, [matches, comp.id]);
 
-  // Função mágica que cria o Print Isolado de Seções Específicas
   const captureSection = (elementId, fileName) => {
     showToast("Preparando imagem de alta qualidade...", "success");
     const captureAndDownload = () => {
       const element = document.getElementById(elementId);
-      if (!element) {
-        showToast("Erro ao encontrar a tabela.", "error");
-        return;
-      }
+      if (!element) return;
       window.html2canvas(element, { backgroundColor: '#020617', scale: 2, useCORS: true }).then(canvas => {
         const link = document.createElement('a');
         link.download = `${fileName}.png`;
@@ -653,10 +651,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         showToast("Imagem salva com sucesso!", "success");
       });
     };
-
-    if (window.html2canvas) {
-      captureAndDownload();
-    } else {
+    if (window.html2canvas) { captureAndDownload(); } 
+    else {
       const script = document.createElement('script');
       script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
       script.onload = captureAndDownload;
@@ -664,9 +660,57 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     }
   };
 
-  const toggleRound = (id) => {
-    setExpandedRoundId(prev => prev === id ? null : id);
+  const toggleRound = (id) => { setExpandedRoundId(prev => prev === id ? null : id); };
+
+  // NOVO: Função para Migrar Classificados Automaticamente
+  const handleAutoMigrateKnockout = () => {
+    if (!comp.groups) return;
+    showToast("Calculando classificados...", "info");
+    
+    const qualifiers = {};
+    Object.keys(comp.groups).forEach((gName) => {
+      const gTeams = (teams || []).filter(t => comp.groups[gName].includes(t.id));
+      const gTable = calculateStandings(matches, gTeams, comp.id);
+      
+      // Associa a posição na tabela (1º, 2º, etc) ao ID do time real
+      gTable.forEach((row, idx) => {
+        qualifiers[`${idx + 1}º Grupo ${gName}`] = row.id;
+        qualifiers[`${idx + 1}º do Grupo ${gName}`] = row.id; // Variação de texto
+      });
+    });
+
+    const updatedRounds = comp.rounds.map(round => {
+      const newMatches = round.matches.map(m => {
+        let newA = m.teamA;
+        let newB = m.teamB;
+        if (!newA && m.placeholderA && qualifiers[m.placeholderA]) newA = qualifiers[m.placeholderA];
+        if (!newB && m.placeholderB && qualifiers[m.placeholderB]) newB = qualifiers[m.placeholderB];
+        return { ...m, teamA: newA, teamB: newB };
+      });
+      return { ...round, matches: newMatches };
+    });
+
+    onEditComp({ ...comp, rounds: updatedRounds });
+    showToast("Mata-Mata preenchido com os classificados!", "success");
   };
+
+  // NOVO: Função para salvar edição de um confronto manual
+  const saveMatchEdit = () => {
+    const updatedRounds = comp.rounds.map(r => {
+      if (r.id === editMatchData.roundId) {
+        return {
+          ...r,
+          matches: r.matches.map(m => m.id === editMatchData.id ? { ...m, teamA: editMatchData.teamA, teamB: editMatchData.teamB } : m)
+        };
+      }
+      return r;
+    });
+    onEditComp({ ...comp, rounds: updatedRounds });
+    setEditMatchData(null);
+    showToast("Confronto atualizado!", "success");
+  };
+
+  const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
@@ -675,7 +719,10 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-xl font-bold text-white">{String(comp.name)}</h2>
-          <p className="text-xs text-emerald-400 mt-1 uppercase font-bold">{comp.format === 'league' ? 'Liga' : comp.format === 'groups' ? 'Fase de Grupos' : 'Mata-Mata'}</p>
+          <p className="text-xs text-emerald-400 mt-1 uppercase font-bold">
+            {comp.format === 'league' ? 'Liga' : comp.format === 'groups' ? 'Fase de Grupos' : 'Mata-Mata'}
+            {comp.createdBy && <span className="text-slate-400 ml-2 normal-case font-medium">• Resp: {comp.createdBy}</span>}
+          </p>
         </div>
       </div>
       
@@ -688,7 +735,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         {subTab === 'overview' && (
           <div className="space-y-8 animate-in slide-in-from-left-4">
             
-            {/* Bloco da Tabela Isolada */}
             <div className="space-y-2">
               <div className="flex justify-between items-end mb-2">
                 <h3 className="text-lg font-bold text-white pl-2">Classificação</h3>
@@ -696,12 +742,21 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
               </div>
               <div id="capture-standings" className="bg-slate-950 p-3 sm:p-5 rounded-2xl border border-slate-800">
                 <h3 className="text-center font-black text-emerald-400 mb-4 text-sm uppercase tracking-widest">{comp.name}</h3>
-                <Standings matches={matches} teams={(teams || []).filter(t => t && comp.teams?.includes(t.id))} comp={comp} />
+                <Standings matches={matches} teams={compTeams} comp={comp} />
               </div>
             </div>
             
             <div className="space-y-3 pt-4 border-t border-slate-800/50">
-              <h3 className="text-lg font-bold text-white mb-4 pl-2">Rodadas e Confrontos</h3>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-4 pl-2">
+                <h3 className="text-lg font-bold text-white">Rodadas e Confrontos</h3>
+                {/* Botão de Auto-Migração para Formato de Grupos */}
+                {isAdmin && comp.format === 'groups' && (
+                  <Button onClick={handleAutoMigrateKnockout} className="text-[10px] py-1.5 px-3 bg-blue-600 hover:bg-blue-500 text-white border-0 shadow-lg" variant="outline">
+                    🔄 Migrar Classificados para Mata-Mata
+                  </Button>
+                )}
+              </div>
+
               {(comp.rounds || []).map((round) => {
                 const isExpanded = expandedRoundId === round.id;
                 return (
@@ -723,23 +778,54 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                            <Button onClick={() => captureSection(`capture-round-${round.id}`, `Rodada-${round.number}-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-md" variant="outline"><Camera size={12}/> Print da Rodada</Button>
                         </div>
                         
-                        {/* Bloco Isolado da Rodada para Foto */}
                         <div id={`capture-round-${round.id}`} className="bg-slate-950 p-4 rounded-xl border border-slate-800/50 space-y-3">
                           <h4 className="text-center font-bold text-white mb-4 text-xs uppercase tracking-widest">{comp.name} <span className="text-emerald-400">• Rodada {round.number}</span></h4>
                           
                           {(round?.matches || []).map((m) => {
                             const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                            
+                            // MODO EDIÇÃO DO CONFRONTO
+                            if (editMatchData?.id === m.id) {
+                              return (
+                                <div key={m.id} className="bg-slate-900 p-3 rounded-lg border border-emerald-500/50 flex flex-col gap-3 shadow-lg">
+                                  <div className="flex items-center gap-2">
+                                    <select value={editMatchData.teamA || ''} onChange={e=>setEditMatchData({...editMatchData, teamA: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
+                                      <option value="">{m.placeholderA || 'Selecione a Equipe A'}</option>
+                                      {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                    <span className="font-bold text-slate-500 text-xs">X</span>
+                                    <select value={editMatchData.teamB || ''} onChange={e=>setEditMatchData({...editMatchData, teamB: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
+                                      <option value="">{m.placeholderB || 'Selecione a Equipe B'}</option>
+                                      {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="flex justify-end gap-2">
+                                    <Button variant="outline" onClick={()=>setEditMatchData(null)} className="py-1 px-3 text-[10px]">Cancelar</Button>
+                                    <Button onClick={saveMatchEdit} className="py-1 px-3 text-[10px]">Salvar</Button>
+                                  </div>
+                                </div>
+                              );
+                            }
+
                             return (
-                              <div key={m.id} onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className={`bg-slate-900 p-3 rounded-lg border border-slate-800 flex items-center justify-between text-xs cursor-pointer hover:border-slate-700`}>
-                                <div className="flex-1 flex items-center justify-end gap-2">
-                                  <span className="font-bold text-slate-200 text-right break-words">{tA?.name || m.placeholderA}</span>
-                                  <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
+                              <div key={m.id} className="relative group">
+                                <div onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className={`bg-slate-900 p-3 rounded-lg border border-slate-800 flex items-center justify-between text-xs cursor-pointer hover:border-slate-700 transition-colors pr-10`}>
+                                  <div className="flex-1 flex items-center justify-end gap-2 overflow-hidden">
+                                    <span className="truncate font-bold text-slate-200">{tA?.name || m.placeholderA}</span>
+                                    <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
+                                  </div>
+                                  <div className={`mx-3 px-3 py-1 border rounded font-mono font-bold shrink-0 shadow-inner ${sUI.bg} ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</div>
+                                  <div className="flex-1 flex items-center justify-start gap-2 overflow-hidden">
+                                    <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
+                                    <span className="truncate font-bold text-slate-200">{tB?.name || m.placeholderB}</span>
+                                  </div>
                                 </div>
-                                <div className={`mx-3 px-3 py-1 border rounded font-mono font-bold shrink-0 shadow-inner ${sUI.bg} ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</div>
-                                <div className="flex-1 flex items-center justify-start gap-2">
-                                  <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
-                                  <span className="font-bold text-slate-200 text-left break-words">{tB?.name || m.placeholderB}</span>
-                                </div>
+                                {/* Botão de Editar Confronto (Apenas Líderes) */}
+                                {isAdmin && (
+                                  <button onClick={(e) => { e.stopPropagation(); setEditMatchData({ ...m, roundId: round.id }); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-emerald-400 p-2 bg-slate-950 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10" title="Editar Confronto">
+                                    <Edit size={14} />
+                                  </button>
+                                )}
                               </div>
                             )
                           })}
@@ -755,8 +841,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
         {subTab === 'stats' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
-            
-            {/* Bloco Isolado de Artilharia */}
+            {/* Bloco de Artilharia (Continua igual) */}
             <div className="space-y-2">
               <div className="flex justify-between items-end mb-2">
                 <h3 className="text-lg font-bold text-white pl-2">Top Goleadores</h3>
@@ -785,7 +870,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
               </div>
             </div>
 
-            {/* Bloco Isolado de Assistências */}
+            {/* Bloco de Assistências (Continua igual) */}
             <div className="space-y-2">
               <div className="flex justify-between items-end mb-2">
                 <h3 className="text-lg font-bold text-white pl-2">Top Garçons</h3>
@@ -1101,11 +1186,10 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         };
 
       const safeKey = encodeURIComponent(userApiKey.trim());
-        // LISTA ATUALIZADA COM MODELOS DE RESERVA
         const endpoints = [
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${safeKey}`, // Se o flash falhar, tenta o PRO
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${safeKey}` // Alternativa super leve
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${safeKey}`
         ];
 
         let resultJson;
