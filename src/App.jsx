@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Play, Shield, MessageCircle, Edit, Save, X, User, Crown, Star, Send, Trash2, UserPlus, Key, LayoutGrid, List, Award } from 'lucide-react';
+import { Camera, User, AlertCircle, CheckCircle, Shield, Medal, /* ...outros ícones */ } from 'lucide-react';
 
 const LOGO_URL = "https://i.imgur.com/NTbkaER.png"; 
 
@@ -253,7 +254,7 @@ const Profile = ({ currentUser, teams, matches, onUpdateUser, showToast }) => {
                   </div>
                 )}
                 
-                {/* BOTÃO DE CÂMERA FIXO E VISÍVEL */}
+                {/* BOTÃO DE CÂMARA FIXO E VISÍVEL */}
                 <div className="absolute bottom-0 right-0 bg-emerald-600 p-2 sm:p-3 rounded-full border-4 border-slate-900 shadow-lg group-hover:scale-110 transition-transform flex items-center justify-center">
                   <Camera className="text-white" size={18} />
                 </div>
@@ -302,8 +303,6 @@ const Profile = ({ currentUser, teams, matches, onUpdateUser, showToast }) => {
     </div>
   );
 };
-
-
 
       <div className="space-y-8">
         {userTeams.map(team => {
@@ -2136,7 +2135,7 @@ export default function App() {
   const renderContent = () => {
     switch (currentTab) {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
-      case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} onUpdateUser={handleUpdateProfile} showToast={showToast} />;
+       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} onUpdateUser={handleUpdateProfile} showToast={showToast} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} showToast={showToast} />;
