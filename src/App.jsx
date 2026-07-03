@@ -1352,13 +1352,9 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
   const visibleCompetitions = (competitions || []).filter(c => isAdmin || (c.teams || []).some(tId => userTeamIds.includes(tId)));
 
-  // Dentro de const SubmitMatch = ...
   const selectedComp = useMemo(() => (competitions || []).find(c => c.id === selectedCompId), [selectedCompId, competitions]);
   const isCup = selectedComp?.format === 'cup' || (selectedComp?.format === 'groups' && selectedMatchId.includes('_ko_'));
   const isTie = scoreA !== '' && scoreB !== '' && scoreA === scoreB;
-
-  // NOVO: Lê os classificados magicamente ao vivo
-  const resolvedQualifiers = useMemo(() => resolveQualifiers(selectedComp, teams, matches), [selectedComp, teams, matches]);
 
   useEffect(() => {
     setSelectedMatchId('');
@@ -1372,21 +1368,15 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       let toPlay = [];
       comp.rounds.filter(r => r.status === 'released').forEach(round => {
         round.matches.forEach(rm => {
-          // NOVO: Descobre quem são os times se eles foram auto-migrados
-          let tAId = rm.teamA;
-          let tBId = rm.teamB;
-          if (!tAId && rm.placeholderA && resolvedQualifiers[rm.placeholderA]) tAId = resolvedQualifiers[rm.placeholderA];
-          if (!tBId && rm.placeholderB && resolvedQualifiers[rm.placeholderB]) tBId = resolvedQualifiers[rm.placeholderB];
-
           const alreadySubmitted = matches.some(m => m.matchId === rm.id && (m.status === 'pending' || m.status === 'approved'));
-          if (!alreadySubmitted && tAId && tBId && (isAdmin || userTeamIds.includes(tAId) || userTeamIds.includes(tBId))) {
-            toPlay.push({ ...rm, teamA: tAId, teamB: tBId, roundId: round.id });
+          if (!alreadySubmitted && rm.teamA && rm.teamB && (isAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
+            toPlay.push({ ...rm, roundId: round.id });
           }
         });
       });
       setAvailableMatches(toPlay);
     }
-  }, [selectedCompId, competitions, matches, resolvedQualifiers]); // Adicione resolvQualifiers aqui
+  }, [selectedCompId, competitions, matches]);
 
   useEffect(() => {
     resetAI();
@@ -1425,15 +1415,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setShowKeyInput(false);
       showToast("Chave da IA ativada com sucesso no seu navegador!", "success");
     }
-  };
-
-  const handleUpdateProfile = async (userId, data) => {
-    // Atualiza a tela imediatamente
-    setCurrentUser(prev => ({ ...prev, ...data }));
-    
-    // Salva permanentemente no Firebase
-    await updateDoc(getPublicDocPath('users', userId), data);
-    showToast("Foto de perfil atualizada!", "success");
   };
 
   const handleImageUpload = (e) => {
@@ -1484,7 +1465,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-      const safeKey = encodeURIComponent(userApiKey.trim());
+        const safeKey = encodeURIComponent(userApiKey.trim());
         const endpoints = [
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`,
