@@ -161,6 +161,7 @@ const LoginScreen = ({ onLogin, onRegister, onResetPassword }) => {
   const handleResetSubmit = async (e) => {
     e.preventDefault(); setError(''); setMsg(''); setIsProcessing(true);
     try {
+      if (!onResetPassword) throw new Error("Função de redefinição não conectada.");
       await onResetPassword(resetEmail);
       setMsg('Um link de recuperação foi enviado para o seu e-mail.');
       setResetEmail('');
@@ -174,7 +175,13 @@ const LoginScreen = ({ onLogin, onRegister, onResetPassword }) => {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 max-w-md w-full shadow-2xl">
         <div className="text-center mb-6">
-          <div className="flex justify-center mb-4"><span className="text-5xl">🛡️</span></div>
+          <div className="flex justify-center mb-4">
+            {typeof LOGO_URL !== 'undefined' && LOGO_URL ? (
+              <img src={LOGO_URL} alt="Clã Kame" className="max-w-[100px] object-contain" />
+            ) : (
+              <span className="text-5xl">🛡️</span>
+            )}
+          </div>
           <h1 className="text-xl font-bold text-white">Clã Kame DLS</h1>
         </div>
         
@@ -188,15 +195,14 @@ const LoginScreen = ({ onLogin, onRegister, onResetPassword }) => {
             </div>
             
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Senha</label>
-              <input required type="password" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} className={inputClass} placeholder="••••••••" />
-              
-              {/* BOTÃO DE RECUPERAR SENHA BEM VISÍVEL */}
-              <div className="text-right mt-2">
-                <button type="button" onClick={() => {setView('reset'); setError(''); setMsg('');}} className="text-xs font-bold text-emerald-400 hover:text-emerald-300 hover:underline">
-                  Esqueceu sua senha? Clique aqui
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-xs text-slate-400 block">Senha</label>
+                {/* O BOTÃO APARECE AQUI AGORA */}
+                <button type="button" onClick={() => {setView('reset'); setError(''); setMsg('');}} className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 hover:underline">
+                  Esqueceu a senha?
                 </button>
               </div>
+              <input required type="password" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} className={inputClass} placeholder="••••••••" />
             </div>
 
             <Button type="submit" disabled={isProcessing} className="w-full py-3 mt-4">{isProcessing ? 'Entrando...' : 'Entrar na Arena'}</Button>
@@ -2088,7 +2094,7 @@ export default function App() {
   useEffect(() => { const unsub = onAuthStateChanged(auth, (fbUser) => { if (fbUser && users.length > 0) { const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); if (found) setCurrentUser(found); } }); return () => unsub(); }, [users]);
 
   if (isFirebaseLoading) return (<div className="min-h-screen bg-slate-950 text-amber-400 flex items-center justify-center font-sans font-bold text-sm shadow-xl animate-pulse">🛡️ Carregando Arena Kame...</div>);
-    if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} onResetPassword={handleResetPassword} />;
+     if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} onResetPassword={handleResetPassword} />;
 
   if (currentUser.status === 'pending') {
     return (
