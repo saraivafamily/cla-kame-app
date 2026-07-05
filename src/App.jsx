@@ -438,7 +438,6 @@ const Profile = ({ currentUser, teams, matches, onUpdateUser, showToast }) => {
                     </div>
                   ) : ( <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded-xl border border-slate-800 text-center">Este time não está inscrito em nenhuma competição no momento.</p> )}
                 </div>
-
                 <div className="pt-4 border-t border-slate-800">
                   <h4 className="text-sm font-bold text-slate-400 mb-4 flex items-center gap-2"><Activity size={16}/> Resumo Histórico</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -447,7 +446,6 @@ const Profile = ({ currentUser, teams, matches, onUpdateUser, showToast }) => {
                     <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/50 text-center col-span-2 md:col-span-2"><p className="text-slate-500 text-xs mb-1 font-medium">Maior Goleada</p>{biggestWin ? ( <p className="text-lg font-bold text-white"><span className="text-emerald-400">{biggestWin.scoreFor}</span> x {biggestWin.scoreAgainst} <span className="text-sm text-slate-400 font-normal">({teams.find(t=>t.id === biggestWin.oppId)?.name})</span></p> ) : <p className="text-sm text-slate-600 mt-1">Nenhuma vitória</p>}</div>
                   </div>
                 </div>
-
               </div>
             </div>
           );
