@@ -181,23 +181,26 @@ const LoginScreen = ({ onLogin, onRegister, onResetPassword }) => {
         {view === 'login' && (
           <form onSubmit={handleLoginSubmit} className="space-y-4 animate-in fade-in duration-300">
             {error && <div className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</div>}
+            
             <div>
               <label className="text-xs text-slate-400 block mb-1">E-mail ou WhatsApp</label>
               <input required value={loginData.identifier} onChange={e=>setLoginData({...loginData, identifier: e.target.value})} className={inputClass} placeholder="Digite seu acesso..." />
             </div>
             
-            {/* Bloco da Senha COM o botão de recuperação */}
             <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="text-xs text-slate-400 block">Senha</label>
-                <button type="button" onClick={() => {setView('reset'); setError(''); setMsg('');}} className="text-[10px] text-emerald-400 hover:text-emerald-300 hover:underline">
-                  Esqueceu a senha?
+              <label className="text-xs text-slate-400 block mb-1">Senha</label>
+              <input required type="password" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} className={inputClass} placeholder="••••••••" />
+              
+              {/* BOTÃO DE RECUPERAR SENHA BEM VISÍVEL */}
+              <div className="text-right mt-2">
+                <button type="button" onClick={() => {setView('reset'); setError(''); setMsg('');}} className="text-xs font-bold text-emerald-400 hover:text-emerald-300 hover:underline">
+                  Esqueceu sua senha? Clique aqui
                 </button>
               </div>
-              <input required type="password" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} className={inputClass} placeholder="••••••••" />
             </div>
 
-            <Button type="submit" disabled={isProcessing} className="w-full py-3">{isProcessing ? 'Entrando...' : 'Entrar na Arena'}</Button>
+            <Button type="submit" disabled={isProcessing} className="w-full py-3 mt-4">{isProcessing ? 'Entrando...' : 'Entrar na Arena'}</Button>
+            
             <div className="text-center pt-5 border-t border-slate-800/50 mt-6">
               <p className="text-xs text-slate-500 mb-2">Ainda não faz parte do clã?</p>
               <button type="button" onClick={() => {setView('register'); setError(''); setMsg('');}} className="text-sm font-bold text-emerald-400 hover:text-emerald-300 underline">Primeiro Acesso (Cadastrar)</button>
