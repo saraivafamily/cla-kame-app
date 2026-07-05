@@ -451,7 +451,6 @@ const Profile = ({ currentUser, teams, matches, onUpdateUser, showToast }) => {
           );
         })}
       </div>
-    </div>
   );
 };
 
