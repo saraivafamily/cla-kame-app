@@ -158,17 +158,6 @@ const LoginScreen = ({ onLogin, onRegister, onResetPassword }) => {
     setIsProcessing(false);
   };
 
-  const handleResetPassword = async (email) => {
-    try {
-      await sendPasswordResetEmail(auth, email);
-    } catch (error) {
-      if (error.code === 'auth/user-not-found') {
-        throw new Error('Usuário não encontrado com este e-mail.');
-      }
-      throw new Error('Erro ao enviar e-mail. Verifique o endereço digitado.');
-    }
-  };
-  
   const handleResetSubmit = async (e) => {
     e.preventDefault(); setError(''); setMsg(''); setIsProcessing(true);
     try {
@@ -192,14 +181,22 @@ const LoginScreen = ({ onLogin, onRegister, onResetPassword }) => {
         {view === 'login' && (
           <form onSubmit={handleLoginSubmit} className="space-y-4 animate-in fade-in duration-300">
             {error && <div className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</div>}
-            <div><label className="text-xs text-slate-400 block mb-1">E-mail ou WhatsApp</label><input required value={loginData.identifier} onChange={e=>setLoginData({...loginData, identifier: e.target.value})} className={inputClass} placeholder="Digite seu acesso..." /></div>
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">E-mail ou WhatsApp</label>
+              <input required value={loginData.identifier} onChange={e=>setLoginData({...loginData, identifier: e.target.value})} className={inputClass} placeholder="Digite seu acesso..." />
+            </div>
+            
+            {/* Bloco da Senha COM o botão de recuperação */}
             <div>
               <div className="flex justify-between items-center mb-1">
                 <label className="text-xs text-slate-400 block">Senha</label>
-                <button type="button" onClick={() => {setView('reset'); setError(''); setMsg('');}} className="text-[10px] text-emerald-400 hover:text-emerald-300 hover:underline">Esqueceu a senha?</button>
+                <button type="button" onClick={() => {setView('reset'); setError(''); setMsg('');}} className="text-[10px] text-emerald-400 hover:text-emerald-300 hover:underline">
+                  Esqueceu a senha?
+                </button>
               </div>
               <input required type="password" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} className={inputClass} placeholder="••••••••" />
             </div>
+
             <Button type="submit" disabled={isProcessing} className="w-full py-3">{isProcessing ? 'Entrando...' : 'Entrar na Arena'}</Button>
             <div className="text-center pt-5 border-t border-slate-800/50 mt-6">
               <p className="text-xs text-slate-500 mb-2">Ainda não faz parte do clã?</p>
@@ -2088,7 +2085,7 @@ export default function App() {
   useEffect(() => { const unsub = onAuthStateChanged(auth, (fbUser) => { if (fbUser && users.length > 0) { const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); if (found) setCurrentUser(found); } }); return () => unsub(); }, [users]);
 
   if (isFirebaseLoading) return (<div className="min-h-screen bg-slate-950 text-amber-400 flex items-center justify-center font-sans font-bold text-sm shadow-xl animate-pulse">🛡️ Carregando Arena Kame...</div>);
-   if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} onResetPassword={handleResetPassword} />;
+    if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} onResetPassword={handleResetPassword} />;
 
   if (currentUser.status === 'pending') {
     return (
