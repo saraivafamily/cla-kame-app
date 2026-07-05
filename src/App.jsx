@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,sendPasswordResetEmail } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Play, Shield, MessageCircle, Edit, Save, X, User, Crown, Star, Send, Trash2, UserPlus, Key, LayoutGrid, List, Award } from 'lucide-react';
 import { Camera, User, AlertCircle, CheckCircle, Shield, Medal, /* ...outros ícones */ } from 'lucide-react';
@@ -129,22 +129,26 @@ const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2, i
   } return { groups, rounds };
 };
 
-const LoginScreen = ({ onLogin, onRegister }) => {
+const LoginScreen = ({ onLogin, onRegister, onResetPassword }) => {
   const [view, setView] = useState('login'); 
   const [loginData, setLoginData] = useState({ identifier: '', password: '' });
   const [regData, setRegData] = useState({ firstName: '', lastName: '', teamName: '', email: '', whatsapp: '', password: '' });
+  const [resetEmail, setResetEmail] = useState('');
   const [error, setError] = useState('');
+  const [msg, setMsg] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const inputClass = "w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none";
+
   const handleLoginSubmit = async (e) => {
-    e.preventDefault(); setError(''); setIsProcessing(true);
+    e.preventDefault(); setError(''); setMsg(''); setIsProcessing(true);
     try { await onLogin(loginData.identifier, loginData.password); } 
     catch (err) { setError(err.message || 'Erro nas credenciais.'); }
     setIsProcessing(false);
   };
 
   const handleRegisterSubmit = async (e) => {
-    e.preventDefault(); setError(''); setIsProcessing(true);
+    e.preventDefault(); setError(''); setMsg(''); setIsProcessing(true);
     try { 
       await onRegister(regData); 
       setView('login');
@@ -154,11 +158,34 @@ const LoginScreen = ({ onLogin, onRegister }) => {
     setIsProcessing(false);
   };
 
+  const handleResetPassword = async (email) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error) {
+      if (error.code === 'auth/user-not-found') {
+        throw new Error('Usuário não encontrado com este e-mail.');
+      }
+      throw new Error('Erro ao enviar e-mail. Verifique o endereço digitado.');
+    }
+  };
+  
+  const handleResetSubmit = async (e) => {
+    e.preventDefault(); setError(''); setMsg(''); setIsProcessing(true);
+    try {
+      await onResetPassword(resetEmail);
+      setMsg('Um link de recuperação foi enviado para o seu e-mail.');
+      setResetEmail('');
+    } catch (err) {
+      setError(err.message || 'Erro ao tentar recuperar a senha.');
+    }
+    setIsProcessing(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 max-w-md w-full shadow-2xl">
         <div className="text-center mb-6">
-          <div className="flex justify-center mb-4"><img src={LOGO_URL} alt="Clã Kame" className="max-w-[100px]" /></div>
+          <div className="flex justify-center mb-4"><span className="text-5xl">🛡️</span></div>
           <h1 className="text-xl font-bold text-white">Clã Kame DLS</h1>
         </div>
         
@@ -166,11 +193,17 @@ const LoginScreen = ({ onLogin, onRegister }) => {
           <form onSubmit={handleLoginSubmit} className="space-y-4 animate-in fade-in duration-300">
             {error && <div className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</div>}
             <div><label className="text-xs text-slate-400 block mb-1">E-mail ou WhatsApp</label><input required value={loginData.identifier} onChange={e=>setLoginData({...loginData, identifier: e.target.value})} className={inputClass} placeholder="Digite seu acesso..." /></div>
-            <div><label className="text-xs text-slate-400 block mb-1">Senha</label><input required type="password" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} className={inputClass} placeholder="••••••••" /></div>
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-xs text-slate-400 block">Senha</label>
+                <button type="button" onClick={() => {setView('reset'); setError(''); setMsg('');}} className="text-[10px] text-emerald-400 hover:text-emerald-300 hover:underline">Esqueceu a senha?</button>
+              </div>
+              <input required type="password" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} className={inputClass} placeholder="••••••••" />
+            </div>
             <Button type="submit" disabled={isProcessing} className="w-full py-3">{isProcessing ? 'Entrando...' : 'Entrar na Arena'}</Button>
             <div className="text-center pt-5 border-t border-slate-800/50 mt-6">
               <p className="text-xs text-slate-500 mb-2">Ainda não faz parte do clã?</p>
-              <button type="button" onClick={() => {setView('register'); setError('');}} className="text-sm font-bold text-emerald-400 hover:text-emerald-300 underline">Primeiro Acesso (Cadastrar)</button>
+              <button type="button" onClick={() => {setView('register'); setError(''); setMsg('');}} className="text-sm font-bold text-emerald-400 hover:text-emerald-300 underline">Primeiro Acesso (Cadastrar)</button>
             </div>
           </form>
         )}
@@ -191,13 +224,30 @@ const LoginScreen = ({ onLogin, onRegister }) => {
             <div><input required type="password" maxLength={8} placeholder="Crie uma Senha (máx 8 dígitos)" value={regData.password} onChange={e=>setRegData({...regData, password: e.target.value})} className={inputClass} /></div>
             
             <Button type="submit" disabled={isProcessing} className="w-full py-3 mt-2">{isProcessing ? 'Enviando...' : 'Solicitar Entrada no Clã'}</Button>
-            <button type="button" onClick={() => {setView('login'); setError('');}} className="w-full text-xs text-slate-500 hover:text-white mt-2 pb-2">Voltar para o Login</button>
+            <button type="button" onClick={() => {setView('login'); setError(''); setMsg('');}} className="w-full text-xs text-slate-500 hover:text-white mt-2 pb-2">Voltar para o Login</button>
+          </form>
+        )}
+
+        {view === 'reset' && (
+          <form onSubmit={handleResetSubmit} className="space-y-4 animate-in slide-in-from-left-4 duration-300">
+            <h2 className="text-lg font-bold text-white text-center mb-1">Recuperar Senha</h2>
+            <p className="text-xs text-slate-400 text-center mb-4">Digite o e-mail cadastrado para receber o link de redefinição.</p>
+            {error && <div className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</div>}
+            {msg && <div className="text-emerald-400 text-xs bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/20">{msg}</div>}
+            
+            <div>
+              <input required type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} className={inputClass} placeholder="Seu e-mail cadastrado..." />
+            </div>
+            
+            <Button type="submit" disabled={isProcessing} className="w-full py-3">{isProcessing ? 'Enviando...' : 'Enviar Link'}</Button>
+            <button type="button" onClick={() => {setView('login'); setError(''); setMsg('');}} className="w-full text-xs text-slate-500 hover:text-white mt-2 pb-2">Voltar para o Login</button>
           </form>
         )}
       </div>
     </div>
   );
 };
+
 
 const Profile = ({ currentUser, teams, matches, onUpdateUser, showToast }) => {
   const [isUploading, setIsUploading] = useState(false);
@@ -2038,7 +2088,7 @@ export default function App() {
   useEffect(() => { const unsub = onAuthStateChanged(auth, (fbUser) => { if (fbUser && users.length > 0) { const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); if (found) setCurrentUser(found); } }); return () => unsub(); }, [users]);
 
   if (isFirebaseLoading) return (<div className="min-h-screen bg-slate-950 text-amber-400 flex items-center justify-center font-sans font-bold text-sm shadow-xl animate-pulse">🛡️ Carregando Arena Kame...</div>);
- if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} />;
+   if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} onResetPassword={handleResetPassword} />;
 
   if (currentUser.status === 'pending') {
     return (
