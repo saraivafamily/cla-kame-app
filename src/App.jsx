@@ -1708,7 +1708,25 @@ export default function App() {
     await updateDoc(getPublicDocPath('teams', updatedTeam.id), updatedTeam); 
   };
   const handleCreateTeamAndUser = async ({ user, team }) => { await setDoc(getPublicDocPath('users', user.id), user); await setDoc(getPublicDocPath('teams', team.id), team); setCurrentTab('teams_list'); showToast("Treinador registrado!"); return true; };
-  const handleExpelUser = async (userId) => { if (userId === currentUser.id) return; const t = teams.find(x=>x.ownerId===userId); if(t) await deleteDoc(getPublicDocPath('teams', t.id)); await deleteDoc(getPublicDocPath('users', userId)); showToast("Removido!"); };
+  const handleExpelUser = async (userId) => {
+    // 1. Apaga a conta do usuário
+    await deleteDoc(getPublicDocPath('users', userId));
+    
+    // 2. Encontra o time do usuário expulso
+    const userTeam = teams.find(t => t.ownerId === userId);
+    
+    if (userTeam) {
+      // 3. Em vez de apagar o time, transformamos ele num time "Manual"
+      // Assim ele continua na tabela, mantendo os resultados e permitindo W.O.
+      await updateDoc(getPublicDocPath('teams', userTeam.id), {
+        ownerId: 'manual',
+        whatsapp: '' // Removemos o número pessoal por privacidade
+      });
+      showToast("Técnico expulso. O time dele agora é manual (sem dono).", "success");
+    } else {
+      showToast("Técnico expulso com sucesso.", "success");
+    }
+  };
 
   const formatarParaEmail = (texto) => { const textoLimpo = String(texto).trim().toLowerCase(); if (textoLimpo.includes('@')) return textoLimpo; return textoLimpo.replace(/[-\s().]/g, '') + '@clakame.com'; };
   const handleRegister = async (data) => {
