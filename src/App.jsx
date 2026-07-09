@@ -601,6 +601,18 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   
   // NOVO: Estados para a edição de confrontos
   const [editMatchData, setEditMatchData] = useState(null);
+  const [showAddTeam, setShowAddTeam] = useState(false);
+  const [newTeamToAdd, setNewTeamToAdd] = useState('');
+
+  const handleAddTeamToComp = () => {
+    if (!newTeamToAdd) return;
+    const updatedComp = { ...comp, teams: [...(comp.teams || []), newTeamToAdd] };
+    onEditComp(updatedComp);
+    setShowAddTeam(false);
+    setNewTeamToAdd('');
+  };
+  
+  const availableTeamsToAdd = (teams || []).filter(t => t && !(comp.teams || []).includes(t.id));
 
   if (!comp) return (<div className="text-center py-12"><p className="text-slate-400">Torneio não localizado.</p><button onClick={onBack} className="text-emerald-400 underline">Voltar</button></div>);
   
@@ -724,6 +736,26 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             {comp.createdBy && <span className="text-slate-400 ml-2 normal-case font-medium">• Resp: {comp.createdBy}</span>}
           </p>
         </div>
+        
+        {/* NOVO BOTÃO DE INSERIR TIME */}
+        {isAdmin && (
+          <div className="flex gap-2 w-full md:w-auto">
+            {showAddTeam ? (
+              <div className="flex gap-2 w-full animate-in fade-in">
+                <select value={newTeamToAdd} onChange={e=>setNewTeamToAdd(e.target.value)} className="flex-1 md:w-48 bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none">
+                  <option value="">Escolher time...</option>
+                  {availableTeamsToAdd.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <Button onClick={handleAddTeamToComp} className="py-1 px-3 text-xs">Salvar</Button>
+                <Button variant="outline" onClick={()=>{setShowAddTeam(false); setNewTeamToAdd('');}} className="py-1 px-2 text-xs font-bold text-slate-400">X</Button>
+              </div>
+            ) : (
+              <Button variant="outline" onClick={()=>setShowAddTeam(true)} className="py-2 px-3 text-xs w-full md:w-auto flex items-center justify-center gap-2">
+                <span className="text-emerald-400 font-bold">+</span> Inserir Time
+              </Button>
+            )}
+          </div>
+        )}
       </div>
       
       <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800">
