@@ -957,8 +957,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </div>
           </div>
         )}
-
-        {/* --- INÍCIO DO CÓDIGO NOVO DO COFRE --- */}
+        
         {subTab === 'finance' && comp.isPaid && isAdmin && (
           <div className="space-y-6 animate-in slide-in-from-bottom-4">
             
@@ -1020,7 +1019,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </div>
           </div>
         )}
-        {/* --- FIM DO CÓDIGO NOVO DO COFRE --- */}
 
       </div>
     </div>
