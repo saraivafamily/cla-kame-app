@@ -900,7 +900,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
         {subTab === 'stats' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
-            {/* Bloco de Artilharia (Continua igual) */}
             <div className="space-y-2">
               <div className="flex justify-between items-end mb-2">
                 <h3 className="text-lg font-bold text-white pl-2">Top Goleadores</h3>
@@ -929,7 +928,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
               </div>
             </div>
 
-            {/* Bloco de Assistências (Continua igual) */}
             <div className="space-y-2">
               <div className="flex justify-between items-end mb-2">
                 <h3 className="text-lg font-bold text-white pl-2">Top Garçons</h3>
@@ -957,7 +955,11 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 </div>
               </div>
             </div>
-{subTab === 'finance' && comp.isPaid && isAdmin && (
+          </div>
+        )}
+
+        {/* --- INÍCIO DO CÓDIGO NOVO DO COFRE --- */}
+        {subTab === 'finance' && comp.isPaid && isAdmin && (
           <div className="space-y-6 animate-in slide-in-from-bottom-4">
             
             {/* O Cofre (Visão Geral) */}
@@ -1018,9 +1020,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </div>
           </div>
         )}
+        {/* --- FIM DO CÓDIGO NOVO DO COFRE --- */}
 
-          </div>
-        )}
       </div>
     </div>
   );
