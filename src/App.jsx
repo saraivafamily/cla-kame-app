@@ -962,13 +962,24 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   );
 };
 
-const CreateCompetition = ({ teams, onCreate }) => {
+const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const [name, setName] = useState('');
   const [format, setFormat] = useState('league');
   const [teamCount, setTeamCount] = useState('');
   const [numGroups, setNumGroups] = useState('2');
   const [qualifiers, setQualifiers] = useState('2');
+  const [isDoubleRound, setIsDoubleRound] = useState(false);
   const [deadline, setDeadline] = useState('');
+  
+  // NOVOS ESTADOS FINANCEIROS
+  const [isPaid, setIsPaid] = useState(false);
+  const [entryFee, setEntryFee] = useState('');
+  const [pixKey, setPixKey] = useState('');
+  const [prize1st, setPrize1st] = useState('');
+  const [prize2nd, setPrize2nd] = useState('');
+  const [prize3rd, setPrize3rd] = useState('');
+  const [passesToRaffle, setPassesToRaffle] = useState('');
+
   const [selectedTeams, setSelectedTeams] = useState([]);
   const [error, setError] = useState('');
 
@@ -979,8 +990,9 @@ const CreateCompetition = ({ teams, onCreate }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name || !format || !teamCount || !deadline) { setError('Preencha todos os campos do formulário.'); return; }
-    if (selectedTeams.length !== parseInt(teamCount)) { setError(`Atenção: O formato exige ${teamCount} times, mas selecionou ${selectedTeams.length}.`); return; }
+    if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
+    if (selectedTeams.length !== parseInt(teamCount)) { setError(`Atenção: O formato exige ${teamCount} times, mas você selecionou ${selectedTeams.length}.`); return; }
+    if (isPaid && (!entryFee || !pixKey || !prize1st || !prize2nd)) { setError('Em torneios pagos, preencha a taxa, a chave PIX e os prêmios do 1º e 2º lugar.'); return; }
 
     setError('');
     const compId = `c${Date.now()}`;
@@ -988,66 +1000,120 @@ const CreateCompetition = ({ teams, onCreate }) => {
     let groupsData = null;
 
     if (format === 'groups') {
-      const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers));
+      const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound);
       finalRounds = res.rounds;
       groupsData = res.groups;
     } else if (format === 'cup') {
       finalRounds = generateCupBracket(selectedTeams, compId);
     } else {
-      finalRounds = generateRoundRobin(selectedTeams, compId);
+      finalRounds = generateRoundRobin(selectedTeams, compId, isDoubleRound);
     }
 
-    onCreate({ 
+    // Estrutura de dados aprimorada
+    const newComp = { 
       id: compId, name, format, deadline, status: 'active', teams: selectedTeams, rounds: finalRounds,
-      ...(groupsData && { groups: groupsData, qualifiersPerGroup: parseInt(qualifiers) })
-    });
+      createdBy: currentUser?.name || 'Desconhecido',
+      ...(groupsData && { groups: groupsData, qualifiersPerGroup: parseInt(qualifiers) }),
+      // Adicionando os dados financeiros se for pago
+      isPaid: isPaid,
+      ...(isPaid && {
+        entryFee: parseFloat(entryFee),
+        pixKey: pixKey,
+        prizes: {
+          first: parseFloat(prize1st),
+          second: parseFloat(prize2nd),
+          third: prize3rd ? parseFloat(prize3rd) : 0,
+          passesCount: passesToRaffle ? parseInt(passesToRaffle) : 0
+        }
+      })
+    };
+
+    onCreate(newComp);
   };
 
   return (
-    <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
+    <div className="max-w-3xl mx-auto animate-in fade-in pb-12">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><PlusCircle className="text-emerald-500"/> Nova Competição</h2>
-      <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 space-y-6">
+      
+      <form onSubmit={handleSubmit} className="space-y-6">
         {error && <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3"><AlertCircle size={20} /><p className="text-sm font-medium">{error}</p></div>}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Nome do Campeonato</label><input type="text" placeholder="Ex: Copa da Amazônia" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Formato</label>
-            <select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
-              <option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option>
-            </select>
+        
+        {/* BLOCO 1: DADOS BÁSICOS */}
+        <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800">
+          <h3 className="text-lg font-bold text-emerald-400 mb-4 flex items-center gap-2"><Trophy size={18}/> Estrutura do Torneio</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Nome do Campeonato</label><input type="text" placeholder="Ex: Liga de Inverno" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Formato</label>
+              <select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
+                <option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option>
+              </select>
+            </div>
+            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Qtd. de Times</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Prazo de Conclusão</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+            
+            {format !== 'cup' && (
+              <div className="space-y-2 flex items-center gap-2 mt-4 col-span-1 md:col-span-2 bg-slate-950 p-4 rounded-lg border border-slate-800">
+                <input type="checkbox" id="isDoubleRound" checked={isDoubleRound} onChange={e=>setIsDoubleRound(e.target.checked)} className="w-5 h-5 accent-emerald-500 cursor-pointer" />
+                <label htmlFor="isDoubleRound" className="text-sm font-bold text-slate-300 cursor-pointer">Jogos com Turno e Returno (Ida e Volta)</label>
+              </div>
+            )}
+
+            {format === 'groups' && (
+              <><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Quantidade de Grupos</label>
+                  <select value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="2">2 Grupos</option><option value="4">4 Grupos</option><option value="8">8 Grupos</option></select>
+                </div><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Classificados por Grupo</label>
+                  <select value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="1">1 Time</option><option value="2">2 Times</option><option value="4">4 Times</option></select>
+                </div></>
+            )}
           </div>
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Qtd. de Times</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Prazo de Conclusão</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-          {format === 'groups' && (
-            <><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Quantidade de Grupos</label>
-                <select value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="2">2 Grupos</option><option value="4">4 Grupos</option><option value="8">8 Grupos</option></select>
-              </div><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Classificados por Grupo</label>
-                <select value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="1">1 Time</option><option value="2">2 Times</option><option value="4">4 Times</option></select>
-              </div></>
-          )}
         </div>
-        <div className="pt-4 border-t border-slate-800">
-          <div className="flex justify-between items-end mb-4">
-            <label className="text-sm font-medium text-slate-400">Selecione as Equipes ({selectedTeams.length} marcadas)</label>
+
+        {/* BLOCO 2: FINANCEIRO E PREMIAÇÃO */}
+        <div className={`p-6 md:p-8 rounded-2xl border transition-colors ${isPaid ? 'bg-amber-500/5 border-amber-500/40' : 'bg-slate-900 border-slate-800'}`}>
+          <div className="flex items-center justify-between mb-6">
+             <h3 className={`text-lg font-bold flex items-center gap-2 ${isPaid ? 'text-amber-400' : 'text-slate-300'}`}>🤑 Torneio Premium (Pago)</h3>
+             <label className="relative inline-flex items-center cursor-pointer">
+               <input type="checkbox" checked={isPaid} onChange={e=>setIsPaid(e.target.checked)} className="sr-only peer" />
+               <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+             </label>
           </div>
           
-          {teams.length === 0 ? (
-            <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado.</p>
-          ) : (
-            <div className="bg-slate-950 border border-slate-800 p-2 rounded-xl max-h-60 overflow-y-auto space-y-1 custom-scrollbar">
+          {isPaid && (
+            <div className="space-y-6 animate-in slide-in-from-top-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2"><label className="text-sm font-bold text-amber-400">Valor da Inscrição (R$)</label><input type="number" placeholder="Ex: 10.00" value={entryFee} onChange={e=>setEntryFee(e.target.value)} className="w-full bg-slate-950 border border-amber-500/30 rounded-lg p-3 text-white outline-none" required={isPaid} /></div>
+                <div className="space-y-2"><label className="text-sm font-bold text-amber-400">Sua Chave PIX</label><input type="text" placeholder="Celular, CPF ou E-mail" value={pixKey} onChange={e=>setPixKey(e.target.value)} className="w-full bg-slate-950 border border-amber-500/30 rounded-lg p-3 text-white outline-none" required={isPaid} /></div>
+              </div>
+
+              <div className="pt-4 border-t border-amber-500/20">
+                <h4 className="text-sm font-bold text-slate-300 mb-4">🏆 Distribuição dos Prêmios (Valores Fixos)</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2"><label className="text-xs text-slate-400">🥇 1º Lugar (R$)</label><input type="number" placeholder="Ex: 150.00" value={prize1st} onChange={e=>setPrize1st(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none" required={isPaid} /></div>
+                  <div className="space-y-2"><label className="text-xs text-slate-400">🥈 2º Lugar (R$)</label><input type="number" placeholder="Ex: 50.00" value={prize2nd} onChange={e=>setPrize2nd(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none" required={isPaid} /></div>
+                  <div className="space-y-2"><label className="text-xs text-slate-400">🥉 3º Lugar (Opcional)</label><input type="number" placeholder="Ex: 20.00" value={prize3rd} onChange={e=>setPrize3rd(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none" /></div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-amber-500/20">
+                <h4 className="text-sm font-bold text-slate-300 mb-2">🎟️ Sorteio de Passes de Temporada</h4>
+                <p className="text-[10px] text-slate-500 mb-3">Estes passes (R$ 9,90 cada) serão sorteados automaticamente entre os times que não entrarem no Top 3 ao encerrar o campeonato.</p>
+                <div className="space-y-2"><label className="text-xs text-slate-400">Quantidade de Passes Sorteados</label><input type="number" placeholder="Ex: 2" value={passesToRaffle} onChange={e=>setPassesToRaffle(e.target.value)} className="w-full md:w-1/3 bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none" /></div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* BLOCO 3: SELEÇÃO DE TIMES */}
+        <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800">
+          <div className="flex justify-between items-end mb-4"><label className="text-sm font-medium text-slate-400">Selecione as Equipes ({selectedTeams.length} marcadas)</label></div>
+          {teams.length === 0 ? <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado.</p> : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {teams.map(team => { 
                 const isSelected = selectedTeams.includes(team.id); 
                 return ( 
-                  <div 
-                    key={team.id} 
-                    onClick={() => toggleTeam(team.id)} 
-                    className={`cursor-pointer flex flex-col justify-center px-4 py-2.5 rounded-lg border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-transparent border-transparent hover:bg-slate-900'}`}
-                  >
-                    <span className={`font-bold text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>
-                      {team.name}
-                    </span>
-                    <span className={`text-[11px] truncate ${isSelected ? 'text-emerald-600/80' : 'text-slate-500'}`}>
-                      Técnico: {team.coach || 'Sem técnico'}
-                    </span>
+                  <div key={team.id} onClick={() => toggleTeam(team.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-slate-950 border-slate-800 hover:border-slate-600'}`}>
+                    <ShieldDisplay shield={team.shield} size="small" />
+                    <span className={`font-medium text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{team.name}</span>
                   </div> 
                 ); 
               })}
@@ -1055,7 +1121,9 @@ const CreateCompetition = ({ teams, onCreate }) => {
           )}
         </div>
         
-        <Button type="submit" className="w-full py-4 text-lg mt-4">Criar Campeonato</Button>
+        <Button type="submit" className={`w-full py-5 text-lg font-black mt-4 ${isPaid ? 'bg-amber-500 hover:bg-amber-400 text-slate-950' : ''}`}>
+          {isPaid ? '💰 Confirmar Torneio Premiado' : 'Criar Campeonato'}
+        </Button>
       </form>
     </div>
   );
