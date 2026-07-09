@@ -1247,7 +1247,7 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDe
               {/* Bloco Financeiro para o Técnico */}
               {c.isPaid && myTeamInComp && !isAdmin && (
                 <div className="mt-4 pt-4 border-t border-slate-800 flex justify-between items-center">
-                  <span className="text-xs font-bold text-amber-400">Taxa: R$ {Number(c.entryFee).toFixed(2)}</span>
+                  <span className="text-xs font-bold text-amber-400">Taxa: R$ {Number(c.entryFee || 0).toFixed(2)}</span>
                   {paymentStatus === 'approved' ? (
                     <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded font-bold flex items-center gap-1"><CheckCircle size={12}/> Confirmado</span>
                   ) : paymentStatus === 'pending' ? (
@@ -1272,7 +1272,7 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDe
             <form onSubmit={handlePaySubmit} className="p-6 space-y-6">
               <div className="text-center space-y-2">
                 <p className="text-slate-400 text-sm">Valor da Inscrição</p>
-                <p className="text-4xl font-black text-white">R$ {Number(payComp.entryFee).toFixed(2)}</p>
+                <p className="text-4xl font-black text-white">R$ {Number(payComp.entryFee || 0).toFixed(2)}</p>
               </div>
               
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
