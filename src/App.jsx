@@ -595,7 +595,7 @@ const Standings = ({ matches, teams, comp }) => {
   );
 };
 
-const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast }) => {
+const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch }) => {
   const [subTab, setSubTab] = useState('overview'); 
   const [expandedRoundId, setExpandedRoundId] = useState(null);
   
@@ -708,6 +708,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
   // NOVO: Função para salvar edição de um confronto manual
   const saveMatchEdit = () => {
+    // 1. Atualiza a tabela da competição (Calendário)
     const updatedRounds = comp.rounds.map(r => {
       if (r.id === editMatchData.roundId) {
         return {
@@ -717,11 +718,34 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       }
       return r;
     });
+    
     onEditComp({ ...comp, rounds: updatedRounds });
-    setEditMatchData(null);
-    showToast("Confronto atualizado!", "success");
-  };
 
+    // 2. MÁGICA: Atualiza o resultado oficial se a partida já tiver acontecido
+    const playedMatch = (matches || []).find(m => m.matchId === editMatchData.id && m.compId === comp.id);
+    if (playedMatch && onUpdatePlayedMatch) {
+      const oldTeamA = playedMatch.teamA;
+      const oldTeamB = playedMatch.teamB;
+      
+      // Transfere os gols do time antigo para o novo time
+      const updatedGoals = (playedMatch.goals || []).map(g => {
+        if (g.teamId === oldTeamA) return { ...g, teamId: editMatchData.teamA };
+        if (g.teamId === oldTeamB) return { ...g, teamId: editMatchData.teamB };
+        return g;
+      });
+
+      // Salva o relatório de partida atualizado
+      onUpdatePlayedMatch({
+        ...playedMatch,
+        teamA: editMatchData.teamA,
+        teamB: editMatchData.teamB,
+        goals: updatedGoals
+      });
+    }
+
+    setEditMatchData(null);
+    showToast("Confronto e histórico atualizados permanentemente!", "success");
+  };
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
 
   return (
@@ -1889,7 +1913,7 @@ export default function App() {
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
-      case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} onEditComp={c => updateDoc(getPublicDocPath('competitions', c.id), c)} showToast={showToast} />;
+      case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} showToast={showToast} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(isLeaderOrKaioh ? 'validation' : 'dashboard'); })} />;
       case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} showToast={showToast} />;
