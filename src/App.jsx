@@ -957,13 +957,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 </div>
               </div>
             </div>
-
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
 {subTab === 'finance' && comp.isPaid && isAdmin && (
           <div className="space-y-6 animate-in slide-in-from-bottom-4">
             
@@ -1025,6 +1018,13 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </div>
           </div>
         )}
+
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const [name, setName] = useState('');
