@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Play, Shield, MessageCircle, Edit, Save, X, User, Crown, Star, Send, Trash2, UserPlus, Key, LayoutGrid, List, Award } from 'lucide-react';
-
+import { Camera, User, AlertCircle, CheckCircle, Shield, Medal, Trash2, UploadCloud, Award /* etc... */ } from 'lucide-react';
 const LOGO_URL = "https://i.imgur.com/NTbkaER.png"; 
 
 const firebaseConfig = { 
@@ -1093,7 +1093,16 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDe
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const userTeams = (teams || []).filter(t => t && t.ownerId === currentUser?.id);
   const userTeamIds = userTeams.map(t => t.id);
-  const visible = (competitions || []).filter(c => c && (isAdmin || c.teams?.some(t => userTeamIds.includes(t))));
+  
+  // PROTEÇÃO CONTRA DADOS CORROMPIDOS: Verifica se "c.teams" é realmente uma lista válida
+  const visible = (competitions || []).filter(c => {
+    if (!c) return false;
+    if (isAdmin) return true;
+    if (Array.isArray(c.teams)) {
+      return c.teams.some(t => userTeamIds.includes(t));
+    }
+    return false;
+  });
 
   const [payComp, setPayComp] = useState(null);
   const [payTeamId, setPayTeamId] = useState('');
@@ -1109,55 +1118,63 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDe
 
   const handlePaySubmit = (e) => {
     e.preventDefault();
-    if (!proof || !payTeamId) return;
+    if (!proof || !payTeamId || !payComp) return;
     const updatedComp = { ...payComp, payments: { ...(payComp.payments || {}) } };
     updatedComp.payments[payTeamId] = { status: 'pending', proof: proof };
-    onEditComp(updatedComp);
+    if (onEditComp) onEditComp(updatedComp);
     setPayComp(null);
     setProof(null);
-    if(showToast) showToast("Comprovante enviado! Aguarde a aprovação.", "success");
+    if (showToast) showToast("Comprovante enviado! Aguarde a aprovação.", "success");
   };
 
   return (
     <div className="space-y-4 animate-in fade-in pb-10">
       <div className="flex items-center gap-2 mb-4"><Medal className="text-emerald-500"/><h2 className="text-xl font-bold text-white">Campeonatos Ativos</h2></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {visible.map(c => {
-          const myTeamInComp = userTeams.find(t => c.teams?.includes(t.id));
-          const paymentStatus = myTeamInComp ? c.payments?.[myTeamInComp.id]?.status : null;
-          
-          return (
-            <div key={c.id} onClick={()=>onSelectComp(c.id)} className={`bg-slate-900 p-5 rounded-2xl border ${c.isPaid ? 'border-amber-500/40 hover:border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.05)]' : 'border-slate-800 hover:border-emerald-500/40'} transition-all cursor-pointer flex flex-col group relative overflow-hidden`}>
-              {c.isPaid && <div className="absolute top-0 right-0 bg-amber-500 text-slate-900 text-[9px] font-black px-3 py-1 rounded-bl-lg uppercase tracking-widest shadow-md">Premium</div>}
-              
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors pr-12">{String(c.name)}</h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {c.teams?.length || 0} Clubes inscritos
-                    {c.createdBy && <span className="block mt-0.5 text-slate-400">👤 Resp: {c.createdBy}</span>}
-                  </p>
+      
+      {visible.length === 0 ? (
+        <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center text-slate-500">
+          Nenhum campeonato ativo encontrado.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {visible.map(c => {
+            // Travas de segurança adicionais para leitura de times e pagamentos
+            const myTeamInComp = userTeams.find(t => Array.isArray(c.teams) && c.teams.includes(t.id));
+            const paymentStatus = myTeamInComp && c.payments ? c.payments[myTeamInComp.id]?.status : null;
+            
+            return (
+              <div key={c.id} onClick={()=>onSelectComp(c.id)} className={`bg-slate-900 p-5 rounded-2xl border ${c.isPaid ? 'border-amber-500/40 hover:border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.05)]' : 'border-slate-800 hover:border-emerald-500/40'} transition-all cursor-pointer flex flex-col group relative overflow-hidden`}>
+                {c.isPaid && <div className="absolute top-0 right-0 bg-amber-500 text-slate-900 text-[9px] font-black px-3 py-1 rounded-bl-lg uppercase tracking-widest shadow-md">Premium</div>}
+                
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors pr-12">{String(c.name || 'Competição')}</h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {Array.isArray(c.teams) ? c.teams.length : 0} Clubes inscritos
+                      {c.createdBy && <span className="block mt-0.5 text-slate-400">👤 Resp: {c.createdBy}</span>}
+                    </p>
+                  </div>
+                  {isAdmin && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>}
                 </div>
-                {isAdmin && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>}
+                
+                {/* Bloco Financeiro para o Técnico */}
+                {c.isPaid && myTeamInComp && !isAdmin && (
+                  <div className="mt-4 pt-4 border-t border-slate-800 flex justify-between items-center">
+                    <span className="text-xs font-bold text-amber-400">Taxa: R$ {Number(c.entryFee || 0).toFixed(2)}</span>
+                    {paymentStatus === 'approved' ? (
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded font-bold flex items-center gap-1"><CheckCircle size={12}/> Confirmado</span>
+                    ) : paymentStatus === 'pending' ? (
+                      <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-1 rounded font-bold flex items-center gap-1"><AlertCircle size={12}/> Em Análise</span>
+                    ) : (
+                      <Button onClick={(e) => { e.stopPropagation(); setPayComp(c); setPayTeamId(myTeamInComp.id); setProof(null); }} className="py-1 px-3 text-[10px] bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-lg font-black">💰 Pagar Inscrição</Button>
+                    )}
+                  </div>
+                )}
               </div>
-              
-              {/* Bloco Financeiro para o Técnico */}
-              {c.isPaid && myTeamInComp && !isAdmin && (
-                <div className="mt-4 pt-4 border-t border-slate-800 flex justify-between items-center">
-                  <span className="text-xs font-bold text-amber-400">Taxa: R$ {Number(c.entryFee || 0).toFixed(2)}</span>
-                  {paymentStatus === 'approved' ? (
-                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded font-bold flex items-center gap-1"><CheckCircle size={12}/> Confirmado</span>
-                  ) : paymentStatus === 'pending' ? (
-                    <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-1 rounded font-bold flex items-center gap-1"><AlertCircle size={12}/> Em Análise</span>
-                  ) : (
-                    <Button onClick={(e) => { e.stopPropagation(); setPayComp(c); setPayTeamId(myTeamInComp.id); setProof(null); }} className="py-1 px-3 text-[10px] bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-lg font-black">💰 Pagar Inscrição</Button>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Modal de Pagamento PIX */}
       {payComp && (
