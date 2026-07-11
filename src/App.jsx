@@ -782,12 +782,9 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         )}
       </div>
       
-      <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800 overflow-x-auto custom-scrollbar">
-        <button onClick={()=>setSubTab('overview')} className={`flex-1 min-w-[120px] py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Tabela & Jogos</button>
-        <button onClick={()=>setSubTab('stats')} className={`flex-1 min-w-[100px] py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Estatísticas</button>
-        {comp.isPaid && isAdmin && (
-          <button onClick={()=>setSubTab('finance')} className={`flex-1 min-w-[100px] py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='finance'?'bg-amber-500 text-slate-900 shadow-md':'text-slate-500 hover:text-white'}`}>💰 Financeiro</button>
-        )}
+      <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800">
+        <button onClick={()=>setSubTab('overview')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Tabela & Jogos</button>
+        <button onClick={()=>setSubTab('stats')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Estatísticas</button>
       </div>
       
       <div className="space-y-8 mt-4">
@@ -957,67 +954,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 </div>
               </div>
             </div>
-{subTab === 'finance' && comp.isPaid && isAdmin && (
-          <div className="space-y-6 animate-in slide-in-from-bottom-4">
-            
-            {/* O Cofre (Visão Geral) */}
-            <div className="bg-slate-900 p-6 rounded-2xl border border-amber-500/40 relative overflow-hidden shadow-xl">
-              <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><span className="text-8xl">💰</span></div>
-              <h3 className="text-amber-500 font-black text-xs uppercase tracking-widest mb-1 flex items-center gap-2"><Award size={14}/> Cofre do Campeonato</h3>
-              <div className="flex items-end gap-2 mb-6">
-                <span className="text-4xl font-black text-white">
-                  R$ {((comp.teams || []).filter(tid => comp.payments?.[tid]?.status === 'approved').length * comp.entryFee).toFixed(2)}
-                </span>
-                <span className="text-slate-400 text-xs mb-1.5 font-bold uppercase">arrecadados</span>
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 border-t border-slate-800 pt-5">
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center"><p className="text-[10px] text-slate-500 uppercase font-bold mb-1">🥇 1º Lugar</p><p className="font-black text-emerald-400 text-lg">R$ {Number(comp.prizes?.first || 0).toFixed(2)}</p></div>
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center"><p className="text-[10px] text-slate-500 uppercase font-bold mb-1">🥈 2º Lugar</p><p className="font-black text-slate-300 text-lg">R$ {Number(comp.prizes?.second || 0).toFixed(2)}</p></div>
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center"><p className="text-[10px] text-slate-500 uppercase font-bold mb-1">🥉 3º Lugar</p><p className="font-black text-amber-600 text-lg">R$ {Number(comp.prizes?.third || 0).toFixed(2)}</p></div>
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center"><p className="text-[10px] text-slate-500 uppercase font-bold mb-1">🎟️ Passes</p><p className="font-black text-blue-400 text-lg">{comp.prizes?.passesCount || 0} Sort.</p></div>
-              </div>
-            </div>
-
-            {/* Lista de Pagamentos / Validação */}
-            <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
-              <div className="p-4 border-b border-slate-800 bg-slate-950/50"><h3 className="font-bold text-white flex items-center gap-2"><CheckCircle size={16} className="text-emerald-500"/> Validação de Inscrições</h3></div>
-              <div className="divide-y divide-slate-800/50">
-                {(comp.teams || []).map(tid => {
-                  const team = getTeam(tid);
-                  const pStatus = comp.payments?.[tid]?.status;
-                  const proof = comp.payments?.[tid]?.proof;
-
-                  return (
-                    <div key={tid} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-950/40 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <ShieldDisplay shield={team?.shield} size="small" />
-                        <div>
-                          <p className="font-bold text-slate-200">{team?.name}</p>
-                          <p className="text-[10px] text-slate-500">Téc: {team?.coach}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                        {pStatus === 'approved' ? (
-                          <span className="text-xs bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg font-bold border border-emerald-500/20 w-full md:w-auto text-center"><CheckCircle size={14} className="inline mr-1"/> Confirmado</span>
-                        ) : pStatus === 'pending' ? (
-                          <div className="flex items-center gap-2 w-full md:w-auto">
-                            <a href={proof} target="_blank" rel="noreferrer" className="flex-1 md:flex-none text-center text-xs bg-slate-800 text-slate-300 hover:text-white px-3 py-2 rounded-lg font-medium transition-colors border border-slate-700">Ver Print</a>
-                            <button onClick={()=>{const uc={...comp, payments: {...comp.payments}}; uc.payments[tid].status='approved'; onEditComp(uc);}} className="flex-1 md:flex-none text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg font-bold transition-colors">Aprovar</button>
-                            <button onClick={()=>{if(window.confirm('Recusar este PIX?')){const uc={...comp, payments: {...comp.payments}}; delete uc.payments[tid]; onEditComp(uc);}}} className="flex-1 md:flex-none text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 px-3 py-2 rounded-lg font-bold transition-colors">Recusar</button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-600 font-medium italic w-full md:w-auto text-right">Aguardando Envio...</span>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        )}
 
           </div>
         )}
@@ -1193,114 +1129,21 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   );
 };
 
-const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp, onEditComp, showToast }) => {
+const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-  const userTeams = (teams || []).filter(t => t && t.ownerId === currentUser?.id);
-  const userTeamIds = userTeams.map(t => t.id);
+  const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
   const visible = (competitions || []).filter(c => c && (isAdmin || c.teams?.some(t => userTeamIds.includes(t))));
-
-  const [payComp, setPayComp] = useState(null);
-  const [payTeamId, setPayTeamId] = useState('');
-  const [proof, setProof] = useState(null);
-
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => setProof(reader.result);
-    reader.readAsDataURL(file);
-  };
-
-  const handlePaySubmit = (e) => {
-    e.preventDefault();
-    if (!proof || !payTeamId) return;
-    const updatedComp = { ...payComp, payments: { ...(payComp.payments || {}) } };
-    updatedComp.payments[payTeamId] = { status: 'pending', proof: proof };
-    onEditComp(updatedComp);
-    setPayComp(null);
-    setProof(null);
-    if(showToast) showToast("Comprovante enviado! Aguarde a aprovação.", "success");
-  };
-
   return (
-    <div className="space-y-4 animate-in fade-in pb-10">
+    <div className="space-y-4 animate-in fade-in">
       <div className="flex items-center gap-2 mb-4"><Medal className="text-emerald-500"/><h2 className="text-xl font-bold text-white">Campeonatos Ativos</h2></div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {visible.map(c => {
-          const myTeamInComp = userTeams.find(t => c.teams?.includes(t.id));
-          const paymentStatus = myTeamInComp ? c.payments?.[myTeamInComp.id]?.status : null;
-          
-          return (
-            <div key={c.id} onClick={()=>onSelectComp(c.id)} className={`bg-slate-900 p-5 rounded-2xl border ${c.isPaid ? 'border-amber-500/40 hover:border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.05)]' : 'border-slate-800 hover:border-emerald-500/40'} transition-all cursor-pointer flex flex-col group relative overflow-hidden`}>
-              {c.isPaid && <div className="absolute top-0 right-0 bg-amber-500 text-slate-900 text-[9px] font-black px-3 py-1 rounded-bl-lg uppercase tracking-widest shadow-md">Premium</div>}
-              
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors pr-12">{String(c.name)}</h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {c.teams?.length || 0} Clubes inscritos
-                    {c.createdBy && <span className="block mt-0.5 text-slate-400">👤 Resp: {c.createdBy}</span>}
-                  </p>
-                </div>
-                {isAdmin && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>}
-              </div>
-              
-              {/* Bloco Financeiro para o Técnico */}
-              {c.isPaid && myTeamInComp && !isAdmin && (
-                <div className="mt-4 pt-4 border-t border-slate-800 flex justify-between items-center">
-                  <span className="text-xs font-bold text-amber-400">Taxa: R$ {Number(c.entryFee).toFixed(2)}</span>
-                  {paymentStatus === 'approved' ? (
-                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded font-bold flex items-center gap-1"><CheckCircle size={12}/> Confirmado</span>
-                  ) : paymentStatus === 'pending' ? (
-                    <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-1 rounded font-bold flex items-center gap-1"><AlertCircle size={12}/> Em Análise</span>
-                  ) : (
-                    <Button onClick={(e) => { e.stopPropagation(); setPayComp(c); setPayTeamId(myTeamInComp.id); setProof(null); }} className="py-1 px-3 text-[10px] bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-lg font-black">💰 Pagar Inscrição</Button>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Modal de Pagamento PIX */}
-      {payComp && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setPayComp(null)}>
-          <div className="bg-slate-900 border border-amber-500/50 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="bg-amber-500 p-4 text-center">
-              <h3 className="font-black text-slate-900 text-lg uppercase tracking-widest flex justify-center items-center gap-2">💰 Inscrição Premium</h3>
-            </div>
-            <form onSubmit={handlePaySubmit} className="p-6 space-y-6">
-              <div className="text-center space-y-2">
-                <p className="text-slate-400 text-sm">Valor da Inscrição</p>
-                <p className="text-4xl font-black text-white">R$ {Number(payComp.entryFee).toFixed(2)}</p>
-              </div>
-              
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                <p className="text-xs text-slate-500 mb-2">Chave PIX do Tesoureiro</p>
-                <p className="text-lg font-mono font-bold text-emerald-400 select-all bg-slate-900 py-2 rounded-lg border border-emerald-500/20">{payComp.pixKey}</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">Comprovante de Pagamento</label>
-                <label className={`block border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer ${proof ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-950'}`}>
-                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                  {proof ? (
-                    <div className="flex flex-col items-center space-y-2"><CheckCircle className="text-emerald-500" size={32} /><p className="text-emerald-400 font-medium text-xs">Comprovante anexado!</p></div>
-                  ) : (
-                    <div className="flex flex-col items-center space-y-2"><UploadCloud className="text-slate-500" size={32} /><p className="text-white font-medium text-xs">Clique para anexar o print</p></div>
-                  )}
-                </label>
-              </div>
-
-              <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={() => setPayComp(null)} className="flex-1">Cancelar</Button>
-                <Button type="submit" disabled={!proof} className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold">Enviar Comprovante</Button>
-              </div>
-            </form>
+        {visible.map(c => (
+          <div key={c.id} onClick={()=>onSelectComp(c.id)} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 hover:border-emerald-500/40 transition-all cursor-pointer flex justify-between items-center group">
+            <div><h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors">{String(c.name)}</h3><p className="text-xs text-slate-500 mt-1">{c.teams?.length || 0} Clubes inscritos</p></div>
+            {isAdmin && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>}
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 };
@@ -2137,7 +1980,7 @@ export default function App() {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
-      case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={id=>{setSelectedCompId(id); setCurrentTab('comp_details');}} onDeleteComp={handleDeleteComp} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); }} showToast={showToast} />;
+      case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} showToast={showToast} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(isLeaderOrKaioh ? 'validation' : 'dashboard'); })} />;
