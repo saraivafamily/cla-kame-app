@@ -958,15 +958,13 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 </div>
               </div>
             </div>
-
           </div>
         )}
-      </div>
+     </div>
     </div>
-  );
-};
+  );                    
 
-const CreateCompetition = ({ teams, currentUser, onCreate }) => {
+  const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const [name, setName] = useState('');
   const [format, setFormat] = useState('league');
   const [teamCount, setTeamCount] = useState('');
