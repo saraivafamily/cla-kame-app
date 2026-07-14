@@ -673,7 +673,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
 
-  // --- Estados e funções para Inserir Novo Time ---
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [newTeamToAdd, setNewTeamToAdd] = useState('');
 
@@ -686,7 +685,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   };
   
   const availableTeamsToAdd = (teams || []).filter(t => t && !(comp.teams || []).includes(t.id));
-  // ------------------------------------------------
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
@@ -973,68 +971,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     </div>
   );
 };
-// ... existing code ...
-
-const tA = getTeam(autoTeamA); const tB = getTeam(autoTeamB); const sUI = getMatchStatusDisplay(m.id);
-                            
-                            if (editMatchData?.id === m.id) {
-                              return (
-                                <div key={m.id} className="bg-slate-900 p-3 rounded-lg border border-emerald-500/50 flex flex-col gap-3 shadow-lg">
-                                  <div className="flex items-center gap-2">
-                                    <select value={editMatchData.teamA || ''} onChange={e=>setEditMatchData({...editMatchData, teamA: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
-                                      <option value="">{m.placeholderA || 'Equipe A'}</option>
-                                      {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                    </select>
-                                    <span className="font-bold text-slate-500 text-xs">X</span>
-                                    <select value={editMatchData.teamB || ''} onChange={e=>setEditMatchData({...editMatchData, teamB: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
-                                      <option value="">{m.placeholderB || 'Equipe B'}</option>
-                                      {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                    </select>
-                                  </div>
-                                  <div className="flex justify-end gap-2">
-                                    <Button variant="outline" onClick={()=>setEditMatchData(null)} className="py-1 px-3 text-[10px]">Cancelar</Button>
-                                    <Button onClick={saveMatchEdit} className="py-1 px-3 text-[10px]">Salvar Manual</Button>
-                                  </div>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div key={m.id} className="relative group">
-                                <div onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className={`bg-slate-900 p-3 rounded-lg border border-slate-800 flex items-center justify-between text-xs cursor-pointer hover:border-slate-700 transition-colors pr-10`}>
-                                  <div className="flex-1 flex items-center justify-end gap-2 overflow-hidden">
-                                    <span className="truncate font-bold text-slate-200">{tA?.name || m.placeholderA}</span>
-                                    <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
-                                  </div>
-                                  <div className={`mx-3 px-3 py-1 border rounded font-mono font-bold shrink-0 shadow-inner ${sUI.bg} ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</div>
-                                  <div className="flex-1 flex items-center justify-start gap-2 overflow-hidden">
-                                    <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
-                                    <span className="truncate font-bold text-slate-200">{tB?.name || m.placeholderB}</span>
-                                  </div>
-                                </div>
-                                {isAdmin && (
-                                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                                    {sUI.isPlayed ? (
-                                      <button onClick={(e) => { 
-                                        e.stopPropagation(); 
-                                        if(window.confirm('Tem certeza que deseja excluir este resultado? A partida voltará a ficar disponível para registro.')) {
-                                          if(onDeletePlayedMatch) onDeletePlayedMatch(sUI.submittedMatchId);
-                                        }
-                                      }} className="text-slate-500 hover:text-red-400 p-2 bg-slate-950 rounded-lg shadow" title="Excluir Resultado Validado">
-                                        <Trash2 size={14} />
-                                      </button>
-                                    ) : (
-                                      <button onClick={(e) => { 
-                                        e.stopPropagation(); 
-                                        setEditMatchData({ ...m, teamA: autoTeamA, teamB: autoTeamB, roundId: round.id }); 
-                                      }} className="text-slate-500 hover:text-emerald-400 p-2 bg-slate-950 rounded-lg shadow" title="Editar Confronto Manualmente">
-                                        <Edit size={14} />
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )
 
 const CreateCompetition = ({ teams, onCreate }) => {
   const [name, setName] = useState('');
