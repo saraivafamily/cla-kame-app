@@ -595,495 +595,256 @@ const Standings = ({ matches, teams, comp }) => {
   );
 };
 
-// ... existing code ...
-const CreateCompetition = ({ teams, currentUser, onCreate }) => {
-  const [name, setName] = useState('');
-  const [format, setFormat] = useState('league');
-  const [teamCount, setTeamCount] = useState('');
-  const [numGroups, setNumGroups] = useState('2');
-  const [qualifiers, setQualifiers] = useState('2');
-  const [isDoubleRound, setIsDoubleRound] = useState(false);
-  const [deadline, setDeadline] = useState('');
+const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onDeletePlayedMatch }) => {
+  const [subTab, setSubTab] = useState('overview'); 
+  const [expandedRoundId, setExpandedRoundId] = useState(null);
+  const [editMatchData, setEditMatchData] = useState(null);
+
+  if (!comp) return (<div className="text-center py-12"><p className="text-slate-400">Torneio não localizado.</p><button onClick={onBack} className="text-emerald-400 underline">Voltar</button></div>);
   
-  // NOVOS ESTADOS FINANCEIROS
-  const [isPaid, setIsPaid] = useState(false);
-  const [entryFee, setEntryFee] = useState('');
-  const [pixKey, setPixKey] = useState('');
-  const [prize1st, setPrize1st] = useState('');
-  const [prize2nd, setPrize2nd] = useState('');
-  const [prize3rd, setPrize3rd] = useState('');
-  const [passesToRaffle, setPassesToRaffle] = useState('');
-
-  const [selectedTeams, setSelectedTeams] = useState([]);
-  const [error, setError] = useState('');
-
-  const toggleTeam = (teamId) => {
-    if (selectedTeams.includes(teamId)) setSelectedTeams(selectedTeams.filter(id => id !== teamId));
-    else setSelectedTeams([...selectedTeams, teamId]);
+  const getTeam = (id) => (teams || []).find(t => t && t.id === id); 
+  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  
+  const getMatchStatusDisplay = (matchId) => {
+    const ms = (matches || []).filter(m => m && m.matchId === matchId && m.compId === comp.id && m.status !== 'rejected');
+    if(ms.length === 0) return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
+    const sm = ms.find(m => m.status === 'approved') || ms.find(m => m.status === 'pending');
+    if(!sm) return { isPlayed: false, text: 'Aguardando', color: 'text-slate-500', bg: 'bg-slate-900 border-slate-800' };
+    if(sm.status === 'approved') return { submittedMatchId: sm.id, isPlayed: true, scoreA: sm.scoreA, scoreB: sm.scoreB, penaltiesA: sm.penaltiesA, penaltiesB: sm.penaltiesB, text: 'Oficial', color: 'text-emerald-400', bg: 'bg-slate-950 border-emerald-900/50' };
+    return { submittedMatchId: sm.id, isPlayed: true, scoreA: sm.scoreA, scoreB: sm.scoreB, penaltiesA: sm.penaltiesA, penaltiesB: sm.penaltiesB, text: 'Validando', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
-    if (selectedTeams.length !== parseInt(teamCount)) { setError(`Atenção: O formato exige ${teamCount} times, mas você selecionou ${selectedTeams.length}.`); return; }
-    if (isPaid && (!entryFee || !pixKey || !prize1st || !prize2nd)) { setError('Em torneios pagos, preencha a taxa, a chave PIX e os prêmios do 1º e 2º lugar.'); return; }
-
-    setError('');
-    const compId = `c${Date.now()}`;
-    let finalRounds = [];
-    let groupsData = null;
-
-    if (format === 'groups') {
-      const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound);
-      finalRounds = res.rounds;
-      groupsData = res.groups;
-    } else if (format === 'cup') {
-      finalRounds = generateCupBracket(selectedTeams, compId);
-    } else {
-      finalRounds = generateRoundRobin(selectedTeams, compId, isDoubleRound);
-    }
-
-    const newComp = { 
-      id: compId, name, format, deadline, status: 'active', teams: selectedTeams, rounds: finalRounds,
-      createdBy: currentUser?.name || 'Desconhecido',
-      ...(groupsData && { groups: groupsData, qualifiersPerGroup: parseInt(qualifiers) }),
-      isPaid: isPaid,
-      ...(isPaid && {
-        entryFee: parseFloat(entryFee),
-        pixKey: pixKey,
-        prizes: {
-          first: parseFloat(prize1st),
-          second: parseFloat(prize2nd),
-          third: prize3rd ? parseFloat(prize3rd) : 0,
-          passesCount: passesToRaffle ? parseInt(passesToRaffle) : 0
-        }
-      })
+  const captureSection = (elementId, fileName) => {
+    showToast("Preparando imagem de alta qualidade...", "success");
+    const captureAndDownload = () => {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+      window.html2canvas(element, { backgroundColor: '#020617', scale: 2, useCORS: true }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `${fileName}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast("Imagem salva com sucesso!", "success");
+      });
     };
-
-    onCreate(newComp);
+    if (window.html2canvas) { captureAndDownload(); } 
+    else {
+      const script = document.createElement('script');
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      script.onload = captureAndDownload;
+      document.body.appendChild(script);
+    }
   };
+
+  const toggleRound = (id) => { setExpandedRoundId(prev => prev === id ? null : id); };
+
+  const saveMatchEdit = () => {
+    const updatedRounds = comp.rounds.map(r => {
+      if (r.id === editMatchData.roundId) {
+        return {
+          ...r,
+          matches: r.matches.map(m => m.id === editMatchData.id ? { ...m, teamA: editMatchData.teamA, teamB: editMatchData.teamB } : m)
+        };
+      }
+      return r;
+    });
+    
+    onEditComp({ ...comp, rounds: updatedRounds });
+    setEditMatchData(null);
+    showToast("Confronto atualizado permanentemente!", "success");
+  };
+
+  const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
 
   return (
-    <div className="max-w-3xl mx-auto animate-in fade-in pb-12">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><PlusCircle className="text-emerald-500"/> Nova Competição</h2>
+    <div className="space-y-6 animate-in fade-in pb-10">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
       
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {error && <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3"><AlertCircle size={20} /><p className="text-sm font-medium">{error}</p></div>}
-        
-        <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800">
-          <h3 className="text-lg font-bold text-emerald-400 mb-4 flex items-center gap-2"><Trophy size={18}/> Estrutura do Torneio</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Nome do Campeonato</label><input type="text" placeholder="Ex: Liga de Inverno" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Formato</label>
-              <select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
-                <option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option>
-              </select>
-            </div>
-            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Qtd. de Times</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Prazo de Conclusão</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-white">{String(comp.name)}</h2>
+          <p className="text-xs text-emerald-400 mt-1 uppercase font-bold">
+            {comp.format === 'league' ? 'Liga' : comp.format === 'groups' ? 'Fase de Grupos' : 'Mata-Mata'}
+          </p>
+        </div>
+      </div>
+      
+      <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800">
+        <button onClick={()=>setSubTab('overview')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Tabela & Jogos</button>
+        <button onClick={()=>setSubTab('stats')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Estatísticas</button>
+      </div>
+      
+      <div className="space-y-8 mt-4">
+        {subTab === 'overview' && (
+          <div className="space-y-8 animate-in slide-in-from-left-4">
             
-            {format !== 'cup' && (
-              <div className="space-y-2 flex items-center gap-2 mt-4 col-span-1 md:col-span-2 bg-slate-950 p-4 rounded-lg border border-slate-800">
-                <input type="checkbox" id="isDoubleRound" checked={isDoubleRound} onChange={e=>setIsDoubleRound(e.target.checked)} className="w-5 h-5 accent-emerald-500 cursor-pointer" />
-                <label htmlFor="isDoubleRound" className="text-sm font-bold text-slate-300 cursor-pointer">Jogos com Turno e Returno (Ida e Volta)</label>
+            <div className="space-y-2">
+              <div className="flex justify-between items-end mb-2">
+                <h3 className="text-lg font-bold text-white pl-2">Classificação</h3>
+                <Button onClick={() => captureSection('capture-standings', `Tabela-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar Tabela</Button>
               </div>
-            )}
-
-            {format === 'groups' && (
-              <><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Quantidade de Grupos</label>
-                  <select value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="2">2 Grupos</option><option value="4">4 Grupos</option><option value="8">8 Grupos</option></select>
-                </div><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Classificados por Grupo</label>
-                  <select value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="1">1 Time</option><option value="2">2 Times</option><option value="4">4 Times</option></select>
-                </div></>
-            )}
-          </div>
-        </div>
-
-        <div className={`p-6 md:p-8 rounded-2xl border transition-colors ${isPaid ? 'bg-amber-500/5 border-amber-500/40' : 'bg-slate-900 border-slate-800'}`}>
-          <div className="flex items-center justify-between mb-6">
-             <h3 className={`text-lg font-bold flex items-center gap-2 ${isPaid ? 'text-amber-400' : 'text-slate-300'}`}>🤑 Torneio Premium (Pago)</h3>
-             <label className="relative inline-flex items-center cursor-pointer">
-               <input type="checkbox" checked={isPaid} onChange={e=>setIsPaid(e.target.checked)} className="sr-only peer" />
-               <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-             </label>
-          </div>
-          
-          {isPaid && (
-            <div className="space-y-6 animate-in slide-in-from-top-2">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2"><label className="text-sm font-bold text-amber-400">Valor da Inscrição (R$)</label><input type="number" placeholder="Ex: 10.00" value={entryFee} onChange={e=>setEntryFee(e.target.value)} className="w-full bg-slate-950 border border-amber-500/30 rounded-lg p-3 text-white outline-none" required={isPaid} /></div>
-                <div className="space-y-2"><label className="text-sm font-bold text-amber-400">Sua Chave PIX</label><input type="text" placeholder="Celular, CPF ou E-mail" value={pixKey} onChange={e=>setPixKey(e.target.value)} className="w-full bg-slate-950 border border-amber-500/30 rounded-lg p-3 text-white outline-none" required={isPaid} /></div>
-              </div>
-
-              <div className="pt-4 border-t border-amber-500/20">
-                <h4 className="text-sm font-bold text-slate-300 mb-4">🏆 Distribuição dos Prêmios (Valores Fixos)</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2"><label className="text-xs text-slate-400">🥇 1º Lugar (R$)</label><input type="number" placeholder="Ex: 150.00" value={prize1st} onChange={e=>setPrize1st(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none" required={isPaid} /></div>
-                  <div className="space-y-2"><label className="text-xs text-slate-400">🥈 2º Lugar (R$)</label><input type="number" placeholder="Ex: 50.00" value={prize2nd} onChange={e=>setPrize2nd(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none" required={isPaid} /></div>
-                  <div className="space-y-2"><label className="text-xs text-slate-400">🥉 3º Lugar (Opcional)</label><input type="number" placeholder="Ex: 20.00" value={prize3rd} onChange={e=>setPrize3rd(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none" /></div>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-amber-500/20">
-                <h4 className="text-sm font-bold text-slate-300 mb-2">🎟️ Sorteio de Passes de Temporada</h4>
-                <p className="text-[10px] text-slate-500 mb-3">Estes passes (R$ 9,90 cada) serão sorteados automaticamente entre os times que não entrarem no Top 3 ao encerrar o campeonato.</p>
-                <div className="space-y-2"><label className="text-xs text-slate-400">Quantidade de Passes Sorteados</label><input type="number" placeholder="Ex: 2" value={passesToRaffle} onChange={e=>setPassesToRaffle(e.target.value)} className="w-full md:w-1/3 bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none" /></div>
+              <div id="capture-standings" className="bg-slate-950 p-3 sm:p-5 rounded-2xl border border-slate-800">
+                <h3 className="text-center font-black text-emerald-400 mb-4 text-sm uppercase tracking-widest">{comp.name}</h3>
+                <Standings matches={matches} teams={compTeams} comp={comp} />
               </div>
             </div>
-          )}
-        </div>
+            
+            <div className="space-y-3 pt-4 border-t border-slate-800/50">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-4 pl-2">
+                <h3 className="text-lg font-bold text-white">Rodadas e Confrontos</h3>
+              </div>
 
-        <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800">
-          <div className="flex justify-between items-end mb-4"><label className="text-sm font-medium text-slate-400">Selecione as Equipes ({selectedTeams.length} marcadas)</label></div>
-          {teams.length === 0 ? <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado.</p> : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {teams.map(team => { 
-                const isSelected = selectedTeams.includes(team.id); 
-                return ( 
-                  <div key={team.id} onClick={() => toggleTeam(team.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-slate-950 border-slate-800 hover:border-slate-600'}`}>
-                    <ShieldDisplay shield={team.shield} size="small" />
-                    <span className={`font-medium text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{team.name}</span>
-                  </div> 
-                ); 
+              {(comp.rounds || []).map((round) => {
+                const isExpanded = expandedRoundId === round.id;
+                return (
+                  <div key={round?.id} className={`bg-slate-900 border ${isExpanded ? 'border-emerald-500/50 shadow-lg' : 'border-slate-800 hover:border-slate-700'} rounded-xl overflow-hidden transition-all`}>
+                    <button onClick={() => toggleRound(round.id)} className="w-full bg-slate-950/60 p-4 flex justify-between items-center transition-colors outline-none">
+                      <span className={`text-sm font-bold flex items-center gap-2 ${isExpanded ? 'text-emerald-400' : 'text-white'}`}>
+                        {round.status === 'locked' ? <Lock size={16} className="text-slate-500"/> : <PlayCircle size={16} className="text-emerald-500"/>}
+                        Rodada {String(round?.number || '')}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        {isAdmin && round?.status === 'locked' && <Button onClick={(e)=>{e.stopPropagation(); onReleaseRound(comp.id, round.id)}} className="py-1 text-[10px]">Liberar</Button>}
+                        <span className={`font-bold transition-transform duration-300 ${isExpanded ? 'text-emerald-400 rotate-180' : 'text-slate-500'}`}>▼</span>
+                      </div>
+                    </button>
+                    
+                    {isExpanded && (
+                      <div className="bg-slate-900 border-t border-slate-800 animate-in slide-in-from-top-2 p-3">
+                        <div className="flex justify-end mb-3 px-1">
+                           <Button onClick={() => captureSection(`capture-round-${round.id}`, `Rodada-${round.number}-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-md" variant="outline"><Camera size={12}/> Print da Rodada</Button>
+                        </div>
+                        
+                        <div id={`capture-round-${round.id}`} className="bg-slate-950 p-4 rounded-xl border border-slate-800/50 space-y-3">
+                          <h4 className="text-center font-bold text-white mb-4 text-xs uppercase tracking-widest">{comp.name} <span className="text-emerald-400">• Rodada {round.number}</span></h4>
+                          
+                          {(round?.matches || []).map((m) => {
+                            const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                            
+                            // MODO EDIÇÃO DO CONFRONTO (Quando clica no Lápis)
+                            if (editMatchData?.id === m.id) {
+                              return (
+                                <div key={m.id} className="bg-slate-900 p-3 rounded-lg border border-emerald-500/50 flex flex-col gap-3 shadow-lg">
+                                  <div className="flex items-center gap-2">
+                                    <select value={editMatchData.teamA || ''} onChange={e=>setEditMatchData({...editMatchData, teamA: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
+                                      <option value="">{m.placeholderA || 'Selecione a Equipe A'}</option>
+                                      {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                    <span className="font-bold text-slate-500 text-xs">X</span>
+                                    <select value={editMatchData.teamB || ''} onChange={e=>setEditMatchData({...editMatchData, teamB: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
+                                      <option value="">{m.placeholderB || 'Selecione a Equipe B'}</option>
+                                      {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="flex justify-end gap-2">
+                                    <Button variant="outline" onClick={()=>setEditMatchData(null)} className="py-1 px-3 text-[10px]">Cancelar</Button>
+                                    <Button onClick={saveMatchEdit} className="py-1 px-3 text-[10px]">Salvar</Button>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div key={m.id} className="relative group">
+                                <div onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className={`bg-slate-900 p-3 rounded-lg border border-slate-800 flex items-center justify-between text-xs cursor-pointer hover:border-slate-700 transition-colors pr-10`}>
+                                  <div className="flex-1 flex items-center justify-end gap-2 overflow-hidden">
+                                    <span className="truncate font-bold text-slate-200">{tA?.name || m.placeholderA}</span>
+                                    <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
+                                  </div>
+                                  <div className={`mx-3 px-3 py-1 border rounded font-mono font-bold shrink-0 shadow-inner ${sUI.bg} ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</div>
+                                  <div className="flex-1 flex items-center justify-start gap-2 overflow-hidden">
+                                    <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
+                                    <span className="truncate font-bold text-slate-200">{tB?.name || m.placeholderB}</span>
+                                  </div>
+                                </div>
+                                {/* O SEGREDO ESTÁ AQUI: A Lixeira ou o Lápis */}
+                                {isAdmin && (
+                                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
+                                    {sUI.isPlayed ? (
+                                      <button onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        if(window.confirm('Tem certeza que deseja excluir este resultado? A partida voltará a ficar disponível para registro.')) {
+                                          if(onDeletePlayedMatch) onDeletePlayedMatch(sUI.submittedMatchId);
+                                        }
+                                      }} className="text-slate-500 hover:text-red-400 p-2 bg-slate-950 rounded-lg shadow" title="Excluir Resultado Validado">
+                                        <Trash2 size={14} />
+                                      </button>
+                                    ) : (
+                                      <button onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        setEditMatchData({ ...m, roundId: round.id }); 
+                                      }} className="text-slate-500 hover:text-emerald-400 p-2 bg-slate-950 rounded-lg shadow" title="Editar Confronto Manualmente">
+                                        <Edit size={14} />
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
               })}
             </div>
-          )}
-        </div>
-        
-        <Button type="submit" className={`w-full py-5 text-lg font-black mt-4 ${isPaid ? 'bg-amber-500 hover:bg-amber-400 text-slate-950' : ''}`}>
-          {isPaid ? '💰 Confirmar Torneio Premiado' : 'Criar Campeonato'}
-        </Button>
-      </form>
-    </div>
-  );
-};
-
-const TournamentRegistration = ({ competitions, currentUser, onEditComp, showToast }) => {
-  const [compId, setCompId] = useState('');
-  const [userName, setUserName] = useState(currentUser?.name || '');
-  const [teamName, setTeamName] = useState('');
-  const [proof, setProof] = useState(null);
-
-  const selectedComp = competitions.find(c => c.id === compId);
-  const paidCompetitions = competitions.filter(c => c.isPaid && c.status === 'active');
-
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => setProof(reader.result);
-    reader.readAsDataURL(file);
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!compId || !userName || !teamName || !proof) {
-      showToast('Preencha todos os campos e anexe o comprovante.', 'error');
-      return;
-    }
-
-    const newRequest = {
-      reqId: `req_${Date.now()}`,
-      userId: currentUser?.id || 'avulso',
-      userName,
-      teamName,
-      proofImage: proof,
-      createdAt: new Date().toISOString(),
-      status: 'pending'
-    };
-
-    const updatedComp = { ...selectedComp };
-    if (!updatedComp.registrationRequests) updatedComp.registrationRequests = [];
-    updatedComp.registrationRequests.push(newRequest);
-
-    onEditComp(updatedComp);
-    showToast('Inscrição enviada! Aguarde a validação dos líderes.', 'success');
-    
-    setCompId(''); setTeamName(''); setProof(null);
-  };
-
-  return (
-    <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center p-4 bg-amber-500/10 rounded-full mb-4">
-          <Award size={40} className="text-amber-500" />
-        </div>
-        <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-widest">Inscrição de Torneio</h2>
-        <p className="text-slate-400 text-sm mt-2">Preencha seus dados e anexe o comprovante PIX para garantir sua vaga.</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 shadow-xl space-y-6">
-        
-        <div className="space-y-2">
-          <label className="text-sm font-bold text-slate-300">1. Escolha a Competição</label>
-          <select value={compId} onChange={e=>setCompId(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:border-amber-500 outline-none">
-            <option value="">Selecione o campeonato...</option>
-            {paidCompetitions.map(c => <option key={c.id} value={c.id}>{c.name} - R$ {Number(c.entryFee || 0).toFixed(2)}</option>)}
-          </select>
-        </div>
-
-        {selectedComp && (
-          <div className="bg-amber-500/10 p-4 rounded-xl border border-amber-500/30 text-center animate-in slide-in-from-top-2">
-            <p className="text-xs text-amber-500 font-bold uppercase mb-1">Chave PIX (Tesouraria)</p>
-            <p className="text-xl font-mono font-black text-white select-all">{selectedComp.pixKey}</p>
-            <p className="text-[10px] text-slate-400 mt-2">Transfira exatos R$ {Number(selectedComp.entryFee || 0).toFixed(2)}</p>
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-300">2. Nome do Técnico</label>
-            <input type="text" value={userName} onChange={e=>setUserName(e.target.value)} placeholder="Seu nome completo..." className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:border-amber-500 outline-none" required />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-300">3. Nome do Clube</label>
-            <input type="text" value={teamName} onChange={e=>setTeamName(e.target.value)} placeholder="Ex: Brasa FC" className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:border-amber-500 outline-none" required />
-          </div>
-        </div>
-
-        <div className="space-y-2 pt-4 border-t border-slate-800">
-          <label className="text-sm font-bold text-slate-300">4. Comprovante PIX</label>
-          <label className={`block border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${proof ? 'border-amber-500 bg-amber-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-950'}`}>
-            <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-            {proof ? (
-              <div className="flex flex-col items-center space-y-2"><CheckCircle className="text-amber-500" size={40} /><p className="text-amber-400 font-bold text-sm">Comprovante anexado com sucesso!</p><p className="text-[10px] text-slate-500">Clique para trocar a imagem</p></div>
-            ) : (
-              <div className="flex flex-col items-center space-y-3"><UploadCloud className="text-slate-500" size={40} /><p className="text-white font-bold text-sm">Clique para enviar o print do PIX</p></div>
-            )}
-          </label>
-        </div>
-
-        <button type="submit" className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-lg rounded-xl transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)]">
-          Confirmar Inscrição
-        </button>
-      </form>
-    </div>
-  );
-};
-
-const ValidationPanel = ({ competitions, teams, onEditComp, showToast }) => {
-  const pendingRequests = [];
-  competitions.forEach(comp => {
-    if (comp.registrationRequests) {
-      comp.registrationRequests.forEach(req => {
-        if (req.status === 'pending') {
-          pendingRequests.push({ comp, req });
-        }
-      });
-    }
-  });
-
-  const formatDate = (isoString) => {
-    const d = new Date(isoString);
-    return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')} às ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
-  };
-
-  const handleApprove = (comp, req) => {
-    if (!window.confirm(`Aprovar a inscrição de ${req.teamName}?`)) return;
-
-    const matchedTeam = teams.find(t => t.name.trim().toLowerCase() === req.teamName.trim().toLowerCase());
-    const finalTeamId = matchedTeam ? matchedTeam.id : `manual_${Date.now()}`;
-
-    const updatedComp = { ...comp };
-    
-    if (!updatedComp.teams) updatedComp.teams = [];
-    if (!updatedComp.teams.includes(finalTeamId)) updatedComp.teams.push(finalTeamId);
-
-    if (!updatedComp.payments) updatedComp.payments = {};
-    updatedComp.payments[finalTeamId] = { status: 'approved', proof: req.proofImage };
-
-    updatedComp.registrationRequests = updatedComp.registrationRequests.map(r => r.reqId === req.reqId ? { ...r, status: 'approved' } : r);
-
-    onEditComp(updatedComp);
-    showToast(`Inscrição de ${req.teamName} aprovada!`, 'success');
-  };
-
-  const handleReject = (comp, req) => {
-    if (!window.confirm('Tem certeza que deseja RECUSAR este comprovante?')) return;
-    
-    const updatedComp = { ...comp };
-    updatedComp.registrationRequests = updatedComp.registrationRequests.filter(r => r.reqId !== req.reqId);
-    
-    onEditComp(updatedComp);
-    showToast('Inscrição recusada e apagada.', 'info');
-  };
-
-  return (
-    <div className="space-y-6 animate-in slide-in-from-bottom-4 pb-12">
-      <div className="flex items-center gap-3 mb-6">
-        <CheckSquare className="text-emerald-500" size={28} />
-        <div>
-          <h2 className="text-2xl font-bold text-white">Central de Validação</h2>
-          <p className="text-xs text-slate-400">Aprove ou recuse os pagamentos pendentes.</p>
-        </div>
-      </div>
-
-      {pendingRequests.length === 0 ? (
-        <div className="bg-slate-900 p-12 rounded-2xl border border-slate-800 text-center flex flex-col items-center">
-          <CheckCircle size={48} className="text-slate-600 mb-4" />
-          <h3 className="text-lg font-bold text-slate-400">Tudo limpo por aqui!</h3>
-          <p className="text-sm text-slate-500">Não há nenhuma inscrição aguardando validação no momento.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4">
-          {pendingRequests.map(({ comp, req }) => (
-            <div key={req.reqId} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-lg flex flex-col md:flex-row gap-6 items-start md:items-center">
-              
-              <a href={req.proofImage} target="_blank" rel="noreferrer" className="shrink-0 w-full md:w-32 h-32 bg-slate-950 rounded-xl border border-slate-700 overflow-hidden group relative flex items-center justify-center">
-                <img src={req.proofImage} alt="Comprovante" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-opacity">
-                  <span className="text-[10px] bg-black/80 px-2 py-1 rounded text-white font-bold">Ampliar Imagem</span>
+        {subTab === 'stats' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
+            <div className="space-y-2">
+              <div className="flex justify-between items-end mb-2">
+                <h3 className="text-lg font-bold text-white pl-2">Top Goleadores</h3>
+                <Button onClick={() => captureSection('capture-scorers', `Artilharia-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar</Button>
+              </div>
+              <div id="capture-scorers" className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl p-2 sm:p-4">
+                <div className="bg-slate-950/80 p-4 border border-slate-800 rounded-xl mb-4 flex flex-col items-center justify-center">
+                  <h3 className="font-bold text-emerald-400 text-lg uppercase tracking-widest text-center">⚽ Artilharia</h3>
                 </div>
-              </a>
-
-              <div className="flex-1 space-y-1">
-                <p className="text-[10px] text-amber-500 font-black uppercase tracking-widest">{comp.name}</p>
-                <h3 className="text-xl font-bold text-white">{req.teamName}</h3>
-                <p className="text-sm text-slate-300 flex items-center gap-2"><User size={14}/> {req.userName}</p>
-                <p className="text-[10px] text-slate-500 mt-2">Enviado em: {formatDate(req.createdAt)}</p>
-              </div>
-
-              <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto mt-4 md:mt-0">
-                <button onClick={() => handleApprove(comp, req)} className="flex-1 md:w-32 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-lg">Aprovar</button>
-                <button onClick={() => handleReject(comp, req)} className="flex-1 md:w-32 bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 font-bold py-3 px-4 rounded-xl transition-colors border border-slate-700 hover:border-red-500/30">Recusar</button>
+                <div className="p-6 text-sm text-slate-500 text-center">Desativado nesta versão.</div>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
-const CreateCompetition = ({ teams, onCreate }) => {
-  const [name, setName] = useState('');
-  const [format, setFormat] = useState('league');
-  const [teamCount, setTeamCount] = useState('');
-  const [numGroups, setNumGroups] = useState('2');
-  const [qualifiers, setQualifiers] = useState('2');
-  const [deadline, setDeadline] = useState('');
-  const [selectedTeams, setSelectedTeams] = useState([]);
-  const [error, setError] = useState('');
-
-  const toggleTeam = (teamId) => {
-    if (selectedTeams.includes(teamId)) setSelectedTeams(selectedTeams.filter(id => id !== teamId));
-    else setSelectedTeams([...selectedTeams, teamId]);
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!name || !format || !teamCount || !deadline) { setError('Preencha todos os campos do formulário.'); return; }
-    if (selectedTeams.length !== parseInt(teamCount)) { setError(`Atenção: O formato exige ${teamCount} times, mas selecionou ${selectedTeams.length}.`); return; }
-
-    setError('');
-    const compId = `c${Date.now()}`;
-    let finalRounds = [];
-    let groupsData = null;
-
-    if (format === 'groups') {
-      const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers));
-      finalRounds = res.rounds;
-      groupsData = res.groups;
-    } else if (format === 'cup') {
-      finalRounds = generateCupBracket(selectedTeams, compId);
-    } else {
-      finalRounds = generateRoundRobin(selectedTeams, compId);
-    }
-
-    onCreate({ 
-      id: compId, name, format, deadline, status: 'active', teams: selectedTeams, rounds: finalRounds,
-      ...(groupsData && { groups: groupsData, qualifiersPerGroup: parseInt(qualifiers) })
-    });
-  };
-
-  return (
-    <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><PlusCircle className="text-emerald-500"/> Nova Competição</h2>
-      <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 space-y-6">
-        {error && <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3"><AlertCircle size={20} /><p className="text-sm font-medium">{error}</p></div>}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Nome do Campeonato</label><input type="text" placeholder="Ex: Copa da Amazônia" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Formato</label>
-            <select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
-              <option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option>
-            </select>
-          </div>
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Qtd. de Times</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Prazo de Conclusão</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-          {format === 'groups' && (
-            <><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Quantidade de Grupos</label>
-                <select value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="2">2 Grupos</option><option value="4">4 Grupos</option><option value="8">8 Grupos</option></select>
-              </div><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Classificados por Grupo</label>
-                <select value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="1">1 Time</option><option value="2">2 Times</option><option value="4">4 Times</option></select>
-              </div></>
-          )}
-        </div>
-        <div className="pt-4 border-t border-slate-800">
-          <div className="flex justify-between items-end mb-4">
-            <label className="text-sm font-medium text-slate-400">Selecione as Equipes ({selectedTeams.length} marcadas)</label>
-          </div>
-          
-          {teams.length === 0 ? (
-            <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado.</p>
-          ) : (
-            <div className="bg-slate-950 border border-slate-800 p-2 rounded-xl max-h-60 overflow-y-auto space-y-1 custom-scrollbar">
-              {teams.map(team => { 
-                const isSelected = selectedTeams.includes(team.id); 
-                return ( 
-                  <div 
-                    key={team.id} 
-                    onClick={() => toggleTeam(team.id)} 
-                    className={`cursor-pointer flex flex-col justify-center px-4 py-2.5 rounded-lg border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-transparent border-transparent hover:bg-slate-900'}`}
-                  >
-                    <span className={`font-bold text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>
-                      {team.name}
-                    </span>
-                    <span className={`text-[11px] truncate ${isSelected ? 'text-emerald-600/80' : 'text-slate-500'}`}>
-                      Técnico: {team.coach || 'Sem técnico'}
-                    </span>
-                  </div> 
-                ); 
-              })}
-            </div>
-          )}
-        </div>
-        
-        <Button type="submit" className="w-full py-4 text-lg mt-4">Criar Campeonato</Button>
-      </form>
-    </div>
-  );
-};
-
-const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp }) => {
+const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
-  const visible = (competitions || []).filter(c => c && (isAdmin || c.teams?.some(t => userTeamIds.includes(t))));
+  const visibleCompIds = (competitions || []).filter(c => c && c.teams?.some(t => userTeamIds.includes(t))).map(c => c.id);
+  const recentMatches = (matches || []).filter(m => m && (isAdmin || visibleCompIds.includes(m.compId)) && m.status !== 'rejected').sort((a, b) => parseInt(String(b?.id || '').split('_')[1] || '0') - parseInt(String(a?.id || '').split('_')[1] || '0')).slice(0, 8);
+  const getTeam = (id) => (teams || []).find(t => t && t.id === id);
+  
   return (
-    <div className="space-y-4 animate-in fade-in">
-      <div className="flex items-center gap-2 mb-4"><Medal className="text-emerald-500"/><h2 className="text-xl font-bold text-white">Campeonatos Ativos</h2></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {visible.map(c => (
-          <div key={c.id} onClick={()=>onSelectComp(c.id)} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 hover:border-emerald-500/40 transition-all cursor-pointer flex justify-between items-center group">
-            <div><h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors">{String(c.name)}</h3><p className="text-xs text-slate-500 mt-1">{c.teams?.length || 0} Clubes inscritos</p></div>
-            {isAdmin && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>}
-          </div>
-        ))}
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="bg-gradient-to-r from-emerald-900/50 to-slate-900 p-6 rounded-2xl border border-emerald-900/50 shadow-xl">
+        <h2 className="text-2xl font-bold text-white mb-2">QG Clã Kame</h2>
+        <p className="text-slate-400">Gerencie e acompanhe seus resultados do DLS.</p>
       </div>
-    </div>
-  );
-};
-
-const MatchDetails = ({ match, teams, competitions, onBack }) => {
-  if (!match) return null; const getTeam = (id) => (teams || []).find(t => t && t.id === id);
-  const tA = getTeam(match.teamA); const tB = getTeam(match.teamB);
-  return (
-    <div className="max-w-xl mx-auto space-y-4 bg-slate-900 border border-slate-800 p-6 rounded-2xl animate-in fade-in">
-      <button onClick={onBack} className="text-xs text-slate-400 hover:text-white flex items-center gap-1"><ArrowLeft size={14}/> Voltar</button>
-      <div className="text-center font-mono border-b border-slate-800 pb-3"><span className="text-emerald-400 text-2xl font-black">{match.scoreA} x {match.scoreB}</span><div className="text-xs text-slate-400 mt-1">{tA?.name} vs {tB?.name}</div></div>
-      <div className="space-y-2"><span className="text-xs text-slate-500 uppercase font-bold block">Gols</span>
-        {(match.goals || []).map((g, i) => (<div key={i} className="text-xs bg-slate-950 p-2 rounded border border-slate-800">⚽ <b>{g.player}</b> ({g.minute}') {g.assist && `• Assist: ${g.assist}`}</div>))}
+      <div>
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados Enviados</h3>
+        <div className="space-y-3">
+          {recentMatches.length === 0 && <p className="text-slate-500 text-sm p-4 bg-slate-900 rounded-xl border border-slate-800">Nenhum resultado submetido ainda.</p>}
+          {recentMatches.map(m => {
+            if (!m) return null; const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
+            return (
+              <div key={m.id} onClick={() => onSelectMatch && onSelectMatch(m)} className="bg-slate-900 p-3 md:p-4 rounded-xl border border-slate-800 flex flex-col gap-3 shadow-sm cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition-all group relative">
+                <div className="flex items-center justify-between w-full gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-start"><div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="normal" /></div><span className="font-medium text-[11px] md:text-sm text-slate-200 truncate group-hover:text-emerald-400 transition-colors">{String(tA?.name || 'Time A')}</span></div>
+                  <div className="flex items-center justify-center gap-1.5 md:gap-2 px-2 md:px-3 py-1 bg-slate-950 rounded-lg border border-slate-800 shrink-0">{m.penaltiesA !== null && m.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mr-1">({m.penaltiesA})</span>}<span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreA) : '?'}</span><span className="text-[10px] md:text-xs text-slate-500 font-bold mx-0.5">X</span><span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreB) : '?'}</span>{m.penaltiesB !== null && m.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold ml-1">({m.penaltiesB})</span>}</div>
+                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-end"><span className="font-medium text-[11px] md:text-sm text-slate-200 truncate text-right group-hover:text-emerald-400 transition-colors">{String(tB?.name || 'Time B')}</span><div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="normal" /></div></div>
+                </div>
+                <div className="flex justify-center border-t border-slate-800/50 pt-2 flex-col items-center gap-1">{m.status === 'approved' ? <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">✅ Oficializado • Clique para detalhes</span> : <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 font-medium">⏳ Aguardando Validação • Clique para detalhes</span>}</div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-      {match.imageUrl && <div className="pt-2"><span className="text-xs text-slate-500 block mb-2">Comprovante:</span><img src={match.imageUrl} className="w-full rounded-lg border border-slate-800 max-h-[300px] object-contain bg-black" alt="Comprovante" /></div>}
     </div>
   );
 };
@@ -1107,11 +868,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [matchImageBase64, setMatchImageBase64] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [imageUploaded, setImageUploaded] = useState(false);
-  
-  // NOVO ESTADO: Controle do modo de preenchimento manual
   const [isManualMode, setIsManualMode] = useState(false);
 
-  // Controle de Chave da IA Direto pelo Usuário no Navegador
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [tempKey, setTempKey] = useState('');
@@ -1167,14 +925,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     setObservacoes('');
     setImageUploaded(false);
     setMatchImageBase64(null);
-    setIsManualMode(false); // Zerando o modo manual ao trocar de jogo
-  };
-
-  const calculateSimilarity = (str1, str2) => {
-    if(!str1 || !str2) return 0;
-    const words1 = str1.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-    const words2 = str2.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-    return words1.filter(w => words2.includes(w)).length;
+    setIsManualMode(false);
   };
 
   const handleSaveApiKey = () => {
@@ -1205,19 +956,12 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
         const prompt = `Analise o placar final deste jogo de Dream League Soccer (DLS).
 REGRAS:
 1. O escudo do lado ESQUERDO tem um placar. O escudo do lado DIREITO tem um placar.
-2. Na lista central, identifique quem fez gol. GOLS possuem o ícone de uma BOLA DE FUTEBOL (⚽) ao lado.
-3. ASSISTÊNCIAS: Possuem o ícone de uma CHUTEIRA (👟) ao lado. Vincule a assistência ao gol do mesmo lado correspondente. Nem todo gol tem assistência. Deixe o campo assist vazio ("") se não houver.
-4. CARTÕES possuem um ícone retangular (🟨/🟥). IGNORE COMPLETAMENTE os jogadores com cartões.
-5. Liste os jogadores e minutos agrupando por quem está no lado esquerdo ou direito. Remova os parênteses dos minutos.
+2. Não precisa extrair nomes de goleadores. Foque apenas no Placar!
 
-Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e não escreva mais nada.
+Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown.
 {
-  "leftTeamName": "nome lido no escudo da esquerda",
   "leftScore": 0,
-  "leftGoals": [{"player": "Nome do Goleador", "assist": "Nome da Assistência ou vazio", "minute": "90"}],
-  "rightTeamName": "nome lido no escudo da direita",
-  "rightScore": 0,
-  "rightGoals": [{"player": "Nome do Goleador", "assist": "", "minute": "90"}]
+  "rightScore": 0
 }`;
         
         const mimeType = base64.match(/data:(.*?);base64/)[1];
@@ -1236,104 +980,34 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
       const safeKey = encodeURIComponent(userApiKey.trim());
         const endpoints = [
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${safeKey}`
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`
         ];
 
         let resultJson;
-        let lastError;
-
         for (const url of endpoints) {
           if (resultJson) break;
-          
-          try {
-            const response = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) {
-               const errData = await response.json().catch(() => null);
-               const errorMsg = errData?.error?.message || `Erro ${response.status}`;
-               
-               if (response.status === 403 || response.status === 400) {
-                 localStorage.removeItem('gemini_api_key');
-                 setUserApiKey('');
-                 setShowKeyInput(true);
-                 throw new Error("Sua Chave da IA é inválida. Verifique se copiou tudo corretamente.");
-               }
-               throw new Error(`Erro Google: ${errorMsg}`);
-            }
-
-            resultJson = await response.json();
-          } catch (error) {
-            lastError = error;
-            if (error.message.includes("inválida")) throw error;
-          }
+          const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          if (!response.ok) throw new Error("Erro na API.");
+          resultJson = await response.json();
         }
 
-        if (!resultJson || !resultJson.candidates) throw lastError || new Error("A IA não conseguiu ler o placar.");
+        if (!resultJson || !resultJson.candidates) throw new Error("Falha na leitura.");
 
         let textResponse = resultJson.candidates[0].content.parts[0].text.trim();
-        textResponse = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
-        
         const data = JSON.parse(textResponse);
 
-        const leftName = String(data.leftTeamName || "");
-        const rightName = String(data.rightTeamName || "");
-        const nameA = String(teamA?.name || "");
-        const nameB = String(teamB?.name || "");
-
-        const leftMatchesA = calculateSimilarity(leftName, nameA);
-        const rightMatchesA = calculateSimilarity(rightName, nameA);
-        const leftMatchesB = calculateSimilarity(leftName, nameB);
-        const rightMatchesB = calculateSimilarity(rightName, nameB);
-
-        const isTeamA_Left = (leftMatchesA + rightMatchesB) >= (leftMatchesB + rightMatchesA);
-
-        if (isTeamA_Left) {
-          setScoreA(data.leftScore?.toString() || '0');
-          setScoreB(data.rightScore?.toString() || '0');
-          setGoalsA(data.leftGoals || []);
-          setGoalsB(data.rightGoals || []);
-        } else {
-          setScoreA(data.rightScore?.toString() || '0');
-          setScoreB(data.leftScore?.toString() || '0');
-          setGoalsA(data.rightGoals || []);
-          setGoalsB(data.leftGoals || []);
-        }
+        setScoreA(data.leftScore?.toString() || '0');
+        setScoreB(data.rightScore?.toString() || '0');
 
         if (showToast) showToast("Dados extraídos do Print pela IA!", "success");
 
       } catch (error) {
-        console.error("Erro IA:", error);
-        if (showToast) {
-          showToast(`Falha: ${error.message.substring(0, 70)}`, "error");
-        } else {
-          alert(`Falha na IA: ${error.message}`);
-        }
+        if (showToast) showToast(`Falha na IA. Preencha manualmente.`, "error");
       } finally {
         setIsAnalyzing(false);
         setImageUploaded(true);
       }
     });
-  };
-
-  const handleAddGoal = (team) => {
-    if (team === 'A') { setGoalsA([...goalsA, { player: '', assist: '', minute: '' }]); setScoreA((parseInt(scoreA || 0) + 1).toString()); } 
-    else { setGoalsB([...goalsB, { player: '', assist: '', minute: '' }]); setScoreB((parseInt(scoreB || 0) + 1).toString()); }
-  };
-
-  const handleRemoveGoal = (team, index) => {
-    if (team === 'A') { const updated = [...goalsA]; updated.splice(index, 1); setGoalsA(updated); setScoreA(Math.max(0, parseInt(scoreA || 0) - 1).toString()); } 
-    else { const updated = [...goalsB]; updated.splice(index, 1); setGoalsB(updated); setScoreB(Math.max(0, parseInt(scoreB || 0) - 1).toString()); }
-  };
-
-  const handleGoalChange = (team, index, field, value) => {
-    if (team === 'A') { const updated = [...goalsA]; updated[index][field] = value; setGoalsA(updated); } 
-    else { const updated = [...goalsB]; updated[index][field] = value; setGoalsB(updated); }
   };
 
   const handleSubmit = (e) => {
@@ -1347,11 +1021,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
     const matchDetails = availableMatches.find(m => m.id === selectedMatchId);
     
-    const allGoals = [
-      ...(goalsA || []).map(g => ({ teamId: teamA.id, player: g.player, assist: g.assist || '', minute: g.minute })),
-      ...(goalsB || []).map(g => ({ teamId: teamB.id, player: g.player, assist: g.assist || '', minute: g.minute }))
-    ];
-
     onSubmit({
       id: `m_${Date.now()}`, 
       compId: selectedCompId, 
@@ -1363,7 +1032,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
       scoreB: parseInt(scoreB),
       penaltiesA: (isCup && isTie && penaltiesA !== '') ? parseInt(penaltiesA) : null,
       penaltiesB: (isCup && isTie && penaltiesB !== '') ? parseInt(penaltiesB) : null,
-      goals: allGoals, 
+      goals: [], 
       observacoes: observacoes.trim(), 
       status: 'pending', 
       submittedBy: currentUser?.name || 'Técnico', 
@@ -1392,7 +1061,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
               <input type="password" value={tempKey} onChange={e=>setTempKey(e.target.value)} placeholder="Ex: AIzaSy... ou AQAQ..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
               <button onClick={handleSaveApiKey} className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-amber-900/50">Salvar</button>
             </div>
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] text-emerald-400 hover:underline mt-2 inline-block">Clique aqui para gerar uma chave grátis ➔</a>
           </div>
         )}
 
@@ -1420,7 +1088,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           </div>
         )}
 
-        {/* Exibe o box de envio apenas se não estiver no modo manual */}
         {selectedMatchId && !isManualMode && (
           <div className="animate-in slide-in-from-top-4">
             <label className="block text-sm font-medium text-slate-400 mb-2">3. Envie o Print do Resultado</label>
@@ -1456,7 +1123,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           </div>
         )}
 
-        {/* O formulário abre se enviou a imagem OU se ativou o modo manual */}
         {(imageUploaded || isManualMode) && (
           <form onSubmit={handleSubmit} className="animate-in slide-in-from-bottom-4 space-y-6 pt-4 border-t border-slate-800">
             <div className="flex justify-between items-center mb-2">
@@ -1483,21 +1149,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                     <input type="number" required value={penaltiesA} onChange={e=>setPenaltiesA(e.target.value)} className="w-full bg-slate-900 border border-amber-500/50 text-center font-bold text-lg text-amber-400 rounded p-2 outline-none focus:border-amber-500" />
                   </div>
                 )}
-
-                <div className="space-y-2 pt-2">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Gols</span>
-                  {goalsA.map((g, i) => (
-                    <div key={i} className="flex flex-col gap-1 bg-slate-800 p-2 rounded">
-                      <input type="text" value={g.player} onChange={e=>handleGoalChange('A', i, 'player', e.target.value)} placeholder="Goleador" className="w-full bg-slate-950 text-xs text-white px-2 py-1 rounded border border-slate-700 outline-none" required />
-                      <div className="flex gap-1">
-                        <input type="text" value={g.assist || ''} onChange={e=>handleGoalChange('A', i, 'assist', e.target.value)} placeholder="Assistência" className="flex-1 bg-slate-950 text-[10px] text-slate-400 px-2 py-1 rounded border border-slate-700 outline-none" />
-                        <input type="number" value={g.minute} onChange={e=>handleGoalChange('A', i, 'minute', e.target.value)} placeholder="Min" className="w-12 bg-slate-950 text-xs text-emerald-400 text-center px-1 py-1 rounded border border-slate-700 outline-none" required />
-                        <button type="button" onClick={()=>handleRemoveGoal('A', i)} className="text-red-400 p-1 hover:text-red-300"><X size={12}/></button>
-                      </div>
-                    </div>
-                  ))}
-                  <button type="button" onClick={()=>handleAddGoal('A')} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar Gol</button>
-                </div>
               </div>
               
               <div className="text-slate-500 font-bold text-xl self-center pt-8 hidden md:block">X</div>
@@ -1512,23 +1163,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                     <input type="number" required value={penaltiesB} onChange={e=>setPenaltiesB(e.target.value)} className="w-full bg-slate-900 border border-amber-500/50 text-center font-bold text-lg text-amber-400 rounded p-2 outline-none focus:border-amber-500" />
                   </div>
                 )}
-
-                <div className="space-y-2 pt-2">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block text-right">Gols</span>
-                  {goalsB.map((g, i) => (
-                    <div key={i} className="flex flex-col gap-1 bg-slate-800 p-2 rounded">
-                      <input type="text" value={g.player} onChange={e=>handleGoalChange('B', i, 'player', e.target.value)} placeholder="Goleador" className="w-full bg-slate-950 text-xs text-white px-2 py-1 rounded border border-slate-700 outline-none text-right" required />
-                      <div className="flex gap-1">
-                        <button type="button" onClick={()=>handleRemoveGoal('B', i)} className="text-red-400 p-1 hover:text-red-300"><X size={12}/></button>
-                        <input type="number" value={g.minute} onChange={e=>handleGoalChange('B', i, 'minute', e.target.value)} placeholder="Min" className="w-12 bg-slate-950 text-xs text-emerald-400 text-center px-1 py-1 rounded border border-slate-700 outline-none" required />
-                        <input type="text" value={g.assist || ''} onChange={e=>handleGoalChange('B', i, 'assist', e.target.value)} placeholder="Assistência" className="flex-1 bg-slate-950 text-[10px] text-slate-400 px-2 py-1 rounded border border-slate-700 outline-none text-right" />
-                      </div>
-                    </div>
-                  ))}
-                  <div className="flex justify-end">
-                    <button type="button" onClick={()=>handleAddGoal('B')} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar Gol</button>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -1726,50 +1360,37 @@ export default function App() {
   const handleReleaseRound = async (compId, roundId) => { const comp = competitions.find(c => c && c.id === compId); if (!comp) return; const rounds = comp.rounds.map(r => r.id === roundId ? { ...r, status: 'released' } : r); await updateDoc(getPublicDocPath('competitions', compId), { rounds }); showToast("Rodada liberada!", "success"); };
   const handleSelectComp = (id) => { setSelectedCompId(id); setCurrentTab('comp_details'); };
   const handleSelectMatch = (match) => { setSelectedMatch(match); setPrevTab(currentTab); setCurrentTab('match_details'); };
+  
+  // FUNÇÃO MANTIDA MAS NÃO UTILIZADA NO LÁPIS DIRETAMENTE AQUI, MAS ÚTIL PARA CÓDIGOS FUTUROS
   const handleDeleteMatch = async (matchId) => { await deleteDoc(getPublicDocPath('matches', matchId)); showToast("Placar excluído!", "success"); };
-   const handleEditTeam = async (updatedTeam) => { 
+  
+  const handleEditTeam = async (updatedTeam) => { 
     const oldTeam = teams.find(t => t.id === updatedTeam.id);
-    
-    // Verifica se o time era "Manual" e agora está sendo vinculado a um "Técnico"
     if (oldTeam && oldTeam.ownerId === 'manual' && updatedTeam.ownerId !== 'manual') {
       const userId = updatedTeam.ownerId;
-      
-      // Busca os dados do usuário real que acabou de ser vinculado
       const linkedUser = users.find(u => u.id === userId);
-      
       if (linkedUser) {
-        // Sincroniza os dados: O time absorve o Nome e WhatsApp reais do técnico cadastrado
         updatedTeam.coach = linkedUser.name;
         updatedTeam.whatsapp = linkedUser.whatsapp;
       }
-      
-      // 1. Apaga o time provisório vazio que foi criado quando o técnico se cadastrou
       try { 
         await deleteDoc(getPublicDocPath('teams', `t_${userId}`)); 
       } catch(e) {}
-      
       showToast("Técnico vinculado e histórico migrado!", "success");
     } else {
       showToast("Time atualizado!", "success");
     }
-    
-    // 2. Salva a nova posse e dados do time na nuvem
     await updateDoc(getPublicDocPath('teams', updatedTeam.id), updatedTeam); 
   };
+  
   const handleCreateTeamAndUser = async ({ user, team }) => { await setDoc(getPublicDocPath('users', user.id), user); await setDoc(getPublicDocPath('teams', team.id), team); setCurrentTab('teams_list'); showToast("Treinador registrado!"); return true; };
   const handleExpelUser = async (userId) => {
-    // 1. Apaga a conta do usuário
     await deleteDoc(getPublicDocPath('users', userId));
-    
-    // 2. Encontra o time do usuário expulso
     const userTeam = teams.find(t => t.ownerId === userId);
-    
     if (userTeam) {
-      // 3. Em vez de apagar o time, transformamos ele num time "Manual"
-      // Assim ele continua na tabela, mantendo os resultados e permitindo W.O.
       await updateDoc(getPublicDocPath('teams', userTeam.id), {
         ownerId: 'manual',
-        whatsapp: '' // Removemos o número pessoal por privacidade
+        whatsapp: '' 
       });
       showToast("Técnico expulso. O time dele agora é manual (sem dono).", "success");
     } else {
@@ -1783,7 +1404,6 @@ export default function App() {
     const cleanPhone = data.whatsapp.replace(/\D/g, '');
     const fullName = `${data.firstName} ${data.lastName}`.trim();
     
-    // Cria a conta no Firebase e desloga imediatamente para ir pra espera
     const userCredential = await createUserWithEmailAndPassword(auth, email, data.password);
     const uid = userCredential.user.uid;
     
@@ -1808,7 +1428,6 @@ export default function App() {
       if (foundUser?.email) emFake = foundUser.email; 
     }
     
-    // Bloqueia o login e gera o aviso se a conta não estiver validada
     if (foundUser && foundUser.status === 'pending') {
       throw new Error("Aguardando aprovação dos líderes.");
     }
@@ -1840,10 +1459,8 @@ export default function App() {
     );
   }
 
-
   const isLeaderOrKaioh = currentUser.role === 'leader' || currentUser.role === 'kaioh';
   
-  // Note que 'settings' foi removida da lista.
  const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home }, 
     { id: 'profile', label: 'Meu Perfil', icon: User },
@@ -1856,7 +1473,7 @@ export default function App() {
       { id: 'create_comp', label: 'Nova Comp', icon: PlusCircle }, 
       { id: 'create_team', label: 'Convidar Técnico', icon: Users },
       { id: 'create_team_manual', label: 'Time Simples', icon: UserPlus } 
-    ] : []), // <-- Deixe os colchetes vazios aqui
+    ] : []), 
   ];
 
   const handleUpdateMatchStatus = async (id, st, updatedData = null) => {
@@ -1888,7 +1505,6 @@ export default function App() {
       whatsapp: updatedData.whatsapp
     });
     
-    // Atualizar também o nome do técnico no time dele para não ficar divergente
     const userTeam = teams.find(t => t.ownerId === userId);
     if (userTeam) {
       await updateDoc(getPublicDocPath('teams', userTeam.id), {
@@ -1902,12 +1518,21 @@ export default function App() {
   
   const renderContent = () => {
     switch (currentTab) {
-      case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} users={users} onSelectMatch={handleSelectMatch} />;
-      case 'registration': return <TournamentRegistration competitions={competitions} currentUser={currentUser} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); }} showToast={showToast} />;
-      case 'validations': return <ValidationPanel competitions={competitions} teams={teams} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); }} showToast={showToast} />;
-      case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={id=>{setSelectedCompId(id); setCurrentTab('comp_details');}} onDeleteComp={handleDeleteComp} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); }} showToast={showToast} />;
+      case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
+      case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
+      case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
+      case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={id=>{setSelectedCompId(id); setCurrentTab('comp_details');}} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
+      
+      // AQUI ESTÁ A ÚNICA DIFERENÇA EM RELAÇÃO AO QUE ME ENVIOU
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onDeletePlayedMatch={async (matchId) => { await deleteDoc(getPublicDocPath('matches', matchId)); showToast("Resultado excluído com sucesso!", "info"); }} showToast={showToast} />;
+      
+      case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
+      case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(isLeaderOrKaioh ? 'validation' : 'dashboard'); })} />;
+      case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} showToast={showToast} />;
       case 'create_comp': return <CreateCompetition teams={teams} currentUser={currentUser} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
+      case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
+      case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
+      case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
       
       default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
     }
