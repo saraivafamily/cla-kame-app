@@ -909,7 +909,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         {subTab === 'finance' && comp.isPaid && isAdmin && (
           <div className="space-y-6 animate-in slide-in-from-bottom-4">
             
-            {/* O Cofre (Visão Geral) */}
             <div className="bg-slate-900 p-6 rounded-2xl border border-amber-500/40 relative overflow-hidden shadow-xl">
               <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><span className="text-8xl">💰</span></div>
               <h3 className="text-amber-500 font-black text-xs uppercase tracking-widest mb-1 flex items-center gap-2"><Award size={14}/> Cofre do Campeonato</h3>
@@ -928,7 +927,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
               </div>
             </div>
 
-            {/* Lista de Pagamentos / Validação */}
             <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
               <div className="p-4 border-b border-slate-800 bg-slate-950/50"><h3 className="font-bold text-white flex items-center gap-2"><CheckCircle size={16} className="text-emerald-500"/> Validação de Inscrições</h3></div>
               <div className="divide-y divide-slate-800/50">
