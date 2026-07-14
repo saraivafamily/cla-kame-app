@@ -595,7 +595,7 @@ const Standings = ({ matches, teams, comp }) => {
   );
 };
 
-const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch, onDeletePlayedMatch }) => {
+const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch }) => {
   const [subTab, setSubTab] = useState('overview'); 
   const [expandedRoundId, setExpandedRoundId] = useState(null);
   
@@ -877,27 +877,23 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                   </div>
                                 </div>
                                 {/* Botão de Editar Confronto (Apenas Líderes) */}
-                               {isAdmin && (
-                                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                                    {sUI.isPlayed ? (
-                                      <button onClick={(e) => { 
-                                        e.stopPropagation(); 
-                                        if(window.confirm('Excluir este resultado? A partida voltará a ficar disponível para registro.')) {
-                                          if(onDeletePlayedMatch) onDeletePlayedMatch(sUI.submittedMatchId);
-                                        }
-                                      }} className="text-slate-500 hover:text-red-400 p-2 bg-slate-950 rounded-lg shadow" title="Excluir Resultado Validado">
-                                        <Trash2 size={14} />
-                                      </button>
-                                    ) : (
-                                      <button onClick={(e) => { 
-                                        e.stopPropagation(); 
-                                        setEditMatchData({ ...m, teamA: autoTeamA, teamB: autoTeamB, roundId: round.id }); 
-                                      }} className="text-slate-500 hover:text-emerald-400 p-2 bg-slate-950 rounded-lg shadow" title="Editar Confronto Manualmente">
-                                        <Edit size={14} />
-                                      </button>
-                                    )}
-                                  </div>
+                                {isAdmin && (
+                                  <button onClick={(e) => { e.stopPropagation(); setEditMatchData({ ...m, roundId: round.id }); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-emerald-400 p-2 bg-slate-950 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10" title="Editar Confronto">
+                                    <Edit size={14} />
+                                  </button>
                                 )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {subTab === 'stats' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
@@ -958,13 +954,15 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 </div>
               </div>
             </div>
+
           </div>
         )}
-     </div>
+      </div>
     </div>
-  );                    
+  );
+};
 
-  const CreateCompetition = ({ teams, currentUser, onCreate }) => {
+const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const [name, setName] = useState('');
   const [format, setFormat] = useState('league');
   const [teamCount, setTeamCount] = useState('');
@@ -1983,7 +1981,7 @@ export default function App() {
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
-      case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeletePlayedMatch={async (matchId) => { await deleteDoc(getPublicDocPath('matches', matchId)); showToast("Resultado excluído!", "info"); }} showToast={showToast} />;
+      case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} showToast={showToast} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(isLeaderOrKaioh ? 'validation' : 'dashboard'); })} />;
       case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} showToast={showToast} />;
