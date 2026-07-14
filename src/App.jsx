@@ -595,7 +595,7 @@ const Standings = ({ matches, teams, comp }) => {
   );
 };
 
-const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch }) => {
+const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast }) => {
   const [subTab, setSubTab] = useState('overview'); 
   const [expandedRoundId, setExpandedRoundId] = useState(null);
   const [editMatchData, setEditMatchData] = useState(null);
@@ -654,7 +654,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
   const toggleRound = (id) => setExpandedRoundId(prev => prev === id ? null : id);
 
-  // FUNÇÃO ATUALIZADA: Agora salva os números do placar também
   const saveMatchEdit = () => {
     const updatedRounds = comp.rounds.map(r => {
       if (r.id === editMatchData.roundId) {
@@ -665,50 +664,12 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       }
       return r;
     });
-    
     onEditComp({ ...comp, rounds: updatedRounds });
-
-    const playedMatch = (matches || []).find(m => m.matchId === editMatchData.id && m.compId === comp.id);
-    if (playedMatch && onUpdatePlayedMatch) {
-      const oldTeamA = playedMatch.teamA;
-      const oldTeamB = playedMatch.teamB;
-      
-      const updatedGoals = (playedMatch.goals || []).map(g => {
-        if (g.teamId === oldTeamA) return { ...g, teamId: editMatchData.teamA };
-        if (g.teamId === oldTeamB) return { ...g, teamId: editMatchData.teamB };
-        return g;
-      });
-
-      onUpdatePlayedMatch({
-        ...playedMatch,
-        teamA: editMatchData.teamA,
-        teamB: editMatchData.teamB,
-        scoreA: editMatchData.scoreA !== '' && editMatchData.scoreA !== undefined ? parseInt(editMatchData.scoreA) : playedMatch.scoreA,
-        scoreB: editMatchData.scoreB !== '' && editMatchData.scoreB !== undefined ? parseInt(editMatchData.scoreB) : playedMatch.scoreB,
-        goals: updatedGoals
-      });
-    }
-
     setEditMatchData(null);
-    showToast("Confronto e placar atualizados permanentemente!", "success");
+    showToast("Confronto atualizado permanentemente!", "success");
   };
 
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
-
-  // --- Estados e funções para Inserir Novo Time ---
-  const [showAddTeam, setShowAddTeam] = useState(false);
-  const [newTeamToAdd, setNewTeamToAdd] = useState('');
-
-  const handleAddTeamToComp = () => {
-    if (!newTeamToAdd) return;
-    const updatedComp = { ...comp, teams: [...(comp.teams || []), newTeamToAdd] };
-    onEditComp(updatedComp);
-    setShowAddTeam(false);
-    setNewTeamToAdd('');
-  };
-  
-  const availableTeamsToAdd = (teams || []).filter(t => t && !(comp.teams || []).includes(t.id));
-  // ------------------------------------------------
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
@@ -722,25 +683,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             {comp.createdBy && <span className="text-slate-400 ml-2 normal-case font-medium">• Resp: {comp.createdBy}</span>}
           </p>
         </div>
-        
-        {isAdmin && (
-          <div className="flex gap-2 w-full md:w-auto">
-            {showAddTeam ? (
-              <div className="flex gap-2 w-full animate-in fade-in">
-                <select value={newTeamToAdd} onChange={e=>setNewTeamToAdd(e.target.value)} className="flex-1 md:w-48 bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none">
-                  <option value="">Escolher time...</option>
-                  {availableTeamsToAdd.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-                <Button onClick={handleAddTeamToComp} className="py-1 px-3 text-xs">Salvar</Button>
-                <Button variant="outline" onClick={()=>{setShowAddTeam(false); setNewTeamToAdd('');}} className="py-1 px-2 text-xs font-bold text-slate-400">X</Button>
-              </div>
-            ) : (
-              <Button variant="outline" onClick={()=>setShowAddTeam(true)} className="py-2 px-3 text-xs w-full md:w-auto flex items-center justify-center gap-2">
-                <span className="text-emerald-400 font-bold">+</span> Inserir Time
-              </Button>
-            )}
-          </div>
-        )}
       </div>
       
       <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800 overflow-x-auto custom-scrollbar">
@@ -801,34 +743,23 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
                             const tA = getTeam(autoTeamA); const tB = getTeam(autoTeamB); const sUI = getMatchStatusDisplay(m.id);
                             
-                            // INTERFACE ATUALIZADA: Agora exibe os campos de placar se o jogo já aconteceu
                             if (editMatchData?.id === m.id) {
                               return (
                                 <div key={m.id} className="bg-slate-900 p-3 rounded-lg border border-emerald-500/50 flex flex-col gap-3 shadow-lg">
-                                  <div className="flex flex-col sm:flex-row items-center gap-2">
-                                    <select value={editMatchData.teamA || ''} onChange={e=>setEditMatchData({...editMatchData, teamA: e.target.value})} className="w-full sm:flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
+                                  <div className="flex items-center gap-2">
+                                    <select value={editMatchData.teamA || ''} onChange={e=>setEditMatchData({...editMatchData, teamA: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
                                       <option value="">{m.placeholderA || 'Equipe A'}</option>
                                       {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                     </select>
-                                    
-                                    <div className="flex items-center gap-2">
-                                      {editMatchData.scoreA !== undefined && editMatchData.scoreA !== '' && (
-                                        <input type="number" value={editMatchData.scoreA} onChange={e=>setEditMatchData({...editMatchData, scoreA: e.target.value})} className="w-12 bg-slate-950 text-xs text-white p-2 rounded border border-emerald-500/50 outline-none text-center font-bold" />
-                                      )}
-                                      <span className="font-bold text-slate-500 text-xs">X</span>
-                                      {editMatchData.scoreB !== undefined && editMatchData.scoreB !== '' && (
-                                        <input type="number" value={editMatchData.scoreB} onChange={e=>setEditMatchData({...editMatchData, scoreB: e.target.value})} className="w-12 bg-slate-950 text-xs text-white p-2 rounded border border-emerald-500/50 outline-none text-center font-bold" />
-                                      )}
-                                    </div>
-
-                                    <select value={editMatchData.teamB || ''} onChange={e=>setEditMatchData({...editMatchData, teamB: e.target.value})} className="w-full sm:flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
+                                    <span className="font-bold text-slate-500 text-xs">X</span>
+                                    <select value={editMatchData.teamB || ''} onChange={e=>setEditMatchData({...editMatchData, teamB: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
                                       <option value="">{m.placeholderB || 'Equipe B'}</option>
                                       {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                     </select>
                                   </div>
                                   <div className="flex justify-end gap-2">
                                     <Button variant="outline" onClick={()=>setEditMatchData(null)} className="py-1 px-3 text-[10px]">Cancelar</Button>
-                                    <Button onClick={saveMatchEdit} className="py-1 px-3 text-[10px]">Salvar Alterações</Button>
+                                    <Button onClick={saveMatchEdit} className="py-1 px-3 text-[10px]">Salvar Manual</Button>
                                   </div>
                                 </div>
                               );
@@ -848,17 +779,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                   </div>
                                 </div>
                                 {isAdmin && (
-                                  <button onClick={(e) => { 
-                                    e.stopPropagation(); 
-                                    setEditMatchData({ 
-                                      ...m, 
-                                      teamA: autoTeamA, 
-                                      teamB: autoTeamB, 
-                                      roundId: round.id,
-                                      scoreA: sUI.isPlayed ? sUI.scoreA : '', // Injeta o placar atual para edição
-                                      scoreB: sUI.isPlayed ? sUI.scoreB : ''
-                                    }); 
-                                  }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-emerald-400 p-2 bg-slate-950 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10" title="Editar Confronto e Placar">
+                                  <button onClick={(e) => { e.stopPropagation(); setEditMatchData({ ...m, teamA: autoTeamA, teamB: autoTeamB, roundId: round.id }); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-emerald-400 p-2 bg-slate-950 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10" title="Editar Confronto Manualmente">
                                     <Edit size={14} />
                                   </button>
                                 )}
@@ -1000,6 +921,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     </div>
   );
 };
+
 const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const [name, setName] = useState('');
   const [format, setFormat] = useState('league');
@@ -1167,21 +1089,114 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   );
 };
 
-const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp }) => {
+const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp, onEditComp, showToast }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-  const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
+  const userTeams = (teams || []).filter(t => t && t.ownerId === currentUser?.id);
+  const userTeamIds = userTeams.map(t => t.id);
   const visible = (competitions || []).filter(c => c && (isAdmin || c.teams?.some(t => userTeamIds.includes(t))));
+
+  const [payComp, setPayComp] = useState(null);
+  const [payTeamId, setPayTeamId] = useState('');
+  const [proof, setProof] = useState(null);
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => setProof(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const handlePaySubmit = (e) => {
+    e.preventDefault();
+    if (!proof || !payTeamId) return;
+    const updatedComp = { ...payComp, payments: { ...(payComp.payments || {}) } };
+    updatedComp.payments[payTeamId] = { status: 'pending', proof: proof };
+    onEditComp(updatedComp);
+    setPayComp(null);
+    setProof(null);
+    if(showToast) showToast("Comprovante enviado! Aguarde a aprovação.", "success");
+  };
+
   return (
-    <div className="space-y-4 animate-in fade-in">
+    <div className="space-y-4 animate-in fade-in pb-10">
       <div className="flex items-center gap-2 mb-4"><Medal className="text-emerald-500"/><h2 className="text-xl font-bold text-white">Campeonatos Ativos</h2></div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {visible.map(c => (
-          <div key={c.id} onClick={()=>onSelectComp(c.id)} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 hover:border-emerald-500/40 transition-all cursor-pointer flex justify-between items-center group">
-            <div><h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors">{String(c.name)}</h3><p className="text-xs text-slate-500 mt-1">{c.teams?.length || 0} Clubes inscritos</p></div>
-            {isAdmin && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>}
-          </div>
-        ))}
+        {visible.map(c => {
+          const myTeamInComp = userTeams.find(t => c.teams?.includes(t.id));
+          const paymentStatus = myTeamInComp ? c.payments?.[myTeamInComp.id]?.status : null;
+          
+          return (
+            <div key={c.id} onClick={()=>onSelectComp(c.id)} className={`bg-slate-900 p-5 rounded-2xl border ${c.isPaid ? 'border-amber-500/40 hover:border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.05)]' : 'border-slate-800 hover:border-emerald-500/40'} transition-all cursor-pointer flex flex-col group relative overflow-hidden`}>
+              {c.isPaid && <div className="absolute top-0 right-0 bg-amber-500 text-slate-900 text-[9px] font-black px-3 py-1 rounded-bl-lg uppercase tracking-widest shadow-md">Premium</div>}
+              
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors pr-12">{String(c.name)}</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {c.teams?.length || 0} Clubes inscritos
+                    {c.createdBy && <span className="block mt-0.5 text-slate-400">👤 Resp: {c.createdBy}</span>}
+                  </p>
+                </div>
+                {isAdmin && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>}
+              </div>
+              
+              {/* Bloco Financeiro para o Técnico */}
+              {c.isPaid && myTeamInComp && !isAdmin && (
+                <div className="mt-4 pt-4 border-t border-slate-800 flex justify-between items-center">
+                  <span className="text-xs font-bold text-amber-400">Taxa: R$ {Number(c.entryFee || 0).toFixed(2)}</span>
+                  {paymentStatus === 'approved' ? (
+                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded font-bold flex items-center gap-1"><CheckCircle size={12}/> Confirmado</span>
+                  ) : paymentStatus === 'pending' ? (
+                    <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-1 rounded font-bold flex items-center gap-1"><AlertCircle size={12}/> Em Análise</span>
+                  ) : (
+                    <Button onClick={(e) => { e.stopPropagation(); setPayComp(c); setPayTeamId(myTeamInComp.id); setProof(null); }} className="py-1 px-3 text-[10px] bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-lg font-black">💰 Pagar Inscrição</Button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
+
+      {/* Modal de Pagamento PIX */}
+      {payComp && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setPayComp(null)}>
+          <div className="bg-slate-900 border border-amber-500/50 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="bg-amber-500 p-4 text-center">
+              <h3 className="font-black text-slate-900 text-lg uppercase tracking-widest flex justify-center items-center gap-2">💰 Inscrição Premium</h3>
+            </div>
+            <form onSubmit={handlePaySubmit} className="p-6 space-y-6">
+              <div className="text-center space-y-2">
+                <p className="text-slate-400 text-sm">Valor da Inscrição</p>
+                <p className="text-4xl font-black text-white">R$ {Number(payComp.entryFee || 0).toFixed(2)}</p>
+              </div>
+              
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
+                <p className="text-xs text-slate-500 mb-2">Chave PIX do Tesoureiro</p>
+                <p className="text-lg font-mono font-bold text-emerald-400 select-all bg-slate-900 py-2 rounded-lg border border-emerald-500/20">{payComp.pixKey}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-2">Comprovante de Pagamento</label>
+                <label className={`block border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer ${proof ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-950'}`}>
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                  {proof ? (
+                    <div className="flex flex-col items-center space-y-2"><CheckCircle className="text-emerald-500" size={32} /><p className="text-emerald-400 font-medium text-xs">Comprovante anexado!</p></div>
+                  ) : (
+                    <div className="flex flex-col items-center space-y-2"><UploadCloud className="text-slate-500" size={32} /><p className="text-white font-medium text-xs">Clique para anexar o print</p></div>
+                  )}
+                </label>
+              </div>
+
+              <div className="flex gap-3">
+                <Button type="button" variant="outline" onClick={() => setPayComp(null)} className="flex-1">Cancelar</Button>
+                <Button type="submit" disabled={!proof} className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold">Enviar Comprovante</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -2018,7 +2033,7 @@ export default function App() {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
-      case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
+      case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={id=>{setSelectedCompId(id); setCurrentTab('comp_details');}} onDeleteComp={handleDeleteComp} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); }} showToast={showToast} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} showToast={showToast} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(isLeaderOrKaioh ? 'validation' : 'dashboard'); })} />;
