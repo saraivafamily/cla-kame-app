@@ -595,7 +595,7 @@ const Standings = ({ matches, teams, comp }) => {
   );
 };
 
-const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch }) => {
+const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onDeletePlayedMatch }) => {
   const [subTab, setSubTab] = useState('overview'); 
   const [expandedRoundId, setExpandedRoundId] = useState(null);
   
@@ -719,6 +719,11 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     });
     
     onEditComp({ ...comp, rounds: updatedRounds });
+    setEditMatchData(null);
+    showToast("Confronto atualizado permanentemente!", "success");
+  };
+
+  const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
 
     // 2. MÁGICA: Atualiza o resultado oficial se a partida já tiver acontecido
     const playedMatch = (matches || []).find(m => m.matchId === editMatchData.id && m.compId === comp.id);
@@ -966,30 +971,20 @@ const tA = getTeam(autoTeamA); const tB = getTeam(autoTeamB); const sUI = getMat
                             if (editMatchData?.id === m.id) {
                               return (
                                 <div key={m.id} className="bg-slate-900 p-3 rounded-lg border border-emerald-500/50 flex flex-col gap-3 shadow-lg">
-                                  <div className="flex flex-col sm:flex-row items-center gap-2">
-                                    <select value={editMatchData.teamA || ''} onChange={e=>setEditMatchData({...editMatchData, teamA: e.target.value})} className="w-full sm:flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
+                                  <div className="flex items-center gap-2">
+                                    <select value={editMatchData.teamA || ''} onChange={e=>setEditMatchData({...editMatchData, teamA: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
                                       <option value="">{m.placeholderA || 'Equipe A'}</option>
                                       {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                     </select>
-                                    
-                                    <div className="flex items-center gap-2">
-                                      {editMatchData.scoreA !== undefined && editMatchData.scoreA !== '' && (
-                                        <input type="number" value={editMatchData.scoreA} onChange={e=>setEditMatchData({...editMatchData, scoreA: e.target.value})} className="w-12 bg-slate-950 text-xs text-white p-2 rounded border border-emerald-500/50 outline-none text-center font-bold" />
-                                      )}
-                                      <span className="font-bold text-slate-500 text-xs">X</span>
-                                      {editMatchData.scoreB !== undefined && editMatchData.scoreB !== '' && (
-                                        <input type="number" value={editMatchData.scoreB} onChange={e=>setEditMatchData({...editMatchData, scoreB: e.target.value})} className="w-12 bg-slate-950 text-xs text-white p-2 rounded border border-emerald-500/50 outline-none text-center font-bold" />
-                                      )}
-                                    </div>
-
-                                    <select value={editMatchData.teamB || ''} onChange={e=>setEditMatchData({...editMatchData, teamB: e.target.value})} className="w-full sm:flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
+                                    <span className="font-bold text-slate-500 text-xs">X</span>
+                                    <select value={editMatchData.teamB || ''} onChange={e=>setEditMatchData({...editMatchData, teamB: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
                                       <option value="">{m.placeholderB || 'Equipe B'}</option>
                                       {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                     </select>
                                   </div>
                                   <div className="flex justify-end gap-2">
                                     <Button variant="outline" onClick={()=>setEditMatchData(null)} className="py-1 px-3 text-[10px]">Cancelar</Button>
-                                    <Button onClick={saveMatchEdit} className="py-1 px-3 text-[10px]">Salvar Alterações</Button>
+                                    <Button onClick={saveMatchEdit} className="py-1 px-3 text-[10px]">Salvar Manual</Button>
                                   </div>
                                 </div>
                               );
@@ -1009,24 +1004,28 @@ const tA = getTeam(autoTeamA); const tB = getTeam(autoTeamB); const sUI = getMat
                                   </div>
                                 </div>
                                 {isAdmin && (
-                                  <button onClick={(e) => { 
-                                    e.stopPropagation(); 
-                                    setEditMatchData({ 
-                                      ...m, 
-                                      teamA: autoTeamA, 
-                                      teamB: autoTeamB, 
-                                      roundId: round.id,
-                                      scoreA: sUI.isPlayed ? sUI.scoreA : '', 
-                                      scoreB: sUI.isPlayed ? sUI.scoreB : ''
-                                    }); 
-                                  }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-emerald-400 p-2 bg-slate-950 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10" title="Editar Confronto e Placar">
-                                    <Edit size={14} />
-                                  </button>
+                                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
+                                    {sUI.isPlayed ? (
+                                      <button onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        if(window.confirm('Tem certeza que deseja excluir este resultado? A partida voltará a ficar disponível para registro.')) {
+                                          if(onDeletePlayedMatch) onDeletePlayedMatch(sUI.submittedMatchId);
+                                        }
+                                      }} className="text-slate-500 hover:text-red-400 p-2 bg-slate-950 rounded-lg shadow" title="Excluir Resultado Validado">
+                                        <Trash2 size={14} />
+                                      </button>
+                                    ) : (
+                                      <button onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        setEditMatchData({ ...m, teamA: autoTeamA, teamB: autoTeamB, roundId: round.id }); 
+                                      }} className="text-slate-500 hover:text-emerald-400 p-2 bg-slate-950 rounded-lg shadow" title="Editar Confronto Manualmente">
+                                        <Edit size={14} />
+                                      </button>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             )
-                        </div>
-// ... existing code ...
 
 const CreateCompetition = ({ teams, onCreate }) => {
   const [name, setName] = useState('');
@@ -1975,18 +1974,12 @@ export default function App() {
   
   const renderContent = () => {
     switch (currentTab) {
-      case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
-      case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
-      case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
-      case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
-      case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} showToast={showToast} />;
-      case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
-      case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(isLeaderOrKaioh ? 'validation' : 'dashboard'); })} />;
-      case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} showToast={showToast} />;
-      case 'create_comp': return <CreateCompetition teams={teams} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
-      case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
-      case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
-      case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
+      case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} users={users} onSelectMatch={handleSelectMatch} />;
+      case 'registration': return <TournamentRegistration competitions={competitions} currentUser={currentUser} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); }} showToast={showToast} />;
+      case 'validations': return <ValidationPanel competitions={competitions} teams={teams} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); }} showToast={showToast} />;
+      case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={id=>{setSelectedCompId(id); setCurrentTab('comp_details');}} onDeleteComp={handleDeleteComp} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); }} showToast={showToast} />;
+      case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onDeletePlayedMatch={async (matchId) => { await deleteDoc(getPublicDocPath('matches', matchId)); showToast("Resultado excluído com sucesso!", "info"); }} showToast={showToast} />;
+      case 'create_comp': return <CreateCompetition teams={teams} currentUser={currentUser} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
       
       default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
     }
