@@ -595,12 +595,24 @@ const Standings = ({ matches, teams, comp }) => {
   );
 };
 
-const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast }) => {
+const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch }) => {
   const [subTab, setSubTab] = useState('overview'); 
   const [expandedRoundId, setExpandedRoundId] = useState(null);
+  
+  // NOVO: Estados para a edição de confrontos
   const [editMatchData, setEditMatchData] = useState(null);
+  const [showAddTeam, setShowAddTeam] = useState(false);
+  const [newTeamToAdd, setNewTeamToAdd] = useState('');
 
-  const resolvedQualifiers = useMemo(() => resolveQualifiers(comp, teams, matches), [comp, teams, matches]);
+  const handleAddTeamToComp = () => {
+    if (!newTeamToAdd) return;
+    const updatedComp = { ...comp, teams: [...(comp.teams || []), newTeamToAdd] };
+    onEditComp(updatedComp);
+    setShowAddTeam(false);
+    setNewTeamToAdd('');
+  };
+  
+  const availableTeamsToAdd = (teams || []).filter(t => t && !(comp.teams || []).includes(t.id));
 
   if (!comp) return (<div className="text-center py-12"><p className="text-slate-400">Torneio não localizado.</p><button onClick={onBack} className="text-emerald-400 underline">Voltar</button></div>);
   
@@ -644,17 +656,59 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       const element = document.getElementById(elementId);
       if (!element) return;
       window.html2canvas(element, { backgroundColor: '#020617', scale: 2, useCORS: true }).then(canvas => {
-        const link = document.createElement('a'); link.download = `${fileName}.png`; link.href = canvas.toDataURL('image/png'); link.click();
+        const link = document.createElement('a');
+        link.download = `${fileName}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
         showToast("Imagem salva com sucesso!", "success");
       });
     };
-    if (window.html2canvas) captureAndDownload();
-    else { const script = document.createElement('script'); script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"; script.onload = captureAndDownload; document.body.appendChild(script); }
+    if (window.html2canvas) { captureAndDownload(); } 
+    else {
+      const script = document.createElement('script');
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      script.onload = captureAndDownload;
+      document.body.appendChild(script);
+    }
   };
 
-  const toggleRound = (id) => setExpandedRoundId(prev => prev === id ? null : id);
+  const toggleRound = (id) => { setExpandedRoundId(prev => prev === id ? null : id); };
 
+  // NOVO: Função para Migrar Classificados Automaticamente
+  const handleAutoMigrateKnockout = () => {
+    if (!comp.groups) return;
+    showToast("Calculando classificados...", "info");
+    
+    const qualifiers = {};
+    Object.keys(comp.groups).forEach((gName) => {
+      const gTeams = (teams || []).filter(t => comp.groups[gName].includes(t.id));
+      const gTable = calculateStandings(matches, gTeams, comp.id);
+      
+      // Associa a posição na tabela (1º, 2º, etc) ao ID do time real
+      gTable.forEach((row, idx) => {
+        qualifiers[`${idx + 1}º Grupo ${gName}`] = row.id;
+        qualifiers[`${idx + 1}º do Grupo ${gName}`] = row.id; // Variação de texto
+      });
+    });
+
+    const updatedRounds = comp.rounds.map(round => {
+      const newMatches = round.matches.map(m => {
+        let newA = m.teamA;
+        let newB = m.teamB;
+        if (!newA && m.placeholderA && qualifiers[m.placeholderA]) newA = qualifiers[m.placeholderA];
+        if (!newB && m.placeholderB && qualifiers[m.placeholderB]) newB = qualifiers[m.placeholderB];
+        return { ...m, teamA: newA, teamB: newB };
+      });
+      return { ...round, matches: newMatches };
+    });
+
+    onEditComp({ ...comp, rounds: updatedRounds });
+    showToast("Mata-Mata preenchido com os classificados!", "success");
+  };
+
+  // NOVO: Função para salvar edição de um confronto manual
   const saveMatchEdit = () => {
+    // 1. Atualiza a tabela da competição (Calendário)
     const updatedRounds = comp.rounds.map(r => {
       if (r.id === editMatchData.roundId) {
         return {
@@ -664,11 +718,34 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       }
       return r;
     });
+    
     onEditComp({ ...comp, rounds: updatedRounds });
-    setEditMatchData(null);
-    showToast("Confronto atualizado permanentemente!", "success");
-  };
 
+    // 2. MÁGICA: Atualiza o resultado oficial se a partida já tiver acontecido
+    const playedMatch = (matches || []).find(m => m.matchId === editMatchData.id && m.compId === comp.id);
+    if (playedMatch && onUpdatePlayedMatch) {
+      const oldTeamA = playedMatch.teamA;
+      const oldTeamB = playedMatch.teamB;
+      
+      // Transfere os gols do time antigo para o novo time
+      const updatedGoals = (playedMatch.goals || []).map(g => {
+        if (g.teamId === oldTeamA) return { ...g, teamId: editMatchData.teamA };
+        if (g.teamId === oldTeamB) return { ...g, teamId: editMatchData.teamB };
+        return g;
+      });
+
+      // Salva o relatório de partida atualizado
+      onUpdatePlayedMatch({
+        ...playedMatch,
+        teamA: editMatchData.teamA,
+        teamB: editMatchData.teamB,
+        goals: updatedGoals
+      });
+    }
+
+    setEditMatchData(null);
+    showToast("Confronto e histórico atualizados permanentemente!", "success");
+  };
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
 
   return (
@@ -683,14 +760,31 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             {comp.createdBy && <span className="text-slate-400 ml-2 normal-case font-medium">• Resp: {comp.createdBy}</span>}
           </p>
         </div>
+        
+        {/* NOVO BOTÃO DE INSERIR TIME */}
+        {isAdmin && (
+          <div className="flex gap-2 w-full md:w-auto">
+            {showAddTeam ? (
+              <div className="flex gap-2 w-full animate-in fade-in">
+                <select value={newTeamToAdd} onChange={e=>setNewTeamToAdd(e.target.value)} className="flex-1 md:w-48 bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none">
+                  <option value="">Escolher time...</option>
+                  {availableTeamsToAdd.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <Button onClick={handleAddTeamToComp} className="py-1 px-3 text-xs">Salvar</Button>
+                <Button variant="outline" onClick={()=>{setShowAddTeam(false); setNewTeamToAdd('');}} className="py-1 px-2 text-xs font-bold text-slate-400">X</Button>
+              </div>
+            ) : (
+              <Button variant="outline" onClick={()=>setShowAddTeam(true)} className="py-2 px-3 text-xs w-full md:w-auto flex items-center justify-center gap-2">
+                <span className="text-emerald-400 font-bold">+</span> Inserir Time
+              </Button>
+            )}
+          </div>
+        )}
       </div>
       
-      <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800 overflow-x-auto custom-scrollbar">
-        <button onClick={()=>setSubTab('overview')} className={`flex-1 min-w-[120px] py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Tabela & Jogos</button>
-        <button onClick={()=>setSubTab('stats')} className={`flex-1 min-w-[100px] py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Estatísticas</button>
-        {comp.isPaid && isAdmin && (
-          <button onClick={()=>setSubTab('finance')} className={`flex-1 min-w-[100px] py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='finance'?'bg-amber-500 text-slate-900 shadow-md':'text-slate-500 hover:text-white'}`}>💰 Financeiro</button>
-        )}
+      <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800">
+        <button onClick={()=>setSubTab('overview')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Tabela & Jogos</button>
+        <button onClick={()=>setSubTab('stats')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Estatísticas</button>
       </div>
       
       <div className="space-y-8 mt-4">
@@ -709,8 +803,16 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </div>
             
             <div className="space-y-3 pt-4 border-t border-slate-800/50">
-              <h3 className="text-lg font-bold text-white mb-4 pl-2">Rodadas e Confrontos</h3>
-              
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-4 pl-2">
+                <h3 className="text-lg font-bold text-white">Rodadas e Confrontos</h3>
+                {/* Botão de Auto-Migração para Formato de Grupos */}
+                {isAdmin && comp.format === 'groups' && (
+                  <Button onClick={handleAutoMigrateKnockout} className="text-[10px] py-1.5 px-3 bg-blue-600 hover:bg-blue-500 text-white border-0 shadow-lg" variant="outline">
+                    🔄 Migrar Classificados para Mata-Mata
+                  </Button>
+                )}
+              </div>
+
               {(comp.rounds || []).map((round) => {
                 const isExpanded = expandedRoundId === round.id;
                 return (
@@ -736,30 +838,26 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                           <h4 className="text-center font-bold text-white mb-4 text-xs uppercase tracking-widest">{comp.name} <span className="text-emerald-400">• Rodada {round.number}</span></h4>
                           
                           {(round?.matches || []).map((m) => {
-                            let autoTeamA = m.teamA;
-                            let autoTeamB = m.teamB;
-                            if (!autoTeamA && m.placeholderA && resolvedQualifiers[m.placeholderA]) autoTeamA = resolvedQualifiers[m.placeholderA];
-                            if (!autoTeamB && m.placeholderB && resolvedQualifiers[m.placeholderB]) autoTeamB = resolvedQualifiers[m.placeholderB];
-
-                            const tA = getTeam(autoTeamA); const tB = getTeam(autoTeamB); const sUI = getMatchStatusDisplay(m.id);
+                            const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                             
+                            // MODO EDIÇÃO DO CONFRONTO
                             if (editMatchData?.id === m.id) {
                               return (
                                 <div key={m.id} className="bg-slate-900 p-3 rounded-lg border border-emerald-500/50 flex flex-col gap-3 shadow-lg">
                                   <div className="flex items-center gap-2">
                                     <select value={editMatchData.teamA || ''} onChange={e=>setEditMatchData({...editMatchData, teamA: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
-                                      <option value="">{m.placeholderA || 'Equipe A'}</option>
+                                      <option value="">{m.placeholderA || 'Selecione a Equipe A'}</option>
                                       {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                     </select>
                                     <span className="font-bold text-slate-500 text-xs">X</span>
                                     <select value={editMatchData.teamB || ''} onChange={e=>setEditMatchData({...editMatchData, teamB: e.target.value})} className="flex-1 bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none">
-                                      <option value="">{m.placeholderB || 'Equipe B'}</option>
+                                      <option value="">{m.placeholderB || 'Selecione a Equipe B'}</option>
                                       {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                     </select>
                                   </div>
                                   <div className="flex justify-end gap-2">
                                     <Button variant="outline" onClick={()=>setEditMatchData(null)} className="py-1 px-3 text-[10px]">Cancelar</Button>
-                                    <Button onClick={saveMatchEdit} className="py-1 px-3 text-[10px]">Salvar Manual</Button>
+                                    <Button onClick={saveMatchEdit} className="py-1 px-3 text-[10px]">Salvar</Button>
                                   </div>
                                 </div>
                               );
@@ -778,8 +876,9 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                     <span className="truncate font-bold text-slate-200">{tB?.name || m.placeholderB}</span>
                                   </div>
                                 </div>
+                                {/* Botão de Editar Confronto (Apenas Líderes) */}
                                 {isAdmin && (
-                                  <button onClick={(e) => { e.stopPropagation(); setEditMatchData({ ...m, teamA: autoTeamA, teamB: autoTeamB, roundId: round.id }); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-emerald-400 p-2 bg-slate-950 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10" title="Editar Confronto Manualmente">
+                                  <button onClick={(e) => { e.stopPropagation(); setEditMatchData({ ...m, roundId: round.id }); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-emerald-400 p-2 bg-slate-950 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10" title="Editar Confronto">
                                     <Edit size={14} />
                                   </button>
                                 )}
@@ -798,6 +897,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
         {subTab === 'stats' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
+            {/* Bloco de Artilharia (Continua igual) */}
             <div className="space-y-2">
               <div className="flex justify-between items-end mb-2">
                 <h3 className="text-lg font-bold text-white pl-2">Top Goleadores</h3>
@@ -826,6 +926,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
               </div>
             </div>
 
+            {/* Bloco de Assistências (Continua igual) */}
             <div className="space-y-2">
               <div className="flex justify-between items-end mb-2">
                 <h3 className="text-lg font-bold text-white pl-2">Top Garçons</h3>
@@ -853,68 +954,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 </div>
               </div>
             </div>
-          </div>
-        )}
 
-        {subTab === 'finance' && comp.isPaid && isAdmin && (
-          <div className="space-y-6 animate-in slide-in-from-bottom-4">
-            
-            {/* O Cofre (Visão Geral) */}
-            <div className="bg-slate-900 p-6 rounded-2xl border border-amber-500/40 relative overflow-hidden shadow-xl">
-              <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><span className="text-8xl">💰</span></div>
-              <h3 className="text-amber-500 font-black text-xs uppercase tracking-widest mb-1 flex items-center gap-2"><Award size={14}/> Cofre do Campeonato</h3>
-              <div className="flex items-end gap-2 mb-6">
-                <span className="text-4xl font-black text-white">
-                  R$ {( (comp.teams || []).filter(tid => comp.payments?.[tid]?.status === 'approved').length * (Number(comp.entryFee) || 0) ).toFixed(2)}
-                </span>
-                <span className="text-slate-400 text-xs mb-1.5 font-bold uppercase">arrecadados</span>
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 border-t border-slate-800 pt-5">
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center"><p className="text-[10px] text-slate-500 uppercase font-bold mb-1">🥇 1º Lugar</p><p className="font-black text-emerald-400 text-lg">R$ {Number(comp.prizes?.first || 0).toFixed(2)}</p></div>
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center"><p className="text-[10px] text-slate-500 uppercase font-bold mb-1">🥈 2º Lugar</p><p className="font-black text-slate-300 text-lg">R$ {Number(comp.prizes?.second || 0).toFixed(2)}</p></div>
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center"><p className="text-[10px] text-slate-500 uppercase font-bold mb-1">🥉 3º Lugar</p><p className="font-black text-amber-600 text-lg">R$ {Number(comp.prizes?.third || 0).toFixed(2)}</p></div>
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center"><p className="text-[10px] text-slate-500 uppercase font-bold mb-1">🎟️ Passes</p><p className="font-black text-blue-400 text-lg">{comp.prizes?.passesCount || 0} Sort.</p></div>
-              </div>
-            </div>
-
-            {/* Lista de Pagamentos / Validação */}
-            <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
-              <div className="p-4 border-b border-slate-800 bg-slate-950/50"><h3 className="font-bold text-white flex items-center gap-2"><CheckCircle size={16} className="text-emerald-500"/> Validação de Inscrições</h3></div>
-              <div className="divide-y divide-slate-800/50">
-                {(comp.teams || []).map(tid => {
-                  const team = getTeam(tid);
-                  const pStatus = comp.payments?.[tid]?.status;
-                  const proof = comp.payments?.[tid]?.proof;
-
-                  return (
-                    <div key={tid} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-950/40 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <ShieldDisplay shield={team?.shield} size="small" />
-                        <div>
-                          <p className="font-bold text-slate-200">{team?.name}</p>
-                          <p className="text-[10px] text-slate-500">Téc: {team?.coach}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                        {pStatus === 'approved' ? (
-                          <span className="text-xs bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg font-bold border border-emerald-500/20 w-full md:w-auto text-center"><CheckCircle size={14} className="inline mr-1"/> Confirmado</span>
-                        ) : pStatus === 'pending' ? (
-                          <div className="flex items-center gap-2 w-full md:w-auto">
-                            <a href={proof} target="_blank" rel="noreferrer" className="flex-1 md:flex-none text-center text-xs bg-slate-800 text-slate-300 hover:text-white px-3 py-2 rounded-lg font-medium transition-colors border border-slate-700">Ver Print</a>
-                            <button onClick={()=>{const uc={...comp, payments: {...comp.payments}}; uc.payments[tid].status='approved'; onEditComp(uc);}} className="flex-1 md:flex-none text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg font-bold transition-colors">Aprovar</button>
-                            <button onClick={()=>{if(window.confirm('Recusar este PIX?')){const uc={...comp, payments: {...comp.payments}}; delete uc.payments[tid]; onEditComp(uc);}}} className="flex-1 md:flex-none text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 px-3 py-2 rounded-lg font-bold transition-colors">Recusar</button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-600 font-medium italic w-full md:w-auto text-right">Aguardando Envio...</span>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
           </div>
         )}
       </div>
@@ -922,24 +962,13 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   );
 };
 
-const CreateCompetition = ({ teams, currentUser, onCreate }) => {
+const CreateCompetition = ({ teams, onCreate }) => {
   const [name, setName] = useState('');
   const [format, setFormat] = useState('league');
   const [teamCount, setTeamCount] = useState('');
   const [numGroups, setNumGroups] = useState('2');
   const [qualifiers, setQualifiers] = useState('2');
-  const [isDoubleRound, setIsDoubleRound] = useState(false);
   const [deadline, setDeadline] = useState('');
-  
-  // NOVOS ESTADOS FINANCEIROS
-  const [isPaid, setIsPaid] = useState(false);
-  const [entryFee, setEntryFee] = useState('');
-  const [pixKey, setPixKey] = useState('');
-  const [prize1st, setPrize1st] = useState('');
-  const [prize2nd, setPrize2nd] = useState('');
-  const [prize3rd, setPrize3rd] = useState('');
-  const [passesToRaffle, setPassesToRaffle] = useState('');
-
   const [selectedTeams, setSelectedTeams] = useState([]);
   const [error, setError] = useState('');
 
@@ -950,9 +979,8 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
-    if (selectedTeams.length !== parseInt(teamCount)) { setError(`Atenção: O formato exige ${teamCount} times, mas você selecionou ${selectedTeams.length}.`); return; }
-    if (isPaid && (!entryFee || !pixKey || !prize1st || !prize2nd)) { setError('Em torneios pagos, preencha a taxa, a chave PIX e os prêmios do 1º e 2º lugar.'); return; }
+    if (!name || !format || !teamCount || !deadline) { setError('Preencha todos os campos do formulário.'); return; }
+    if (selectedTeams.length !== parseInt(teamCount)) { setError(`Atenção: O formato exige ${teamCount} times, mas selecionou ${selectedTeams.length}.`); return; }
 
     setError('');
     const compId = `c${Date.now()}`;
@@ -960,120 +988,66 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
     let groupsData = null;
 
     if (format === 'groups') {
-      const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound);
+      const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers));
       finalRounds = res.rounds;
       groupsData = res.groups;
     } else if (format === 'cup') {
       finalRounds = generateCupBracket(selectedTeams, compId);
     } else {
-      finalRounds = generateRoundRobin(selectedTeams, compId, isDoubleRound);
+      finalRounds = generateRoundRobin(selectedTeams, compId);
     }
 
-    // Estrutura de dados aprimorada
-    const newComp = { 
+    onCreate({ 
       id: compId, name, format, deadline, status: 'active', teams: selectedTeams, rounds: finalRounds,
-      createdBy: currentUser?.name || 'Desconhecido',
-      ...(groupsData && { groups: groupsData, qualifiersPerGroup: parseInt(qualifiers) }),
-      // Adicionando os dados financeiros se for pago
-      isPaid: isPaid,
-      ...(isPaid && {
-        entryFee: parseFloat(entryFee),
-        pixKey: pixKey,
-        prizes: {
-          first: parseFloat(prize1st),
-          second: parseFloat(prize2nd),
-          third: prize3rd ? parseFloat(prize3rd) : 0,
-          passesCount: passesToRaffle ? parseInt(passesToRaffle) : 0
-        }
-      })
-    };
-
-    onCreate(newComp);
+      ...(groupsData && { groups: groupsData, qualifiersPerGroup: parseInt(qualifiers) })
+    });
   };
 
   return (
-    <div className="max-w-3xl mx-auto animate-in fade-in pb-12">
+    <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><PlusCircle className="text-emerald-500"/> Nova Competição</h2>
-      
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800 space-y-6">
         {error && <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3"><AlertCircle size={20} /><p className="text-sm font-medium">{error}</p></div>}
-        
-        {/* BLOCO 1: DADOS BÁSICOS */}
-        <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800">
-          <h3 className="text-lg font-bold text-emerald-400 mb-4 flex items-center gap-2"><Trophy size={18}/> Estrutura do Torneio</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Nome do Campeonato</label><input type="text" placeholder="Ex: Liga de Inverno" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Formato</label>
-              <select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
-                <option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option>
-              </select>
-            </div>
-            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Qtd. de Times</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Prazo de Conclusão</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-            
-            {format !== 'cup' && (
-              <div className="space-y-2 flex items-center gap-2 mt-4 col-span-1 md:col-span-2 bg-slate-950 p-4 rounded-lg border border-slate-800">
-                <input type="checkbox" id="isDoubleRound" checked={isDoubleRound} onChange={e=>setIsDoubleRound(e.target.checked)} className="w-5 h-5 accent-emerald-500 cursor-pointer" />
-                <label htmlFor="isDoubleRound" className="text-sm font-bold text-slate-300 cursor-pointer">Jogos com Turno e Returno (Ida e Volta)</label>
-              </div>
-            )}
-
-            {format === 'groups' && (
-              <><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Quantidade de Grupos</label>
-                  <select value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="2">2 Grupos</option><option value="4">4 Grupos</option><option value="8">8 Grupos</option></select>
-                </div><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Classificados por Grupo</label>
-                  <select value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="1">1 Time</option><option value="2">2 Times</option><option value="4">4 Times</option></select>
-                </div></>
-            )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Nome do Campeonato</label><input type="text" placeholder="Ex: Copa da Amazônia" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Formato</label>
+            <select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
+              <option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option>
+            </select>
           </div>
-        </div>
-
-        {/* BLOCO 2: FINANCEIRO E PREMIAÇÃO */}
-        <div className={`p-6 md:p-8 rounded-2xl border transition-colors ${isPaid ? 'bg-amber-500/5 border-amber-500/40' : 'bg-slate-900 border-slate-800'}`}>
-          <div className="flex items-center justify-between mb-6">
-             <h3 className={`text-lg font-bold flex items-center gap-2 ${isPaid ? 'text-amber-400' : 'text-slate-300'}`}>🤑 Torneio Premium (Pago)</h3>
-             <label className="relative inline-flex items-center cursor-pointer">
-               <input type="checkbox" checked={isPaid} onChange={e=>setIsPaid(e.target.checked)} className="sr-only peer" />
-               <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-             </label>
-          </div>
-          
-          {isPaid && (
-            <div className="space-y-6 animate-in slide-in-from-top-2">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2"><label className="text-sm font-bold text-amber-400">Valor da Inscrição (R$)</label><input type="number" placeholder="Ex: 10.00" value={entryFee} onChange={e=>setEntryFee(e.target.value)} className="w-full bg-slate-950 border border-amber-500/30 rounded-lg p-3 text-white outline-none" required={isPaid} /></div>
-                <div className="space-y-2"><label className="text-sm font-bold text-amber-400">Sua Chave PIX</label><input type="text" placeholder="Celular, CPF ou E-mail" value={pixKey} onChange={e=>setPixKey(e.target.value)} className="w-full bg-slate-950 border border-amber-500/30 rounded-lg p-3 text-white outline-none" required={isPaid} /></div>
-              </div>
-
-              <div className="pt-4 border-t border-amber-500/20">
-                <h4 className="text-sm font-bold text-slate-300 mb-4">🏆 Distribuição dos Prêmios (Valores Fixos)</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2"><label className="text-xs text-slate-400">🥇 1º Lugar (R$)</label><input type="number" placeholder="Ex: 150.00" value={prize1st} onChange={e=>setPrize1st(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none" required={isPaid} /></div>
-                  <div className="space-y-2"><label className="text-xs text-slate-400">🥈 2º Lugar (R$)</label><input type="number" placeholder="Ex: 50.00" value={prize2nd} onChange={e=>setPrize2nd(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none" required={isPaid} /></div>
-                  <div className="space-y-2"><label className="text-xs text-slate-400">🥉 3º Lugar (Opcional)</label><input type="number" placeholder="Ex: 20.00" value={prize3rd} onChange={e=>setPrize3rd(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none" /></div>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-amber-500/20">
-                <h4 className="text-sm font-bold text-slate-300 mb-2">🎟️ Sorteio de Passes de Temporada</h4>
-                <p className="text-[10px] text-slate-500 mb-3">Estes passes (R$ 9,90 cada) serão sorteados automaticamente entre os times que não entrarem no Top 3 ao encerrar o campeonato.</p>
-                <div className="space-y-2"><label className="text-xs text-slate-400">Quantidade de Passes Sorteados</label><input type="number" placeholder="Ex: 2" value={passesToRaffle} onChange={e=>setPassesToRaffle(e.target.value)} className="w-full md:w-1/3 bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none" /></div>
-              </div>
-            </div>
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Qtd. de Times</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Prazo de Conclusão</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+          {format === 'groups' && (
+            <><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Quantidade de Grupos</label>
+                <select value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="2">2 Grupos</option><option value="4">4 Grupos</option><option value="8">8 Grupos</option></select>
+              </div><div className="space-y-2"><label className="text-sm font-medium text-slate-400">Classificados por Grupo</label>
+                <select value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="1">1 Time</option><option value="2">2 Times</option><option value="4">4 Times</option></select>
+              </div></>
           )}
         </div>
-
-        {/* BLOCO 3: SELEÇÃO DE TIMES */}
-        <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800">
-          <div className="flex justify-between items-end mb-4"><label className="text-sm font-medium text-slate-400">Selecione as Equipes ({selectedTeams.length} marcadas)</label></div>
-          {teams.length === 0 ? <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado.</p> : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="pt-4 border-t border-slate-800">
+          <div className="flex justify-between items-end mb-4">
+            <label className="text-sm font-medium text-slate-400">Selecione as Equipes ({selectedTeams.length} marcadas)</label>
+          </div>
+          
+          {teams.length === 0 ? (
+            <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado.</p>
+          ) : (
+            <div className="bg-slate-950 border border-slate-800 p-2 rounded-xl max-h-60 overflow-y-auto space-y-1 custom-scrollbar">
               {teams.map(team => { 
                 const isSelected = selectedTeams.includes(team.id); 
                 return ( 
-                  <div key={team.id} onClick={() => toggleTeam(team.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-slate-950 border-slate-800 hover:border-slate-600'}`}>
-                    <ShieldDisplay shield={team.shield} size="small" />
-                    <span className={`font-medium text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{team.name}</span>
+                  <div 
+                    key={team.id} 
+                    onClick={() => toggleTeam(team.id)} 
+                    className={`cursor-pointer flex flex-col justify-center px-4 py-2.5 rounded-lg border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-transparent border-transparent hover:bg-slate-900'}`}
+                  >
+                    <span className={`font-bold text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>
+                      {team.name}
+                    </span>
+                    <span className={`text-[11px] truncate ${isSelected ? 'text-emerald-600/80' : 'text-slate-500'}`}>
+                      Técnico: {team.coach || 'Sem técnico'}
+                    </span>
                   </div> 
                 ); 
               })}
@@ -1081,122 +1055,27 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
           )}
         </div>
         
-        <Button type="submit" className={`w-full py-5 text-lg font-black mt-4 ${isPaid ? 'bg-amber-500 hover:bg-amber-400 text-slate-950' : ''}`}>
-          {isPaid ? '💰 Confirmar Torneio Premiado' : 'Criar Campeonato'}
-        </Button>
+        <Button type="submit" className="w-full py-4 text-lg mt-4">Criar Campeonato</Button>
       </form>
     </div>
   );
 };
 
-const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp, onEditComp, showToast }) => {
+const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-  const userTeams = (teams || []).filter(t => t && t.ownerId === currentUser?.id);
-  const userTeamIds = userTeams.map(t => t.id);
+  const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
   const visible = (competitions || []).filter(c => c && (isAdmin || c.teams?.some(t => userTeamIds.includes(t))));
-
-  const [payComp, setPayComp] = useState(null);
-  const [payTeamId, setPayTeamId] = useState('');
-  const [proof, setProof] = useState(null);
-
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => setProof(reader.result);
-    reader.readAsDataURL(file);
-  };
-
-  const handlePaySubmit = (e) => {
-    e.preventDefault();
-    if (!proof || !payTeamId) return;
-    const updatedComp = { ...payComp, payments: { ...(payComp.payments || {}) } };
-    updatedComp.payments[payTeamId] = { status: 'pending', proof: proof };
-    onEditComp(updatedComp);
-    setPayComp(null);
-    setProof(null);
-    if(showToast) showToast("Comprovante enviado! Aguarde a aprovação.", "success");
-  };
-
   return (
-    <div className="space-y-4 animate-in fade-in pb-10">
+    <div className="space-y-4 animate-in fade-in">
       <div className="flex items-center gap-2 mb-4"><Medal className="text-emerald-500"/><h2 className="text-xl font-bold text-white">Campeonatos Ativos</h2></div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {visible.map(c => {
-          const myTeamInComp = userTeams.find(t => c.teams?.includes(t.id));
-          const paymentStatus = myTeamInComp ? c.payments?.[myTeamInComp.id]?.status : null;
-          
-          return (
-            <div key={c.id} onClick={()=>onSelectComp(c.id)} className={`bg-slate-900 p-5 rounded-2xl border ${c.isPaid ? 'border-amber-500/40 hover:border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.05)]' : 'border-slate-800 hover:border-emerald-500/40'} transition-all cursor-pointer flex flex-col group relative overflow-hidden`}>
-              {c.isPaid && <div className="absolute top-0 right-0 bg-amber-500 text-slate-900 text-[9px] font-black px-3 py-1 rounded-bl-lg uppercase tracking-widest shadow-md">Premium</div>}
-              
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors pr-12">{String(c.name)}</h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {c.teams?.length || 0} Clubes inscritos
-                    {c.createdBy && <span className="block mt-0.5 text-slate-400">👤 Resp: {c.createdBy}</span>}
-                  </p>
-                </div>
-                {isAdmin && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>}
-              </div>
-              
-              {/* Bloco Financeiro para o Técnico */}
-              {c.isPaid && myTeamInComp && !isAdmin && (
-                <div className="mt-4 pt-4 border-t border-slate-800 flex justify-between items-center">
-                  <span className="text-xs font-bold text-amber-400">Taxa: R$ {Number(c.entryFee || 0).toFixed(2)}</span>
-                  {paymentStatus === 'approved' ? (
-                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded font-bold flex items-center gap-1"><CheckCircle size={12}/> Confirmado</span>
-                  ) : paymentStatus === 'pending' ? (
-                    <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-1 rounded font-bold flex items-center gap-1"><AlertCircle size={12}/> Em Análise</span>
-                  ) : (
-                    <Button onClick={(e) => { e.stopPropagation(); setPayComp(c); setPayTeamId(myTeamInComp.id); setProof(null); }} className="py-1 px-3 text-[10px] bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-lg font-black">💰 Pagar Inscrição</Button>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Modal de Pagamento PIX */}
-      {payComp && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setPayComp(null)}>
-          <div className="bg-slate-900 border border-amber-500/50 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="bg-amber-500 p-4 text-center">
-              <h3 className="font-black text-slate-900 text-lg uppercase tracking-widest flex justify-center items-center gap-2">💰 Inscrição Premium</h3>
-            </div>
-            <form onSubmit={handlePaySubmit} className="p-6 space-y-6">
-              <div className="text-center space-y-2">
-                <p className="text-slate-400 text-sm">Valor da Inscrição</p>
-                <p className="text-4xl font-black text-white">R$ {Number(payComp.entryFee || 0).toFixed(2)}</p>
-              </div>
-              
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                <p className="text-xs text-slate-500 mb-2">Chave PIX do Tesoureiro</p>
-                <p className="text-lg font-mono font-bold text-emerald-400 select-all bg-slate-900 py-2 rounded-lg border border-emerald-500/20">{payComp.pixKey}</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">Comprovante de Pagamento</label>
-                <label className={`block border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer ${proof ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 hover:border-slate-500 bg-slate-950'}`}>
-                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                  {proof ? (
-                    <div className="flex flex-col items-center space-y-2"><CheckCircle className="text-emerald-500" size={32} /><p className="text-emerald-400 font-medium text-xs">Comprovante anexado!</p></div>
-                  ) : (
-                    <div className="flex flex-col items-center space-y-2"><UploadCloud className="text-slate-500" size={32} /><p className="text-white font-medium text-xs">Clique para anexar o print</p></div>
-                  )}
-                </label>
-              </div>
-
-              <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={() => setPayComp(null)} className="flex-1">Cancelar</Button>
-                <Button type="submit" disabled={!proof} className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold">Enviar Comprovante</Button>
-              </div>
-            </form>
+        {visible.map(c => (
+          <div key={c.id} onClick={()=>onSelectComp(c.id)} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 hover:border-emerald-500/40 transition-all cursor-pointer flex justify-between items-center group">
+            <div><h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors">{String(c.name)}</h3><p className="text-xs text-slate-500 mt-1">{c.teams?.length || 0} Clubes inscritos</p></div>
+            {isAdmin && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>}
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 };
@@ -2033,7 +1912,7 @@ export default function App() {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
-      case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={id=>{setSelectedCompId(id); setCurrentTab('comp_details');}} onDeleteComp={handleDeleteComp} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); }} showToast={showToast} />;
+      case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} showToast={showToast} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(isLeaderOrKaioh ? 'validation' : 'dashboard'); })} />;
