@@ -167,7 +167,7 @@ const LoginScreen = ({ onLogin, onRegister }) => {
   );
 };
 
-const Profile = ({ currentUser, teams, matches, competitions, onEditTeam }) => { 
+const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpdateUserPhoto }) => { 
   const userTeams = teams.filter(t => t.ownerId === currentUser.id);
 
   if (userTeams.length === 0) {
@@ -183,7 +183,19 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam }) => {
   return (
     <div className="animate-in fade-in duration-500 space-y-6">
       <div className="flex items-center gap-4 bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-lg">
-        <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center text-3xl border-2 border-emerald-500/30">👤</div>
+        <label className="cursor-pointer relative group flex flex-col items-center shrink-0" title="Clique para trocar sua foto">
+          <div className="relative w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center text-3xl border-2 border-emerald-500/30 overflow-hidden shadow-lg">
+            {currentUser.photoURL ? <img src={currentUser.photoURL} alt="Perfil" className="w-full h-full object-cover" /> : <span>👤</span>}
+            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <UploadCloud size={20} className="text-white" />
+            </div>
+          </div>
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+            processImage(e.target.files[0], (base64) => {
+              if (onUpdateUserPhoto) onUpdateUserPhoto(base64);
+            });
+          }} />
+        </label>
         <div>
           <h2 className="text-2xl font-bold text-white">{currentUser.name}</h2>
           <p className="text-emerald-400 font-bold tracking-widest text-xs uppercase mt-1">{ROLE_NAMES[currentUser.role] || 'Membro'}</p>
@@ -1990,7 +2002,7 @@ export default function App() {
   const renderContent = () => {
     switch (currentTab) {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
-      case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} />;
+      case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onUpdateUserPhoto={async (url) => { await updateDoc(getPublicDocPath('users', currentUser.id), { photoURL: url }); setCurrentUser(prev => ({...prev, photoURL: url})); }} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} showToast={showToast} />;
