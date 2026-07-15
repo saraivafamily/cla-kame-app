@@ -1031,7 +1031,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const [isDoubleRound, setIsDoubleRound] = useState(false);
   const [deadline, setDeadline] = useState('');
   
-  // NOVOS ESTADOS FINANCEIROS
   const [isPaid, setIsPaid] = useState(false);
   const [entryFee, setEntryFee] = useState('');
   const [pixKey, setPixKey] = useState('');
@@ -1048,11 +1047,11 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
     else setSelectedTeams([...selectedTeams, teamId]);
   };
 
- const handleSubmit = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
     
-    // AQUI ESTÁ A MUDANÇA: Agora ele só bloqueia se você selecionar MAIS times do que o limite, mas permite selecionar MENOS!
+    // BLOQUEIO INTELIGENTE: Permite escolher menos times, mas barra se escolher mais do que as vagas.
     if (selectedTeams.length > parseInt(teamCount)) { setError(`Atenção: Você selecionou mais times do que o limite de ${teamCount} vagas.`); return; }
     
     if (isPaid && (!entryFee || !pixKey || !prize1st || !prize2nd)) { setError('Em torneios pagos, preencha a taxa, a chave PIX e os prêmios do 1º e 2º lugar.'); return; }
@@ -1060,7 +1059,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
     setError('');
     const compId = `c${Date.now()}`;
     
-    // MÁGICA DAS VAGAS ABERTAS: Preenche os espaços vazios com códigos de vagas
+    // MÁGICA DAS VAGAS ABERTAS: Preenche os buracos automaticamente
     const targetCount = parseInt(teamCount);
     const finalSelectedTeams = [...selectedTeams];
     let tbdCount = 1;
@@ -1109,7 +1108,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3"><AlertCircle size={20} /><p className="text-sm font-medium">{error}</p></div>}
         
-        {/* BLOCO 1: DADOS BÁSICOS */}
         <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800">
           <h3 className="text-lg font-bold text-emerald-400 mb-4 flex items-center gap-2"><Trophy size={18}/> Estrutura do Torneio</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1119,7 +1117,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
                 <option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option>
               </select>
             </div>
-            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Qtd. de Times</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Qtd. de Vagas Totais</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Prazo de Conclusão</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             
             {format !== 'cup' && (
@@ -1139,7 +1137,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
           </div>
         </div>
 
-        {/* BLOCO 2: FINANCEIRO E PREMIAÇÃO */}
         <div className={`p-6 md:p-8 rounded-2xl border transition-colors ${isPaid ? 'bg-amber-500/5 border-amber-500/40' : 'bg-slate-900 border-slate-800'}`}>
           <div className="flex items-center justify-between mb-6">
              <h3 className={`text-lg font-bold flex items-center gap-2 ${isPaid ? 'text-amber-400' : 'text-slate-300'}`}>🤑 Torneio Premium (Pago)</h3>
@@ -1174,9 +1171,10 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
           )}
         </div>
 
-        {/* BLOCO 3: SELEÇÃO DE TIMES */}
         <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800">
-          <div className="flex justify-between items-end mb-4"><label className="text-sm font-medium text-slate-400">Selecione as Equipes ({selectedTeams.length} marcadas)</label></div>
+          <div className="flex justify-between items-end mb-4">
+            <label className="text-sm font-medium text-slate-400">Selecione as Equipes Confirmadas ({selectedTeams.length} marcadas)</label>
+          </div>
           {teams.length === 0 ? <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado.</p> : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {teams.map(team => { 
