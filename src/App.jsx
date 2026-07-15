@@ -484,7 +484,19 @@ const TeamsList = ({ teams, users, currentUser, matches, onEditTeam }) => {
                       <input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} placeholder="Time" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500" />
                       <input type="text" value={editData.coach} onChange={e=>setEditData({...editData, coach: e.target.value})} placeholder="Técnico" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500" />
                       <input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} placeholder="WhatsApp" className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500" />
-                      <select value={editData.ownerId} onChange={e=>setEditData({...editData, ownerId: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500">
+                      <select value={editData.ownerId} onChange={e => {
+                        const newOwnerId = e.target.value;
+                        if (newOwnerId === 'manual') {
+                          setEditData({ ...editData, ownerId: newOwnerId });
+                        } else {
+                          const linkedU = (users || []).find(u => u.id === newOwnerId);
+                          if (linkedU) {
+                            setEditData({ ...editData, ownerId: newOwnerId, coach: linkedU.name, whatsapp: linkedU.whatsapp });
+                          } else {
+                            setEditData({ ...editData, ownerId: newOwnerId });
+                          }
+                        }
+                      }} className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-white text-[10px] md:text-xs outline-none focus:border-emerald-500">
                         <option value="manual">👤 Conta Manual</option>
                         {(users || []).map(u => <option key={u.id} value={u.id}>📱 Vincular: {u.name}</option>)}
                       </select>
