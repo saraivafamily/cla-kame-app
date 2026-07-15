@@ -167,7 +167,7 @@ const LoginScreen = ({ onLogin, onRegister }) => {
   );
 };
 
-const Profile = ({ currentUser, teams, matches, competitions }) => {
+const Profile = ({ currentUser, teams, matches, competitions, onEditTeam }) => { 
   const userTeams = teams.filter(t => t.ownerId === currentUser.id);
 
   if (userTeams.length === 0) {
@@ -220,7 +220,19 @@ const Profile = ({ currentUser, teams, matches, competitions }) => {
           return (
             <div key={team.id} className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
               <div className="bg-slate-950/80 p-6 border-b border-slate-800 flex items-center gap-4">
-                <span className="text-5xl"><ShieldDisplay shield={team.shield} size="large" /></span>
+               <label className="cursor-pointer relative group flex flex-col items-center" title="Clique para trocar o escudo">
+                  <div className="relative">
+                    <span className="text-5xl"><ShieldDisplay shield={team.shield} size="large" /></span>
+                    <div className="absolute -bottom-1 -right-2 bg-emerald-600 rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all flex items-center justify-center">
+                      <UploadCloud size={14} className="text-white" />
+                    </div>
+                  </div>
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                    processImage(e.target.files[0], (base64) => {
+                      if (onEditTeam) onEditTeam({...team, shield: base64});
+                    });
+                  }} />
+                </label>
                 <div><h3 className="text-2xl font-bold text-white">{team.name}</h3><p className="text-slate-400 text-sm">Técnico: <span className="text-slate-200 font-bold">{team.coach}</span></p></div>
               </div>
 
@@ -1978,7 +1990,7 @@ export default function App() {
   const renderContent = () => {
     switch (currentTab) {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
-      case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} />;
+      case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} showToast={showToast} />;
