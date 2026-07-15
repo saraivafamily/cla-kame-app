@@ -600,9 +600,17 @@ const Standings = ({ matches, teams, comp }) => {
                     <tbody className="divide-y divide-slate-800/50">
                       {gTable.map((row, index) => {
                         const isQualified = index < (comp.qualifiersPerGroup || 2);
+                        // Se o grupo tiver 4 times ou mais, os 2 últimos ficam vermelhos. Se for menor, só o último.
+                        const isBottom = index >= gTable.length - (gTable.length >= 4 ? 2 : 1);
+                        
+                        // Lógica das Barrinhas e Cores
+                        const borderClass = isQualified ? 'border-l-4 border-emerald-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
+                        const bgClass = isQualified ? 'bg-emerald-500/5' : (isBottom ? 'bg-red-500/5' : '');
+                        const textNumberClass = isQualified ? 'text-emerald-400' : (isBottom ? 'text-red-400' : 'text-slate-500');
+
                         return (
-                          <tr key={row.id} className={`hover:bg-slate-800/50 transition-colors ${isQualified ? 'bg-emerald-500/5' : ''}`}>
-                            <td className={`p-4 text-center font-bold ${isQualified ? 'text-emerald-400' : 'text-slate-500'}`}>{index + 1}</td>
+                          <tr key={row.id} className={`hover:bg-slate-800/50 transition-colors ${borderClass} ${bgClass}`}>
+                            <td className={`p-4 text-center font-bold ${textNumberClass}`}>{index + 1}</td>
                             <td className="p-4 font-medium text-white flex items-center gap-2"><ShieldDisplay shield={row.shield} size="small" /> {String(row.name)}</td>
                             <td className="p-4 text-center font-bold text-emerald-400">{row.pts}</td><td className="p-4 text-center text-slate-300">{row.p}</td><td className="p-4 text-center text-slate-300">{row.w}</td><td className="p-4 text-center text-slate-300">{row.d}</td><td className="p-4 text-center text-slate-300">{row.l}</td><td className="p-4 text-center text-slate-400">{row.gf}</td><td className="p-4 text-center text-slate-400">{row.ga}</td><td className="p-4 text-center text-slate-400 font-medium">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
                           </tr>
@@ -622,13 +630,28 @@ const Standings = ({ matches, teams, comp }) => {
             <tbody className="divide-y divide-slate-800/50">
               {(() => {
                 const table = calculateStandings(matches, teams, comp?.id);
-                return table.filter(t => t.p > 0 || table.length > 0).map((row, index) => (
-                  <tr key={row.id} className="hover:bg-slate-800/50 transition-colors">
-                    <td className="p-4 text-center font-bold text-slate-500">{index + 1}</td>
-                    <td className="p-4 font-medium text-white flex items-center gap-2"><ShieldDisplay shield={row.shield} size="small" /> {String(row.name)}</td>
-                    <td className="p-4 text-center font-bold text-emerald-400">{row.pts}</td><td className="p-4 text-center text-slate-300">{row.p}</td><td className="p-4 text-center text-slate-300">{row.w}</td><td className="p-4 text-center text-slate-300">{row.d}</td><td className="p-4 text-center text-slate-300">{row.l}</td><td className="p-4 text-center text-slate-400">{row.gf}</td><td className="p-4 text-center text-slate-400">{row.ga}</td><td className="p-4 text-center text-slate-400 font-medium">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
-                  </tr>
-                ));
+                const displayTable = table.filter(t => t.p > 0 || table.length > 0);
+                const totalTeams = displayTable.length;
+                // Se a liga tiver mais de 10 times, cai 4 (vermelho). Se for menor, cai 2.
+                const bottomCount = totalTeams > 10 ? 4 : 2; 
+
+                return displayTable.map((row, index) => {
+                  const isTop = index < 4; // G4 sempre verde
+                  const isBottom = index >= totalTeams - bottomCount;
+                  
+                  // Lógica das Barrinhas e Cores
+                  const borderClass = isTop ? 'border-l-4 border-emerald-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
+                  const bgClass = isTop ? 'bg-emerald-500/5' : (isBottom ? 'bg-red-500/5' : '');
+                  const textNumberClass = isTop ? 'text-emerald-400' : (isBottom ? 'text-red-400' : 'text-slate-500');
+
+                  return (
+                    <tr key={row.id} className={`hover:bg-slate-800/50 transition-colors ${borderClass} ${bgClass}`}>
+                      <td className={`p-4 text-center font-bold ${textNumberClass}`}>{index + 1}</td>
+                      <td className="p-4 font-medium text-white flex items-center gap-2"><ShieldDisplay shield={row.shield} size="small" /> {String(row.name)}</td>
+                      <td className="p-4 text-center font-bold text-emerald-400">{row.pts}</td><td className="p-4 text-center text-slate-300">{row.p}</td><td className="p-4 text-center text-slate-300">{row.w}</td><td className="p-4 text-center text-slate-300">{row.d}</td><td className="p-4 text-center text-slate-300">{row.l}</td><td className="p-4 text-center text-slate-400">{row.gf}</td><td className="p-4 text-center text-slate-400">{row.ga}</td><td className="p-4 text-center text-slate-400 font-medium">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
+                    </tr>
+                  );
+                });
               })()}
             </tbody>
           </table>
