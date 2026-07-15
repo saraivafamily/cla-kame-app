@@ -425,7 +425,8 @@ const TeamStatsModal = ({ team, matches, teams, onClose }) => {
   );
 };
 
-const TeamsList = ({ teams, users, currentUser, matches, onEditTeam }) => {
+const TeamsList = ({ teams, users, currentUser, matches, onEditTeam, onDeleteTeam }) => {
+  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', coach: '', whatsapp: '', shield: '', ownerId: 'manual' });
   const [viewMode, setViewMode] = useState('grid');
@@ -523,9 +524,12 @@ const TeamsList = ({ teams, users, currentUser, matches, onEditTeam }) => {
                       <p className="text-[10px] md:text-xs text-slate-400 mt-0.5 truncate"><span className="text-slate-300 font-medium">{String(team.coach || 'Sem técnico')}</span> • {String(team.whatsapp || 'Sem WhatsApp')}</p>
                     </div>
                   </div>
-                  {currentUser?.role === 'leader' && ( 
-                    <button onClick={(e) => { e.stopPropagation(); startEdit(team); }} className="absolute top-3 sm:top-auto sm:relative right-3 sm:right-auto text-slate-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors sm:opacity-0 sm:group-hover:opacity-100 shrink-0 z-10"><Edit size={16} /></button> 
-                  )}
+                  {isAdmin && ( 
+                  <div className="absolute top-2 right-2 flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10">
+                    <button onClick={(e) => { e.stopPropagation(); startEdit(team); }} className="text-slate-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-slate-800" title="Editar"><Edit size={14} /></button> 
+                    <button onClick={(e) => { e.stopPropagation(); if(window.confirm('Tem certeza que deseja apagar este time definitivamente?')) { onDeleteTeam(team.id); } }} className="text-slate-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-slate-800" title="Excluir Time"><Trash2 size={14} /></button>
+                  </div>
+                )}
                   <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-3 text-xs disabled:bg-slate-800 disabled:text-slate-500 shrink-0 z-10" disabled={!team.whatsapp}>
                     <MessageCircle size={16} /> <span className="sm:hidden lg:inline">Chamar</span>
                   </Button>
@@ -535,9 +539,12 @@ const TeamsList = ({ teams, users, currentUser, matches, onEditTeam }) => {
 
             return (
               <div key={safeTeamId} onClick={() => setViewingTeam(team)} className="relative bg-slate-900 p-3 md:p-4 rounded-xl border border-slate-800 hover:border-emerald-500/50 hover:shadow-lg transition-all flex flex-col justify-between gap-3 group cursor-pointer">
-                {currentUser?.role === 'leader' && ( 
-                  <button onClick={(e) => { e.stopPropagation(); startEdit(team); }} className="absolute top-2 right-2 text-slate-500 hover:text-emerald-400 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-slate-800 z-10"><Edit size={14} /></button> 
-                )}
+                {isAdmin && ( 
+                    <div className="absolute top-3 sm:top-auto sm:relative right-3 sm:right-auto flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 shrink-0 z-10">
+                      <button onClick={(e) => { e.stopPropagation(); startEdit(team); }} className="text-slate-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors" title="Editar"><Edit size={16} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); if(window.confirm('Tem certeza que deseja apagar este time definitivamente?')) { onDeleteTeam(team.id); } }} className="text-slate-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors" title="Excluir Time"><Trash2 size={16} /></button>
+                    </div>
+                  )}
                 <div className="flex flex-col items-center text-center gap-2 mt-2">
                   <div className="shrink-0 relative group-hover:scale-105 transition-transform">
                     <ShieldDisplay shield={team.shield} size="normal" />
@@ -2015,7 +2022,7 @@ export default function App() {
     switch (currentTab) {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onUpdateUserPhoto={async (url) => { await updateDoc(getPublicDocPath('users', currentUser.id), { photoURL: url }); setCurrentUser(prev => ({...prev, photoURL: url})); }} />;
-      case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} />;
+      case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} onDeleteTeam={async (id) => { await deleteDoc(getPublicDocPath('teams', id)); showToast("Time excluído com sucesso!", "success"); }} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} showToast={showToast} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
