@@ -661,29 +661,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   
   const getTeam = (id) => (teams || []).find(t => t && t.id === id); 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-
-  const [selectedTeamToFill, setSelectedTeamToFill] = useState('');
-  const tbdSlots = (comp.teams || []).filter(id => String(id).startsWith('tbd_'));
-  const availableTeams = (teams || []).filter(t => t && !(comp.teams || []).includes(t.id));
-
-  const handleFillSlot = () => {
-    if (!selectedTeamToFill) return;
-    const slotId = tbdSlots[0]; 
-    const newTeams = comp.teams.map(id => id === slotId ? selectedTeamToFill : id);
-    let newGroups = comp.groups;
-    if (newGroups) {
-      newGroups = { ...newGroups };
-      Object.keys(newGroups).forEach(g => { newGroups[g] = newGroups[g].map(id => id === slotId ? selectedTeamToFill : id); });
-    }
-    const newRounds = comp.rounds.map(r => ({
-      ...r, matches: r.matches.map(m => ({
-        ...m, teamA: m.teamA === slotId ? selectedTeamToFill : m.teamA, teamB: m.teamB === slotId ? selectedTeamToFill : m.teamB
-      }))
-    }));
-    onEditComp({ ...comp, teams: newTeams, ...(newGroups && { groups: newGroups }), rounds: newRounds });
-    setSelectedTeamToFill('');
-    showToast("Vaga preenchida com sucesso!", "success");
-  };
   
   const getMatchStatusDisplay = (matchId) => {
     const ms = (matches || []).filter(m => m && m.matchId === matchId && m.compId === comp.id && m.status !== 'rejected');
@@ -818,31 +795,14 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     <div className="space-y-6 animate-in fade-in pb-10">
       <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
       
-      <div>
+      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
           <h2 className="text-xl font-bold text-white">{String(comp.name)}</h2>
           <p className="text-xs text-emerald-400 mt-1 uppercase font-bold">
             {comp.format === 'league' ? 'Liga' : comp.format === 'groups' ? 'Fase de Grupos' : 'Mata-Mata'}
+            {comp.createdBy && <span className="text-slate-400 ml-2 normal-case font-medium">• Resp: {comp.createdBy}</span>}
           </p>
         </div>
-      </div>
-      
-      {isAdmin && tbdSlots.length > 0 && (
-        <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl flex flex-col md:flex-row items-center gap-4 justify-between animate-in fade-in">
-          <div>
-            <h4 className="text-amber-400 font-bold text-sm">Vagas Abertas: {tbdSlots.length}</h4>
-            <p className="text-xs text-amber-500/70">Adicione os times confirmados nas vagas que sobraram.</p>
-          </div>
-          <div className="flex w-full md:w-auto gap-2">
-            <select value={selectedTeamToFill} onChange={e=>setSelectedTeamToFill(e.target.value)} className="bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none flex-1 md:w-48">
-              <option value="">Selecione um time...</option>
-              {availableTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-            <Button disabled={!selectedTeamToFill} onClick={handleFillSlot} className="py-2 text-[10px] whitespace-nowrap bg-amber-600 hover:bg-amber-500 text-slate-950 font-black">Ocupar Vaga</Button>
-          </div>
-        </div>
-      )}
-
-      <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800">
         
         {/* NOVO BOTÃO DE INSERIR TIME */}
         {isAdmin && (
@@ -1071,7 +1031,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
     else setSelectedTeams([...selectedTeams, teamId]);
   };
 
-  const handleSubmit = (e) => {
+ const handleSubmit = (e) => {
     e.preventDefault();
     if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
     
@@ -1986,7 +1946,7 @@ export default function App() {
     catch (e) { throw new Error("Acesso negado. Verifique os dados."); }
   };
 
-  const handleApproveUser = async (userId) => {
+  eApproveUser = async (userId) => {
     await updateDoc(getPublicDocPath('users', userId), { status: 'active' });
     showToast("Técnico aprovado com sucesso!", "success");
   };
@@ -2028,7 +1988,7 @@ export default function App() {
     ] : []), // <-- Deixe os colchetes vazios aqui
   ];
 
-  const handleUpdateMatchStatus = async (id, st, updatedData = null) => {
+  eUpdateMatchStatus = async (id, st, updatedData = null) => {
     const updatePayload = { status: st };
     if (updatedData) {
       if (updatedData.scoreA !== undefined) updatePayload.scoreA = parseInt(updatedData.scoreA); if (updatedData.scoreB !== undefined) updatePayload.scoreB = parseInt(updatedData.scoreB);
@@ -2051,7 +2011,7 @@ export default function App() {
     }
   };
 
-  const handleEditUser = async (userId, updatedData) => {
+  eEditUser = async (userId, updatedData) => {
     await updateDoc(getPublicDocPath('users', userId), {
       name: updatedData.name,
       whatsapp: updatedData.whatsapp
