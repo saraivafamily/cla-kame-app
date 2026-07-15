@@ -661,29 +661,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   
   const getTeam = (id) => (teams || []).find(t => t && t.id === id); 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-
-  const [selectedTeamToFill, setSelectedTeamToFill] = useState('');
-  const tbdSlots = (comp.teams || []).filter(id => String(id).startsWith('tbd_'));
-  const availableTeams = (teams || []).filter(t => t && !(comp.teams || []).includes(t.id));
-
-  const handleFillSlot = () => {
-    if (!selectedTeamToFill) return;
-    const slotId = tbdSlots[0]; 
-    const newTeams = comp.teams.map(id => id === slotId ? selectedTeamToFill : id);
-    let newGroups = comp.groups;
-    if (newGroups) {
-      newGroups = { ...newGroups };
-      Object.keys(newGroups).forEach(g => { newGroups[g] = newGroups[g].map(id => id === slotId ? selectedTeamToFill : id); });
-    }
-    const newRounds = comp.rounds.map(r => ({
-      ...r, matches: r.matches.map(m => ({
-        ...m, teamA: m.teamA === slotId ? selectedTeamToFill : m.teamA, teamB: m.teamB === slotId ? selectedTeamToFill : m.teamB
-      }))
-    }));
-    onEditComp({ ...comp, teams: newTeams, ...(newGroups && { groups: newGroups }), rounds: newRounds });
-    setSelectedTeamToFill('');
-    showToast("Vaga preenchida com sucesso!", "success");
-  };
   
   const getMatchStatusDisplay = (matchId) => {
     const ms = (matches || []).filter(m => m && m.matchId === matchId && m.compId === comp.id && m.status !== 'rejected');
@@ -818,30 +795,36 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     <div className="space-y-6 animate-in fade-in pb-10">
       <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
       
-      <div>
+      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
           <h2 className="text-xl font-bold text-white">{String(comp.name)}</h2>
           <p className="text-xs text-emerald-400 mt-1 uppercase font-bold">
             {comp.format === 'league' ? 'Liga' : comp.format === 'groups' ? 'Fase de Grupos' : 'Mata-Mata'}
+            {comp.createdBy && <span className="text-slate-400 ml-2 normal-case font-medium">• Resp: {comp.createdBy}</span>}
           </p>
         </div>
+        
+        {/* NOVO BOTÃO DE INSERIR TIME */}
+        {isAdmin && (
+          <div className="flex gap-2 w-full md:w-auto">
+            {showAddTeam ? (
+              <div className="flex gap-2 w-full animate-in fade-in">
+                <select value={newTeamToAdd} onChange={e=>setNewTeamToAdd(e.target.value)} className="flex-1 md:w-48 bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none">
+                  <option value="">Escolher time...</option>
+                  {availableTeamsToAdd.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <Button onClick={handleAddTeamToComp} className="py-1 px-3 text-xs">Salvar</Button>
+                <Button variant="outline" onClick={()=>{setShowAddTeam(false); setNewTeamToAdd('');}} className="py-1 px-2 text-xs font-bold text-slate-400">X</Button>
+              </div>
+            ) : (
+              <Button variant="outline" onClick={()=>setShowAddTeam(true)} className="py-2 px-3 text-xs w-full md:w-auto flex items-center justify-center gap-2">
+                <span className="text-emerald-400 font-bold">+</span> Inserir Time
+              </Button>
+            )}
+          </div>
+        )}
       </div>
       
-      {isAdmin && tbdSlots.length > 0 && (
-        <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl flex flex-col md:flex-row items-center gap-4 justify-between animate-in fade-in">
-          <div>
-            <h4 className="text-amber-400 font-bold text-sm">Vagas Abertas: {tbdSlots.length}</h4>
-            <p className="text-xs text-amber-500/70">Adicione os times confirmados nas vagas que sobraram.</p>
-          </div>
-          <div className="flex w-full md:w-auto gap-2">
-            <select value={selectedTeamToFill} onChange={e=>setSelectedTeamToFill(e.target.value)} className="bg-slate-950 text-xs text-white p-2 rounded border border-slate-700 outline-none flex-1 md:w-48">
-              <option value="">Selecione um time...</option>
-              {availableTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-            <Button disabled={!selectedTeamToFill} onClick={handleFillSlot} className="py-2 text-[10px] whitespace-nowrap bg-amber-600 hover:bg-amber-500 text-slate-950 font-black">Ocupar Vaga</Button>
-          </div>
-        </div>
-      )}
-
       <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800">
         <button onClick={()=>setSubTab('overview')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Tabela & Jogos</button>
         <button onClick={()=>setSubTab('stats')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white shadow-md':'text-slate-500 hover:text-white'}`}>Estatísticas</button>
@@ -1031,6 +1014,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const [isDoubleRound, setIsDoubleRound] = useState(false);
   const [deadline, setDeadline] = useState('');
   
+  // NOVOS ESTADOS FINANCEIROS
   const [isPaid, setIsPaid] = useState(false);
   const [entryFee, setEntryFee] = useState('');
   const [pixKey, setPixKey] = useState('');
@@ -1050,41 +1034,30 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
-    
-    // BLOQUEIO INTELIGENTE: Permite escolher menos times, mas barra se escolher mais do que as vagas.
-    if (selectedTeams.length > parseInt(teamCount)) { setError(`Atenção: Você selecionou mais times do que o limite de ${teamCount} vagas.`); return; }
-    
+    if (selectedTeams.length !== parseInt(teamCount)) { setError(`Atenção: O formato exige ${teamCount} times, mas você selecionou ${selectedTeams.length}.`); return; }
     if (isPaid && (!entryFee || !pixKey || !prize1st || !prize2nd)) { setError('Em torneios pagos, preencha a taxa, a chave PIX e os prêmios do 1º e 2º lugar.'); return; }
 
     setError('');
     const compId = `c${Date.now()}`;
-    
-    // MÁGICA DAS VAGAS ABERTAS: Preenche os buracos automaticamente
-    const targetCount = parseInt(teamCount);
-    const finalSelectedTeams = [...selectedTeams];
-    let tbdCount = 1;
-    while(finalSelectedTeams.length < targetCount) {
-      finalSelectedTeams.push(`tbd_${compId}_${tbdCount}`);
-      tbdCount++;
-    }
-
     let finalRounds = [];
     let groupsData = null;
 
     if (format === 'groups') {
-      const res = generateGroupsAndKnockout(finalSelectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound);
+      const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound);
       finalRounds = res.rounds;
       groupsData = res.groups;
     } else if (format === 'cup') {
-      finalRounds = generateCupBracket(finalSelectedTeams, compId);
+      finalRounds = generateCupBracket(selectedTeams, compId);
     } else {
-      finalRounds = generateRoundRobin(finalSelectedTeams, compId, isDoubleRound);
+      finalRounds = generateRoundRobin(selectedTeams, compId, isDoubleRound);
     }
 
+    // Estrutura de dados aprimorada
     const newComp = { 
-      id: compId, name, format, deadline, status: 'active', teams: finalSelectedTeams, rounds: finalRounds,
+      id: compId, name, format, deadline, status: 'active', teams: selectedTeams, rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido',
       ...(groupsData && { groups: groupsData, qualifiersPerGroup: parseInt(qualifiers) }),
+      // Adicionando os dados financeiros se for pago
       isPaid: isPaid,
       ...(isPaid && {
         entryFee: parseFloat(entryFee),
@@ -1108,6 +1081,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3"><AlertCircle size={20} /><p className="text-sm font-medium">{error}</p></div>}
         
+        {/* BLOCO 1: DADOS BÁSICOS */}
         <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800">
           <h3 className="text-lg font-bold text-emerald-400 mb-4 flex items-center gap-2"><Trophy size={18}/> Estrutura do Torneio</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1117,7 +1091,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
                 <option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option>
               </select>
             </div>
-            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Qtd. de Vagas Totais</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+            <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Qtd. de Times</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             <div className="space-y-2"><label className="text-sm font-medium text-slate-400">Prazo de Conclusão</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             
             {format !== 'cup' && (
@@ -1137,6 +1111,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
           </div>
         </div>
 
+        {/* BLOCO 2: FINANCEIRO E PREMIAÇÃO */}
         <div className={`p-6 md:p-8 rounded-2xl border transition-colors ${isPaid ? 'bg-amber-500/5 border-amber-500/40' : 'bg-slate-900 border-slate-800'}`}>
           <div className="flex items-center justify-between mb-6">
              <h3 className={`text-lg font-bold flex items-center gap-2 ${isPaid ? 'text-amber-400' : 'text-slate-300'}`}>🤑 Torneio Premium (Pago)</h3>
@@ -1171,10 +1146,9 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
           )}
         </div>
 
+        {/* BLOCO 3: SELEÇÃO DE TIMES */}
         <div className="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-800">
-          <div className="flex justify-between items-end mb-4">
-            <label className="text-sm font-medium text-slate-400">Selecione as Equipes Confirmadas ({selectedTeams.length} marcadas)</label>
-          </div>
+          <div className="flex justify-between items-end mb-4"><label className="text-sm font-medium text-slate-400">Selecione as Equipes ({selectedTeams.length} marcadas)</label></div>
           {teams.length === 0 ? <p className="text-slate-500 text-sm p-4 bg-slate-950 rounded border border-slate-800">Nenhum time cadastrado.</p> : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {teams.map(team => { 
@@ -1961,7 +1935,7 @@ export default function App() {
     catch (e) { throw new Error("Acesso negado. Verifique os dados."); }
   };
 
-  eApproveUser = async (userId) => {
+  const handleApproveUser = async (userId) => {
     await updateDoc(getPublicDocPath('users', userId), { status: 'active' });
     showToast("Técnico aprovado com sucesso!", "success");
   };
@@ -2003,7 +1977,7 @@ export default function App() {
     ] : []), // <-- Deixe os colchetes vazios aqui
   ];
 
-  eUpdateMatchStatus = async (id, st, updatedData = null) => {
+  const handleUpdateMatchStatus = async (id, st, updatedData = null) => {
     const updatePayload = { status: st };
     if (updatedData) {
       if (updatedData.scoreA !== undefined) updatePayload.scoreA = parseInt(updatedData.scoreA); if (updatedData.scoreB !== undefined) updatePayload.scoreB = parseInt(updatedData.scoreB);
@@ -2026,7 +2000,7 @@ export default function App() {
     }
   };
 
-  eEditUser = async (userId, updatedData) => {
+  const handleEditUser = async (userId, updatedData) => {
     await updateDoc(getPublicDocPath('users', userId), {
       name: updatedData.name,
       whatsapp: updatedData.whatsapp
