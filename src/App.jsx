@@ -1074,7 +1074,10 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
+    
+    // AQUI ESTÁ A MUDANÇA: Agora ele só bloqueia se você selecionar MAIS times do que o limite, mas permite selecionar MENOS!
     if (selectedTeams.length > parseInt(teamCount)) { setError(`Atenção: Você selecionou mais times do que o limite de ${teamCount} vagas.`); return; }
+    
     if (isPaid && (!entryFee || !pixKey || !prize1st || !prize2nd)) { setError('Em torneios pagos, preencha a taxa, a chave PIX e os prêmios do 1º e 2º lugar.'); return; }
 
     setError('');
@@ -1106,7 +1109,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
       id: compId, name, format, deadline, status: 'active', teams: finalSelectedTeams, rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido',
       ...(groupsData && { groups: groupsData, qualifiersPerGroup: parseInt(qualifiers) }),
-      // Adicionando os dados financeiros se for pago
       isPaid: isPaid,
       ...(isPaid && {
         entryFee: parseFloat(entryFee),
