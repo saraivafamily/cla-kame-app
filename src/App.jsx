@@ -133,7 +133,7 @@ const LoginScreen = ({ onLogin, onRegister }) => {
         {view === 'login' && (
           <form onSubmit={handleLoginSubmit} className="space-y-4 animate-in fade-in duration-300">
             {error && <div className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</div>}
-            <div><label className="text-xs text-slate-400 block mb-1">E-mail ou WhatsApp</label><input required value={loginData.identifier} onChange={e=>setLoginData({...loginData, identifier: e.target.value})} className={inputClass} placeholder="Digite seu acesso..." /></div>
+            <div><label className="text-xs text-slate-400 block mb-1">E-mail</label><input required value={loginData.identifier} onChange={e=>setLoginData({...loginData, identifier: e.target.value})} className={inputClass} placeholder="Digite seu acesso..." /></div>
             <div><label className="text-xs text-slate-400 block mb-1">Senha</label><input required type="password" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} className={inputClass} placeholder="••••••••" /></div>
             <Button type="submit" disabled={isProcessing} className="w-full py-3">{isProcessing ? 'Entrando...' : 'Entrar na Arena'}</Button>
             <div className="text-center pt-5 border-t border-slate-800/50 mt-6">
