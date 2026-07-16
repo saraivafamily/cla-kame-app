@@ -246,7 +246,7 @@ const SocialFeed = ({ currentUser, showToast }) => {
 
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">📱 Feed da Turma</h2>
+      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">📱 Feed da Resenha</h2>
 
       {/* Caixa de Nova Publicação */}
       <div className="bg-blue-900 p-4 rounded-2xl border border-blue-800 mb-8 shadow-lg">
@@ -2193,7 +2193,7 @@ export default function App() {
     { id: 'profile', label: 'Meu Perfil', icon: User },
     { id: 'teams_list', label: 'Times', icon: Shield }, 
     { id: 'competitions', label: 'Competições', icon: Medal },
-    { id: 'feed', label: 'Feed da Turma', icon: MessageCircle },
+    { id: 'feed', label: 'Feed da Resenha', icon: MessageCircle },
     ...(isLeaderOrKaioh ? [
       { id: 'submit', label: 'Registrar', icon: Camera }, 
       { id: 'validation', label: 'Validação', icon: CheckSquare }, 
