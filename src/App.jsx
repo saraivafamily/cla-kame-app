@@ -772,7 +772,7 @@ const Standings = ({ matches, teams, comp }) => {
                         const isBottom = index >= gTable.length - (gTable.length >= 4 ? 2 : 1);
                         
                         const borderClass = isQualified ? 'border-l-4 border-green-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
-                        const bgClass = isQualified ? 'bg-green-500/15' : (isBottom ? 'bg-red-500/15' : '');
+                        const bgClass = isQualified ? 'bg-green-500/30' : (isBottom ? 'bg-red-500/30' : '');
                         const textNumberClass = isQualified ? 'text-green-400 font-black drop-shadow-md' : (isBottom ? 'text-red-400 font-black drop-shadow-md' : 'text-blue-500');
 
                         return (
@@ -808,7 +808,7 @@ const Standings = ({ matches, teams, comp }) => {
                   const isBottom = index >= totalTeams - bottomCount;
                   
                   const borderClass = isTop ? 'border-l-4 border-green-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
-                  const bgClass = isTop ? 'bg-green-500/15' : (isBottom ? 'bg-red-500/15' : '');
+                  const bgClass = isTop ? 'bg-green-500/30' : (isBottom ? 'bg-red-500/30' : '');
                   const textNumberClass = isTop ? 'text-green-400 font-black drop-shadow-md' : (isBottom ? 'text-red-400 font-black drop-shadow-md' : 'text-blue-500');
 
                   return (
