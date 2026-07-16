@@ -167,7 +167,7 @@ const LoginScreen = ({ onLogin, onRegister }) => {
   );
 };
 
-const SocialFeed = ({ currentUser, showToast }) => {
+const SocialFeed = ({ currentUser, teams, showToast }) => {
   const [posts, setPosts] = useState([]);
   const [newPost, setNewPost] = useState('');
   const [commentText, setCommentText] = useState({});
@@ -233,7 +233,8 @@ const SocialFeed = ({ currentUser, showToast }) => {
     if (!text?.trim()) return;
     const post = posts.find(p => p.id === postId);
     if(!post) return;
-    const newComment = { id: `c_${Date.now()}`, authorName: currentUser?.name || 'Membro', text, timestamp: Date.now() };
+    // Salvamos o authorId para poder exibir o time dele no comentário também
+    const newComment = { id: `c_${Date.now()}`, authorId: currentUser?.id || 'anon', authorName: currentUser?.name || 'Membro', text, timestamp: Date.now() };
     await updateDoc(getPublicDocPath('feed', postId), { comments: [...post.comments, newComment] });
     setCommentText({ ...commentText, [postId]: '' });
   };
@@ -244,16 +245,22 @@ const SocialFeed = ({ currentUser, showToast }) => {
     }
   };
 
+  // 4. FUNÇÃO MÁGICA: Acha o time correspondente ao técnico na hora de exibir
+  const getUserTeamName = (userId) => {
+    if (!userId || userId === 'anon') return '';
+    const team = (teams || []).find(t => t.ownerId === userId);
+    return team ? team.name : '';
+  };
+
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">📱 Feed da Resenha</h2>
+      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">📱 Feed da Turma</h2>
 
       {/* Caixa de Nova Publicação */}
       <div className="bg-blue-900 p-4 rounded-2xl border border-blue-800 mb-8 shadow-lg">
         <form onSubmit={handlePost} className="flex flex-col gap-3">
           <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="Mande a resenha, cole o link do seu vídeo ou anexe uma foto..." className="w-full bg-blue-950 border border-blue-700 rounded-xl p-4 text-white placeholder:text-blue-500 focus:ring-2 focus:ring-emerald-500 outline-none resize-none min-h-[80px]" />
           
-          {/* Mostra a miniatura da foto antes de enviar */}
           {postImage && (
             <div className="relative inline-block self-start mt-2">
               <img src={postImage} alt="Preview" className="h-32 rounded-lg border border-emerald-500/50 shadow-md object-contain bg-black/50" />
@@ -278,8 +285,10 @@ const SocialFeed = ({ currentUser, showToast }) => {
         {posts.length === 0 && <p className="text-center text-blue-500 p-8 bg-blue-900 rounded-2xl border border-blue-800">Nenhuma publicação ainda. Seja o primeiro a postar!</p>}
         {posts.map(post => {
           const isLiked = post.likes.includes(currentUser?.id);
-          // O Kaioh, Líderes e o próprio autor do post podem apagar
           const isAuthorOrAdmin = post.authorId === currentUser?.id || currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+          
+          // Busca o time dinamicamente
+          const teamName = getUserTeamName(post.authorId);
           
           return (
             <div key={post.id} className="bg-blue-900 rounded-2xl border border-blue-800 p-5 shadow-md relative group">
@@ -293,14 +302,16 @@ const SocialFeed = ({ currentUser, showToast }) => {
                   {post.authorPhoto ? <img src={post.authorPhoto} alt="Foto" className="w-full h-full object-cover"/> : <span>👤</span>}
                 </div>
                 <div>
-                  <p className="font-bold text-emerald-400">{post.authorName}</p>
+                  <p className="font-bold text-emerald-400 flex items-center flex-wrap gap-1">
+                    {post.authorName}
+                    {teamName && <span className="text-blue-300 text-xs font-medium mt-0.5">• {teamName}</span>}
+                  </p>
                   <p className="text-[10px] text-blue-500">{new Date(post.timestamp).toLocaleString()}</p>
                 </div>
               </div>
               
               {post.content && <p className="text-blue-200 mb-4 whitespace-pre-wrap">{post.content}</p>}
               
-              {/* Exibe a imagem anexada se houver */}
               {post.imageUrl && (
                 <div className="mb-4 rounded-xl overflow-hidden border border-blue-800 bg-black/50">
                   <img src={post.imageUrl} alt="Imagem do post" className="w-full max-h-[400px] object-contain" />
@@ -317,12 +328,16 @@ const SocialFeed = ({ currentUser, showToast }) => {
               </div>
 
               <div className="bg-blue-950 rounded-xl p-3 space-y-3">
-                {post.comments.map(c => (
+                {post.comments.map(c => {
+                  const cTeamName = getUserTeamName(c.authorId);
+                  return (
                   <div key={c.id} className="text-sm border-b border-blue-800/50 pb-2 last:border-0 last:pb-0">
-                    <span className="font-bold text-emerald-400 mr-2">{c.authorName}:</span>
+                    <span className="font-bold text-emerald-400">{c.authorName}</span>
+                    {cTeamName && <span className="text-[10px] text-blue-400 font-bold ml-1">({cTeamName})</span>}
+                    <span className="text-emerald-400 mr-1">:</span>
                     <span className="text-blue-300">{c.text}</span>
                   </div>
-                ))}
+                )})}
                 <div className="flex gap-2 mt-2 pt-1">
                   <input type="text" placeholder="Comente algo..." value={commentText[post.id] || ''} onChange={e => setCommentText({...commentText, [post.id]: e.target.value})} onKeyDown={e => e.key === 'Enter' && handleComment(post.id)} className="flex-1 bg-blue-900 border border-blue-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
                   <button onClick={() => handleComment(post.id)} className="text-emerald-500 hover:text-emerald-400 font-bold px-2 text-sm"><Send size={18}/></button>
@@ -2259,7 +2274,7 @@ export default function App() {
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
       case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
       case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
-      case 'feed': return <SocialFeed currentUser={currentUser} showToast={showToast} />;
+      case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} />;
         
       default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
     }
