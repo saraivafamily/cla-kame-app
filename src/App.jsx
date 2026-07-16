@@ -168,75 +168,128 @@ const LoginScreen = ({ onLogin, onRegister }) => {
 };
 
 const SocialFeed = ({ currentUser, showToast }) => {
-  const [posts, setPosts] = useState([
-    { id: '1', authorName: 'Sistema', content: 'Bem-vindos ao novo Feed do Clã Kame! Compartilhe seus lances e resenhas aqui. 🚀', likes: [], comments: [], timestamp: Date.now() }
-  ]);
+  const [posts, setPosts] = useState([]);
   const [newPost, setNewPost] = useState('');
   const [commentText, setCommentText] = useState({});
+  const [postImage, setPostImage] = useState(null);
+  const [isPosting, setIsPosting] = useState(false);
 
-  const handlePost = (e) => {
+  // 1. CONECTA O FEED COM O FIREBASE EM TEMPO REAL
+  useEffect(() => {
+    const unsub = onSnapshot(getPublicPath('feed'), snap => {
+      const fetched = snap.docs.map(d => d.data()).sort((a, b) => b.timestamp - a.timestamp);
+      setPosts(fetched);
+    });
+    return () => unsub();
+  }, []);
+
+  // 2. FUNÇÃO PARA LER E COMPRIMIR A FOTO
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    // Usamos o processScreenshot que deixa a qualidade boa (900px) sem pesar o banco de dados
+    processScreenshot(file, (base64) => setPostImage(base64));
+  };
+
+  // 3. ENVIAR PARA O FIREBASE
+  const handlePost = async (e) => {
     e.preventDefault();
-    if (!newPost.trim()) return;
+    if (!newPost.trim() && !postImage) return;
+    setIsPosting(true);
+    
     const newP = {
       id: `p_${Date.now()}`,
       authorId: currentUser?.id || 'anon',
       authorName: currentUser?.name || 'Membro do Clã',
       authorPhoto: currentUser?.photoURL || null,
       content: newPost,
+      imageUrl: postImage,
       likes: [],
       comments: [],
       timestamp: Date.now()
     };
-    setPosts([newP, ...posts]);
-    setNewPost('');
-    showToast("Publicado no Feed!", "success");
+    
+    try {
+      await setDoc(getPublicDocPath('feed', newP.id), newP);
+      setNewPost('');
+      setPostImage(null);
+      showToast("Publicado para todo o Clã!", "success");
+    } catch (err) {
+      showToast("Erro ao publicar. A imagem pode estar muito pesada.", "error");
+    }
+    setIsPosting(false);
   };
 
-  const toggleLike = (postId) => {
-    setPosts(posts.map(p => {
-      if (p.id === postId) {
-        const hasLiked = p.likes.includes(currentUser?.id);
-        const newLikes = hasLiked ? p.likes.filter(id => id !== currentUser?.id) : [...p.likes, currentUser?.id];
-        return { ...p, likes: newLikes };
-      }
-      return p;
-    }));
+  const toggleLike = async (postId) => {
+    const post = posts.find(p => p.id === postId);
+    if(!post) return;
+    const hasLiked = post.likes.includes(currentUser?.id);
+    const newLikes = hasLiked ? post.likes.filter(id => id !== currentUser?.id) : [...post.likes, currentUser?.id];
+    await updateDoc(getPublicDocPath('feed', postId), { likes: newLikes });
   };
 
-  const handleComment = (postId) => {
+  const handleComment = async (postId) => {
     const text = commentText[postId];
     if (!text?.trim()) return;
-    const newComment = { id: `c_${Date.now()}`, authorName: currentUser?.name || 'Membro', text };
-    setPosts(posts.map(p => {
-      if (p.id === postId) return { ...p, comments: [...p.comments, newComment] };
-      return p;
-    }));
+    const post = posts.find(p => p.id === postId);
+    if(!post) return;
+    const newComment = { id: `c_${Date.now()}`, authorName: currentUser?.name || 'Membro', text, timestamp: Date.now() };
+    await updateDoc(getPublicDocPath('feed', postId), { comments: [...post.comments, newComment] });
     setCommentText({ ...commentText, [postId]: '' });
+  };
+
+  const handleDelete = async (postId) => {
+    if(window.confirm('Tem certeza que deseja apagar esta publicação?')) {
+      await deleteDoc(getPublicDocPath('feed', postId));
+    }
   };
 
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">📱 Feed da Turma</h2>
-      
+
       {/* Caixa de Nova Publicação */}
       <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 mb-8 shadow-lg">
         <form onSubmit={handlePost} className="flex flex-col gap-3">
-          <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="Mande a resenha ou o link do seu golaço..." className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-white placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500 outline-none resize-none min-h-[100px]" />
-          <div className="flex justify-end">
-            <button type="submit" disabled={!newPost.trim()} className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-2 px-6 rounded-lg transition-colors">Publicar</button>
+          <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="Mande a resenha, cole o link do seu vídeo ou anexe uma foto..." className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-white placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500 outline-none resize-none min-h-[80px]" />
+          
+          {/* Mostra a miniatura da foto antes de enviar */}
+          {postImage && (
+            <div className="relative inline-block self-start mt-2">
+              <img src={postImage} alt="Preview" className="h-32 rounded-lg border border-emerald-500/50 shadow-md object-contain bg-black/50" />
+              <button type="button" onClick={() => setPostImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:scale-110 transition-transform"><X size={14}/></button>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center mt-2 border-t border-slate-800/50 pt-3">
+            <label className="cursor-pointer text-slate-400 hover:text-emerald-400 flex items-center gap-2 transition-colors px-2 py-1 rounded-lg hover:bg-slate-800">
+              <Camera size={20} /> <span className="text-sm font-bold">Anexar Foto</span>
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+            </label>
+            <button type="submit" disabled={(!newPost.trim() && !postImage) || isPosting} className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2">
+              <Send size={16} /> {isPosting ? 'Enviando...' : 'Publicar'}
+            </button>
           </div>
         </form>
       </div>
 
-      {/* Lista de Posts */}
+      {/* Lista de Posts Sincronizada */}
       <div className="space-y-6">
+        {posts.length === 0 && <p className="text-center text-slate-500 p-8 bg-slate-900 rounded-2xl border border-slate-800">Nenhuma publicação ainda. Seja o primeiro a postar!</p>}
         {posts.map(post => {
           const isLiked = post.likes.includes(currentUser?.id);
+          // O Kaioh, Líderes e o próprio autor do post podem apagar
+          const isAuthorOrAdmin = post.authorId === currentUser?.id || currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+          
           return (
-            <div key={post.id} className="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-md">
-              {/* Cabeçalho do Post */}
+            <div key={post.id} className="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-md relative group">
+              
+              {isAuthorOrAdmin && (
+                <button onClick={() => handleDelete(post.id)} className="absolute top-4 right-4 text-slate-500 hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-slate-950 p-2 rounded-lg" title="Apagar Post"><Trash2 size={16}/></button>
+              )}
+
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center overflow-hidden border border-emerald-500/30">
+                <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center overflow-hidden border border-emerald-500/30 shrink-0">
                   {post.authorPhoto ? <img src={post.authorPhoto} alt="Foto" className="w-full h-full object-cover"/> : <span>👤</span>}
                 </div>
                 <div>
@@ -245,30 +298,34 @@ const SocialFeed = ({ currentUser, showToast }) => {
                 </div>
               </div>
               
-              {/* Conteúdo */}
-              <p className="text-slate-200 mb-4 whitespace-pre-wrap">{post.content}</p>
+              {post.content && <p className="text-slate-200 mb-4 whitespace-pre-wrap">{post.content}</p>}
               
-              {/* Botões de Ação */}
+              {/* Exibe a imagem anexada se houver */}
+              {post.imageUrl && (
+                <div className="mb-4 rounded-xl overflow-hidden border border-slate-800 bg-black/50">
+                  <img src={post.imageUrl} alt="Imagem do post" className="w-full max-h-[400px] object-contain" />
+                </div>
+              )}
+              
               <div className="flex items-center gap-4 border-t border-slate-800 pt-3 mb-3">
-                <button onClick={() => toggleLike(post.id)} className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${isLiked ? 'text-red-400' : 'text-slate-400 hover:text-red-400'}`}>
+                <button onClick={() => toggleLike(post.id)} className={`flex items-center gap-1.5 text-sm font-bold transition-transform ${isLiked ? 'text-red-400 scale-110' : 'text-slate-400 hover:text-red-400 hover:scale-110'}`}>
                   {isLiked ? '❤️' : '🤍'} {post.likes.length > 0 && post.likes.length}
                 </button>
                 <span className="flex items-center gap-1.5 text-sm font-medium text-slate-400">
-                  💬 {post.comments.length > 0 && post.comments.length}
+                  💬 {post.comments.length}
                 </span>
               </div>
 
-              {/* Seção de Comentários */}
               <div className="bg-slate-950 rounded-xl p-3 space-y-3">
                 {post.comments.map(c => (
-                  <div key={c.id} className="text-sm">
+                  <div key={c.id} className="text-sm border-b border-slate-800/50 pb-2 last:border-0 last:pb-0">
                     <span className="font-bold text-emerald-400 mr-2">{c.authorName}:</span>
                     <span className="text-slate-300">{c.text}</span>
                   </div>
                 ))}
-                <div className="flex gap-2 mt-2">
-                  <input type="text" placeholder="Comente algo..." value={commentText[post.id] || ''} onChange={e => setCommentText({...commentText, [post.id]: e.target.value})} onKeyDown={e => e.key === 'Enter' && handleComment(post.id)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white outline-none focus:border-emerald-500" />
-                  <button onClick={() => handleComment(post.id)} className="text-emerald-500 hover:text-emerald-400 font-bold px-2 text-sm">Enviar</button>
+                <div className="flex gap-2 mt-2 pt-1">
+                  <input type="text" placeholder="Comente algo..." value={commentText[post.id] || ''} onChange={e => setCommentText({...commentText, [post.id]: e.target.value})} onKeyDown={e => e.key === 'Enter' && handleComment(post.id)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
+                  <button onClick={() => handleComment(post.id)} className="text-emerald-500 hover:text-emerald-400 font-bold px-2 text-sm"><Send size={18}/></button>
                 </div>
               </div>
             </div>
