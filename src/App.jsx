@@ -167,6 +167,118 @@ const LoginScreen = ({ onLogin, onRegister }) => {
   );
 };
 
+const SocialFeed = ({ currentUser, showToast }) => {
+  const [posts, setPosts] = useState([
+    { id: '1', authorName: 'Sistema', content: 'Bem-vindos ao novo Feed do Clã Kame! Compartilhe seus lances e resenhas aqui. 🚀', likes: [], comments: [], timestamp: Date.now() }
+  ]);
+  const [newPost, setNewPost] = useState('');
+  const [commentText, setCommentText] = useState({});
+
+  const handlePost = (e) => {
+    e.preventDefault();
+    if (!newPost.trim()) return;
+    const newP = {
+      id: `p_${Date.now()}`,
+      authorId: currentUser?.id || 'anon',
+      authorName: currentUser?.name || 'Membro do Clã',
+      authorPhoto: currentUser?.photoURL || null,
+      content: newPost,
+      likes: [],
+      comments: [],
+      timestamp: Date.now()
+    };
+    setPosts([newP, ...posts]);
+    setNewPost('');
+    showToast("Publicado no Feed!", "success");
+  };
+
+  const toggleLike = (postId) => {
+    setPosts(posts.map(p => {
+      if (p.id === postId) {
+        const hasLiked = p.likes.includes(currentUser?.id);
+        const newLikes = hasLiked ? p.likes.filter(id => id !== currentUser?.id) : [...p.likes, currentUser?.id];
+        return { ...p, likes: newLikes };
+      }
+      return p;
+    }));
+  };
+
+  const handleComment = (postId) => {
+    const text = commentText[postId];
+    if (!text?.trim()) return;
+    const newComment = { id: `c_${Date.now()}`, authorName: currentUser?.name || 'Membro', text };
+    setPosts(posts.map(p => {
+      if (p.id === postId) return { ...p, comments: [...p.comments, newComment] };
+      return p;
+    }));
+    setCommentText({ ...commentText, [postId]: '' });
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
+      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">📱 Feed da Turma</h2>
+      
+      {/* Caixa de Nova Publicação */}
+      <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 mb-8 shadow-lg">
+        <form onSubmit={handlePost} className="flex flex-col gap-3">
+          <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="Mande a resenha ou o link do seu golaço..." className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-white placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500 outline-none resize-none min-h-[100px]" />
+          <div className="flex justify-end">
+            <button type="submit" disabled={!newPost.trim()} className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-2 px-6 rounded-lg transition-colors">Publicar</button>
+          </div>
+        </form>
+      </div>
+
+      {/* Lista de Posts */}
+      <div className="space-y-6">
+        {posts.map(post => {
+          const isLiked = post.likes.includes(currentUser?.id);
+          return (
+            <div key={post.id} className="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-md">
+              {/* Cabeçalho do Post */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center overflow-hidden border border-emerald-500/30">
+                  {post.authorPhoto ? <img src={post.authorPhoto} alt="Foto" className="w-full h-full object-cover"/> : <span>👤</span>}
+                </div>
+                <div>
+                  <p className="font-bold text-emerald-400">{post.authorName}</p>
+                  <p className="text-[10px] text-slate-500">{new Date(post.timestamp).toLocaleString()}</p>
+                </div>
+              </div>
+              
+              {/* Conteúdo */}
+              <p className="text-slate-200 mb-4 whitespace-pre-wrap">{post.content}</p>
+              
+              {/* Botões de Ação */}
+              <div className="flex items-center gap-4 border-t border-slate-800 pt-3 mb-3">
+                <button onClick={() => toggleLike(post.id)} className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${isLiked ? 'text-red-400' : 'text-slate-400 hover:text-red-400'}`}>
+                  {isLiked ? '❤️' : '🤍'} {post.likes.length > 0 && post.likes.length}
+                </button>
+                <span className="flex items-center gap-1.5 text-sm font-medium text-slate-400">
+                  💬 {post.comments.length > 0 && post.comments.length}
+                </span>
+              </div>
+
+              {/* Seção de Comentários */}
+              <div className="bg-slate-950 rounded-xl p-3 space-y-3">
+                {post.comments.map(c => (
+                  <div key={c.id} className="text-sm">
+                    <span className="font-bold text-emerald-400 mr-2">{c.authorName}:</span>
+                    <span className="text-slate-300">{c.text}</span>
+                  </div>
+                ))}
+                <div className="flex gap-2 mt-2">
+                  <input type="text" placeholder="Comente algo..." value={commentText[post.id] || ''} onChange={e => setCommentText({...commentText, [post.id]: e.target.value})} onKeyDown={e => e.key === 'Enter' && handleComment(post.id)} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white outline-none focus:border-emerald-500" />
+                  <button onClick={() => handleComment(post.id)} className="text-emerald-500 hover:text-emerald-400 font-bold px-2 text-sm">Enviar</button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpdateUserPhoto }) => { 
   const userTeams = teams.filter(t => t.ownerId === currentUser.id);
 
@@ -1990,7 +2102,8 @@ export default function App() {
     { id: 'profile', label: 'Meu Perfil', icon: User },
     { id: 'teams_list', label: 'Times', icon: Shield }, 
     { id: 'competitions', label: 'Competições', icon: Medal },
-    ...(isLeaderOrKaioh ? [ 
+    { id: 'feed', label: 'Feed da Turma', icon: MessageCircle },
+    ...(isLeaderOrKaioh ? [
       { id: 'submit', label: 'Registrar', icon: Camera }, 
       { id: 'validation', label: 'Validação', icon: CheckSquare }, 
       { id: 'members_list', label: 'Técnicos', icon: Award },
@@ -2055,7 +2168,8 @@ export default function App() {
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
       case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
       case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
-      
+      case 'feed': return <SocialFeed currentUser={currentUser} showToast={showToast} />;
+        
       default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
     }
   };
