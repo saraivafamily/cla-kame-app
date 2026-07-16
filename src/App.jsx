@@ -799,9 +799,9 @@ const Standings = ({ matches, teams, comp }) => {
                 const table = calculateStandings(matches, teams, comp?.id);
                 const displayTable = table.filter(t => t.p > 0 || table.length > 0);
                 const totalTeams = displayTable.length;
-                const bottomCount = totalTeams > 10 ? 4 : 2; 
-                // Lê o valor selecionado (padrão é 4)
-                const topCount = comp?.topQualifiers || 4; 
+                // Lê o valor selecionado para os rebaixados (padrão inteligente antigo se não houver seleção)
+                const bottomCount = comp?.bottomRelegated !== undefined ? comp.bottomRelegated : (totalTeams > 10 ? 4 : 2); 
+                const topCount = comp?.topQualifiers || 4;
 
                 return displayTable.map((row, index) => {
                   const isTop = index < topCount; 
@@ -1031,9 +1031,14 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   {isAdmin && comp.format !== 'groups' && comp.format !== 'cup' && (
                     <div className="flex items-center gap-2 bg-blue-900 px-2 py-1 rounded-lg border border-blue-800 shadow-lg">
-                      <span className="text-[10px] text-blue-400 font-bold uppercase">Verdes:</span>
+                      <span className="text-[10px] text-blue-400 font-bold uppercase hidden sm:inline" title="Classificados">Verdes:</span>
                       <select value={comp.topQualifiers || 4} onChange={(e) => { onEditComp({...comp, topQualifiers: parseInt(e.target.value)}); showToast("Zona de classificação atualizada!"); }} className="bg-blue-950 border border-blue-700 text-xs text-green-400 rounded p-1 outline-none font-black cursor-pointer">
-                        <option value="1">Top 1</option><option value="2">Top 2</option><option value="3">Top 3</option><option value="4">Top 4</option><option value="5">Top 5</option><option value="6">Top 6</option><option value="7">Top 7</option><option value="8">Top 8</option>
+                        <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option>
+                      </select>
+                      
+                      <span className="text-[10px] text-blue-400 font-bold uppercase ml-1 hidden sm:inline" title="Rebaixados/Eliminados">Vermelhos:</span>
+                      <select value={comp.bottomRelegated !== undefined ? comp.bottomRelegated : ((comp.teams?.length || 0) > 10 ? 4 : 2)} onChange={(e) => { onEditComp({...comp, bottomRelegated: parseInt(e.target.value)}); showToast("Zona de rebaixamento atualizada!"); }} className="bg-blue-950 border border-blue-700 text-xs text-red-400 rounded p-1 outline-none font-black cursor-pointer">
+                        <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option>
                       </select>
                     </div>
                   )}
