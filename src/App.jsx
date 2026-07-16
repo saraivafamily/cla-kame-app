@@ -801,11 +801,13 @@ const Standings = ({ matches, teams, comp }) => {
                 const table = calculateStandings(matches, teams, comp?.id);
                 const displayTable = table.filter(t => t.p > 0 || table.length > 0);
                 const totalTeams = displayTable.length;
-                // Se a liga tiver mais de 10 times, cai 4 (vermelho). Se for menor, cai 2.
+               // Se a liga tiver mais de 10 times, cai 4 (vermelho). Se for menor, cai 2.
                 const bottomCount = totalTeams > 10 ? 4 : 2; 
+                // Lê o valor que você escolheu no botão (se não tiver escolhido, o padrão é 4)
+                const topCount = comp?.topQualifiers || 4; 
 
                 return displayTable.map((row, index) => {
-                  const isTop = index < 4; // G4 sempre verde
+                  const isTop = index < topCount; 
                   const isBottom = index >= totalTeams - bottomCount;
                   
                   // Lógica das Barrinhas e Cores
@@ -1031,11 +1033,20 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 <h3 className="text-lg font-bold text-white pl-2">Classificação</h3>
                 <Button onClick={() => captureSection('capture-standings', `Tabela-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar Tabela</Button>
               </div>
-              <div id="capture-standings" className="bg-blue-950 p-3 sm:p-5 rounded-2xl border border-blue-800">
-                <h3 className="text-center font-black text-emerald-400 mb-4 text-sm uppercase tracking-widest">{comp.name}</h3>
+              <div id="capture-standings" className="bg-slate-950 p-3 sm:p-5 rounded-2xl border border-slate-800">
+                <div className="flex flex-col items-center justify-center mb-4">
+                  <h3 className="font-black text-emerald-400 text-sm uppercase tracking-widest text-center">{comp.name}</h3>
+                  {isAdmin && comp.format !== 'groups' && (
+                    <div className="mt-2 flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 animate-in fade-in">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Classificados (Verde):</span>
+                      <select value={comp.topQualifiers || 4} onChange={(e) => { onEditComp({...comp, topQualifiers: parseInt(e.target.value)}); showToast("Zona de classificação atualizada!"); }} className="bg-slate-950 border border-slate-700 text-xs text-emerald-400 rounded p-1 outline-none font-bold cursor-pointer">
+                        <option value="1">Top 1</option><option value="2">Top 2</option><option value="3">Top 3</option><option value="4">Top 4</option><option value="5">Top 5</option><option value="6">Top 6</option><option value="7">Top 7</option><option value="8">Top 8</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
                 <Standings matches={matches} teams={compTeams} comp={comp} />
               </div>
-            </div>
             
             <div className="space-y-3 pt-4 border-t border-blue-800/50">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-4 pl-2">
