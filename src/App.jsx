@@ -888,7 +888,25 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     const captureAndDownload = () => {
       const element = document.getElementById(elementId);
       if (!element) return;
+      
+      // MÁGICA: Estica a tabela temporariamente para o print sair 100% completo!
+      const originalWidth = element.style.width;
+      const originalOverflow = element.style.overflow;
+      element.style.width = 'max-content';
+      element.style.overflow = 'visible';
+      
+      // Tira o scroll dos filhos temporariamente
+      const scrollables = element.querySelectorAll('.overflow-x-auto');
+      scrollables.forEach(el => { el.style.overflow = 'visible'; el.style.width = 'max-content'; });
+
+      // scale: 2 garante a alta resolução pro WhatsApp
       window.html2canvas(element, { backgroundColor: '#020617', scale: 2, useCORS: true }).then(canvas => {
+        
+        // Restaura a tela ao normal instantaneamente após o print
+        element.style.width = originalWidth;
+        element.style.overflow = originalOverflow;
+        scrollables.forEach(el => { el.style.overflow = ''; el.style.width = ''; });
+
         const link = document.createElement('a');
         link.download = `${fileName}.png`;
         link.href = canvas.toDataURL('image/png');
@@ -896,6 +914,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         showToast("Imagem salva com sucesso!", "success");
       });
     };
+    
     if (window.html2canvas) { captureAndDownload(); } 
     else {
       const script = document.createElement('script');
