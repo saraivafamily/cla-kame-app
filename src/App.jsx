@@ -772,10 +772,10 @@ const Standings = ({ matches, teams, comp }) => {
                         // Se o grupo tiver 4 times ou mais, os 2 últimos ficam vermelhos. Se for menor, só o último.
                         const isBottom = index >= gTable.length - (gTable.length >= 4 ? 2 : 1);
                         
-                        // Lógica das Barrinhas e Cores
-                        const borderClass = isQualified ? 'border-l-4 border-emerald-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
-                        const bgClass = isQualified ? 'bg-emerald-500/5' : (isBottom ? 'bg-red-500/5' : '');
-                        const textNumberClass = isQualified ? 'text-emerald-400' : (isBottom ? 'text-red-400' : 'text-blue-500');
+                        // Lógica das Barrinhas e Cores (Cores mais vivas)
+                        const borderClass = isQualified ? 'border-l-4 border-green-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
+                        const bgClass = isQualified ? 'bg-green-500/15' : (isBottom ? 'bg-red-500/15' : '');
+                        const textNumberClass = isQualified ? 'text-green-400 font-black drop-shadow-md' : (isBottom ? 'text-red-400 font-black drop-shadow-md' : 'text-slate-500');
 
                         return (
                           <tr key={row.id} className={`hover:bg-blue-800/50 transition-colors ${borderClass} ${bgClass}`}>
@@ -813,7 +813,7 @@ const Standings = ({ matches, teams, comp }) => {
                   // Lógica das Barrinhas e Cores
                   const borderClass = isTop ? 'border-l-4 border-emerald-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
                   const bgClass = isTop ? 'bg-emerald-500/5' : (isBottom ? 'bg-red-500/5' : '');
-                  const textNumberClass = isTop ? 'text-emerald-400' : (isBottom ? 'text-red-400' : 'text-blue-500');
+                  const textNumberClass = isTop ? 'text-emerald-400' : (isBottom ? 'text-red-400' : 'text-slate-500');
 
                   return (
                     <tr key={row.id} className={`hover:bg-blue-800/50 transition-colors ${borderClass} ${bgClass}`}>
