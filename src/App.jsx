@@ -4,7 +4,7 @@ import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, si
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Play, Shield, MessageCircle, Edit, Save, X, User, Crown, Star, Send, Trash2, UserPlus, Key, LayoutGrid, List, Award } from 'lucide-react';
 
-const LOGO_URL = "https://imgur.com/a/tFCKpVn#dhXA0ni.PNG"; 
+const LOGO_URL = "https://imgur.com/a/tFCKpVn#dhXA0ni.png"; 
 
 const firebaseConfig = { 
   apiKey: "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA", 
