@@ -1158,37 +1158,52 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                               );
                             }
 
-                            return (
+                           return (
                               <div key={m.id} className="relative group">
-                                <div onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className={`bg-blue-900 p-3 rounded-lg border border-blue-800 flex items-center justify-between text-xs cursor-pointer hover:border-blue-700 transition-colors pr-10`}>
-                                  <div className="flex-1 flex items-center justify-end gap-2 overflow-hidden">
-                                    <span className="truncate font-bold text-blue-200">{tA?.name || m.placeholderA}</span>
-                                    <div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="small" /></div>
+                                <div onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className="bg-blue-900 p-4 rounded-xl border border-blue-800 flex items-center justify-between cursor-pointer hover:border-blue-700 transition-colors shadow-sm hover:shadow-md relative overflow-hidden">
+                                  
+                                  {/* Time A (Esquerda) */}
+                                  <div className="flex-1 flex flex-col items-center justify-start gap-2 w-1/3">
+                                    <ShieldDisplay shield={tA?.shield} size="normal" />
+                                    {/* break-words e whitespace-normal garantem que o nome vá para a linha de baixo e nunca seja cortado */}
+                                    <span className="font-bold text-blue-200 text-xs md:text-sm text-center leading-tight break-words whitespace-normal w-full px-1">{tA?.name || m.placeholderA}</span>
                                   </div>
-                                  <div className={`mx-3 px-3 py-1 border rounded font-mono font-bold shrink-0 shadow-inner ${sUI.bg} ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</div>
-                                  <div className="flex-1 flex items-center justify-start gap-2 overflow-hidden">
-                                    <div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="small" /></div>
-                                    <span className="truncate font-bold text-blue-200">{tB?.name || m.placeholderB}</span>
+
+                                  {/* Placar (Centro) */}
+                                  <div className="flex flex-col items-center justify-center px-1 md:px-2 w-1/3 shrink-0">
+                                    <span className={`text-[8px] md:text-[9px] uppercase tracking-widest font-bold mb-2 px-2 py-0.5 rounded text-center ${sUI.bg} ${sUI.color}`}>
+                                      {sUI.text}
+                                    </span>
+                                    <div className="flex items-center justify-center gap-1 md:gap-3">
+                                      {sUI.isPlayed ? (
+                                        <>
+                                          {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-4 mr-1">({sUI.penaltiesA})</span>}
+                                          <span className={`text-2xl md:text-3xl font-black ${sUI.color}`}>{sUI.scoreA}</span>
+                                          <span className="text-blue-700 font-bold mx-1 mb-1">:</span>
+                                          <span className={`text-2xl md:text-3xl font-black ${sUI.color}`}>{sUI.scoreB}</span>
+                                          {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-4 ml-1">({sUI.penaltiesB})</span>}
+                                        </>
+                                      ) : (
+                                        <span className="text-blue-700 font-bold text-xl md:text-2xl">:</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Time B (Direita) */}
+                                  <div className="flex-1 flex flex-col items-center justify-start gap-2 w-1/3">
+                                    <ShieldDisplay shield={tB?.shield} size="normal" />
+                                    <span className="font-bold text-blue-200 text-xs md:text-sm text-center leading-tight break-words whitespace-normal w-full px-1">{tB?.name || m.placeholderB}</span>
                                   </div>
                                 </div>
+                                
                                 {/* Botão de Editar Confronto (Apenas Líderes) */}
                                 {isAdmin && (
-                                  <button onClick={(e) => { e.stopPropagation(); setEditMatchData({ ...m, roundId: round.id }); }} className="absolute right-2 top-1/2 -tranblue-y-1/2 text-blue-500 hover:text-emerald-400 p-2 bg-blue-950 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10" title="Editar Confronto">
+                                  <button onClick={(e) => { e.stopPropagation(); setEditMatchData({ ...m, roundId: round.id }); }} className="absolute right-2 top-2 text-blue-400 hover:text-emerald-400 p-1.5 bg-blue-950 rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all z-10 border border-blue-800 shadow-md" title="Editar Confronto">
                                     <Edit size={14} />
                                   </button>
                                 )}
                               </div>
                             )
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
 
         {subTab === 'stats' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
