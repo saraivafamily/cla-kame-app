@@ -1680,7 +1680,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [isManualMode, setIsManualMode] = useState(false);
 
   // Controle de Chave da IA Direto pelo Usuário no Navegador
-  const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || 'AQ.Ab8RN6IwUSSIwYMOzU4RrygCP1OkuvZSF5bYo9D9KQYmIoIR9A');
+  // Chave Mestre do Clã Kame (Ignorando a memória do navegador)
+  const [userApiKey, setUserApiKey] = useState('AQ.Ab8RN6IwUSSIwYMOzU4RrygCP1OkuvZSF5bYo9D9KQYmIoIR9A');
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [tempKey, setTempKey] = useState('');
 
