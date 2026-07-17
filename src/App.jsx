@@ -531,24 +531,37 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch })
   );
 };
 
-const TeamStatsModal = ({ team, matches, teams, onClose }) => {
+const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
   if (!team) return null;
   
   // Filtra as partidas oficiais do time e calcula as estatísticas
   const teamMatches = (matches || []).filter(m => m.status === 'approved' && (m.teamA === team.id || m.teamB === team.id));
-  let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0; let biggestWin = null; let maxGd = -1;
+  let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0; 
+  let biggestWin = null; let maxGd = -1;
+  let biggestLoss = null; let minGd = 1;
+  let currentStreak = 0; let maxStreak = 0;
 
   teamMatches.forEach(m => {
     const isTeamA = m.teamA === team.id;
     const scoreFor = isTeamA ? m.scoreA : m.scoreB;
     const scoreAgainst = isTeamA ? m.scoreB : m.scoreA;
     gf += scoreFor; ga += scoreAgainst;
+    
+    const gd = scoreFor - scoreAgainst;
     if (scoreFor > scoreAgainst) { 
-      wins++; const gd = scoreFor - scoreAgainst; 
+      wins++; 
+      currentStreak++; maxStreak = Math.max(maxStreak, currentStreak);
       if (gd > maxGd) { maxGd = gd; biggestWin = { scoreFor, scoreAgainst, oppId: isTeamA ? m.teamB : m.teamA }; } 
     } 
-    else if (scoreFor === scoreAgainst) { draws++; } 
-    else { losses++; }
+    else if (scoreFor === scoreAgainst) { 
+      draws++; 
+      currentStreak++; maxStreak = Math.max(maxStreak, currentStreak);
+    } 
+    else { 
+      losses++; 
+      currentStreak = 0;
+      if (gd < minGd) { minGd = gd; biggestLoss = { scoreFor, scoreAgainst, oppId: isTeamA ? m.teamB : m.teamA }; }
+    }
   });
 
   // Sistema de Conquistas
@@ -559,7 +572,10 @@ const TeamStatsModal = ({ team, matches, teams, onClose }) => {
   if (wins >= 50) conquistas.push({ icon: '🔥', title: 'ON FIRE', desc: 'Alcançou 50 vitórias' });
   if (teamMatches.length >= 10 && losses === 0) conquistas.push({ icon: '🛡️', title: 'MURALHA', desc: 'Invicto após 10+ jogos' });
   if (biggestWin && (biggestWin.scoreFor - biggestWin.scoreAgainst) >= 3) conquistas.push({ icon: '⚡', title: 'IMPIEDOSO', desc: 'Venceu com 5+ gols de diferença' });
-  if (draws >= 5) conquistas.push({ icon: '🤝', title: 'REI DO EMPATE', desc: 'Empatou 50 ou mais vezes' });
+  if (draws >= 5) conquistas.push({ icon: '🤝', title: 'REI DO EMPATE', desc: 'Empatou 5 ou mais vezes' });
+
+  const activeComps = (competitions || []).filter(c => c.teams?.includes(team.id));
+  const getTeamObj = (id) => (teams || []).find(t => t.id === id);
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
@@ -579,8 +595,10 @@ const TeamStatsModal = ({ team, matches, teams, onClose }) => {
         
         {/* Corpo com Estatísticas */}
         <div className="p-4 sm:p-6 space-y-8">
+          
+          {/* Resumo da Temporada */}
           <div>
-            <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Activity size={16}/> Resumo da Temporada</h4>
+            <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Activity size={16}/> Visão Geral</h4>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Jogos</p><p className="text-2xl font-bold text-white">{teamMatches.length}</p></div>
               <div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Vitórias</p><p className="text-2xl font-bold text-emerald-400">{wins}</p></div>
@@ -589,6 +607,73 @@ const TeamStatsModal = ({ team, matches, teams, onClose }) => {
             </div>
           </div>
 
+          {/* Recordes do Clube */}
+          <div>
+            <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Star size={16} className="text-amber-400"/> Recordes do Clube</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center">
+                <p className="text-[10px] text-blue-500 uppercase font-bold mb-2">Maior Goleada</p>
+                {biggestWin ? (
+                  <>
+                    <p className="text-xl font-black text-emerald-400">{biggestWin.scoreFor} <span className="text-sm text-slate-500 font-bold mx-1">x</span> {biggestWin.scoreAgainst}</p>
+                    <p className="text-[10px] text-blue-300 mt-1 truncate w-full">vs {getTeamObj(biggestWin.oppId)?.name || 'Adversário'}</p>
+                  </>
+                ) : <p className="text-xs text-blue-700 italic mt-2">Nenhuma vitória</p>}
+              </div>
+              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center">
+                <p className="text-[10px] text-blue-500 uppercase font-bold mb-2">Pior Derrota</p>
+                {biggestLoss ? (
+                  <>
+                    <p className="text-xl font-black text-red-400">{biggestLoss.scoreFor} <span className="text-sm text-slate-500 font-bold mx-1">x</span> {biggestLoss.scoreAgainst}</p>
+                    <p className="text-[10px] text-blue-300 mt-1 truncate w-full">vs {getTeamObj(biggestLoss.oppId)?.name || 'Adversário'}</p>
+                  </>
+                ) : <p className="text-xs text-blue-700 italic mt-2">Nenhuma derrota</p>}
+              </div>
+              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center">
+                <p className="text-[10px] text-blue-500 uppercase font-bold mb-2">Maior Série Invicta</p>
+                <p className="text-3xl font-black text-blue-200 mt-1">{maxStreak}</p>
+                <p className="text-[10px] text-blue-400 mt-1">Jogos sem perder</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Desempenho em Torneios */}
+          <div>
+            <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Trophy size={16} className="text-emerald-500"/> Desempenho nos Campeonatos</h4>
+            {activeComps.length > 0 ? (
+              <div className="space-y-3">
+                {activeComps.map(comp => {
+                  const table = calculateStandings(matches, teams, comp.id);
+                  const rankIndex = table.findIndex(t => t.id === team.id);
+                  const myStats = rankIndex !== -1 ? table[rankIndex] : null;
+                  const rank = rankIndex !== -1 ? rankIndex + 1 : '-';
+                  
+                  return (
+                    <div key={comp.id} className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <div className="flex-1 flex flex-col items-center sm:items-start w-full">
+                        <span className="font-bold text-blue-200 text-sm truncate">{comp.name}</span>
+                        <span className="text-[10px] text-blue-500 uppercase font-bold">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</span>
+                      </div>
+                      
+                      {myStats && myStats.p > 0 ? (
+                        <div className="flex items-center gap-4 shrink-0 bg-blue-900/50 px-4 py-2 rounded-lg border border-blue-800/50">
+                          <div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Posição</p><p className="text-base font-black text-emerald-400">{rank}º</p></div>
+                          <div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Pontos</p><p className="text-base font-black text-blue-200">{myStats.pts}</p></div>
+                          <div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Jogos</p><p className="text-base font-bold text-blue-300">{myStats.p}</p></div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-blue-600 italic shrink-0">Sem jogos ainda</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-blue-500 text-center p-4 bg-blue-950 rounded-xl border border-blue-800 border-dashed">Ainda não disputou nenhum torneio.</p>
+            )}
+          </div>
+
+          {/* Conquistas */}
           <div>
             <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Medal size={16} className="text-amber-400"/> Sala de Troféus</h4>
             {conquistas.length > 0 ? (
@@ -603,6 +688,7 @@ const TeamStatsModal = ({ team, matches, teams, onClose }) => {
               <p className="text-xs text-blue-500 text-center p-6 bg-blue-950 rounded-xl border border-blue-800 border-dashed">Nenhuma conquista desbloqueada ainda.</p>
             )}
           </div>
+
         </div>
       </div>
     </div>
@@ -754,6 +840,7 @@ const TeamsList = ({ teams, users, currentUser, matches, onEditTeam, onDeleteTea
           team={viewingTeam} 
           matches={matches} 
           teams={teams} 
+          competitions={competitions}
           onClose={() => setViewingTeam(null)} 
         />
       )}
@@ -2300,7 +2387,7 @@ export default function App() {
     switch (currentTab) {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onUpdateUserPhoto={async (url) => { await updateDoc(getPublicDocPath('users', currentUser.id), { photoURL: url }); setCurrentUser(prev => ({...prev, photoURL: url})); }} />;
-      case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} onEditTeam={handleEditTeam} onDeleteTeam={async (id) => { await deleteDoc(getPublicDocPath('teams', id)); showToast("Time excluído com sucesso!", "success"); }} />;
+      case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onDeleteTeam={async (id) => { await deleteDoc(getPublicDocPath('teams', id)); showToast("Time excluído com sucesso!", "success"); }} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} showToast={showToast} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
