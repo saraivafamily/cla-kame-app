@@ -368,7 +368,7 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
     <div className="animate-in fade-in duration-500 space-y-6">
       <div className="flex items-center gap-4 bg-blue-900 p-6 rounded-2xl border border-blue-800 shadow-lg">
         <label className="cursor-pointer relative group flex flex-col items-center shrink-0" title="Clique para trocar sua foto">
-          <div className="relative w-16 h-16 bg-blue-800 rounded-full flex items-center justify-center text-3xl border-2 border-emerald-500/30 overflow-hidden shadow-lg">
+          <div className="relative w-24 h-24 bg-blue-800 rounded-full flex items-center justify-center text-3xl border-2 border-emerald-500/30 overflow-hidden shadow-lg">
             {currentUser.photoURL ? <img src={currentUser.photoURL} alt="Perfil" className="w-full h-full object-cover" /> : <span>👤</span>}
             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <UploadCloud size={20} className="text-white" />
