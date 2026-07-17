@@ -851,91 +851,85 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
 const Standings = ({ matches, teams, comp }) => {
   const isGroupsFormat = comp?.format === 'groups' && comp?.groups;
   return (
-    <div className="animate-in fade-in duration-500">
-      {comp?.name && !isGroupsFormat && (
-        <div className="flex items-center gap-3 mb-6">
-          <Trophy className="text-amber-400" size={28} />
-          <h2 className="text-2xl font-bold text-white">Tabela - {comp.name}</h2>
-        </div>
-      )}
-      
-      {/* O Container principal ganhou 'relative' e 'overflow-hidden' para segurar a marca d'água */}
-      <div className="relative bg-blue-900 rounded-2xl border border-blue-800 shadow-xl overflow-hidden">
-        
-        {/* 💧 MÁGICA DA MARCA D'ÁGUA 💧 */}
-        {/* pointer-events-none garante que a imagem não atrapalhe os cliques na tabela */}
-        <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none opacity-5 select-none">
-          <img src={LOGO_URL} alt="Clã Kame Watermark" className="w-[80%] md:w-[50%] max-h-[80%] object-contain grayscale" />
-        </div>
+    <div className="animate-in fade-in duration-500 w-full">
+      <div className="bg-sky-900/30 rounded-2xl border border-sky-800/50 overflow-x-auto shadow-2xl">
+        {isGroupsFormat ? (
+          <div className="flex flex-col">
+            {Object.keys(comp.groups || {}).map((gName, idx) => {
+              const gTeams = teams.filter(t => (comp.groups[gName] || []).includes(t.id));
+              const gTable = calculateStandings(matches, gTeams, comp.id);
+              return (
+                <div key={gName} className={idx > 0 ? "border-t-4 border-blue-950" : ""}>
+                  <div className="bg-blue-950/80 p-3 text-center border-b border-sky-800/50 flex justify-between px-4"><h3 className="text-sm font-bold text-white uppercase tracking-widest drop-shadow-md">Grupo {gName}</h3></div>
+                  <table className="w-full text-left text-sm whitespace-nowrap"><thead className="bg-blue-950/90 text-sky-300 font-bold"><tr><th className="p-4 w-12 text-center">#</th><th className="p-4">Time</th><th className="p-4 text-center">PTS</th><th className="p-4 text-center">J</th><th className="p-4 text-center">V</th><th className="p-4 text-center">E</th><th className="p-4 text-center">D</th><th className="p-4 text-center">GP</th><th className="p-4 text-center">GC</th><th className="p-4 text-center">SG</th></tr></thead>
+                    <tbody className="divide-y divide-sky-800/30">
+                      {gTable.map((row, index) => {
+                        const isQualified = index < (comp.qualifiersPerGroup || 2);
+                        const isBottom = index >= gTable.length - (gTable.length >= 4 ? 2 : 1);
+                        
+                        const borderClass = isQualified ? 'border-l-4 border-green-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
+                        const textNumberClass = isQualified ? 'text-green-400 font-black' : (isBottom ? 'text-red-400 font-black' : 'text-sky-200 font-bold');
 
-        {/* A tabela rolável agora tem z-10 para flutuar ACIMA da marca d'água */}
-        <div className="relative z-10 overflow-x-auto">
-          {isGroupsFormat ? (
-            <div className="flex flex-col">
-              {Object.keys(comp.groups || {}).map((gName, idx) => {
-                const gTeams = teams.filter(t => (comp.groups[gName] || []).includes(t.id));
-                const gTable = calculateStandings(matches, gTeams, comp.id);
-                return (
-                  <div key={gName} className={idx > 0 ? "border-t-4 border-blue-950" : ""}>
-                    <div className="bg-blue-800/50 p-3 text-center border-b border-blue-800 flex justify-between px-4"><h3 className="text-sm font-bold text-emerald-400 uppercase tracking-widest">Grupo {gName}</h3></div>
-                    <table className="w-full text-left text-sm whitespace-nowrap"><thead className="bg-blue-950/50 text-blue-400 font-medium"><tr><th className="p-4 w-12 text-center">#</th><th className="p-4">Time</th><th className="p-4 text-center">PTS</th><th className="p-4 text-center">J</th><th className="p-4 text-center">V</th><th className="p-4 text-center">E</th><th className="p-4 text-center">D</th><th className="p-4 text-center">GP</th><th className="p-4 text-center">GC</th><th className="p-4 text-center">SG</th></tr></thead>
-                      <tbody className="divide-y divide-blue-800/50">
-                        {gTable.map((row, index) => {
-                          const isQualified = index < (comp.qualifiersPerGroup || 2);
-                          const isBottom = index >= gTable.length - (gTable.length >= 4 ? 2 : 1);
-                          
-                          const borderClass = isQualified ? 'border-l-4 border-green-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
-                          const bgClass = isQualified ? 'bg-green-500/30' : (isBottom ? 'bg-red-500/30' : '');
-                          const textNumberClass = isQualified ? 'text-green-400 font-black drop-shadow-md' : (isBottom ? 'text-red-400 font-black drop-shadow-md' : 'text-blue-500');
+                        return (
+                          <tr key={row.id} className={`hover:bg-sky-800/40 transition-colors ${borderClass}`}>
+                            <td className={`p-4 text-center text-lg ${textNumberClass}`}>{index + 1}</td>
+                            <td className="p-4 font-bold text-white flex items-center gap-3 uppercase tracking-wide"><ShieldDisplay shield={row.shield} size="normal" /> {String(row.name)}</td>
+                            <td className="p-4 text-center font-black text-green-400 text-lg drop-shadow-md">{row.pts}</td>
+                            <td className="p-4 text-center text-sky-200 font-medium">{row.p}</td>
+                            <td className="p-4 text-center text-sky-200 font-medium">{row.w}</td>
+                            <td className="p-4 text-center text-sky-200 font-medium">{row.d}</td>
+                            <td className="p-4 text-center text-sky-200 font-medium">{row.l}</td>
+                            <td className="p-4 text-center text-sky-200 font-medium">{row.gf}</td>
+                            <td className="p-4 text-center text-sky-200 font-medium">{row.ga}</td>
+                            <td className="p-4 text-center text-sky-200 font-bold">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="bg-blue-950/90 text-sky-300 font-bold">
+              <tr><th className="p-4 w-12 text-center">#</th><th className="p-4">Time</th><th className="p-4 text-center">PTS</th><th className="p-4 text-center">J</th><th className="p-4 text-center">V</th><th className="p-4 text-center">E</th><th className="p-4 text-center">D</th><th className="p-4 text-center">GP</th><th className="p-4 text-center">GC</th><th className="p-4 text-center">SG</th></tr>
+            </thead>
+            <tbody className="divide-y divide-sky-800/30">
+              {(() => {
+                const table = calculateStandings(matches, teams, comp?.id);
+                const displayTable = table.filter(t => t.p > 0 || table.length > 0);
+                const totalTeams = displayTable.length;
+                const bottomCount = comp?.bottomRelegated !== undefined ? comp.bottomRelegated : (totalTeams > 10 ? 4 : 2); 
+                const topCount = comp?.topQualifiers || 4; 
 
-                          return (
-                            <tr key={row.id} className={`hover:bg-blue-800/50 transition-colors ${borderClass} ${bgClass}`}>
-                              <td className={`p-4 text-center font-bold ${textNumberClass}`}>{index + 1}</td>
-                              <td className="p-4 font-medium text-white flex items-center gap-2"><ShieldDisplay shield={row.shield} size="small" /> {String(row.name)}</td>
-                              <td className="p-4 text-center font-bold text-emerald-400">{row.pts}</td><td className="p-4 text-center text-blue-300">{row.p}</td><td className="p-4 text-center text-blue-300">{row.w}</td><td className="p-4 text-center text-blue-300">{row.d}</td><td className="p-4 text-center text-blue-300">{row.l}</td><td className="p-4 text-center text-blue-400">{row.gf}</td><td className="p-4 text-center text-blue-400">{row.ga}</td><td className="p-4 text-center text-blue-400 font-medium">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-blue-950/50 text-blue-400 font-medium">
-                <tr><th className="p-4 w-12 text-center">#</th><th className="p-4">Time</th><th className="p-4 text-center">PTS</th><th className="p-4 text-center">J</th><th className="p-4 text-center">V</th><th className="p-4 text-center">E</th><th className="p-4 text-center">D</th><th className="p-4 text-center">GP</th><th className="p-4 text-center">GC</th><th className="p-4 text-center">SG</th></tr>
-              </thead>
-              <tbody className="divide-y divide-blue-800/50">
-                {(() => {
-                  const table = calculateStandings(matches, teams, comp?.id);
-                  const displayTable = table.filter(t => t.p > 0 || table.length > 0);
-                  const totalTeams = displayTable.length;
-                  const bottomCount = comp?.bottomRelegated !== undefined ? comp.bottomRelegated : (totalTeams > 10 ? 4 : 2); 
-                  const topCount = comp?.topQualifiers || 4; 
+                return displayTable.map((row, index) => {
+                  const isTop = index < topCount; 
+                  const isBottom = index >= totalTeams - bottomCount;
+                  
+                  const borderClass = isTop ? 'border-l-4 border-green-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
+                  const textNumberClass = isTop ? 'text-green-400 font-black' : (isBottom ? 'text-red-400 font-black' : 'text-sky-200 font-bold');
 
-                  return displayTable.map((row, index) => {
-                    const isTop = index < topCount; 
-                    const isBottom = index >= totalTeams - bottomCount;
-                    
-                    const borderClass = isTop ? 'border-l-4 border-green-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
-                    const bgClass = isTop ? 'bg-green-500/30' : (isBottom ? 'bg-red-500/30' : '');
-                    const textNumberClass = isTop ? 'text-green-400 font-black drop-shadow-md' : (isBottom ? 'text-red-400 font-black drop-shadow-md' : 'text-blue-500');
-
-                    return (
-                      <tr key={row.id} className={`hover:bg-blue-800/50 transition-colors ${borderClass} ${bgClass}`}>
-                        <td className={`p-4 text-center font-bold ${textNumberClass}`}>{index + 1}</td>
-                        <td className="p-4 font-medium text-white flex items-center gap-2"><ShieldDisplay shield={row.shield} size="small" /> {String(row.name)}</td>
-                        <td className="p-4 text-center font-bold text-emerald-400">{row.pts}</td><td className="p-4 text-center text-blue-300">{row.p}</td><td className="p-4 text-center text-blue-300">{row.w}</td><td className="p-4 text-center text-blue-300">{row.d}</td><td className="p-4 text-center text-blue-300">{row.l}</td><td className="p-4 text-center text-blue-400">{row.gf}</td><td className="p-4 text-center text-blue-400">{row.ga}</td><td className="p-4 text-center text-blue-400 font-medium">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
-                      </tr>
-                    );
-                  });
-                })()}
-              </tbody>
-            </table>
-          )}
-        </div>
+                  return (
+                    <tr key={row.id} className={`hover:bg-sky-800/40 transition-colors ${borderClass}`}>
+                      <td className={`p-4 text-center text-lg ${textNumberClass}`}>{index + 1}</td>
+                      <td className="p-4 font-bold text-white flex items-center gap-3 uppercase tracking-wide"><ShieldDisplay shield={row.shield} size="normal" /> {String(row.name)}</td>
+                      <td className="p-4 text-center font-black text-green-400 text-lg drop-shadow-md">{row.pts}</td>
+                      <td className="p-4 text-center text-sky-200 font-medium">{row.p}</td>
+                      <td className="p-4 text-center text-sky-200 font-medium">{row.w}</td>
+                      <td className="p-4 text-center text-sky-200 font-medium">{row.d}</td>
+                      <td className="p-4 text-center text-sky-200 font-medium">{row.l}</td>
+                      <td className="p-4 text-center text-sky-200 font-medium">{row.gf}</td>
+                      <td className="p-4 text-center text-sky-200 font-medium">{row.ga}</td>
+                      <td className="p-4 text-center text-sky-200 font-bold">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
+                    </tr>
+                  );
+                });
+              })()}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
@@ -1178,11 +1172,20 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 </div>
               </div>
               
-              <div id="capture-standings" className="bg-blue-950 p-3 sm:p-5 rounded-2xl border border-blue-800">
-                <h3 className="text-center font-black text-blue-200 mb-4 text-sm uppercase tracking-widest drop-shadow-md">{comp.name}</h3>
-                <Standings matches={matches} teams={compTeams} comp={comp} />
+              <div id="capture-standings" className="bg-blue-950 p-6 sm:p-8 rounded-3xl border border-blue-800 relative overflow-hidden shadow-2xl">
+                {/* Cabeçalho igual ao da foto (Logo na esquerda e Título na direita) */}
+                <div className="flex items-center justify-center sm:justify-start gap-4 sm:gap-6 mb-8 relative z-10">
+                  <img src={LOGO_URL} alt="Logo" className="w-24 h-24 sm:w-32 sm:h-32 object-contain drop-shadow-2xl" />
+                  <h2 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-wider drop-shadow-lg">
+                    TABELA - {comp.name}
+                  </h2>
+                </div>
+                
+                {/* A Tabela em si */}
+                <div className="relative z-10">
+                  <Standings matches={matches} teams={compTeams} comp={comp} />
+                </div>
               </div>
-            </div>
             
             <div className="space-y-3 pt-4 border-t border-blue-800/50">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-4 pl-2">
