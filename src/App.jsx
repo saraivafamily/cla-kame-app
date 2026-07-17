@@ -1804,9 +1804,10 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
       const safeKey = encodeURIComponent(userApiKey.trim());
         
-        // Usamos apenas o modelo oficial e estável gratuito mais recente do Google
+      // Usamos as rotas oficiais e finais (v1) do Google
         const endpoints = [
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`
+          `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`
         ];
 
         let resultJson;
