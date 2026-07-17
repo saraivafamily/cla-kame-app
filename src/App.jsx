@@ -1172,7 +1172,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 </div>
               </div>
               
-              <div id="capture-standings" className="bg-blue-950 p-6 sm:p-8 rounded-3xl border border-blue-800 relative overflow-hidden shadow-2xl">
+             <div id="capture-standings" className="bg-blue-950 p-6 sm:p-8 rounded-3xl border border-blue-800 relative overflow-hidden shadow-2xl">
                 {/* Cabeçalho igual ao da foto (Logo na esquerda e Título na direita) */}
                 <div className="flex items-center justify-center sm:justify-start gap-4 sm:gap-6 mb-8 relative z-10">
                   <img src={LOGO_URL} alt="Logo" className="w-24 h-24 sm:w-32 sm:h-32 object-contain drop-shadow-2xl" />
@@ -1186,6 +1186,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                   <Standings matches={matches} teams={compTeams} comp={comp} />
                 </div>
               </div>
+            </div>
             
             <div className="space-y-3 pt-4 border-t border-blue-800/50">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-4 pl-2">
