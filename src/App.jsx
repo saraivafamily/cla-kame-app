@@ -695,7 +695,7 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
   );
 };
 
-const TeamsList = ({ teams, users, currentUser, matches, onEditTeam, onDeleteTeam }) => {
+const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTeam, onDeleteTeam }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', coach: '', whatsapp: '', shield: '', ownerId: 'manual' });
