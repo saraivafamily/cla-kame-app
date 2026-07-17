@@ -1785,7 +1785,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
         const safeKey = encodeURIComponent(userApiKey.trim());
         
-        // Rotas blindadas: O "latest" garante que o Google sempre redirecione para a versão ativa mais rápida
         const endpoints = [
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`,
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${safeKey}`
@@ -1804,19 +1803,27 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
               body: JSON.stringify(payload)
             });
 
+            // Lemos a resposta bruta para apanhar erros específicos do Google
+            const respText = await response.text(); 
+
             if (!response.ok) {
-               const errData = await response.json().catch(() => null);
-               const errorMsg = errData?.error?.message || `Erro ${response.status}`;
-               throw new Error(`Erro de Comunicação com a IA: ${errorMsg}`);
+               let errorMsg = `Erro HTTP ${response.status}`;
+               try {
+                  const errData = JSON.parse(respText);
+                  errorMsg = errData?.error?.message || errorMsg;
+               } catch(e){}
+               throw new Error(`Google API: ${errorMsg}`);
             }
 
-            resultJson = await response.json();
+            resultJson = JSON.parse(respText);
           } catch (error) {
             lastError = error;
           }
         }
 
-        if (!resultJson || !resultJson.candidates) throw lastError || new Error("A IA não conseguiu ler o placar.");
+        if (!resultJson || !resultJson.candidates) {
+            throw lastError || new Error("A IA não retornou um formato reconhecido.");
+        }
 
         let textResponse = resultJson.candidates[0].content.parts[0].text.trim();
         textResponse = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -1847,16 +1854,19 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           setGoalsB(data.leftGoals || []);
         }
 
-        if (showToast) showToast("Dados extraídos do Print pela IA!", "success");
+        // A caixa verde de sucesso SÓ aparece se chegar aqui sem erros
+        setImageUploaded(true);
+        if (showToast) showToast("Dados extraídos do Print pela IA com sucesso!", "success");
 
       } catch (error) {
-        console.error("Erro IA:", error);
+        console.error("Erro detalhado IA:", error);
+        setImageUploaded(false); // Garante que a caixa volta ao estado inicial
         if (showToast) {
-          showToast(`Falha: A imagem não pôde ser lida. Tente novamente ou use o modo manual.`, "error");
+          // Agora vamos ver o erro real que está a travar o sistema
+          showToast(`Falha Real: ${error.message}`, "error"); 
         }
       } finally {
         setIsAnalyzing(false);
-        setImageUploaded(true);
       }
     });
   };
