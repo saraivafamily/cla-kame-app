@@ -1158,7 +1158,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                               );
                             }
 
-                           return (
+                            return (
                               <div key={m.id} className="relative group">
                                 <div onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className="bg-blue-900 p-4 rounded-xl border border-blue-800 flex items-center justify-between cursor-pointer hover:border-blue-700 transition-colors shadow-sm hover:shadow-md relative overflow-hidden">
                                   
@@ -1204,6 +1204,16 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                 )}
                               </div>
                             )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {subTab === 'stats' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
