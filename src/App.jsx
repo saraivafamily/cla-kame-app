@@ -944,13 +944,15 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [newTeamToAdd, setNewTeamToAdd] = useState('');
 
-  // 🎁 ESTADOS ATUALIZADOS: Agora aceitam texto livre para qualquer tipo de prêmio
+  // 🔄 NOVO ESTADO: Controla o tipo de exibição ('bracket' = Chaveamento, 'table' = Tabelas/Grupos)
+  const [viewType, setViewType] = useState(comp?.format === 'league' ? 'table' : 'bracket');
+
   const [showEditPrizes, setShowEditPrizes] = useState(false);
   const [prizeData, setPrizeData] = useState({
     first: comp.prizes?.first || '',
     second: comp.prizes?.second || '',
     third: comp.prizes?.third || '',
-    extra: comp.prizes?.extra || '' // Campo dedicado para sorteio de passes, etc.
+    extra: comp.prizes?.extra || ''
   });
 
   if (!comp) return (<div className="text-center py-12"><p className="text-blue-400">Torneio não localizado.</p><button onClick={onBack} className="text-emerald-400 underline">Voltar</button></div>);
@@ -1094,7 +1096,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Confronto e histórico atualizados permanentemente!", "success");
   };
 
-  // 🔥 SALVAMENTO FLEXÍVEL: Guarda os textos exatamente como você digitou
   const handleSavePrizes = () => {
     onEditComp({
       ...comp,
@@ -1121,13 +1122,13 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Time inserido manualmente com sucesso!", "success");
   };
 
-  const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}?join=${comp.id}`); showToast("Link copiado! Pode colar no WhatsApp.", "success"); };
+  const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}?join=${comp.id}`); showToast("Link copiado!", "success"); };
   
   const handleApproveTeam = (req) => {
     const newPending = comp.pendingTeams.filter(p => p.teamId !== req.teamId);
     const newTeams = [...(comp.teams || []), req.teamId];
     onEditComp({ ...comp, pendingTeams: newPending, teams: newTeams });
-    showToast("Time Aprovado e Confirmado!", "success");
+    showToast("Time Aprovado!", "success");
   };
 
   const handleRejectTeam = (req) => {
@@ -1137,7 +1138,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   };
 
   const handleGenerateBracket = () => {
-    if (comp.teams.length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times confirmados para gerar a tabela!`, "error"); return; }
+    if (comp.teams.length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times confirmados!`, "error"); return; }
     let finalRounds = []; let groupsData = null;
     if (comp.format === 'groups') {
       const res = generateGroupsAndKnockout(comp.teams, comp.id, comp.numGroups, comp.qualifiersPerGroup, comp.isDoubleRound);
@@ -1145,11 +1146,14 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     } else if (comp.format === 'cup') { finalRounds = generateCupBracket(comp.teams, comp.id);
     } else { finalRounds = generateRoundRobin(comp.teams, comp.id, comp.isDoubleRound); }
     onEditComp({ ...comp, status: 'active', rounds: finalRounds, groups: groupsData || comp.groups || null });
-    showToast("Sucesso! Inscrições encerradas e tabela gerada.", "success");
+    showToast("Tabela e chaves geradas com sucesso!", "success");
   };
 
-  // Verifica se existe alguma linha de prêmio cadastrada para exibir o painel
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
+
+  // 🔄 FILTRO MÁGICO: Separa as rodadas de mata-mata puro para montar a árvore visual
+  const knockoutRounds = (comp.rounds || []).filter(r => r.id.includes('ko') || comp.format === 'cup');
+  const groupOrNormalRounds = (comp.rounds || []).filter(r => !r.id.includes('ko') && comp.format !== 'cup');
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
@@ -1159,14 +1163,13 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         <div>
           <h2 className="text-xl font-bold text-white">{String(comp.name)}</h2>
           <p className="text-xs text-emerald-400 mt-1 uppercase font-bold">
-            {comp.format === 'league' ? 'Liga' : comp.format === 'groups' ? 'Fase de Grupos' : 'Mata-Mata'}
-            {comp.createdBy && <span className="text-blue-400 ml-2 normal-case font-medium">• Resp: {comp.createdBy}</span>}
+            {comp.format === 'league' ? 'Liga Corrida' : comp.format === 'groups' ? 'Fase de Grupos + Copa' : 'Copa Mata-Mata'}
           </p>
         </div>
         
         <div className="flex gap-2 w-full md:w-auto flex-wrap">
           {isAdmin && (
-            <button onClick={() => setShowEditPrizes(!showEditPrizes)} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-amber-700 shadow-md transition-all flex items-center gap-1">
+            <button onClick={() => setShowEditPrizes(!showEditPrizes)} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-amber-700 shadow-md flex items-center gap-1">
               🏆 Configurar Premiação
             </button>
           )}
@@ -1192,55 +1195,42 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </div>
       </div>
 
-      {/* 💰 QUADRO DE EDIÇÃO ATUALIZADO: Inputs de texto livre */}
       {showEditPrizes && (
         <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
           <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">💰 Atualizar Prêmios (Texto Livre)</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-blue-300">🥇 1º Lugar</label>
-              <input type="text" placeholder="Ex: R$ 50,00 ou Passe Elite" value={prizeData.first} onChange={e => setPrizeData({...prizeData, first: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
+              <input type="text" placeholder="Ex: R$ 50,00 ou Passe" value={prizeData.first} onChange={e => setPrizeData({...prizeData, first: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none" />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-blue-300">🥈 2º Lugar</label>
-              <input type="text" placeholder="Ex: R$ 20,00 ou Vaga na Champions" value={prizeData.second} onChange={e => setPrizeData({...prizeData, second: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
+              <input type="text" placeholder="Ex: R$ 20,00" value={prizeData.second} onChange={e => setPrizeData({...prizeData, second: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none" />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-blue-300">🥉 3º Lugar</label>
-              <input type="text" placeholder="Ex: Medalha de Bronze" value={prizeData.third} onChange={e => setPrizeData({...prizeData, third: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
+              <input type="text" placeholder="Ex: Medalha" value={prizeData.third} onChange={e => setPrizeData({...prizeData, third: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none" />
             </div>
           </div>
-          
-          {/* Campo Extra dedicado para Sorteio de Passes de Temporada */}
           <div className="space-y-1">
             <label className="text-xs font-bold text-amber-400">🎟️ Sorteios / Prêmios Extras da Galera</label>
-            <input type="text" placeholder="Ex: Sorteio de 2 Passes de Temporada entre todos que jogarem todas as rodadas!" value={prizeData.extra} onChange={e => setPrizeData({...prizeData, extra: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
+            <input type="text" placeholder="Ex: Sorteio de 1 Passe de Temporada" value={prizeData.extra} onChange={e => setPrizeData({...prizeData, extra: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none" />
           </div>
-
           <div className="flex justify-end gap-2">
             <button onClick={() => setShowEditPrizes(false)} className="px-3 py-1.5 bg-blue-950 border border-blue-700 rounded-lg text-xs text-blue-400">Cancelar</button>
-            <button onClick={handleSavePrizes} className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs">Salvar Alterações</button>
+            <button onClick={handleSavePrizes} className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs">Salvar</button>
           </div>
         </div>
       )}
 
-      {/* 💰 NOVO PAINEL VISUAL DA PREMIAÇÃO: Exibe os textos puros na tela */}
       {hasAnyPrize && (
-        <div className="bg-gradient-to-r from-amber-500/10 to-blue-900/40 border border-amber-500/20 p-5 rounded-2xl flex flex-col gap-3 shadow-md">
-          <div className="flex items-center gap-2"><Trophy className="text-amber-400" size={24}/><div><h4 className="text-sm font-bold text-white">Premiação Oficial e Incentivos</h4><p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-widest">Compromisso da gestão do Clã</p></div></div>
-          
-          <div className="flex flex-wrap gap-2">
-            {comp.prizes?.first && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium flex items-center gap-1">🥇 1º: <b className="text-amber-400">{comp.prizes.first}</b></span>}
-            {comp.prizes?.second && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium flex items-center gap-1">🥈 2º: <b className="text-slate-300">{comp.prizes.second}</b></span>}
-            {comp.prizes?.third && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium flex items-center gap-1">🥉 3º: <b className="text-amber-700">{comp.prizes.third}</b></span>}
+        <div className="bg-gradient-to-r from-amber-500/10 to-blue-900/40 border border-amber-500/20 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
+          <div className="flex items-center gap-2"><Trophy className="text-amber-400" size={24}/><div><h4 className="text-sm font-bold text-white">Premiação Oficial</h4><p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-widest">Compromisso do clã</p></div></div>
+          <div className="flex items-center gap-2 flex-wrap justify-center">
+            {comp.prizes?.first && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium">🥇 1º: <b className="text-amber-400">{comp.prizes.first}</b></span>}
+            {comp.prizes?.second && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium">🥈 2º: <b className="text-slate-300">{comp.prizes.second}</b></span>}
+            {comp.prizes?.extra && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium">🎟️ Extra: <b className="text-emerald-400">{comp.prizes.extra}</b></span>}
           </div>
-
-          {comp.prizes?.extra && (
-            <div className="mt-1 p-2.5 bg-blue-950/80 rounded-xl border border-blue-800 text-xs text-blue-300 flex items-start gap-2">
-              <span className="text-base leading-none">🎟️</span>
-              <p className="leading-relaxed"><b className="text-amber-400 font-bold">Extra/Sorteio:</b> {comp.prizes.extra}</p>
-            </div>
-          )}
         </div>
       )}
 
@@ -1271,11 +1261,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         <ShieldDisplay shield={t?.shield} size="small" />
                         <div><p className="font-bold text-white text-sm">{t?.name}</p><p className="text-[10px] text-blue-400">Técnico: {t?.coach}</p></div>
                       </div>
-                      {comp.isPaid && req.receipt && (
-                        <div className="border border-blue-800 rounded bg-black/50 p-2"><img src={req.receipt} alt="Comprovante PIX" className="w-full h-32 object-contain rounded" /></div>
-                      )}
                       <div className="flex gap-2">
-                        <Button variant="outline" onClick={()=>handleRejectTeam(req)} className="flex-1 py-2 text-xs border-red-500/30 text-red-400">Recusar</Button>
+                        <Button variant="outline" onClick={()=>handleRejectTeam(req)} className="flex-1 py-2 text-xs text-red-400">Recusar</Button>
                         <Button onClick={()=>handleApproveTeam(req)} className="flex-1 py-2 text-xs bg-emerald-600">Aprovar</Button>
                       </div>
                     </div>
@@ -1305,110 +1292,170 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
              <Button onClick={handleGenerateBracket} disabled={comp.teams?.length !== comp.teamCount} className="w-full py-5 text-xl font-black rounded-2xl bg-emerald-500 text-blue-950 hover:bg-emerald-400 disabled:bg-blue-900 disabled:text-blue-700 shadow-2xl">
                 🏆 Encerrar Inscrições e Gerar Tabela
               </Button>
-             {(comp.teams?.length !== comp.teamCount) && <p className="text-center text-[10px] text-blue-500 mt-2 font-bold uppercase">Aguarde preencher todas as {comp.teamCount} vagas para gerar a tabela.</p>}
           </div>
         </div>
       ) : (
         <>
+          {/* Subabas principais: Tabelas Gerais vs Estatísticas */}
           <div className="flex gap-1 p-1 bg-blue-950 rounded-xl border border-blue-800">
-            <button onClick={()=>setSubTab('overview')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>Tabela & Jogos</button>
-            <button onClick={()=>setSubTab('stats')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>Estatísticas</button>
+            <button onClick={()=>setSubTab('overview')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Tabela & Jogos</button>
+            <button onClick={()=>setSubTab('stats')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Estatísticas</button>
           </div>
           
           <div className="space-y-8 mt-4">
             {subTab === 'overview' && (
-              <div className="space-y-8 animate-in slide-in-from-left-4">
-                <div className="space-y-2">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 mb-2 pl-2">
-                    <h3 className="text-lg font-bold text-white">Classificação</h3>
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                      {isAdmin && comp.format !== 'groups' && comp.format !== 'cup' && (
-                        <div className="flex items-center gap-2 bg-blue-900 px-2 py-1 rounded-lg border border-blue-800 shadow-lg">
-                          <span className="text-[10px] text-blue-400 font-bold uppercase hidden sm:inline" title="Classificados">Verdes:</span>
-                          <select value={comp.topQualifiers || 4} onChange={(e) => { onEditComp({...comp, topQualifiers: parseInt(e.target.value)}); showToast("Zona de classificação atualizada!"); }} className="bg-blue-950 border border-blue-700 text-xs text-green-400 rounded p-1 outline-none font-black cursor-pointer"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select>
-                          <span className="text-[10px] text-blue-400 font-bold uppercase ml-1 hidden sm:inline" title="Rebaixados/Eliminados">Vermelhos:</span>
-                          <select value={comp.bottomRelegated !== undefined ? comp.bottomRelegated : ((comp.teams?.length || 0) > 10 ? 4 : 2)} onChange={(e) => { onEditComp({...comp, bottomRelegated: parseInt(e.target.value)}); showToast("Zona de rebaixamento atualizada!"); }} className="bg-blue-950 border border-blue-700 text-xs text-red-400 rounded p-1 outline-none font-black cursor-pointer"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select>
-                        </div>
-                      )}
-                      <Button onClick={() => captureSection('capture-standings', `Tabela-${comp.name}`)} className="text-[10px] py-1.5 px-3 shadow-lg flex-1 sm:flex-none" variant="outline"><Camera size={14}/> Salvar Tabela</Button>
-                    </div>
-                  </div>
-                  <div id="capture-standings" className="bg-blue-950 p-6 sm:p-8 rounded-3xl border border-blue-800 relative overflow-hidden shadow-2xl">
-                    <div className="flex items-center justify-center sm:justify-start gap-4 sm:gap-6 mb-8 relative z-10"><img src={LOGO_URL} alt="Logo" className="w-24 h-24 sm:w-32 sm:h-32 object-contain drop-shadow-2xl" /><h2 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-wider drop-shadow-lg">TABELA - {comp.name}</h2></div>
-                    <div className="relative z-10"><Standings matches={matches} teams={compTeams} comp={comp} /></div>
-                  </div>
-                </div>
+              <div className="space-y-6 animate-in slide-in-from-left-4">
                 
-                <div className="space-y-3 pt-4 border-t border-blue-800/50">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-4 pl-2">
-                    <h3 className="text-lg font-bold text-white">Rodadas e Confrontos</h3>
-                    {isAdmin && comp.format === 'groups' && (
-                      <Button onClick={handleAutoMigrateKnockout} className="text-[10px] py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white border-0 shadow-lg" variant="outline">🔄 Migrar Classificados para Mata-Mata</Button>
+                {/* 🔄 NOVO SELETOR DE ESTRUTURA: Permite alternar chaves e tabelas tradicionais */}
+                {comp.format !== 'league' && (
+                  <div className="flex justify-center"><div className="bg-blue-950 p-1 rounded-xl border border-blue-800 flex gap-1">
+                    <button type="button" onClick={() => setViewType('bracket')} className={`px-4 py-1.5 text-xs rounded-lg font-bold transition-colors ${viewType === 'bracket' ? 'bg-amber-600 text-white' : 'text-blue-400 hover:text-white'}`}>🏆 Chaveamento Mata-Mata</button>
+                    <button type="button" onClick={() => setViewType('table')} className={`px-4 py-1.5 text-xs rounded-lg font-bold transition-colors ${viewType === 'table' ? 'bg-amber-600 text-white' : 'text-blue-400 hover:text-white'}`}>{comp.format === 'groups' ? '📋 Classificação dos Grupos' : '📋 Tabela Geral Tradicional'}</button>
+                  </div></div>
+                )}
+
+                {/* 📋 MODO DE EXIBIÇÃO A: TABELAS TRADICIONAIS OU GRUPOS */}
+                {viewType === 'table' && (
+                  <div className="space-y-6 animate-in fade-in">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 mb-2 pl-2">
+                      <h3 className="text-lg font-bold text-white">Classificação da Competição</h3>
+                      <Button onClick={() => captureSection('capture-standings', `Tabela-${comp.name}`)} className="text-[10px] py-1.5 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar Tabela</Button>
+                    </div>
+                    <div id="capture-standings" className="bg-blue-950 p-6 sm:p-8 rounded-3xl border border-blue-800 shadow-2xl">
+                      <div className="flex items-center gap-4 mb-6"><img src={LOGO_URL} alt="Logo" className="w-16 h-16 object-contain" /><h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-wider">TABELA - {comp.name}</h2></div>
+                      <Standings matches={matches} teams={compTeams} comp={comp} />
+                    </div>
+
+                    {/* Exibe as rodadas regulares lineares apenas se existirem */}
+                    {groupOrNormalRounds.length > 0 && (
+                      <div className="space-y-3 pt-4 border-t border-blue-800/50">
+                        <h3 className="text-base font-bold text-blue-300 mb-2 pl-2">Calendário de Rodadas</h3>
+                        {groupOrNormalRounds.map((round) => {
+                          const isExpanded = expandedRoundId === round.id;
+                          return (
+                            <div key={round.id} className="bg-blue-900 border border-blue-800 rounded-xl overflow-hidden">
+                              <button type="button" onClick={() => toggleRound(round.id)} className="w-full bg-blue-950/60 p-4 flex justify-between items-center outline-none">
+                                <span className="text-sm font-bold text-white flex items-center gap-2"><PlayCircle size={16} className="text-emerald-500"/> Rodada {round.number}</span>
+                                <span className="text-blue-500 text-xs font-bold">{isExpanded ? '▲ Recolher' : '▼ Expandir'}</span>
+                              </button>
+                              {isExpanded && (
+                                <div className="p-4 bg-blue-950/40 grid grid-cols-1 gap-2 border-t border-blue-800">
+                                  {round.matches.map(m => {
+                                    const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                                    return (
+                                      <div key={m.id} onClick={()=>{if(sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className="bg-blue-900/60 p-3 rounded-xl border border-blue-800 flex items-center justify-between cursor-pointer hover:border-blue-700 text-xs">
+                                        <span className="font-bold text-blue-200 w-1/3 truncate text-right">{tA?.name}</span>
+                                        <span className={`px-3 py-1 font-black rounded mx-2 bg-blue-950 text-center ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</span>
+                                        <span className="font-bold text-blue-200 w-1/3 truncate text-left">{tB?.name}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
+                )}
 
-                  {(comp.rounds || []).map((round) => {
-                    const isExpanded = expandedRoundId === round.id;
-                    return (
-                      <div key={round?.id} className={`bg-blue-900 border ${isExpanded ? 'border-emerald-500/50 shadow-lg' : 'border-blue-800 hover:border-blue-700'} rounded-xl overflow-hidden transition-all`}>
-                        <button onClick={() => toggleRound(round.id)} className="w-full bg-blue-950/60 p-4 flex justify-between items-center transition-colors outline-none">
-                          <span className={`text-sm font-bold flex items-center gap-2 ${isExpanded ? 'text-emerald-400' : 'text-white'}`}>
-                            {round.status === 'locked' ? <Lock size={16} className="text-blue-500"/> : <PlayCircle size={16} className="text-emerald-500"/>}
-                            Rodada {String(round?.number || '')}
-                          </span>
-                          <div className="flex items-center gap-3">
-                            {isAdmin && round?.status === 'locked' && <Button onClick={(e)=>{e.stopPropagation(); onReleaseRound(comp.id, round.id)}} className="py-1 text-[10px]">Liberar</Button>}
-                            <span className={`font-bold transition-transform duration-300 ${isExpanded ? 'text-emerald-400 rotate-180' : 'text-blue-500'}`}>▼</span>
-                          </div>
-                        </button>
-                        
-                        {isExpanded && (
-                          <div className="bg-blue-900 border-t border-blue-800 animate-in slide-in-from-top-2 p-3">
-                            <div className="flex justify-end mb-3 px-1"><Button onClick={() => captureSection(`capture-round-${round.id}`, `Rodada-${round.number}-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-md" variant="outline"><Camera size={12}/> Print da Rodada</Button></div>
-                            <div id={`capture-round-${round.id}`} className="bg-blue-950 p-4 rounded-xl border border-blue-800/50 space-y-3">
-                              <h4 className="text-center font-bold text-white mb-4 text-xs uppercase tracking-widest">{comp.name} <span className="text-emerald-400">• Rodada {round.number}</span></h4>
-                              {(round?.matches || []).map((m) => {
-                                const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
-                                if (editMatchData?.id === m.id) {
+                {/* 🏆 MODO DE EXIBIÇÃO B: CHAVEAMENTO MATA-MATA VISUAL EM ÁRVORE */}
+                {viewType === 'bracket' && (
+                  <div className="space-y-4 animate-in fade-in">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 pl-2">
+                      <h3 className="text-lg font-bold text-white">Chaves do Mata-Mata</h3>
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        {isAdmin && comp.format === 'groups' && (
+                          <Button onClick={handleAutoMigrateKnockout} className="text-[10px] py-1.5 px-3 bg-emerald-600 border-0 shadow-md">🔄 Puxar Classificados dos Grupos</Button>
+                        )}
+                        <Button onClick={() => captureSection('capture-bracket-tree', `Chaveamento-${comp.name}`)} className="text-[10px] py-1.5 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar Print das Chaves</Button>
+                      </div>
+                    </div>
+
+                    {/* Painel com rolagem horizontal para acomodar as colunas perfeitamente */}
+                    <div id="capture-bracket-tree" className="bg-blue-950 p-6 md:p-8 rounded-3xl border border-blue-800 shadow-2xl overflow-x-auto custom-scrollbar">
+                      <div className="flex items-center gap-3 mb-6 shrink-0"><img src={LOGO_URL} alt="Logo" className="w-12 h-12" /><h4 className="font-black text-white text-xl uppercase tracking-wider">CHAVEAMENTO OFICIAL — {comp.name}</h4></div>
+                      
+                      {knockoutRounds.length === 0 ? (
+                        <p className="text-center p-8 text-blue-500 text-sm">O chaveamento do Mata-Mata estará disponível assim que a fase classificatória terminar.</p>
+                      ) : (
+                        <div className="flex gap-8 items-start pb-4 min-w-max px-2">
+                          {knockoutRounds.map((round) => (
+                            <div key={round.id} className="w-64 flex flex-col gap-6 shrink-0 animate-in fade-in">
+                              {/* Título da Fase (Quartas, Semifinal, Final...) */}
+                              <div className="bg-blue-900 border border-blue-800 rounded-xl px-4 py-2.5 text-center shadow-md relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-[3px] bg-amber-500"></div>
+                                <span className="text-xs font-black text-amber-400 uppercase tracking-widest">Fase: {round.number}</span>
+                                {isAdmin && round.status === 'locked' && (
+                                  <button type="button" onClick={() => onReleaseRound(comp.id, round.id)} className="block w-full mt-1.5 bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[9px] py-0.5 rounded uppercase tracking-wider transition-colors">🔓 Liberar Jogos</button>
+                                )}
+                              </div>
+
+                              {/* Caixa de Confrontos da Fase empilhados verticalmente */}
+                              <div className="flex flex-col gap-4 justify-around h-full py-2">
+                                {round.matches.map((m) => {
+                                  const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                                  const isLocked = round.status === 'locked';
+                                  
                                   return (
-                                    <div key={m.id} className="bg-blue-900 p-3 rounded-lg border border-emerald-500/50 flex flex-col gap-3 shadow-lg">
-                                      <div className="flex items-center gap-2">
-                                        <select value={editMatchData.teamA || ''} onChange={e=>setEditMatchData({...editMatchData, teamA: e.target.value})} className="flex-1 bg-blue-950 text-xs text-white p-2 rounded border border-blue-700 outline-none"><option value="">{m.placeholderA || 'Selecione a Equipe A'}</option>{compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
-                                        <span className="font-bold text-blue-500 text-xs">X</span>
-                                        <select value={editMatchData.teamB || ''} onChange={e=>setEditMatchData({...editMatchData, teamB: e.target.value})} className="flex-1 bg-blue-950 text-xs text-white p-2 rounded border border-blue-700 outline-none"><option value="">{m.placeholderB || 'Selecione a Equipe B'}</option>{compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+                                    <div key={m.id} className="relative group">
+                                      <div onClick={() => { if(sUI.isPlayed && onSelectMatch){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} cursor-pointer relative overflow-hidden`}>
+                                        
+                                        {/* Status Flutuante */}
+                                        <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
+                                          <span className="text-blue-500">Confronto</span>
+                                          <span className={sUI.color}>{sUI.text}</span>
+                                        </div>
+
+                                        {/* Time de Cima (Equipe A) */}
+                                        <div className="flex items-center justify-between gap-2 min-w-0 mt-0.5">
+                                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                            <ShieldDisplay shield={tA?.shield} size="small" />
+                                            <span className={`text-xs truncate font-bold ${sUI.isPlayed && sUI.scoreA > sUI.scoreB ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}
+                                            <span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreA : '-'}</span>
+                                          </div>
+                                        </div>
+
+                                        {/* Time de Baixo (Equipe B) */}
+                                        <div className="flex items-center justify-between gap-2 min-w-0">
+                                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                            <ShieldDisplay shield={tB?.shield} size="small" />
+                                            <span className={`text-xs truncate font-bold ${sUI.isPlayed && sUI.scoreB > sUI.scoreA ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}
+                                            <span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreB : '-'}</span>
+                                          </div>
+                                        </div>
+
                                       </div>
-                                      <div className="flex justify-end gap-2"><Button variant="outline" onClick={()=>setEditMatchData(null)} className="py-1 px-3 text-[10px]">Cancelar</Button><Button onClick={saveMatchEdit} className="py-1 px-3 text-[10px]">Salvar</Button></div>
+                                      
+                                      {/* Edição Manual do Líder no Chaveamento */}
+                                      {isAdmin && (
+                                        <button type="button" onClick={(e) => { e.stopPropagation(); setEditMatchData({ ...m, roundId: round.id }); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto"><Edit size={10} /></button>
+                                      )}
                                     </div>
                                   );
-                                }
-                                return (
-                                  <div key={m.id} className="relative group">
-                                    <div onClick={()=>{if(sUI.isPlayed && onSelectMatch){const found = matches.find(x=>x.id===sUI.submittedMatchId); if(found) onSelectMatch(found)}}} className="bg-blue-900 p-4 rounded-xl border border-blue-800 flex items-center justify-between cursor-pointer hover:border-blue-700 transition-colors shadow-sm hover:shadow-md relative overflow-hidden">
-                                      <div className="flex-1 flex flex-col items-center justify-start gap-2 w-1/3"><ShieldDisplay shield={tA?.shield} size="normal" /><span className="font-bold text-blue-200 text-xs md:text-sm text-center leading-tight break-words whitespace-normal w-full px-1">{tA?.name || m.placeholderA}</span></div>
-                                      <div className="flex flex-col items-center justify-center px-1 md:px-2 w-1/3 shrink-0">
-                                        <span className={`text-[8px] md:text-[9px] uppercase tracking-widest font-bold mb-2 px-2 py-0.5 rounded text-center ${sUI.bg} ${sUI.color}`}>{sUI.text}</span>
-                                        <div className="flex items-center justify-center gap-1 md:gap-3">
-                                          {sUI.isPlayed ? (<>{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-4 mr-1">({sUI.penaltiesA})</span>}<span className={`text-2xl md:text-3xl font-black ${sUI.color}`}>{sUI.scoreA}</span><span className="text-blue-700 font-bold mx-1 mb-1">:</span><span className={`text-2xl md:text-3xl font-black ${sUI.color}`}>{sUI.scoreB}</span>{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-4 ml-1">({sUI.penaltiesB})</span>}</>) : (<span className="text-blue-700 font-bold text-xl md:text-2xl">:</span>)}
-                                        </div>
-                                      </div>
-                                      <div className="flex-1 flex flex-col items-center justify-start gap-2 w-1/3"><ShieldDisplay shield={tB?.shield} size="normal" /><span className="font-bold text-blue-200 text-xs md:text-sm text-center leading-tight break-words whitespace-normal w-full px-1">{tB?.name || m.placeholderB}</span></div>
-                                    </div>
-                                    {isAdmin && (<button onClick={(e) => { e.stopPropagation(); setEditMatchData({ ...m, roundId: round.id }); }} className="absolute right-2 top-2 text-blue-400 hover:text-emerald-400 p-1.5 bg-blue-950 rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all z-10 border border-blue-800 shadow-md" title="Editar Confronto"><Edit size={14} /></button>)}
-                                  </div>
-                                )
-                              })}
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
 
             {subTab === 'stats' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
+                {/* Artilharia e Assistências seguem idênticas abaixo */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-end mb-2"><h3 className="text-lg font-bold text-white pl-2">Top Goleadores</h3><Button onClick={() => captureSection('capture-scorers', `Artilharia-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar</Button></div>
                   <div id="capture-scorers" className="bg-blue-900 rounded-xl border border-blue-800 overflow-hidden shadow-xl p-2 sm:p-4">
