@@ -1856,10 +1856,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [imageUploaded, setImageUploaded] = useState(false);
   
-  // NOVO ESTADO: Controle do modo de preenchimento manual
   const [isManualMode, setIsManualMode] = useState(false);
 
-  // Controle de Chave da IA Direto pelo Usuário no Navegador
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [tempKey, setTempKey] = useState('');
@@ -1867,7 +1865,13 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
   const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
-  const visibleCompetitions = (competitions || []).filter(c => isAdmin || (c.teams || []).some(tId => userTeamIds.includes(tId)));
+
+  // 🔒 TRAVA DE SEGURANÇA ATUALIZADA: Filtra apenas campeonatos 'active' (em andamento)
+  const visibleCompetitions = (competitions || []).filter(c => 
+    c && 
+    c.status === 'active' && 
+    (isAdmin || (c.teams || []).some(tId => userTeamIds.includes(tId)))
+  );
 
   const selectedComp = useMemo(() => (competitions || []).find(c => c.id === selectedCompId), [selectedCompId, competitions]);
   const isCup = selectedComp?.format === 'cup' || (selectedComp?.format === 'groups' && selectedMatchId.includes('_ko_'));
