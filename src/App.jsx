@@ -944,6 +944,14 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [newTeamToAdd, setNewTeamToAdd] = useState('');
 
+  // 💰 NOVOS ESTADOS: Controle de edição de prêmios pós-criação
+  const [showEditPrizes, setShowEditPrizes] = useState(false);
+  const [prizeData, setPrizeData] = useState({
+    first: comp.prizes?.first || '',
+    second: comp.prizes?.second || '',
+    third: comp.prizes?.third || ''
+  });
+
   if (!comp) return (<div className="text-center py-12"><p className="text-blue-400">Torneio não localizado.</p><button onClick={onBack} className="text-emerald-400 underline">Voltar</button></div>);
   
   const isRegistration = comp.status === 'registration';
@@ -987,20 +995,15 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       const element = document.getElementById(elementId);
       if (!element) return;
       
-      // MÁGICA: Estica a tabela temporariamente para o print sair 100% completo!
       const originalWidth = element.style.width;
       const originalOverflow = element.style.overflow;
       element.style.width = 'max-content';
       element.style.overflow = 'visible';
       
-      // Tira o scroll dos filhos temporariamente
       const scrollables = element.querySelectorAll('.overflow-x-auto');
       scrollables.forEach(el => { el.style.overflow = 'visible'; el.style.width = 'max-content'; });
 
-      // scale: 2 garante a alta resolução pro WhatsApp
       window.html2canvas(element, { backgroundColor: '#020617', scale: 2, useCORS: true }).then(canvas => {
-        
-        // Restaura a tela ao normal instantaneamente após o print
         element.style.width = originalWidth;
         element.style.overflow = originalOverflow;
         scrollables.forEach(el => { el.style.overflow = ''; el.style.width = ''; });
@@ -1024,7 +1027,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
   const toggleRound = (id) => { setExpandedRoundId(prev => prev === id ? null : id); };
 
-  // NOVO: Função para Migrar Classificados Automaticamente
   const handleAutoMigrateKnockout = () => {
     if (!comp.groups) return;
     showToast("Calculando classificados...", "info");
@@ -1034,10 +1036,9 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       const gTeams = (teams || []).filter(t => comp.groups[gName].includes(t.id));
       const gTable = calculateStandings(matches, gTeams, comp.id);
       
-      // Associa a posição na tabela (1º, 2º, etc) ao ID do time real
       gTable.forEach((row, idx) => {
         qualifiers[`${idx + 1}º Grupo ${gName}`] = row.id;
-        qualifiers[`${idx + 1}º do Grupo ${gName}`] = row.id; // Variação de texto
+        qualifiers[`${idx + 1}º do Grupo ${gName}`] = row.id;
       });
     });
 
@@ -1056,9 +1057,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Mata-Mata preenchido com os classificados!", "success");
   };
 
-  // NOVO: Função para salvar edição de um confronto manual
   const saveMatchEdit = () => {
-    // 1. Atualiza a tabela da competição (Calendário)
     const updatedRounds = comp.rounds.map(r => {
       if (r.id === editMatchData.roundId) {
         return {
@@ -1071,20 +1070,17 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     
     onEditComp({ ...comp, rounds: updatedRounds });
 
-    // 2. MÁGICA: Atualiza o resultado oficial se a partida já tiver acontecido
     const playedMatch = (matches || []).find(m => m.matchId === editMatchData.id && m.compId === comp.id);
     if (playedMatch && onUpdatePlayedMatch) {
       const oldTeamA = playedMatch.teamA;
       const oldTeamB = playedMatch.teamB;
       
-      // Transfere os gols do time antigo para o novo time
       const updatedGoals = (playedMatch.goals || []).map(g => {
         if (g.teamId === oldTeamA) return { ...g, teamId: editMatchData.teamA };
         if (g.teamId === oldTeamB) return { ...g, teamId: editMatchData.teamB };
         return g;
       });
 
-      // Salva o relatório de partida atualizado
       onUpdatePlayedMatch({
         ...playedMatch,
         teamA: editMatchData.teamA,
@@ -1096,9 +1092,33 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     setEditMatchData(null);
     showToast("Confronto e histórico atualizados permanentemente!", "success");
   };
-  const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
 
-  // Funções do Painel de Inscrições
+  // FUNÇÃO MÁGICA: Salva a nova premiação na nuvem
+  const handleSavePrizes = () => {
+    onEditComp({
+      ...comp,
+      prizes: {
+        first: parseFloat(prizeData.first) || 0,
+        second: parseFloat(prizeData.second) || 0,
+        third: parseFloat(prizeData.third) || 0
+      }
+    });
+    setShowEditPrizes(false);
+    showToast("Quadro de premiações atualizado!", "success");
+  };
+
+  const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
+  const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id));
+
+  const handleAddTeamToComp = () => {
+    if(!newTeamToAdd) return;
+    const newTeams = [...(comp.teams || []), newTeamToAdd];
+    onEditComp({ ...comp, teams: newTeams });
+    setNewTeamToAdd('');
+    setShowAddTeam(false);
+    showToast("Time inserido manualmente com sucesso!", "success");
+  };
+
   const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}?join=${comp.id}`); showToast("Link copiado! Pode colar no WhatsApp.", "success"); };
   
   const handleApproveTeam = (req) => {
@@ -1139,25 +1159,71 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
           </p>
         </div>
         
-        {isAdmin && !isRegistration && (
-          <div className="flex gap-2 w-full md:w-auto">
-            {showAddTeam ? (
-              <div className="flex gap-2 w-full animate-in fade-in">
-                <select value={newTeamToAdd} onChange={e=>setNewTeamToAdd(e.target.value)} className="flex-1 md:w-48 bg-blue-950 border border-blue-700 rounded-lg p-2 text-xs text-white outline-none">
-                  <option value="">Escolher time...</option>
-                  {availableTeamsToAdd.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-                <Button onClick={handleAddTeamToComp} className="py-1 px-3 text-xs">Salvar</Button>
-                <Button variant="outline" onClick={()=>{setShowAddTeam(false); setNewTeamToAdd('');}} className="py-1 px-2 text-xs font-bold text-blue-400">X</Button>
-              </div>
-            ) : (
-              <Button variant="outline" onClick={()=>setShowAddTeam(true)} className="py-2 px-3 text-xs w-full md:w-auto flex items-center justify-center gap-2">
-                <span className="text-emerald-400 font-bold">+</span> Inserir Time
-              </Button>
-            )}
-          </div>
-        )}
+        <div className="flex gap-2 w-full md:w-auto flex-wrap">
+          {/* Botão de Premiação para Admin */}
+          {isAdmin && (
+            <button onClick={() => setShowEditPrizes(!showEditPrizes)} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-amber-700 shadow-md transition-all flex items-center gap-1">
+              🏆 Configurar Premiação
+            </button>
+          )}
+
+          {isAdmin && !isRegistration && (
+            <>
+              {showAddTeam ? (
+                <div className="flex gap-2 w-full sm:w-auto animate-in fade-in">
+                  <select value={newTeamToAdd} onChange={e=>setNewTeamToAdd(e.target.value)} className="bg-blue-950 border border-blue-700 rounded-lg p-2 text-xs text-white outline-none">
+                    <option value="">Escolher time...</option>
+                    {availableTeamsToAdd.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                  <Button onClick={handleAddTeamToComp} className="py-1 px-3 text-xs">Salvar</Button>
+                  <Button variant="outline" onClick={()=>{setShowAddTeam(false); setNewTeamToAdd('');}} className="py-1 px-2 text-xs font-bold text-blue-400">X</Button>
+                </div>
+              ) : (
+                <Button variant="outline" onClick={()=>setShowAddTeam(true)} className="py-2 px-3 text-xs w-full sm:w-auto flex items-center justify-center gap-2">
+                  <span className="text-emerald-400 font-bold">+</span> Inserir Time
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       </div>
+
+      {/* 💰 NOVO FORMULÁRIO INTERNO: Configuração de Prêmios */}
+      {showEditPrizes && (
+        <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
+          <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">💰 Atualizar Prêmios da Competição</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-blue-300">🥇 1º Lugar (R$)</label>
+              <input type="number" placeholder="Ex: 50.00" value={prizeData.first} onChange={e => setPrizeData({...prizeData, first: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-blue-300">🥈 2º Lugar (R$)</label>
+              <input type="number" placeholder="Ex: 20.00" value={prizeData.second} onChange={e => setPrizeData({...prizeData, second: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-blue-300">🥉 3º Lugar (R$)</label>
+              <input type="number" placeholder="Ex: 10.00" value={prizeData.third} onChange={e => setPrizeData({...prizeData, third: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setShowEditPrizes(false)} className="px-3 py-1.5 bg-blue-950 border border-blue-700 rounded-lg text-xs text-blue-400">Cancelar</button>
+            <button onClick={handleSavePrizes} className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs">Salvar Alterações</button>
+          </div>
+        </div>
+      )}
+
+      {/* 💰 NOVO PAINEL DE EXIBIÇÃO: Mostra o pote de ouro para os técnicos */}
+      {((comp.prizes?.first > 0) || (comp.prizes?.second > 0) || (comp.prizes?.third > 0)) && (
+        <div className="bg-gradient-to-r from-amber-500/10 to-blue-900/40 border border-amber-500/20 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
+          <div className="flex items-center gap-2"><Trophy className="text-amber-400" size={24}/><div><h4 className="text-sm font-bold text-white">Premiação Oficial</h4><p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-widest">Valores garantidos para o pódio</p></div></div>
+          <div className="flex items-center gap-3 flex-wrap justify-center">
+            {comp.prizes?.first > 0 && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium">🥇 1º: <b className="text-emerald-400">R$ {comp.prizes.first.toFixed(2)}</b></span>}
+            {comp.prizes?.second > 0 && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium">🥈 2º: <b className="text-emerald-400">R$ {comp.prizes.second.toFixed(2)}</b></span>}
+            {comp.prizes?.third > 0 && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium">🥉 3º: <b className="text-emerald-400">R$ {comp.prizes.third.toFixed(2)}</b></span>}
+          </div>
+        </div>
+      )}
 
       {isRegistration ? (
         <div className="bg-blue-900 border border-blue-800 rounded-3xl p-6 md:p-8 shadow-2xl animate-in slide-in-from-bottom-4">
@@ -1218,8 +1284,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
           <div className="mt-8 pt-8 border-t border-blue-800">
              <Button onClick={handleGenerateBracket} disabled={comp.teams?.length !== comp.teamCount} className="w-full py-5 text-xl font-black rounded-2xl bg-emerald-500 text-blue-950 hover:bg-emerald-400 disabled:bg-blue-900 disabled:text-blue-700 shadow-2xl">
-               🏆 Encerrar Inscrições e Gerar Tabela
-             </Button>
+                🏆 Encerrar Inscrições e Gerar Tabela
+              </Button>
              {(comp.teams?.length !== comp.teamCount) && <p className="text-center text-[10px] text-blue-500 mt-2 font-bold uppercase">Aguarde preencher todas as {comp.teamCount} vagas para gerar a tabela.</p>}
           </div>
         </div>
@@ -1240,7 +1306,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                       {isAdmin && comp.format !== 'groups' && comp.format !== 'cup' && (
                         <div className="flex items-center gap-2 bg-blue-900 px-2 py-1 rounded-lg border border-blue-800 shadow-lg">
                           <span className="text-[10px] text-blue-400 font-bold uppercase hidden sm:inline" title="Classificados">Verdes:</span>
-                          <select value={comp.topQualifiers || 4} onChange={(e) => { onEditComp({...comp, topQualifiers: parseInt(e.target.value)}); showToast("Zona de classificação atualizada!"); }} className="bg-blue-950 border border-blue-700 text-xs text-green-400 rounded p-1 outline-none font-black cursor-pointer"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select>
+                          <select value={comp.topQualifiers || 4} onChange={(e) => { onEditComp({...comp, topQualifiers: parseInt(e.target.value)}); showToast("Zona de classificação updated!"); }} className="bg-blue-950 border border-blue-700 text-xs text-green-400 rounded p-1 outline-none font-black cursor-pointer"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select>
                           <span className="text-[10px] text-blue-400 font-bold uppercase ml-1 hidden sm:inline" title="Rebaixados/Eliminados">Vermelhos:</span>
                           <select value={comp.bottomRelegated !== undefined ? comp.bottomRelegated : ((comp.teams?.length || 0) > 10 ? 4 : 2)} onChange={(e) => { onEditComp({...comp, bottomRelegated: parseInt(e.target.value)}); showToast("Zona de rebaixamento atualizada!"); }} className="bg-blue-950 border border-blue-700 text-xs text-red-400 rounded p-1 outline-none font-black cursor-pointer"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select>
                         </div>
