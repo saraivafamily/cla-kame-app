@@ -703,6 +703,41 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
   const [searchTerm, setSearchTerm] = useState('');
   const [viewingTeam, setViewingTeam] = useState(null); // Estado que controla a abertura das estatísticas
   
+  // 🔍 1. LOCALIZA O TIME DO TÉCNICO LOGADO
+  const myTeam = (teams || []).find(t => t && t.ownerId === currentUser?.id);
+  const myTeamId = myTeam?.id;
+
+  // 🔒 2. ALGORITMO DE VALIDAÇÃO: Bloqueia o botão se não houver jogo liberado pendente
+  const canCallTeam = (targetTeamId) => {
+    if (!myTeamId || targetTeamId === myTeamId) return false;
+
+    return (competitions || []).some(c => {
+      // Só analisa competições em andamento
+      if (c.status !== 'active' || !c.rounds) return false;
+
+      return c.rounds.some(round => {
+        // Só aceita rodadas liberadas pelos líderes
+        if (round.status !== 'released') return false;
+
+        return round.matches.some(rm => {
+          // Verifica se o confronto direto existe nesta rodada
+          const isOurMatch = (rm.teamA === myTeamId && rm.teamB === targetTeamId) || 
+                             (rm.teamA === targetTeamId && rm.teamB === myTeamId);
+          if (!isOurMatch) return false;
+
+          // Se o jogo existe, confirma se ele já não foi jogado ou está pendente na nuvem
+          const alreadyPlayed = (matches || []).some(m => 
+            m.matchId === rm.id && 
+            m.compId === c.id && 
+            (m.status === 'pending' || m.status === 'approved')
+          );
+
+          return !alreadyPlayed; // Ativa apenas se NÃO tiver sido jogado
+        });
+      });
+    });
+  };
+
   const handleWhatsApp = (phone) => { if (!phone) return; window.open(`https://wa.me/${String(phone).replace(/\D/g, '')}`, '_blank'); };
   const startEdit = (team) => { if (!team) return; setEditingId(team.id); setEditData({ name: team.name || '', coach: team.coach || '', whatsapp: team.whatsapp || '', shield: team.shield || '🛡️', ownerId: team.ownerId || 'manual' }); };
   const saveEdit = (team) => { if (!editData.name || !editData.coach) return; onEditTeam({ ...team, ...editData }); setEditingId(null); };
@@ -800,7 +835,8 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
                     <button onClick={(e) => { e.stopPropagation(); if(window.confirm('Tem certeza que deseja apagar este time definitivamente?')) { onDeleteTeam(team.id); } }} className="text-blue-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-blue-800" title="Excluir Time"><Trash2 size={14} /></button>
                   </div>
                 )}
-                  <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-3 text-xs disabled:bg-blue-800 disabled:text-blue-500 shrink-0 z-10" disabled={!team.whatsapp}>
+                  {/* 🔒 APLICAÇÃO canCallTeam: TRAVA O BOTÃO SE NÃO FOR O ADVERSÁRIO DA VEZ */}
+                  <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-3 text-xs disabled:bg-blue-800 disabled:text-blue-500 shrink-0 z-10" disabled={!team.whatsapp || !canCallTeam(team.id)}>
                     <MessageCircle size={16} /> <span className="sm:hidden lg:inline">Chamar</span>
                   </Button>
                 </div>
@@ -825,7 +861,8 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
                     <p className="text-[9px] md:text-[10px] text-blue-400 mt-1 truncate px-1"><span className="text-blue-300 font-medium">{String(team.coach || 'Sem técnico')}</span></p>
                   </div>
                 </div>
-                <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-1 py-1.5 text-[10px] md:text-xs px-2 disabled:bg-blue-800 disabled:text-blue-500 z-10" disabled={!team.whatsapp}>
+                {/* 🔒 APLICAÇÃO canCallTeam: TRAVA O BOTÃO SE NÃO FOR O ADVERSÁRIO DA VEZ */}
+                <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-1 py-1.5 text-[10px] md:text-xs px-2 disabled:bg-blue-800 disabled:text-blue-500 z-10" disabled={!team.whatsapp || !canCallTeam(team.id)}>
                   <MessageCircle size={14} /> Chamar
                 </Button>
               </div>
@@ -834,7 +871,6 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
         </div>
       )}
       
-      {/* Aqui é onde a Mágica acontece! O Modal é renderizado caso exista uma equipe selecionada */}
       {viewingTeam && (
         <TeamStatsModal 
           team={viewingTeam} 
