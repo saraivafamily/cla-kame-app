@@ -1480,7 +1480,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                         </div>
 
                                         {/* 🖤 TIME A: Aplica o filtro preto e branco dinâmico via Tailwind */}
-                                        <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-25 brightness-75 contrast-75 line-through decoration-red-500/30' : ''}`}>
+                                        <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}>
                                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                             <ShieldDisplay shield={tA?.shield} size="small" />
                                             <span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span>
@@ -1492,7 +1492,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                         </div>
 
                                         {/* 🖤 TIME B: Aplica o filtro preto e branco dinâmico via Tailwind */}
-                                        <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-25 brightness-75 contrast-75 line-through decoration-red-500/30' : ''}`}>
+                                        <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}>
                                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                             <ShieldDisplay shield={tB?.shield} size="small" />
                                             <span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span>
