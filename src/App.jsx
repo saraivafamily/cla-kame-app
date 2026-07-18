@@ -944,12 +944,13 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [newTeamToAdd, setNewTeamToAdd] = useState('');
 
-  // 💰 NOVOS ESTADOS: Controle de edição de prêmios pós-criação
+  // 🎁 ESTADOS ATUALIZADOS: Agora aceitam texto livre para qualquer tipo de prêmio
   const [showEditPrizes, setShowEditPrizes] = useState(false);
   const [prizeData, setPrizeData] = useState({
     first: comp.prizes?.first || '',
     second: comp.prizes?.second || '',
-    third: comp.prizes?.third || ''
+    third: comp.prizes?.third || '',
+    extra: comp.prizes?.extra || '' // Campo dedicado para sorteio de passes, etc.
   });
 
   if (!comp) return (<div className="text-center py-12"><p className="text-blue-400">Torneio não localizado.</p><button onClick={onBack} className="text-emerald-400 underline">Voltar</button></div>);
@@ -1093,14 +1094,15 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Confronto e histórico atualizados permanentemente!", "success");
   };
 
-  // FUNÇÃO MÁGICA: Salva a nova premiação na nuvem
+  // 🔥 SALVAMENTO FLEXÍVEL: Guarda os textos exatamente como você digitou
   const handleSavePrizes = () => {
     onEditComp({
       ...comp,
       prizes: {
-        first: parseFloat(prizeData.first) || 0,
-        second: parseFloat(prizeData.second) || 0,
-        third: parseFloat(prizeData.third) || 0
+        first: prizeData.first.trim(),
+        second: prizeData.second.trim(),
+        third: prizeData.third.trim(),
+        extra: prizeData.extra.trim()
       }
     });
     setShowEditPrizes(false);
@@ -1146,6 +1148,9 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Sucesso! Inscrições encerradas e tabela gerada.", "success");
   };
 
+  // Verifica se existe alguma linha de prêmio cadastrada para exibir o painel
+  const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
+
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
@@ -1160,7 +1165,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </div>
         
         <div className="flex gap-2 w-full md:w-auto flex-wrap">
-          {/* Botão de Premiação para Admin */}
           {isAdmin && (
             <button onClick={() => setShowEditPrizes(!showEditPrizes)} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-amber-700 shadow-md transition-all flex items-center gap-1">
               🏆 Configurar Premiação
@@ -1188,24 +1192,31 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </div>
       </div>
 
-      {/* 💰 NOVO FORMULÁRIO INTERNO: Configuração de Prêmios */}
+      {/* 💰 QUADRO DE EDIÇÃO ATUALIZADO: Inputs de texto livre */}
       {showEditPrizes && (
         <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
-          <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">💰 Atualizar Prêmios da Competição</h3>
+          <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">💰 Atualizar Prêmios (Texto Livre)</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-blue-300">🥇 1º Lugar (R$)</label>
-              <input type="number" placeholder="Ex: 50.00" value={prizeData.first} onChange={e => setPrizeData({...prizeData, first: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none" />
+              <label className="text-xs font-bold text-blue-300">🥇 1º Lugar</label>
+              <input type="text" placeholder="Ex: R$ 50,00 ou Passe Elite" value={prizeData.first} onChange={e => setPrizeData({...prizeData, first: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-blue-300">🥈 2º Lugar (R$)</label>
-              <input type="number" placeholder="Ex: 20.00" value={prizeData.second} onChange={e => setPrizeData({...prizeData, second: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none" />
+              <label className="text-xs font-bold text-blue-300">🥈 2º Lugar</label>
+              <input type="text" placeholder="Ex: R$ 20,00 ou Vaga na Champions" value={prizeData.second} onChange={e => setPrizeData({...prizeData, second: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-blue-300">🥉 3º Lugar (R$)</label>
-              <input type="number" placeholder="Ex: 10.00" value={prizeData.third} onChange={e => setPrizeData({...prizeData, third: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none" />
+              <label className="text-xs font-bold text-blue-300">🥉 3º Lugar</label>
+              <input type="text" placeholder="Ex: Medalha de Bronze" value={prizeData.third} onChange={e => setPrizeData({...prizeData, third: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
             </div>
           </div>
+          
+          {/* Campo Extra dedicado para Sorteio de Passes de Temporada */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-amber-400">🎟️ Sorteios / Prêmios Extras da Galera</label>
+            <input type="text" placeholder="Ex: Sorteio de 2 Passes de Temporada entre todos que jogarem todas as rodadas!" value={prizeData.extra} onChange={e => setPrizeData({...prizeData, extra: e.target.value})} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
+          </div>
+
           <div className="flex justify-end gap-2">
             <button onClick={() => setShowEditPrizes(false)} className="px-3 py-1.5 bg-blue-950 border border-blue-700 rounded-lg text-xs text-blue-400">Cancelar</button>
             <button onClick={handleSavePrizes} className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs">Salvar Alterações</button>
@@ -1213,15 +1224,23 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </div>
       )}
 
-      {/* 💰 NOVO PAINEL DE EXIBIÇÃO: Mostra o pote de ouro para os técnicos */}
-      {((comp.prizes?.first > 0) || (comp.prizes?.second > 0) || (comp.prizes?.third > 0)) && (
-        <div className="bg-gradient-to-r from-amber-500/10 to-blue-900/40 border border-amber-500/20 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
-          <div className="flex items-center gap-2"><Trophy className="text-amber-400" size={24}/><div><h4 className="text-sm font-bold text-white">Premiação Oficial</h4><p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-widest">Valores garantidos para o pódio</p></div></div>
-          <div className="flex items-center gap-3 flex-wrap justify-center">
-            {comp.prizes?.first > 0 && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium">🥇 1º: <b className="text-emerald-400">R$ {comp.prizes.first.toFixed(2)}</b></span>}
-            {comp.prizes?.second > 0 && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium">🥈 2º: <b className="text-emerald-400">R$ {comp.prizes.second.toFixed(2)}</b></span>}
-            {comp.prizes?.third > 0 && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium">🥉 3º: <b className="text-emerald-400">R$ {comp.prizes.third.toFixed(2)}</b></span>}
+      {/* 💰 NOVO PAINEL VISUAL DA PREMIAÇÃO: Exibe os textos puros na tela */}
+      {hasAnyPrize && (
+        <div className="bg-gradient-to-r from-amber-500/10 to-blue-900/40 border border-amber-500/20 p-5 rounded-2xl flex flex-col gap-3 shadow-md">
+          <div className="flex items-center gap-2"><Trophy className="text-amber-400" size={24}/><div><h4 className="text-sm font-bold text-white">Premiação Oficial e Incentivos</h4><p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-widest">Compromisso da gestão do Clã</p></div></div>
+          
+          <div className="flex flex-wrap gap-2">
+            {comp.prizes?.first && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium flex items-center gap-1">🥇 1º: <b className="text-amber-400">{comp.prizes.first}</b></span>}
+            {comp.prizes?.second && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium flex items-center gap-1">🥈 2º: <b className="text-slate-300">{comp.prizes.second}</b></span>}
+            {comp.prizes?.third && <span className="text-xs bg-blue-950 px-3 py-1.5 rounded-lg border border-blue-800 text-white font-medium flex items-center gap-1">🥉 3º: <b className="text-amber-700">{comp.prizes.third}</b></span>}
           </div>
+
+          {comp.prizes?.extra && (
+            <div className="mt-1 p-2.5 bg-blue-950/80 rounded-xl border border-blue-800 text-xs text-blue-300 flex items-start gap-2">
+              <span className="text-base leading-none">🎟️</span>
+              <p className="leading-relaxed"><b className="text-amber-400 font-bold">Extra/Sorteio:</b> {comp.prizes.extra}</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -1306,7 +1325,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                       {isAdmin && comp.format !== 'groups' && comp.format !== 'cup' && (
                         <div className="flex items-center gap-2 bg-blue-900 px-2 py-1 rounded-lg border border-blue-800 shadow-lg">
                           <span className="text-[10px] text-blue-400 font-bold uppercase hidden sm:inline" title="Classificados">Verdes:</span>
-                          <select value={comp.topQualifiers || 4} onChange={(e) => { onEditComp({...comp, topQualifiers: parseInt(e.target.value)}); showToast("Zona de classificação updated!"); }} className="bg-blue-950 border border-blue-700 text-xs text-green-400 rounded p-1 outline-none font-black cursor-pointer"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select>
+                          <select value={comp.topQualifiers || 4} onChange={(e) => { onEditComp({...comp, topQualifiers: parseInt(e.target.value)}); showToast("Zona de classificação atualizada!"); }} className="bg-blue-950 border border-blue-700 text-xs text-green-400 rounded p-1 outline-none font-black cursor-pointer"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select>
                           <span className="text-[10px] text-blue-400 font-bold uppercase ml-1 hidden sm:inline" title="Rebaixados/Eliminados">Vermelhos:</span>
                           <select value={comp.bottomRelegated !== undefined ? comp.bottomRelegated : ((comp.teams?.length || 0) > 10 ? 4 : 2)} onChange={(e) => { onEditComp({...comp, bottomRelegated: parseInt(e.target.value)}); showToast("Zona de rebaixamento atualizada!"); }} className="bg-blue-950 border border-blue-700 text-xs text-red-400 rounded p-1 outline-none font-black cursor-pointer"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select>
                         </div>
