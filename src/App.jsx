@@ -962,10 +962,10 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   
   const getMatchStatusDisplay = (matchId) => {
     const ms = (matches || []).filter(m => m && m.matchId === matchId && m.compId === comp.id && m.status !== 'rejected');
-    if(ms.length === 0) return { isPlayed: false, text: 'Aguardando', color: 'text-blue-500', bg: 'bg-blue-900 border-blue-800' };
+    if(ms.length === 0) return { isPlayed: false, text: 'Aguardando', color: 'text-blue-500', bg: 'bg-blue-950 border-blue-800' };
     const sm = ms.find(m => m.status === 'approved') || ms.find(m => m.status === 'pending');
-    if(!sm) return { isPlayed: false, text: 'Aguardando', color: 'text-blue-500', bg: 'bg-blue-900 border-blue-800' };
-    if(sm.status === 'approved') return { submittedMatchId: sm.id, isPlayed: true, scoreA: sm.scoreA, scoreB: sm.scoreB, penaltiesA: sm.penaltiesA, penaltiesB: sm.penaltiesB, text: 'Oficial', color: 'text-emerald-400', bg: 'bg-blue-950 border-emerald-900/50' };
+    if(!sm) return { isPlayed: false, text: 'Aguardando', color: 'text-blue-500', bg: 'bg-blue-950 border-blue-800' };
+    if(sm.status === 'approved') return { submittedMatchId: sm.id, isPlayed: true, scoreA: sm.scoreA, scoreB: sm.scoreB, penaltiesA: sm.penaltiesA, penaltiesB: sm.penaltiesB, text: 'Oficial', color: 'text-emerald-400', bg: 'bg-blue-950/80 border-emerald-950/30' };
     return { submittedMatchId: sm.id, isPlayed: true, scoreA: sm.scoreA, scoreB: sm.scoreB, penaltiesA: sm.penaltiesA, penaltiesB: sm.penaltiesB, text: 'Validando', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
   };
 
@@ -1153,14 +1153,13 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const knockoutRounds = (comp.rounds || []).filter(r => r.id.includes('ko') || comp.format === 'cup');
   const groupOrNormalRounds = (comp.rounds || []).filter(r => !r.id.includes('ko') && comp.format !== 'cup');
 
-  // 🏆 LÓGICA MÁGICA DE CAMPEÃO: Varre o banco de dados e calcula quem levou o troféu
   const championTeam = useMemo(() => {
     if (!comp.rounds || comp.rounds.length === 0) return null;
 
     if (comp.format === 'cup' || comp.format === 'groups') {
       if (knockoutRounds.length === 0) return null;
       const lastRound = knockoutRounds[knockoutRounds.length - 1];
-      const finalMatch = lastRound.matches[0]; // A final é sempre o primeiro jogo da última rodada
+      const finalMatch = lastRound.matches[0];
       if (finalMatch) {
         const sUI = getMatchStatusDisplay(finalMatch.id);
         if (sUI.isPlayed && sUI.text === 'Oficial') {
@@ -1169,7 +1168,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
           if (scoreA > scoreB) return getTeam(finalMatch.teamA);
           if (scoreB > scoreA) return getTeam(finalMatch.teamB);
           
-          // Empate nos gols, confere pênaltis obrigatórios
           const penA = Number(sUI.penaltiesA || 0);
           const penB = Number(sUI.penaltiesB || 0);
           if (penA > penB) return getTeam(finalMatch.teamA);
@@ -1177,7 +1175,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         }
       }
     } else if (comp.format === 'league') {
-      // Na Liga, confere se todas as rodadas foram dadas como oficiais/jogadas
       const totalMatches = groupOrNormalRounds.reduce((acc, r) => acc + r.matches.length, 0);
       const approvedMatches = matches.filter(m => m.compId === comp.id && m.status === 'approved').length;
       if (totalMatches > 0 && approvedMatches === totalMatches) {
@@ -1256,7 +1253,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </div>
       )}
 
-      {/* 👑 NOVO COROAÇÃO DO CAMPEÃO: Surge dinamicamente quando o torneio acaba */}
       {championTeam && (
         <div className="bg-gradient-to-r from-amber-500 via-yellow-600 to-amber-700 p-6 rounded-3xl border border-amber-400 shadow-[0_0_30px_rgba(245,158,11,0.4)] text-blue-950 flex flex-col md:flex-row items-center justify-between gap-6 animate-in zoom-in-95 duration-500 relative overflow-hidden">
           <div className="absolute -inset-10 bg-white/10 blur-2xl rounded-full transform -rotate-45 animate-pulse"></div>
@@ -1394,14 +1390,45 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                 <span className="text-blue-500 text-xs font-bold">{isExpanded ? '▲ Recolher' : '▼ Expandir'}</span>
                               </button>
                               {isExpanded && (
-                                <div className="p-4 bg-blue-950/40 grid grid-cols-1 gap-2 border-t border-blue-800">
+                                <div className="p-4 bg-blue-950/40 grid grid-cols-1 gap-3 border-t border-blue-800">
                                   {round.matches.map(m => {
                                     const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                                    
+                                    {/* ⚡ ATUALIZAÇÃO DO VISUAL: Restaurado o layout vertical idêntico ao print */}
                                     return (
-                                      <div key={m.id} onClick={()=>{if(sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className="bg-blue-900/60 p-3 rounded-xl border border-blue-800 flex items-center justify-between cursor-pointer hover:border-blue-700 text-xs">
-                                        <span className="font-bold text-blue-200 w-1/3 truncate text-right">{tA?.name}</span>
-                                        <span className={`px-3 py-1 font-black rounded mx-2 bg-blue-950 text-center ${sUI.color}`}>{sUI.isPlayed ? `${sUI.scoreA} x ${sUI.scoreB}` : 'vs'}</span>
-                                        <span className="font-bold text-blue-200 w-1/3 truncate text-left">{tB?.name}</span>
+                                      <div key={m.id} onClick={()=>{if(sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className="bg-blue-900/80 p-4 rounded-xl border border-blue-800 flex items-center justify-between cursor-pointer hover:border-blue-700 transition-colors shadow-sm">
+                                        
+                                        {/* Esquerda: Escudo e nome */}
+                                        <div className="flex flex-col items-center text-center w-1/3 min-w-0">
+                                          <ShieldDisplay shield={tA?.shield} size="normal" />
+                                          <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tA?.name || m.placeholderA}</span>
+                                        </div>
+
+                                        {/* Centro: Badge de status e placar centralizado vertical e horizontalmente */}
+                                        <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
+                                          <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
+                                            {sUI.text}
+                                          </span>
+                                          <div className="flex items-center justify-center gap-2">
+                                            {sUI.isPlayed ? (
+                                              <>
+                                                {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}
+                                                <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span>
+                                                <span className="text-blue-700 font-bold text-xl">:</span>
+                                                <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>
+                                                {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}
+                                              </>
+                                            ) : (
+                                              <span className="text-blue-700 font-bold text-xl">:</span>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {/* Direita: Escudo e nome */}
+                                        <div className="flex flex-col items-center text-center w-1/3 min-w-0">
+                                          <ShieldDisplay shield={tB?.shield} size="normal" />
+                                          <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tB?.name || m.placeholderB}</span>
+                                        </div>
                                       </div>
                                     );
                                   })}
@@ -1449,7 +1476,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                   const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                                   const isLocked = round.status === 'locked';
                                   
-                                  // 🔍 PREPARAÇÃO DO FILTRO: Verifica matematicamente quem foi derrotado no confronto
                                   const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
                                   let teamALost = false;
                                   let teamBLost = false;
@@ -1462,7 +1488,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                     } else if (scoreB < scoreA) {
                                       teamBLost = true;
                                     } else {
-                                      // Se houver empate em gols, decide pelas penalidades máximas da DLS
                                       const penA = Number(sUI.penaltiesA || 0);
                                       const penB = Number(sUI.penaltiesB || 0);
                                       if (penA < penB) teamALost = true;
@@ -1479,7 +1504,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                           <span className={sUI.color}>{sUI.text}</span>
                                         </div>
 
-                                        {/* 🖤 TIME A: Aplica o filtro preto e branco dinâmico via Tailwind */}
+                                        {/* 🖤 TIME A: Ajustado filtro pb com opacidade em 60% */}
                                         <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}>
                                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                             <ShieldDisplay shield={tA?.shield} size="small" />
@@ -1491,7 +1516,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                           </div>
                                         </div>
 
-                                        {/* 🖤 TIME B: Aplica o filtro preto e branco dinâmico via Tailwind */}
+                                        {/* 🖤 TIME B: Ajustado filtro pb com opacidade em 60% */}
                                         <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}>
                                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                             <ShieldDisplay shield={tB?.shield} size="small" />
@@ -1562,7 +1587,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     </div>
   );
 };
-
 const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onBack, showToast }) => {
   const [receipt, setReceipt] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
