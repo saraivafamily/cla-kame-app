@@ -1454,7 +1454,6 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   const comp = competitions.find(c => c && c.id === compId);
   const userTeam = teams.find(t => t && t.ownerId === currentUser?.id);
 
-  // ⚡ SEGUNDA TRAVA DE SEGURANÇA: Se a nuvem ainda estiver processando a lista, mostra um carregamento elegante em vez de dizer que o torneio não existe
   if (competitions.length === 0) {
     return <div className="p-12 text-center text-emerald-400 font-bold animate-pulse text-sm">🛡️ Carregando detalhes da Arena Kame...</div>;
   }
@@ -1462,24 +1461,24 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   if (!comp) return <div className="p-8 text-center text-slate-400">Torneio não encontrado ou encerrado.</div>;
   if (!userTeam) return <div className="p-8 text-center text-amber-400 font-bold bg-amber-500/10 rounded-2xl border border-amber-500/30 m-4">Você precisa ter um time cadastrado para participar. Peça a um líder para criar seu clube primeiro.</div>;
 
-  // ... restante do código do JoinCompetition (pode manter o resto igual)
   const isFull = comp.teams && comp.teams.length >= comp.teamCount;
   const alreadyJoined = comp.teams && comp.teams.includes(userTeam.id);
   const isPending = comp.pendingTeams && comp.pendingTeams.some(p => p.teamId === userTeam.id);
+
+  // Checa se existe qualquer tipo de premiação configurada para este torneio
+  const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (comp.isPaid && !receipt) { showToast("Anexe o comprovante de pagamento!", "error"); return; }
     
-    setIsSubmitting(true); // Ativa o "Enviando..."
-    
+    setIsSubmitting(true);
     try {
       await onJoin(comp.id, userTeam.id, receipt);
     } catch (error) {
       console.error("Erro ao processar inscrição:", error);
-      // O erro será tratado e exibido globalmente pela função principal
     } finally {
-      setIsSubmitting(false); // ✨ O SEGREDO: Destrava o botão aconteça o que acontecer!
+      setIsSubmitting(false);
     }
   };
 
@@ -1499,6 +1498,41 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
             <div><p className="text-[10px] text-blue-400 uppercase font-bold">Vagas Preenchidas</p><p className="text-lg font-black text-white">{(comp.teams?.length || 0)} <span className="text-blue-500">/ {comp.teamCount}</span></p></div>
             <div className="text-right"><p className="text-[10px] text-blue-400 uppercase font-bold">Prazo Final</p><p className="text-sm font-bold text-white">{new Date(comp.deadline + 'T12:00:00').toLocaleDateString()}</p></div>
           </div>
+
+          {/* 🏆 QUADRO DE PREMIAÇÃO LIVRE NA TELA DE INSCRIÇÃO */}
+          {hasAnyPrize && (
+            <div className="bg-gradient-to-b from-amber-500/5 to-blue-950/50 border border-amber-500/20 p-4 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 border-b border-blue-800 pb-2">
+                <Star className="text-amber-400" size={16} />
+                <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Premiação em Disputa</span>
+              </div>
+              <div className="space-y-2 text-xs">
+                {comp.prizes?.first && (
+                  <div className="flex justify-between items-center bg-blue-950/60 p-2 rounded border border-blue-900">
+                    <span className="text-blue-300 font-medium">🥇 1º Lugar:</span>
+                    <span className="font-bold text-white text-right">{comp.prizes.first}</span>
+                  </div>
+                )}
+                {comp.prizes?.second && (
+                  <div className="flex justify-between items-center bg-blue-950/60 p-2 rounded border border-blue-900">
+                    <span className="text-blue-400 font-medium">🥈 2º Lugar:</span>
+                    <span className="font-bold text-slate-300 text-right">{comp.prizes.second}</span>
+                  </div>
+                )}
+                {comp.prizes?.third && (
+                  <div className="flex justify-between items-center bg-blue-950/60 p-2 rounded border border-blue-900">
+                    <span className="text-blue-400 font-medium">🥉 3º Lugar:</span>
+                    <span className="font-bold text-amber-700 text-right">{comp.prizes.third}</span>
+                  </div>
+                )}
+                {comp.prizes?.extra && (
+                  <div className="bg-blue-950 p-2.5 rounded-lg border border-blue-800 text-[11px] text-blue-300 leading-relaxed mt-1">
+                    <span className="font-bold text-amber-400">🎟️ Sorteio / Extra:</span> {comp.prizes.extra}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {comp.isPaid && (
             <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-xl">
