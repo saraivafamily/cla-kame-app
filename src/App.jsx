@@ -1675,19 +1675,23 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [matchImageBase64, setMatchImageBase64] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [imageUploaded, setImageUploaded] = useState(false);
+  
+  // NOVO ESTADO: Controle do modo de preenchimento manual
   const [isManualMode, setIsManualMode] = useState(false);
 
+  // Controle de Chave da IA Direto pelo Usuário no Navegador
+  const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [tempKey, setTempKey] = useState('');
+
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  
   const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
   const visibleCompetitions = (competitions || []).filter(c => isAdmin || (c.teams || []).some(tId => userTeamIds.includes(tId)));
 
   const selectedComp = useMemo(() => (competitions || []).find(c => c.id === selectedCompId), [selectedCompId, competitions]);
   const isCup = selectedComp?.format === 'cup' || (selectedComp?.format === 'groups' && selectedMatchId.includes('_ko_'));
   const isTie = scoreA !== '' && scoreB !== '' && scoreA === scoreB;
-
-  // 🔥 CHAVE MESTRA FIXA - 100% AUTOMÁTICA 🔥
-  // Nenhuma memória de navegador vai sobrescrever isso.
-  const userApiKey = 'AQ.Ab8RN6Lt1e3K7UqwERxyzg-qmt4DGmXD0lV5wV0ynNL710XJRA';
 
   useEffect(() => {
     setSelectedMatchId('');
@@ -1731,7 +1735,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     setObservacoes('');
     setImageUploaded(false);
     setMatchImageBase64(null);
-    setIsManualMode(false);
+    setIsManualMode(false); // Zerando o modo manual ao trocar de jogo
   };
 
   const calculateSimilarity = (str1, str2) => {
@@ -1741,9 +1745,24 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     return words1.filter(w => words2.includes(w)).length;
   };
 
+  const handleSaveApiKey = () => {
+    if (tempKey.trim() !== '') {
+      localStorage.setItem('gemini_api_key', tempKey.trim());
+      setUserApiKey(tempKey.trim());
+      setShowKeyInput(false);
+      showToast("Chave da IA ativada com sucesso no seu navegador!", "success");
+    }
+  };
+
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (!userApiKey) {
+      setShowKeyInput(true);
+      showToast("Por favor, cole a sua chave do Gemini primeiro.", "error");
+      return;
+    }
 
     processScreenshot(file, async (base64) => {
       setMatchImageBase64(base64);
@@ -1751,21 +1770,81 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); setPenaltiesA(''); setPenaltiesB('');
 
       try {
-        // Chamada segura para a sua API Serverless no Vercel
-        const response = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ base64 })
-        });
+        const prompt = `Analise o placar final deste jogo de Dream League Soccer (DLS).
+REGRAS:
+1. O escudo do lado ESQUERDO tem um placar. O escudo do lado DIREITO tem um placar.
+2. Na lista central, identifique quem fez gol. GOLS possuem o ícone de uma BOLA DE FUTEBOL (⚽) ao lado.
+3. ASSISTÊNCIAS: Possuem o ícone de uma CHUTEIRA (👟) ao lado. Vincule a assistência ao gol do mesmo lado correspondente. Nem todo gol tem assistência. Deixe o campo assist vazio ("") se não houver.
+4. CARTÕES possuem um ícone retangular (🟨/🟥). IGNORE COMPLETAMENTE os jogadores com cartões.
+5. Liste os jogadores e minutos agrupando por quem está no lado esquerdo ou direito. Remova os parênteses dos minutos.
 
-        const dataResult = await response.json();
+Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e não escreva mais nada.
+{
+  "leftTeamName": "nome lido no escudo da esquerda",
+  "leftScore": 0,
+  "leftGoals": [{"player": "Nome do Goleador", "assist": "Nome da Assistência ou vazio", "minute": "90"}],
+  "rightTeamName": "nome lido no escudo da direita",
+  "rightScore": 0,
+  "rightGoals": [{"player": "Nome do Goleador", "assist": "", "minute": "90"}]
+}`;
+        
+        const mimeType = base64.match(/data:(.*?);base64/)[1];
+        const base64ImageData = base64.split(',')[1];
 
-        if (!response.ok) {
-          throw new Error(dataResult.error || "Falha na análise do servidor.");
+        const payload = {
+          contents: [{ 
+            role: "user", 
+            parts: [ 
+              { text: prompt }, 
+              { inlineData: { mimeType: mimeType, data: base64ImageData } } 
+            ] 
+          }],
+          generationConfig: { responseMimeType: "application/json" }
+        };
+
+      const safeKey = encodeURIComponent(userApiKey.trim());
+        const endpoints = [
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${safeKey}`
+        ];
+
+        let resultJson;
+        let lastError;
+
+        for (const url of endpoints) {
+          if (resultJson) break;
+          
+          try {
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+               const errData = await response.json().catch(() => null);
+               const errorMsg = errData?.error?.message || `Erro ${response.status}`;
+               
+               if (response.status === 403 || response.status === 400) {
+                 localStorage.removeItem('gemini_api_key');
+                 setUserApiKey('');
+                 setShowKeyInput(true);
+                 throw new Error("Sua Chave da IA é inválida. Verifique se copiou tudo corretamente.");
+               }
+               throw new Error(`Erro Google: ${errorMsg}`);
+            }
+
+            resultJson = await response.json();
+          } catch (error) {
+            lastError = error;
+            if (error.message.includes("inválida")) throw error;
+          }
         }
 
-        // Processa o texto retornado pela IA através do seu servidor
-        let textResponse = dataResult.candidates[0].content.parts[0].text.trim();
+        if (!resultJson || !resultJson.candidates) throw lastError || new Error("A IA não conseguiu ler o placar.");
+
+        let textResponse = resultJson.candidates[0].content.parts[0].text.trim();
         textResponse = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
         
         const data = JSON.parse(textResponse);
@@ -1794,17 +1873,18 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
           setGoalsB(data.leftGoals || []);
         }
 
-        setImageUploaded(true);
-        if (showToast) showToast("Dados extraídos do Print pela IA com sucesso!", "success");
+        if (showToast) showToast("Dados extraídos do Print pela IA!", "success");
 
       } catch (error) {
-        console.error("Erro detalhado IA:", error);
-        setImageUploaded(false); 
+        console.error("Erro IA:", error);
         if (showToast) {
-          showToast(`Erro no Servidor: ${error.message}`, "error"); 
+          showToast(`Falha: ${error.message.substring(0, 70)}`, "error");
+        } else {
+          alert(`Falha na IA: ${error.message}`);
         }
       } finally {
         setIsAnalyzing(false);
+        setImageUploaded(true);
       }
     });
   };
@@ -1865,9 +1945,25 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida</h2>
+        <button onClick={() => setShowKeyInput(!showKeyInput)} className="text-xs flex items-center gap-1 bg-blue-800 hover:bg-blue-700 text-blue-300 px-3 py-1.5 rounded-lg border border-blue-700 transition-colors">
+          <Key size={14}/> IA Config
+        </button>
       </div>
 
-      <div className="bg-blue-900 p-6 rounded-2xl border border-blue-800 space-y-6 shadow-xl">
+      <div className="bg-blue-900 p-6 rounded-2xl border border-blue-800 space-y-6">
+        
+        {showKeyInput && (
+          <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl animate-in slide-in-from-top-4">
+            <h3 className="text-sm font-bold text-amber-400 mb-2 flex items-center gap-2"><Key size={16}/> Chave de Ativação do Gemini</h3>
+            <p className="text-xs text-blue-400 mb-3">Para usar a leitura inteligente de Prints, cole a sua chave exclusiva do <b>Google AI Studio</b>. Ela ficará salva apenas no seu navegador.</p>
+            <div className="flex gap-2">
+              <input type="password" value={tempKey} onChange={e=>setTempKey(e.target.value)} placeholder="Ex: AIzaSy... ou AQAQ..." className="flex-1 bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
+              <button onClick={handleSaveApiKey} className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-amber-900/50">Salvar</button>
+            </div>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] text-emerald-400 hover:underline mt-2 inline-block">Clique aqui para gerar uma chave grátis ➔</a>
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-medium text-blue-400 mb-2">1. Competição</label>
           <select value={selectedCompId} onChange={e => setSelectedCompId(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
@@ -1888,15 +1984,16 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
                   return <option key={m.id} value={m.id}>Rodada {String(m.roundId || '').replace('r','')} - {tA} x {tB}</option>
                 })}
               </select>
-            ) : <div className="p-3 bg-blue-950 rounded border border-blue-800 text-blue-500 text-sm">Tudo limpo! Nenhuma partida pendente.</div>}
+            ) : <div className="p-3 bg-blue-950 rounded border border-blue-800 text-blue-500 text-sm">Tudo limpo!.</div>}
           </div>
         )}
 
+        {/* Exibe o box de envio apenas se não estiver no modo manual */}
         {selectedMatchId && !isManualMode && (
           <div className="animate-in slide-in-from-top-4">
-            <label className="block text-sm font-medium text-blue-400 mb-2">3. Envie o Print do Resultado (IA Automática)</label>
+            <label className="block text-sm font-medium text-blue-400 mb-2">3. Envie o Print do Resultado</label>
             <div className="mb-2">
-              <label className={`block border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer relative overflow-hidden ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-blue-700 hover:border-blue-500 bg-blue-950'}`}>
+              <label className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer relative overflow-hidden block ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-blue-700 hover:border-blue-500 bg-blue-950'}`}>
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isAnalyzing} />
                 {isAnalyzing ? (
                   <div className="flex flex-col items-center space-y-3">
@@ -1911,7 +2008,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
                 ) : (
                   <div className="flex flex-col items-center space-y-3">
                     <UploadCloud className="text-blue-500" size={40} />
-                    <p className="text-white font-medium">Clique para enviar a foto</p>
+                    <p className="text-white font-medium">Clique para enviar a foto e usar a IA</p>
                   </div>
                 )}
               </label>
@@ -1927,6 +2024,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
           </div>
         )}
 
+        {/* O formulário abre se enviou a imagem OU se ativou o modo manual */}
         {(imageUploaded || isManualMode) && (
           <form onSubmit={handleSubmit} className="animate-in slide-in-from-bottom-4 space-y-6 pt-4 border-t border-blue-800">
             <div className="flex justify-between items-center mb-2">
