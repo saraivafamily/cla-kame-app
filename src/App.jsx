@@ -1379,9 +1379,17 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (comp.isPaid && !receipt) { showToast("Anexe o comprovante de pagamento!", "error"); return; }
-    setIsSubmitting(true);
-    await onJoin(comp.id, userTeam.id, receipt);
-    setIsSubmitting(false);
+    
+    setIsSubmitting(true); // Ativa o "Enviando..."
+    
+    try {
+      await onJoin(comp.id, userTeam.id, receipt);
+    } catch (error) {
+      console.error("Erro ao processar inscrição:", error);
+      // O erro será tratado e exibido globalmente pela função principal
+    } finally {
+      setIsSubmitting(false); // ✨ O SEGREDO: Destrava o botão aconteça o que acontecer!
+    }
   };
 
   return (
@@ -2284,13 +2292,26 @@ export default function App() {
 
   const handleJoinComp = async (compId, teamId, receiptBase64) => {
     const comp = competitions.find(c => c.id === compId);
-    if(!comp) return;
-    const newPending = [...(comp.pendingTeams || []), { teamId, receipt: receiptBase64, timestamp: Date.now() }];
-    await updateDoc(getPublicDocPath('competitions', compId), { pendingTeams: newPending });
-    showToast("Inscrição enviada com sucesso para os líderes!", "success");
-    setCurrentTab('dashboard');
+    if (!comp) {
+      showToast("Erro: Campeonato não localizado no sistema.", "error");
+      return;
+    }
+    
+    try {
+      const newPending = [...(comp.pendingTeams || []), { teamId, receipt: receiptBase64, timestamp: Date.now() }];
+      
+      // Salva diretamente no caminho público estruturado do seu projeto
+      await updateDoc(getPublicDocPath('competitions', compId), { pendingTeams: newPending });
+      
+      showToast("Inscrição enviada com sucesso para os líderes!", "success");
+      setCurrentTab('dashboard');
+    } catch (error) {
+      console.error("Erro crítico ao gravar inscrição no Firebase:", error);
+      showToast(`Falha no Servidor Cloud: ${error.message}`, "error");
+      throw error; // Repassa o erro para a interface parar o estado de carregamento
+    }
   };
-
+  
   const showToast = (text, type = 'success') => { let msg = text; if (typeof text === 'object') { msg = text.message ? text.message : JSON.stringify(text); } setToastMessage({ text: String(msg), type }); setTimeout(() => setToastMessage(null), 4000); };
 
   useEffect(() => {
