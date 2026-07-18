@@ -1783,12 +1783,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        const safeKey = userApiKey.trim();
+        const safeKey = encodeURIComponent(userApiKey.trim());
         
-        // ⚠️ MUDANÇA AQUI: Removemos o ?key= da URL.
+        // As novas chaves AQ. funcionam perfeitamente na rota nativa do Gemini usando ?key=
         const endpoints = [
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent`
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`
         ];
 
         let resultJson;
@@ -1800,11 +1799,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           try {
             const response = await fetch(url, {
               method: 'POST',
-              headers: { 
-                'Content-Type': 'application/json',
-                // ⚠️ MUDANÇA AQUI: Injetamos a chave AQ diretamente no cabeçalho de segurança do Google
-                'x-goog-api-key': safeKey 
-              },
+              headers: { 'Content-Type': 'application/json' }, // Sem headers complexos de x-goog-api-key
               body: JSON.stringify(payload)
             });
 
