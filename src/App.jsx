@@ -1783,11 +1783,12 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        const safeKey = encodeURIComponent(userApiKey.trim());
+        const safeKey = userApiKey.trim();
         
+        // ⚠️ MUDANÇA AQUI: Removemos o ?key= da URL.
         const endpoints = [
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${safeKey}`
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent`
         ];
 
         let resultJson;
@@ -1799,11 +1800,14 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           try {
             const response = await fetch(url, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 
+                'Content-Type': 'application/json',
+                // ⚠️ MUDANÇA AQUI: Injetamos a chave AQ diretamente no cabeçalho de segurança do Google
+                'x-goog-api-key': safeKey 
+              },
               body: JSON.stringify(payload)
             });
 
-            // Lemos a resposta bruta para apanhar erros específicos do Google
             const respText = await response.text(); 
 
             if (!response.ok) {
@@ -1854,15 +1858,13 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           setGoalsB(data.leftGoals || []);
         }
 
-        // A caixa verde de sucesso SÓ aparece se chegar aqui sem erros
         setImageUploaded(true);
         if (showToast) showToast("Dados extraídos do Print pela IA com sucesso!", "success");
 
       } catch (error) {
         console.error("Erro detalhado IA:", error);
-        setImageUploaded(false); // Garante que a caixa volta ao estado inicial
+        setImageUploaded(false); 
         if (showToast) {
-          // Agora vamos ver o erro real que está a travar o sistema
           showToast(`Falha Real: ${error.message}`, "error"); 
         }
       } finally {
@@ -1870,7 +1872,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
       }
     });
   };
-
   const handleAddGoal = (team) => {
     if (team === 'A') { setGoalsA([...goalsA, { player: '', assist: '', minute: '' }]); setScoreA((parseInt(scoreA || 0) + 1).toString()); } 
     else { setGoalsB([...goalsB, { player: '', assist: '', minute: '' }]); setScoreB((parseInt(scoreB || 0) + 1).toString()); }
