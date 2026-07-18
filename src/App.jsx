@@ -1687,7 +1687,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
   // 🔥 CHAVE MESTRA FIXA - 100% AUTOMÁTICA 🔥
   // Nenhuma memória de navegador vai sobrescrever isso.
-  const userApiKey = 'AQ.Ab8RN6JnauAPsqNPRCzMrwTKy4bRytny7d_n7RhU2RmKO6tdwA';
+  const userApiKey = 'AQ.Ab8RN6Lt1e3K7UqwERxyzg-qmt4DGmXD0lV5wV0ynNL710XJRA';
 
   useEffect(() => {
     setSelectedMatchId('');
