@@ -1435,9 +1435,15 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   const comp = competitions.find(c => c && c.id === compId);
   const userTeam = teams.find(t => t && t.ownerId === currentUser?.id);
 
+  // ⚡ SEGUNDA TRAVA DE SEGURANÇA: Se a nuvem ainda estiver processando a lista, mostra um carregamento elegante em vez de dizer que o torneio não existe
+  if (competitions.length === 0) {
+    return <div className="p-12 text-center text-emerald-400 font-bold animate-pulse text-sm">🛡️ Carregando detalhes da Arena Kame...</div>;
+  }
+
   if (!comp) return <div className="p-8 text-center text-slate-400">Torneio não encontrado ou encerrado.</div>;
   if (!userTeam) return <div className="p-8 text-center text-amber-400 font-bold bg-amber-500/10 rounded-2xl border border-amber-500/30 m-4">Você precisa ter um time cadastrado para participar. Peça a um líder para criar seu clube primeiro.</div>;
 
+  // ... restante do código do JoinCompetition (pode manter o resto igual)
   const isFull = comp.teams && comp.teams.length >= comp.teamCount;
   const alreadyJoined = comp.teams && comp.teams.includes(userTeam.id);
   const isPending = comp.pendingTeams && comp.pendingTeams.some(p => p.teamId === userTeam.id);
@@ -2343,18 +2349,32 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => { const saved = localStorage.getItem('claKame_user'); return saved ? JSON.parse(saved) : null; });
-  const [currentTab, setCurrentTab] = useState('dashboard'); const [selectedCompId, setSelectedCompId] = useState(null); const [selectedMatch, setSelectedMatch] = useState(null); const [prevTab, setPrevTab] = useState('dashboard');
-  const [users, setUsers] = useState([]); const [matches, setMatches] = useState([]); const [teams, setTeams] = useState([]); const [competitions, setCompetitions] = useState([]);
-  const [toastMessage, setToastMessage] = useState(null); const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
+  
+  // ⚡ MÁGICA DA VELOCIDADE: Lê os parâmetros da URL imediatamente antes de criar os estados
+  const urlParams = new URLSearchParams(window.location.search);
+  const joinIdFromUrl = urlParams.get('join');
+
+  // O app já nasce configurado na aba de inscrição, sem passar pelo Dashboard!
+  const [currentTab, setCurrentTab] = useState(joinIdFromUrl ? 'join_comp' : 'dashboard');
+  const [selectedCompId, setSelectedCompId] = useState(joinIdFromUrl);
+  
+  const [selectedMatch, setSelectedMatch] = useState(null); 
+  const [prevTab, setPrevTab] = useState('dashboard');
+  const [users, setUsers] = useState([]); 
+  const [matches, setMatches] = useState([]); 
+  const [teams, setTeams] = useState([]); 
+  const [competitions, setCompetitions] = useState([]);
+  const [toastMessage, setToastMessage] = useState(null); 
+  const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
+
+  // Substitua aquele antigo useEffect do join por este aqui, que apenas limpa a URL de forma limpa
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const joinId = urlParams.get('join');
-    if (joinId && currentUser && competitions.length > 0) {
-       setSelectedCompId(joinId);
-       setCurrentTab('join_comp');
+    if (joinIdFromUrl && currentUser) {
        window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [currentUser, competitions]);
+  }, [currentUser]);
+
+  // ... restante de todas as suas funções do App (pode manter tudo igual abaixo)
 
   const handleJoinComp = async (compId, teamId, receiptBase64) => {
     const comp = competitions.find(c => c.id === compId);
