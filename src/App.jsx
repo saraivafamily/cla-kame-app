@@ -1751,80 +1751,21 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setScoreA('0'); setScoreB('0'); setGoalsA([]); setGoalsB([]); setPenaltiesA(''); setPenaltiesB('');
 
       try {
-        const prompt = `Analise o placar final deste jogo de Dream League Soccer (DLS).
-REGRAS:
-1. O escudo do lado ESQUERDO tem um placar. O escudo do lado DIREITO tem um placar.
-2. Na lista central, identifique quem fez gol. GOLS possuem o ícone de uma BOLA DE FUTEBOL (⚽) ao lado.
-3. ASSISTÊNCIAS: Possuem o ícone de uma CHUTEIRA (👟) ao lado. Vincule a assistência ao gol do mesmo lado correspondente. Nem todo gol tem assistência. Deixe o campo assist vazio ("") se não houver.
-4. CARTÕES possuem um ícone retangular (🟨/🟥). IGNORE COMPLETAMENTE os jogadores com cartões.
-5. Liste os jogadores e minutos agrupando por quem está no lado esquerdo ou direito. Remova os parênteses dos minutos.
+        // Chamada segura para a sua API Serverless no Vercel
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base64 })
+        });
 
-Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e não escreva mais nada.
-{
-  "leftTeamName": "nome lido no escudo da esquerda",
-  "leftScore": 0,
-  "leftGoals": [{"player": "Nome do Goleador", "assist": "Nome da Assistência ou vazio", "minute": "90"}],
-  "rightTeamName": "nome lido no escudo da direita",
-  "rightScore": 0,
-  "rightGoals": [{"player": "Nome do Goleador", "assist": "", "minute": "90"}]
-}`;
-        
-        const mimeType = base64.match(/data:(.*?);base64/)[1];
-        const base64ImageData = base64.split(',')[1];
+        const dataResult = await response.json();
 
-        const payload = {
-          contents: [{ 
-            role: "user", 
-            parts: [ 
-              { text: prompt }, 
-              { inlineData: { mimeType: mimeType, data: base64ImageData } } 
-            ] 
-          }],
-          generationConfig: { responseMimeType: "application/json" }
-        };
-
-        const safeKey = encodeURIComponent(userApiKey.trim());
-        
-        // As novas chaves AQ. funcionam perfeitamente na rota nativa do Gemini usando ?key=
-        const endpoints = [
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`
-        ];
-
-        let resultJson;
-        let lastError;
-
-        for (const url of endpoints) {
-          if (resultJson) break;
-          
-          try {
-            const response = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' }, // Sem headers complexos de x-goog-api-key
-              body: JSON.stringify(payload)
-            });
-
-            const respText = await response.text(); 
-
-            if (!response.ok) {
-               let errorMsg = `Erro HTTP ${response.status}`;
-               try {
-                  const errData = JSON.parse(respText);
-                  errorMsg = errData?.error?.message || errorMsg;
-               } catch(e){}
-               throw new Error(`Google API: ${errorMsg}`);
-            }
-
-            resultJson = JSON.parse(respText);
-          } catch (error) {
-            lastError = error;
-          }
+        if (!response.ok) {
+          throw new Error(dataResult.error || "Falha na análise do servidor.");
         }
 
-        if (!resultJson || !resultJson.candidates) {
-            throw lastError || new Error("A IA não retornou um formato reconhecido.");
-        }
-
-        let textResponse = resultJson.candidates[0].content.parts[0].text.trim();
+        // Processa o texto retornado pela IA através do seu servidor
+        let textResponse = dataResult.candidates[0].content.parts[0].text.trim();
         textResponse = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
         
         const data = JSON.parse(textResponse);
@@ -1860,13 +1801,14 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         console.error("Erro detalhado IA:", error);
         setImageUploaded(false); 
         if (showToast) {
-          showToast(`Falha Real: ${error.message}`, "error"); 
+          showToast(`Erro no Servidor: ${error.message}`, "error"); 
         }
       } finally {
         setIsAnalyzing(false);
       }
     });
   };
+
   const handleAddGoal = (team) => {
     if (team === 'A') { setGoalsA([...goalsA, { player: '', assist: '', minute: '' }]); setScoreA((parseInt(scoreA || 0) + 1).toString()); } 
     else { setGoalsB([...goalsB, { player: '', assist: '', minute: '' }]); setScoreB((parseInt(scoreB || 0) + 1).toString()); }
