@@ -2412,7 +2412,10 @@ export default function App() {
     if (currentUser) {
       localStorage.setItem('claKame_user', JSON.stringify(currentUser)); const stillExists = users.find(u => u && u.id === currentUser.id);
       if (users.length > 0 && !stillExists) { setCurrentUser(null); localStorage.removeItem('claKame_user'); } 
-      else if (stillExists && stillExists.role !== currentUser.role) { setCurrentUser(stillExists); }
+      // ⚡ CORREÇÃO: Agora o sistema percebe instantaneamente quando o status muda de 'pending' para 'active'!
+      else if (stillExists && (stillExists.role !== currentUser.role || stillExists.status !== currentUser.status)) { 
+        setCurrentUser(stillExists); 
+      }
     } else { localStorage.removeItem('claKame_user'); }
   }, [users, currentUser]);
 
