@@ -944,7 +944,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [newTeamToAdd, setNewTeamToAdd] = useState('');
 
-  // 🔄 NOVO ESTADO: Controla o tipo de exibição ('bracket' = Chaveamento, 'table' = Tabelas/Grupos)
   const [viewType, setViewType] = useState(comp?.format === 'league' ? 'table' : 'bracket');
 
   const [showEditPrizes, setShowEditPrizes] = useState(false);
@@ -1151,9 +1150,43 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
 
-  // 🔄 FILTRO MÁGICO: Separa as rodadas de mata-mata puro para montar a árvore visual
   const knockoutRounds = (comp.rounds || []).filter(r => r.id.includes('ko') || comp.format === 'cup');
   const groupOrNormalRounds = (comp.rounds || []).filter(r => !r.id.includes('ko') && comp.format !== 'cup');
+
+  // 🏆 LÓGICA MÁGICA DE CAMPEÃO: Varre o banco de dados e calcula quem levou o troféu
+  const championTeam = useMemo(() => {
+    if (!comp.rounds || comp.rounds.length === 0) return null;
+
+    if (comp.format === 'cup' || comp.format === 'groups') {
+      if (knockoutRounds.length === 0) return null;
+      const lastRound = knockoutRounds[knockoutRounds.length - 1];
+      const finalMatch = lastRound.matches[0]; // A final é sempre o primeiro jogo da última rodada
+      if (finalMatch) {
+        const sUI = getMatchStatusDisplay(finalMatch.id);
+        if (sUI.isPlayed && sUI.text === 'Oficial') {
+          const scoreA = Number(sUI.scoreA || 0);
+          const scoreB = Number(sUI.scoreB || 0);
+          if (scoreA > scoreB) return getTeam(finalMatch.teamA);
+          if (scoreB > scoreA) return getTeam(finalMatch.teamB);
+          
+          // Empate nos gols, confere pênaltis obrigatórios
+          const penA = Number(sUI.penaltiesA || 0);
+          const penB = Number(sUI.penaltiesB || 0);
+          if (penA > penB) return getTeam(finalMatch.teamA);
+          if (penB > penA) return getTeam(finalMatch.teamB);
+        }
+      }
+    } else if (comp.format === 'league') {
+      // Na Liga, confere se todas as rodadas foram dadas como oficiais/jogadas
+      const totalMatches = groupOrNormalRounds.reduce((acc, r) => acc + r.matches.length, 0);
+      const approvedMatches = matches.filter(m => m.compId === comp.id && m.status === 'approved').length;
+      if (totalMatches > 0 && approvedMatches === totalMatches) {
+        const standings = calculateStandings(matches, compTeams, comp.id);
+        return standings.length > 0 ? standings[0] : null;
+      }
+    }
+    return null;
+  }, [comp, matches, knockoutRounds, groupOrNormalRounds]);
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
@@ -1223,7 +1256,33 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </div>
       )}
 
-      {hasAnyPrize && (
+      {/* 👑 NOVO COROAÇÃO DO CAMPEÃO: Surge dinamicamente quando o torneio acaba */}
+      {championTeam && (
+        <div className="bg-gradient-to-r from-amber-500 via-yellow-600 to-amber-700 p-6 rounded-3xl border border-amber-400 shadow-[0_0_30px_rgba(245,158,11,0.4)] text-blue-950 flex flex-col md:flex-row items-center justify-between gap-6 animate-in zoom-in-95 duration-500 relative overflow-hidden">
+          <div className="absolute -inset-10 bg-white/10 blur-2xl rounded-full transform -rotate-45 animate-pulse"></div>
+          
+          <div className="flex items-center gap-5 relative z-10">
+            <div className="bg-blue-950/20 p-2.5 rounded-full shadow-inner transform hover:rotate-12 transition-transform">
+              <ShieldDisplay shield={championTeam.shield} size="large" />
+            </div>
+            <div>
+              <span className="text-[10px] bg-blue-950 text-amber-400 px-2.5 py-0.5 rounded-full uppercase font-black tracking-widest shadow">🏆 GRANDE CAMPEÃO 🏆</span>
+              <h3 className="text-2xl font-black text-white mt-1.5 uppercase tracking-wide drop-shadow-md">{championTeam.name}</h3>
+              <p className="text-xs font-bold text-blue-950 uppercase mt-0.5 tracking-wider">Técnico Glorioso: <span className="text-white drop-shadow-sm">{championTeam.coach}</span></p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 bg-blue-950/20 px-5 py-3 rounded-2xl border border-white/20 shrink-0 relative z-10 w-full md:w-auto">
+            <Trophy className="text-white drop-shadow-md shrink-0 animate-bounce" size={44} style={{ animationDuration: '3s' }} />
+            <div className="text-left">
+              <p className="text-[9px] uppercase font-black tracking-widest text-blue-950">Troféu de Elite</p>
+              <p className="text-sm font-black text-white leading-tight uppercase max-w-[180px] truncate">{comp.name}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hasAnyPrize && !championTeam && (
         <div className="bg-gradient-to-r from-amber-500/10 to-blue-900/40 border border-amber-500/20 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
           <div className="flex items-center gap-2"><Trophy className="text-amber-400" size={24}/><div><h4 className="text-sm font-bold text-white">Premiação Oficial</h4><p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-widest">Compromisso do clã</p></div></div>
           <div className="flex items-center gap-2 flex-wrap justify-center">
@@ -1296,7 +1355,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </div>
       ) : (
         <>
-          {/* Subabas principais: Tabelas Gerais vs Estatísticas */}
           <div className="flex gap-1 p-1 bg-blue-950 rounded-xl border border-blue-800">
             <button onClick={()=>setSubTab('overview')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Tabela & Jogos</button>
             <button onClick={()=>setSubTab('stats')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Estatísticas</button>
@@ -1306,7 +1364,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             {subTab === 'overview' && (
               <div className="space-y-6 animate-in slide-in-from-left-4">
                 
-                {/* 🔄 NOVO SELETOR DE ESTRUTURA: Permite alternar chaves e tabelas tradicionais */}
                 {comp.format !== 'league' && (
                   <div className="flex justify-center"><div className="bg-blue-950 p-1 rounded-xl border border-blue-800 flex gap-1">
                     <button type="button" onClick={() => setViewType('bracket')} className={`px-4 py-1.5 text-xs rounded-lg font-bold transition-colors ${viewType === 'bracket' ? 'bg-amber-600 text-white' : 'text-blue-400 hover:text-white'}`}>🏆 Chaveamento Mata-Mata</button>
@@ -1314,7 +1371,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                   </div></div>
                 )}
 
-                {/* 📋 MODO DE EXIBIÇÃO A: TABELAS TRADICIONAIS OU GRUPOS */}
                 {viewType === 'table' && (
                   <div className="space-y-6 animate-in fade-in">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 mb-2 pl-2">
@@ -1326,7 +1382,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                       <Standings matches={matches} teams={compTeams} comp={comp} />
                     </div>
 
-                    {/* Exibe as rodadas regulares lineares apenas se existirem */}
                     {groupOrNormalRounds.length > 0 && (
                       <div className="space-y-3 pt-4 border-t border-blue-800/50">
                         <h3 className="text-base font-bold text-blue-300 mb-2 pl-2">Calendário de Rodadas</h3>
@@ -1360,20 +1415,18 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                   </div>
                 )}
 
-                {/* 🏆 MODO DE EXIBIÇÃO B: CHAVEAMENTO MATA-MATA VISUAL EM ÁRVORE */}
                 {viewType === 'bracket' && (
                   <div className="space-y-4 animate-in fade-in">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 pl-2">
                       <h3 className="text-lg font-bold text-white">Chaves do Mata-Mata</h3>
                       <div className="flex gap-2 w-full sm:w-auto">
                         {isAdmin && comp.format === 'groups' && (
-                          <Button onClick={handleAutoMigrateKnockout} className="text-[10px] py-1.5 px-3 bg-emerald-600 border-0 shadow-md">🔄 Puxar Classificados dos Grupos</Button>
+                          <Button onClick={handleAutoMigrateKnockout} className="text-[10px] py-1.5 px-3 bg-emerald-600 border-0 shadow-md">🔄 Puxar Classificados para Mata-Mata</Button>
                         )}
                         <Button onClick={() => captureSection('capture-bracket-tree', `Chaveamento-${comp.name}`)} className="text-[10px] py-1.5 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar Print das Chaves</Button>
                       </div>
                     </div>
 
-                    {/* Painel com rolagem horizontal para acomodar as colunas perfeitamente */}
                     <div id="capture-bracket-tree" className="bg-blue-950 p-6 md:p-8 rounded-3xl border border-blue-800 shadow-2xl overflow-x-auto custom-scrollbar">
                       <div className="flex items-center gap-3 mb-6 shrink-0"><img src={LOGO_URL} alt="Logo" className="w-12 h-12" /><h4 className="font-black text-white text-xl uppercase tracking-wider">CHAVEAMENTO OFICIAL — {comp.name}</h4></div>
                       
@@ -1383,7 +1436,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         <div className="flex gap-8 items-start pb-4 min-w-max px-2">
                           {knockoutRounds.map((round) => (
                             <div key={round.id} className="w-64 flex flex-col gap-6 shrink-0 animate-in fade-in">
-                              {/* Título da Fase (Quartas, Semifinal, Final...) */}
                               <div className="bg-blue-900 border border-blue-800 rounded-xl px-4 py-2.5 text-center shadow-md relative overflow-hidden">
                                 <div className="absolute top-0 left-0 w-full h-[3px] bg-amber-500"></div>
                                 <span className="text-xs font-black text-amber-400 uppercase tracking-widest">Fase: {round.number}</span>
@@ -1392,27 +1444,46 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                 )}
                               </div>
 
-                              {/* Caixa de Confrontos da Fase empilhados verticalmente */}
                               <div className="flex flex-col gap-4 justify-around h-full py-2">
                                 {round.matches.map((m) => {
                                   const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                                   const isLocked = round.status === 'locked';
                                   
+                                  // 🔍 PREPARAÇÃO DO FILTRO: Verifica matematicamente quem foi derrotado no confronto
+                                  const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
+                                  let teamALost = false;
+                                  let teamBLost = false;
+
+                                  if (isPlayed) {
+                                    const scoreA = Number(sUI.scoreA || 0);
+                                    const scoreB = Number(sUI.scoreB || 0);
+                                    if (scoreA < scoreB) {
+                                      teamALost = true;
+                                    } else if (scoreB < scoreA) {
+                                      teamBLost = true;
+                                    } else {
+                                      // Se houver empate em gols, decide pelas penalidades máximas da DLS
+                                      const penA = Number(sUI.penaltiesA || 0);
+                                      const penB = Number(sUI.penaltiesB || 0);
+                                      if (penA < penB) teamALost = true;
+                                      if (penB < penA) teamBLost = true;
+                                    }
+                                  }
+
                                   return (
                                     <div key={m.id} className="relative group">
                                       <div onClick={() => { if(sUI.isPlayed && onSelectMatch){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} cursor-pointer relative overflow-hidden`}>
                                         
-                                        {/* Status Flutuante */}
                                         <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
                                           <span className="text-blue-500">Confronto</span>
                                           <span className={sUI.color}>{sUI.text}</span>
                                         </div>
 
-                                        {/* Time de Cima (Equipe A) */}
-                                        <div className="flex items-center justify-between gap-2 min-w-0 mt-0.5">
+                                        {/* 🖤 TIME A: Aplica o filtro preto e branco dinâmico via Tailwind */}
+                                        <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-25 brightness-75 contrast-75 line-through decoration-red-500/30' : ''}`}>
                                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                             <ShieldDisplay shield={tA?.shield} size="small" />
-                                            <span className={`text-xs truncate font-bold ${sUI.isPlayed && sUI.scoreA > sUI.scoreB ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span>
+                                            <span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span>
                                           </div>
                                           <div className="flex items-center gap-1 shrink-0">
                                             {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}
@@ -1420,11 +1491,11 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                           </div>
                                         </div>
 
-                                        {/* Time de Baixo (Equipe B) */}
-                                        <div className="flex items-center justify-between gap-2 min-w-0">
+                                        {/* 🖤 TIME B: Aplica o filtro preto e branco dinâmico via Tailwind */}
+                                        <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-25 brightness-75 contrast-75 line-through decoration-red-500/30' : ''}`}>
                                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                             <ShieldDisplay shield={tB?.shield} size="small" />
-                                            <span className={`text-xs truncate font-bold ${sUI.isPlayed && sUI.scoreB > sUI.scoreA ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span>
+                                            <span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span>
                                           </div>
                                           <div className="flex items-center gap-1 shrink-0">
                                             {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}
@@ -1434,7 +1505,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
                                       </div>
                                       
-                                      {/* Edição Manual do Líder no Chaveamento */}
                                       {isAdmin && (
                                         <button type="button" onClick={(e) => { e.stopPropagation(); setEditMatchData({ ...m, roundId: round.id }); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto"><Edit size={10} /></button>
                                       )}
@@ -1455,7 +1525,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
             {subTab === 'stats' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
-                {/* Artilharia e Assistências seguem idênticas abaixo */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-end mb-2"><h3 className="text-lg font-bold text-white pl-2">Top Goleadores</h3><Button onClick={() => captureSection('capture-scorers', `Artilharia-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar</Button></div>
                   <div id="capture-scorers" className="bg-blue-900 rounded-xl border border-blue-800 overflow-hidden shadow-xl p-2 sm:p-4">
