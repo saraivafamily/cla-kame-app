@@ -495,65 +495,19 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
   );
 };
 
-const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch, onJoinOpenComp }) => {
+const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
   const visibleCompIds = (competitions || []).filter(c => c && c.teams?.some(t => userTeamIds.includes(t))).map(c => c.id);
   const recentMatches = (matches || []).filter(m => m && (isAdmin || visibleCompIds.includes(m.compId)) && m.status !== 'rejected').sort((a, b) => parseInt(String(b?.id || '').split('_')[1] || '0') - parseInt(String(a?.id || '').split('_')[1] || '0')).slice(0, 8);
   const getTeam = (id) => (teams || []).find(t => t && t.id === id);
-
-  // 🏆 FILTRA OS CAMPEONATOS QUE ESTÃO COM INSCRIÇÕES ABERTAS
-  const openCompetitions = (competitions || []).filter(c => c && c.status === 'registration');
-
+  
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="bg-gradient-to-r from-emerald-900/50 to-blue-900 p-6 rounded-2xl border border-emerald-900/50 shadow-xl">
         <h2 className="text-2xl font-bold text-white mb-2">QG Clã Kame</h2>
         <p className="text-blue-400">Gerencie e acompanhe seus resultados do DLS.</p>
       </div>
-
-      {/* 🚀 NOVA VITRINE DE INSCRIÇÕES ABERTAS */}
-      {openCompetitions.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2"><Trophy size={20} /> Inscrições Abertas</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {openCompetitions.map(comp => {
-              const isFull = comp.teams && comp.teams.length >= comp.teamCount;
-              const alreadyJoined = comp.teams?.some(tId => userTeamIds.includes(tId));
-              const isPending = comp.pendingTeams?.some(p => userTeamIds.includes(p.teamId));
-
-              return (
-                <div key={comp.id} className="bg-blue-900 p-5 rounded-2xl border border-amber-500/30 shadow-lg flex flex-col justify-between group hover:border-amber-500/60 transition-all">
-                  <div>
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-black text-white text-lg group-hover:text-amber-400 transition-colors">{comp.name}</h4>
-                      <span className="text-xs bg-amber-500/20 text-amber-400 font-bold px-2 py-1 rounded-lg border border-amber-500/30">
-                        {(comp.teams?.length || 0)}/{comp.teamCount} Vagas
-                      </span>
-                    </div>
-                    <p className="text-xs uppercase text-emerald-400 font-bold tracking-widest">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</p>
-                  </div>
-                  
-                  <div className="mt-5 pt-4 border-t border-blue-800">
-                    {alreadyJoined ? (
-                       <div className="text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20"><CheckCircle size={16}/> Você já está dentro!</div>
-                    ) : isPending ? (
-                       <div className="text-amber-400 text-xs font-bold flex items-center justify-center gap-1 bg-amber-500/10 py-2 rounded-lg border border-amber-500/20"><Activity size={16}/> Inscrição em Análise</div>
-                    ) : isFull ? (
-                       <div className="text-red-400 text-xs font-bold flex items-center justify-center gap-1 bg-red-500/10 py-2 rounded-lg border border-red-500/20"><XCircle size={16}/> Vagas Esgotadas</div>
-                    ) : (
-                       <Button onClick={() => onJoinOpenComp && onJoinOpenComp(comp.id)} className="w-full py-2.5 text-sm bg-amber-600 hover:bg-amber-500 text-white font-black shadow-md border-0">
-                         Participar do Torneio
-                       </Button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
       <div>
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados Enviados</h3>
         <div className="space-y-3">
@@ -749,41 +703,6 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
   const [searchTerm, setSearchTerm] = useState('');
   const [viewingTeam, setViewingTeam] = useState(null); // Estado que controla a abertura das estatísticas
   
-  // 🔍 1. LOCALIZA O TIME DO TÉCNICO LOGADO
-  const myTeam = (teams || []).find(t => t && t.ownerId === currentUser?.id);
-  const myTeamId = myTeam?.id;
-
-  // 🔒 2. ALGORITMO DE VALIDAÇÃO: Bloqueia o botão se não houver jogo liberado pendente
-  const canCallTeam = (targetTeamId) => {
-    if (!myTeamId || targetTeamId === myTeamId) return false;
-
-    return (competitions || []).some(c => {
-      // Só analisa competições em andamento
-      if (c.status !== 'active' || !c.rounds) return false;
-
-      return c.rounds.some(round => {
-        // Só aceita rodadas liberadas pelos líderes
-        if (round.status !== 'released') return false;
-
-        return round.matches.some(rm => {
-          // Verifica se o confronto direto existe nesta rodada
-          const isOurMatch = (rm.teamA === myTeamId && rm.teamB === targetTeamId) || 
-                             (rm.teamA === targetTeamId && rm.teamB === myTeamId);
-          if (!isOurMatch) return false;
-
-          // Se o jogo existe, confirma se ele já não foi jogado ou está pendente na nuvem
-          const alreadyPlayed = (matches || []).some(m => 
-            m.matchId === rm.id && 
-            m.compId === c.id && 
-            (m.status === 'pending' || m.status === 'approved')
-          );
-
-          return !alreadyPlayed; // Ativa apenas se NÃO tiver sido jogado
-        });
-      });
-    });
-  };
-
   const handleWhatsApp = (phone) => { if (!phone) return; window.open(`https://wa.me/${String(phone).replace(/\D/g, '')}`, '_blank'); };
   const startEdit = (team) => { if (!team) return; setEditingId(team.id); setEditData({ name: team.name || '', coach: team.coach || '', whatsapp: team.whatsapp || '', shield: team.shield || '🛡️', ownerId: team.ownerId || 'manual' }); };
   const saveEdit = (team) => { if (!editData.name || !editData.coach) return; onEditTeam({ ...team, ...editData }); setEditingId(null); };
@@ -881,8 +800,7 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
                     <button onClick={(e) => { e.stopPropagation(); if(window.confirm('Tem certeza que deseja apagar este time definitivamente?')) { onDeleteTeam(team.id); } }} className="text-blue-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-blue-800" title="Excluir Time"><Trash2 size={14} /></button>
                   </div>
                 )}
-                  {/* 🔒 APLICAÇÃO canCallTeam: TRAVA O BOTÃO SE NÃO FOR O ADVERSÁRIO DA VEZ */}
-                  <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-3 text-xs disabled:bg-blue-800 disabled:text-blue-500 shrink-0 z-10" disabled={!team.whatsapp || !canCallTeam(team.id)}>
+                  <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-3 text-xs disabled:bg-blue-800 disabled:text-blue-500 shrink-0 z-10" disabled={!team.whatsapp}>
                     <MessageCircle size={16} /> <span className="sm:hidden lg:inline">Chamar</span>
                   </Button>
                 </div>
@@ -907,8 +825,7 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
                     <p className="text-[9px] md:text-[10px] text-blue-400 mt-1 truncate px-1"><span className="text-blue-300 font-medium">{String(team.coach || 'Sem técnico')}</span></p>
                   </div>
                 </div>
-                {/* 🔒 APLICAÇÃO canCallTeam: TRAVA O BOTÃO SE NÃO FOR O ADVERSÁRIO DA VEZ */}
-                <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-1 py-1.5 text-[10px] md:text-xs px-2 disabled:bg-blue-800 disabled:text-blue-500 z-10" disabled={!team.whatsapp || !canCallTeam(team.id)}>
+                <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-1 py-1.5 text-[10px] md:text-xs px-2 disabled:bg-blue-800 disabled:text-blue-500 z-10" disabled={!team.whatsapp}>
                   <MessageCircle size={14} /> Chamar
                 </Button>
               </div>
@@ -917,6 +834,7 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
         </div>
       )}
       
+      {/* Aqui é onde a Mágica acontece! O Modal é renderizado caso exista uma equipe selecionada */}
       {viewingTeam && (
         <TeamStatsModal 
           team={viewingTeam} 
@@ -1194,13 +1112,10 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
   const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id));
 
-  // 🚀 ADICIONA MANUALMENTE O TIME E LIMPA A FILA SE ELE ESTIVER NELA
   const handleAddTeamToComp = () => {
     if(!newTeamToAdd) return;
     const newTeams = [...(comp.teams || []), newTeamToAdd];
-    const newPending = (comp.pendingTeams || []).filter(p => p.teamId !== newTeamToAdd);
-    
-    onEditComp({ ...comp, teams: newTeams, pendingTeams: newPending });
+    onEditComp({ ...comp, teams: newTeams });
     setNewTeamToAdd('');
     setShowAddTeam(false);
     showToast("Time inserido manualmente com sucesso!", "success");
@@ -1289,8 +1204,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </button>
           )}
 
-          {/* 🔓 TRAVA REMOVIDA: Agora você pode inserir times manualmente em QUALQUER momento */}
-          {isAdmin && (
+          {isAdmin && !isRegistration && (
             <>
               {showAddTeam ? (
                 <div className="flex gap-2 w-full sm:w-auto animate-in fade-in">
@@ -1379,7 +1293,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         <div className="bg-blue-900 border border-blue-800 rounded-3xl p-6 md:p-8 shadow-2xl animate-in slide-in-from-bottom-4">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-black text-emerald-400 uppercase tracking-widest drop-shadow-md mb-2">Inscrições Abertas</h2>
-            <p className="text-blue-300">Aguardando os times se cadastrarem pelo link ou via inserção manual.</p>
+            <p className="text-blue-300">Aguardando os times se cadastrarem pelo link.</p>
             <div className="mt-6 flex flex-col items-center justify-center gap-4">
                <div className="bg-blue-950 px-8 py-4 rounded-2xl border border-blue-800 shadow-inner">
                  <p className="text-xs text-blue-400 uppercase font-bold mb-1">Vagas Preenchidas</p>
@@ -1480,14 +1394,17 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                   {round.matches.map(m => {
                                     const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                                     
+                                    {/* ⚡ ATUALIZAÇÃO DO VISUAL: Restaurado o layout vertical idêntico ao print */}
                                     return (
                                       <div key={m.id} onClick={()=>{if(sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className="bg-blue-900/80 p-4 rounded-xl border border-blue-800 flex items-center justify-between cursor-pointer hover:border-blue-700 transition-colors shadow-sm">
                                         
+                                        {/* Esquerda: Escudo e nome */}
                                         <div className="flex flex-col items-center text-center w-1/3 min-w-0">
                                           <ShieldDisplay shield={tA?.shield} size="normal" />
                                           <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tA?.name || m.placeholderA}</span>
                                         </div>
 
+                                        {/* Centro: Badge de status e placar centralizado vertical e horizontalmente */}
                                         <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
                                           <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
                                             {sUI.text}
@@ -1507,6 +1424,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                           </div>
                                         </div>
 
+                                        {/* Direita: Escudo e nome */}
                                         <div className="flex flex-col items-center text-center w-1/3 min-w-0">
                                           <ShieldDisplay shield={tB?.shield} size="normal" />
                                           <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tB?.name || m.placeholderB}</span>
@@ -1586,6 +1504,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                           <span className={sUI.color}>{sUI.text}</span>
                                         </div>
 
+                                        {/* 🖤 TIME A: Ajustado filtro pb com opacidade em 60% */}
                                         <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}>
                                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                             <ShieldDisplay shield={tA?.shield} size="small" />
@@ -1597,6 +1516,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                           </div>
                                         </div>
 
+                                        {/* 🖤 TIME B: Ajustado filtro pb com opacidade em 60% */}
                                         <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}>
                                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                             <ShieldDisplay shield={tB?.shield} size="small" />
@@ -1667,7 +1587,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     </div>
   );
 };
-
 const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onBack, showToast }) => {
   const [receipt, setReceipt] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -2737,17 +2656,7 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
 };
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState(() => { 
-    try {
-      const saved = localStorage.getItem('claKame_user'); 
-      return saved ? JSON.parse(saved) : null; 
-    } catch (error) {
-      // Se a memória do celular do cara estiver corrompida e for dar tela preta, 
-      // o sistema apaga o erro e manda ele de volta pro login em segurança!
-      localStorage.removeItem('claKame_user');
-      return null;
-    }
-  });
+  const [currentUser, setCurrentUser] = useState(() => { const saved = localStorage.getItem('claKame_user'); return saved ? JSON.parse(saved) : null; });
   
   // ⚡ MÁGICA DA VELOCIDADE: Lê os parâmetros da URL imediatamente antes de criar os estados
   const urlParams = new URLSearchParams(window.location.search);
@@ -2782,14 +2691,6 @@ export default function App() {
       return;
     }
     
-    // 🛡️ TRAVA CONTRA SESSÃO FANTASMA DO WHATSAPP
-    if (!auth.currentUser) {
-      showToast("Sua sessão expirou por segurança. Por favor, faça login novamente!", "error");
-      setCurrentUser(null);
-      localStorage.removeItem('claKame_user');
-      return;
-    }
-    
     try {
       const newPending = [...(comp.pendingTeams || []), { teamId, receipt: receiptBase64, timestamp: Date.now() }];
       
@@ -2800,7 +2701,8 @@ export default function App() {
       setCurrentTab('dashboard');
     } catch (error) {
       console.error("Erro crítico ao gravar inscrição no Firebase:", error);
-      showToast(`Erro de Permissão: Saia da conta e entre novamente.`, "error");
+      showToast(`Falha no Servidor Cloud: ${error.message}`, "error");
+      throw error; // Repassa o erro para a interface parar o estado de carregamento
     }
   };
   
@@ -2924,21 +2826,24 @@ export default function App() {
     showToast("Técnico aprovado com sucesso!", "success");
   };
 
- useEffect(() => { 
-    const unsub = onAuthStateChanged(auth, (fbUser) => { 
-      if (fbUser) {
-        if (users.length > 0) { 
-          const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); 
-          if (found) setCurrentUser(found); 
-        } 
-      } else {
-        // 🧹 O NAVEGADOR MATOU A SESSÃO: Limpa a tela para evitar erro de permissão
-        setCurrentUser(null);
-        localStorage.removeItem('claKame_user');
-      }
-    }); 
-    return () => unsub(); 
-  }, [users]);
+  useEffect(() => { const unsub = onAuthStateChanged(auth, (fbUser) => { if (fbUser && users.length > 0) { const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); if (found) setCurrentUser(found); } }); return () => unsub(); }, [users]);
+
+  if (isFirebaseLoading) return (<div className="min-h-screen bg-blue-950 text-amber-400 flex items-center justify-center font-sans font-bold text-sm shadow-xl animate-pulse">🛡️ Carregando Arena Kame...</div>);
+ if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} />;
+
+  if (currentUser.status === 'pending') {
+    return (
+      <div className="min-h-screen bg-blue-950 flex flex-col items-center justify-center p-4">
+        <div className="bg-blue-900 p-8 rounded-2xl border border-amber-500/30 text-center max-w-sm shadow-xl">
+          <div className="text-amber-500 mb-4 flex justify-center"><AlertCircle size={48}/></div>
+          <h2 className="text-xl font-bold text-white mb-2">Conta em Análise</h2>
+          <p className="text-blue-400 text-sm mb-6">Aguardando aprovação dos líderes do clã. Você será avisado quando for liberado!</p>
+          <Button onClick={() => {setCurrentUser(null); signOut(auth);}} className="w-full">Sair</Button>
+        </div>
+      </div>
+    );
+  }
+
 
   const isLeaderOrKaioh = currentUser.role === 'leader' || currentUser.role === 'kaioh';
   
@@ -3002,7 +2907,7 @@ export default function App() {
   
   const renderContent = () => {
     switch (currentTab) {
-      case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} onJoinOpenComp={(id) => { setSelectedCompId(id); setCurrentTab('join_comp'); }} />;
+      case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onUpdateUserPhoto={async (url) => { await updateDoc(getPublicDocPath('users', currentUser.id), { photoURL: url }); setCurrentUser(prev => ({...prev, photoURL: url})); }} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onDeleteTeam={async (id) => { await deleteDoc(getPublicDocPath('teams', id)); showToast("Time excluído com sucesso!", "success"); }} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
@@ -3017,7 +2922,7 @@ export default function App() {
       case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} />;
       case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} />;
         
-      default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} onJoinOpenComp={(id) => { setSelectedCompId(id); setCurrentTab('join_comp'); }} />;
+      default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
     }
   };
 
