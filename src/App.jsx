@@ -2738,7 +2738,17 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
 };
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState(() => { const saved = localStorage.getItem('claKame_user'); return saved ? JSON.parse(saved) : null; });
+  const [currentUser, setCurrentUser] = useState(() => { 
+    try {
+      const saved = localStorage.getItem('claKame_user'); 
+      return saved ? JSON.parse(saved) : null; 
+    } catch (error) {
+      // Se a memória do celular do cara estiver corrompida e for dar tela preta, 
+      // o sistema apaga o erro e manda ele de volta pro login em segurança!
+      localStorage.removeItem('claKame_user');
+      return null;
+    }
+  });
   
   // ⚡ MÁGICA DA VELOCIDADE: Lê os parâmetros da URL imediatamente antes de criar os estados
   const urlParams = new URLSearchParams(window.location.search);
