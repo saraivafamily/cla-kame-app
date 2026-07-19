@@ -2773,6 +2773,14 @@ export default function App() {
       return;
     }
     
+    // 🛡️ TRAVA CONTRA SESSÃO FANTASMA DO WHATSAPP
+    if (!auth.currentUser) {
+      showToast("Sua sessão expirou por segurança. Por favor, faça login novamente!", "error");
+      setCurrentUser(null);
+      localStorage.removeItem('claKame_user');
+      return;
+    }
+    
     try {
       const newPending = [...(comp.pendingTeams || []), { teamId, receipt: receiptBase64, timestamp: Date.now() }];
       
@@ -2783,8 +2791,7 @@ export default function App() {
       setCurrentTab('dashboard');
     } catch (error) {
       console.error("Erro crítico ao gravar inscrição no Firebase:", error);
-      showToast(`Falha no Servidor Cloud: ${error.message}`, "error");
-      throw error; // Repassa o erro para a interface parar o estado de carregamento
+      showToast(`Erro de Permissão: Saia da conta e entre novamente.`, "error");
     }
   };
   
@@ -2908,24 +2915,21 @@ export default function App() {
     showToast("Técnico aprovado com sucesso!", "success");
   };
 
-  useEffect(() => { const unsub = onAuthStateChanged(auth, (fbUser) => { if (fbUser && users.length > 0) { const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); if (found) setCurrentUser(found); } }); return () => unsub(); }, [users]);
-
-  if (isFirebaseLoading) return (<div className="min-h-screen bg-blue-950 text-amber-400 flex items-center justify-center font-sans font-bold text-sm shadow-xl animate-pulse">🛡️ Carregando Arena Kame...</div>);
- if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} />;
-
-  if (currentUser.status === 'pending') {
-    return (
-      <div className="min-h-screen bg-blue-950 flex flex-col items-center justify-center p-4">
-        <div className="bg-blue-900 p-8 rounded-2xl border border-amber-500/30 text-center max-w-sm shadow-xl">
-          <div className="text-amber-500 mb-4 flex justify-center"><AlertCircle size={48}/></div>
-          <h2 className="text-xl font-bold text-white mb-2">Conta em Análise</h2>
-          <p className="text-blue-400 text-sm mb-6">Aguardando aprovação dos líderes do clã. Você será avisado quando for liberado!</p>
-          <Button onClick={() => {setCurrentUser(null); signOut(auth);}} className="w-full">Sair</Button>
-        </div>
-      </div>
-    );
-  }
-
+ useEffect(() => { 
+    const unsub = onAuthStateChanged(auth, (fbUser) => { 
+      if (fbUser) {
+        if (users.length > 0) { 
+          const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); 
+          if (found) setCurrentUser(found); 
+        } 
+      } else {
+        // 🧹 O NAVEGADOR MATOU A SESSÃO: Limpa a tela para evitar erro de permissão
+        setCurrentUser(null);
+        localStorage.removeItem('claKame_user');
+      }
+    }); 
+    return () => unsub(); 
+  }, [users]);
 
   const isLeaderOrKaioh = currentUser.role === 'leader' || currentUser.role === 'kaioh';
   
