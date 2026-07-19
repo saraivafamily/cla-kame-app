@@ -1194,10 +1194,13 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
   const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id));
 
+  // 🚀 ADICIONA MANUALMENTE O TIME E LIMPA A FILA SE ELE ESTIVER NELA
   const handleAddTeamToComp = () => {
     if(!newTeamToAdd) return;
     const newTeams = [...(comp.teams || []), newTeamToAdd];
-    onEditComp({ ...comp, teams: newTeams });
+    const newPending = (comp.pendingTeams || []).filter(p => p.teamId !== newTeamToAdd);
+    
+    onEditComp({ ...comp, teams: newTeams, pendingTeams: newPending });
     setNewTeamToAdd('');
     setShowAddTeam(false);
     showToast("Time inserido manualmente com sucesso!", "success");
@@ -1286,7 +1289,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </button>
           )}
 
-          {isAdmin && !isRegistration && (
+          {/* 🔓 TRAVA REMOVIDA: Agora você pode inserir times manualmente em QUALQUER momento */}
+          {isAdmin && (
             <>
               {showAddTeam ? (
                 <div className="flex gap-2 w-full sm:w-auto animate-in fade-in">
@@ -1375,7 +1379,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         <div className="bg-blue-900 border border-blue-800 rounded-3xl p-6 md:p-8 shadow-2xl animate-in slide-in-from-bottom-4">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-black text-emerald-400 uppercase tracking-widest drop-shadow-md mb-2">Inscrições Abertas</h2>
-            <p className="text-blue-300">Aguardando os times se cadastrarem pelo link.</p>
+            <p className="text-blue-300">Aguardando os times se cadastrarem pelo link ou via inserção manual.</p>
             <div className="mt-6 flex flex-col items-center justify-center gap-4">
                <div className="bg-blue-950 px-8 py-4 rounded-2xl border border-blue-800 shadow-inner">
                  <p className="text-xs text-blue-400 uppercase font-bold mb-1">Vagas Preenchidas</p>
@@ -1476,17 +1480,14 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                   {round.matches.map(m => {
                                     const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                                     
-                                    {/* ⚡ ATUALIZAÇÃO DO VISUAL: Restaurado o layout vertical idêntico ao print */}
                                     return (
                                       <div key={m.id} onClick={()=>{if(sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className="bg-blue-900/80 p-4 rounded-xl border border-blue-800 flex items-center justify-between cursor-pointer hover:border-blue-700 transition-colors shadow-sm">
                                         
-                                        {/* Esquerda: Escudo e nome */}
                                         <div className="flex flex-col items-center text-center w-1/3 min-w-0">
                                           <ShieldDisplay shield={tA?.shield} size="normal" />
                                           <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tA?.name || m.placeholderA}</span>
                                         </div>
 
-                                        {/* Centro: Badge de status e placar centralizado vertical e horizontalmente */}
                                         <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
                                           <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
                                             {sUI.text}
@@ -1506,7 +1507,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                           </div>
                                         </div>
 
-                                        {/* Direita: Escudo e nome */}
                                         <div className="flex flex-col items-center text-center w-1/3 min-w-0">
                                           <ShieldDisplay shield={tB?.shield} size="normal" />
                                           <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tB?.name || m.placeholderB}</span>
@@ -1586,7 +1586,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                           <span className={sUI.color}>{sUI.text}</span>
                                         </div>
 
-                                        {/* 🖤 TIME A: Ajustado filtro pb com opacidade em 60% */}
                                         <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}>
                                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                             <ShieldDisplay shield={tA?.shield} size="small" />
@@ -1598,7 +1597,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                           </div>
                                         </div>
 
-                                        {/* 🖤 TIME B: Ajustado filtro pb com opacidade em 60% */}
                                         <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}>
                                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                             <ShieldDisplay shield={tB?.shield} size="small" />
@@ -1669,6 +1667,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     </div>
   );
 };
+
 const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onBack, showToast }) => {
   const [receipt, setReceipt] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
