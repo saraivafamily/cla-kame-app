@@ -495,19 +495,70 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
   );
 };
 
-const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch }) => {
+const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch, onJoinOpenComp }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
   const visibleCompIds = (competitions || []).filter(c => c && c.teams?.some(t => userTeamIds.includes(t))).map(c => c.id);
   const recentMatches = (matches || []).filter(m => m && (isAdmin || visibleCompIds.includes(m.compId)) && m.status !== 'rejected').sort((a, b) => parseInt(String(b?.id || '').split('_')[1] || '0') - parseInt(String(a?.id || '').split('_')[1] || '0')).slice(0, 8);
   const getTeam = (id) => (teams || []).find(t => t && t.id === id);
-  
+
+  // 🏆 FILTRA OS CAMPEONATOS QUE ESTÃO COM INSCRIÇÕES ABERTAS
+  const openCompetitions = (competitions || []).filter(c => c && c.status === 'registration');
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="bg-gradient-to-r from-emerald-900/50 to-blue-900 p-6 rounded-2xl border border-emerald-900/50 shadow-xl">
         <h2 className="text-2xl font-bold text-white mb-2">QG Clã Kame</h2>
         <p className="text-blue-400">Gerencie e acompanhe seus resultados do DLS.</p>
       </div>
+
+      {/* 🚀 NOVA VITRINE DE INSCRIÇÕES ABERTAS */}
+      {openCompetitions.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2"><Trophy size={20} /> Inscrições Abertas</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {openCompetitions.map(comp => {
+              // PROTEÇÃO ANTI-TELA PRETA: Garante que sejam lidos como arrays, mesmo que venham corrompidos
+              const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
+              const compPending = Array.isArray(comp.pendingTeams) ? comp.pendingTeams : [];
+              const teamCount = parseInt(comp.teamCount) || 0;
+
+              const isFull = compTeams.length >= teamCount;
+              const alreadyJoined = compTeams.some(tId => userTeamIds.includes(tId));
+              const isPending = compPending.some(p => p && userTeamIds.includes(p.teamId));
+
+              return (
+                <div key={comp.id} className="bg-blue-900 p-5 rounded-2xl border border-amber-500/30 shadow-lg flex flex-col justify-between group hover:border-amber-500/60 transition-all">
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="font-black text-white text-lg group-hover:text-amber-400 transition-colors">{comp.name}</h4>
+                      <span className="text-xs bg-amber-500/20 text-amber-400 font-bold px-2 py-1 rounded-lg border border-amber-500/30">
+                        {compTeams.length}/{teamCount} Vagas
+                      </span>
+                    </div>
+                    <p className="text-xs uppercase text-emerald-400 font-bold tracking-widest">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</p>
+                  </div>
+                  
+                  <div className="mt-5 pt-4 border-t border-blue-800">
+                    {alreadyJoined ? (
+                       <div className="text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20"><CheckCircle size={16}/> Você já está dentro!</div>
+                    ) : isPending ? (
+                       <div className="text-amber-400 text-xs font-bold flex items-center justify-center gap-1 bg-amber-500/10 py-2 rounded-lg border border-amber-500/20"><Activity size={16}/> Inscrição em Análise</div>
+                    ) : isFull ? (
+                       <div className="text-red-400 text-xs font-bold flex items-center justify-center gap-1 bg-red-500/10 py-2 rounded-lg border border-red-500/20"><XCircle size={16}/> Vagas Esgotadas</div>
+                    ) : (
+                       <Button onClick={() => onJoinOpenComp && onJoinOpenComp(comp.id)} className="w-full py-2.5 text-sm bg-amber-600 hover:bg-amber-500 text-white font-black shadow-md border-0">
+                         Participar do Torneio
+                       </Button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <div>
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados Enviados</h3>
         <div className="space-y-3">
@@ -530,7 +581,6 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch })
     </div>
   );
 };
-
 const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
   if (!team) return null;
   
@@ -2907,7 +2957,7 @@ export default function App() {
   
   const renderContent = () => {
     switch (currentTab) {
-      case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
+      case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} onJoinOpenComp={(id) => { setSelectedCompId(id); setCurrentTab('join_comp'); }} />;
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onUpdateUserPhoto={async (url) => { await updateDoc(getPublicDocPath('users', currentUser.id), { photoURL: url }); setCurrentUser(prev => ({...prev, photoURL: url})); }} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onDeleteTeam={async (id) => { await deleteDoc(getPublicDocPath('teams', id)); showToast("Time excluído com sucesso!", "success"); }} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
@@ -2922,7 +2972,7 @@ export default function App() {
       case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} />;
       case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} />;
         
-      default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} />;
+      default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} onJoinOpenComp={(id) => { setSelectedCompId(id); setCurrentTab('join_comp'); }} />;
     }
   };
 
