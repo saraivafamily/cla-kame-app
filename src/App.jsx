@@ -2877,7 +2877,6 @@ const RecordsWall = ({ showToast, currentUser, globalRecords, onSaveRecords }) =
       });
     };
 
-    // Inteligência que verifica se o script da câmera já existe. Se não existir, ele baixa na hora!
     if (window.html2canvas) { 
       captureAndDownload(); 
     } else {
@@ -2947,11 +2946,12 @@ const RecordsWall = ({ showToast, currentUser, globalRecords, onSaveRecords }) =
                 <div className="space-y-2">
                   {category.items.map((item, keyIdx) => (
                     <div key={keyIdx} className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 ${item.isHero ? 'bg-gradient-to-r from-amber-500/10 to-blue-900/40 border-amber-500/20' : 'bg-blue-900/40 border-blue-800/40'}`}>
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex items-center gap-3">
                         <span className="text-base shrink-0 select-none">{item.rank}</span>
-                        <div className="min-w-0">
-                          <p className={`text-xs font-bold truncate ${item.isHero ? 'text-amber-400 font-black' : 'text-blue-100'}`}>{item.name}</p>
-                          <p className="text-[9px] text-blue-400 truncate font-medium">Clube: {item.team}</p>
+                        {/* 🛡️ CORREÇÃO DO RECORTE AQUI: Sem truncate e com flex-col para respirar */}
+                        <div className="flex flex-col justify-center py-0.5">
+                          <span className={`text-xs font-bold leading-tight ${item.isHero ? 'text-amber-400 font-black' : 'text-blue-100'}`}>{item.name}</span>
+                          <span className="text-[10px] text-blue-400 leading-tight font-medium mt-0.5">Clube: {item.team}</span>
                         </div>
                       </div>
                       <span className={`text-[11px] font-black font-mono shrink-0 px-2 py-1 rounded bg-blue-950 shadow-inner ${item.isHero ? 'text-emerald-400 border border-emerald-500/10' : 'text-blue-300'}`}>
