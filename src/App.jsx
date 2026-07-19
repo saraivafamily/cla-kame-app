@@ -2864,15 +2864,28 @@ const RecordsWall = ({ showToast, currentUser, globalRecords, onSaveRecords }) =
 
   const captureWall = () => {
     showToast("Preparando imagem dos Recordes Lendários...", "success");
-    const element = document.getElementById('capture-records-mural');
-    if (!element) return;
-    window.html2canvas(element, { backgroundColor: '#020617', scale: 2, useCORS: true }).then(canvas => {
-      const link = document.createElement('a');
-      link.download = `Mural-de-Recordes-Kame.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-      showToast("Mural salvo com sucesso!", "success");
-    });
+    
+    const captureAndDownload = () => {
+      const element = document.getElementById('capture-records-mural');
+      if (!element) return;
+      window.html2canvas(element, { backgroundColor: '#020617', scale: 2, useCORS: true }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `Mural-de-Recordes-Kame.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast("Mural salvo com sucesso!", "success");
+      });
+    };
+
+    // Inteligência que verifica se o script da câmera já existe. Se não existir, ele baixa na hora!
+    if (window.html2canvas) { 
+      captureAndDownload(); 
+    } else {
+      const script = document.createElement('script');
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      script.onload = captureAndDownload;
+      document.body.appendChild(script);
+    }
   };
 
   return (
