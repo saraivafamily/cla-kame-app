@@ -53,38 +53,62 @@ const calculateStandings = (matches, teams, compId) => {
   return Object.values(table).map(t => ({ ...t, gd: t.gf - t.ga })).sort((a, b) => { if (b.pts !== a.pts) return b.pts - a.pts; if (b.w !== a.w) return b.w - a.w; if (b.gd !== a.gd) return b.gd - a.gd; return b.gf - a.gf; });
 };
 
-const generateRoundRobin = (teamIds, compId) => {
+const generateRoundRobin = (teamIds, compId, isDoubleRound = false) => {
   let teams = [...teamIds]; if (teams.length % 2 !== 0) teams.push(null);
   const n = teams.length; const h = n / 2; const rounds = []; let c = 1;
+  
+  // TURNO (IDA)
   for (let r = 0; r < n - 1; r++) {
-    const rm = []; for (let i = 0; i < h; i++) { const tA = teams[i]; const tB = teams[n - 1 - i]; if (tA !== null && tB !== null) { rm.push({ id: `${compId}_m${c}_r${r+1}`, teamA: tA, teamB: tB, status: 'pending_play' }); c++; } }
-    rounds.push({ id: `r${r+1}`, number: r + 1, status: r === 0 ? 'released' : 'locked', matches: rm }); teams.splice(1, 0, teams.pop());
-  } return rounds;
-};
-
-const generateCupBracket = (teamIds, compId) => {
-  let teams = [...teamIds]; let p2 = 1; while (p2 < teams.length) p2 *= 2; while (teams.length < p2) teams.push(''); 
-  const tr = Math.log2(p2); const rounds = []; let mc = 1;
-  for (let r = 0; r < tr; r++) {
-    const rm = []; const nm = p2 / Math.pow(2, r + 1); const fmc = mc;
-    for (let i = 0; i < nm; i++) {
-      let tA = '', tB = '', pA = 'A Definir', pB = 'A Definir'; if (r === 0) { tA = teams[i * 2] || ''; tB = teams[i * 2 + 1] || ''; if(!tA) pA = `Sorteio Vaga ${i*2 + 1}`; if(!tB) pB = `Sorteio Vaga ${i*2 + 2}`; } else { pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`; }
-      rm.push({ id: `${compId}_m${mc}_r${r+1}`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
+    const rm = []; 
+    for (let i = 0; i < h; i++) { 
+      const tA = teams[i]; const tB = teams[n - 1 - i]; 
+      if (tA !== null && tB !== null) { 
+        rm.push({ id: `${compId}_m${c}_r${r+1}`, teamA: tA, teamB: tB, status: 'pending_play' }); 
+        c++; 
+      } 
     }
-    let rl = String(r + 1); if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas'; else if (nm === 8) rl = 'Oitavas';
-    rounds.push({ id: `r${r+1}`, number: rl, status: r === 0 ? 'released' : 'locked', matches: rm });
-  } return rounds;
+    rounds.push({ id: `r${r+1}`, number: r + 1, status: r === 0 ? 'released' : 'locked', matches: rm }); 
+    teams.splice(1, 0, teams.pop());
+  } 
+  
+  // RETURNO (VOLTA) - Clona o turno invertendo os mandantes
+  if (isDoubleRound) {
+    const turnRoundsCount = rounds.length;
+    for (let r = 0; r < turnRoundsCount; r++) {
+      const rm = [];
+      const turnMatches = rounds[r].matches;
+      for (let i = 0; i < turnMatches.length; i++) {
+         const m = turnMatches[i];
+         // Inverte teamA e teamB
+         rm.push({ id: `${compId}_m${c}_r${r + 1 + turnRoundsCount}`, teamA: m.teamB, teamB: m.teamA, status: 'pending_play' });
+         c++;
+      }
+      rounds.push({ id: `r${r + 1 + turnRoundsCount}`, number: r + 1 + turnRoundsCount, status: 'locked', matches: rm });
+    }
+  }
+  
+  return rounds;
 };
 
-const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2) => {
+const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2, isDoubleRound = false) => {
   const sh = [...teamIds].sort(() => 0.5 - Math.random()); const groups = {}; const gn = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   for(let i=0; i<numGroups; i++) groups[gn[i]] = []; sh.forEach((t, i) => groups[gn[i % numGroups]].push(t));
-  let mr = 0; const agr = {}; Object.keys(groups).forEach(g => { const rrs = generateRoundRobin(groups[g], compId); mr = Math.max(mr, rrs.length); agr[g] = rrs; });
+  
+  let mr = 0; const agr = {}; 
+  Object.keys(groups).forEach(g => { 
+    // Repassa o isDoubleRound para o gerador de grupos
+    const rrs = generateRoundRobin(groups[g], compId, isDoubleRound); 
+    mr = Math.max(mr, rrs.length); 
+    agr[g] = rrs; 
+  });
+  
   const rounds = []; let mc = 1;
   for(let r=0; r<mr; r++) {
     const rm = []; Object.keys(groups).forEach(g => { if(agr[g][r]) { agr[g][r].matches.forEach(m => { rm.push({...m, id: `${compId}_m${mc}_r${r+1}`, groupId: g}); mc++; }); } });
     rounds.push({ id: `r${r+1}`, number: r+1, status: r===0?'released':'locked', matches: rm });
   }
+  
+  // MATA-MATA (Mantido igual)
   let kt = numGroups * qualifiers; let p2 = 1; while (p2 < kt) p2 *= 2; const tkr = Math.log2(p2);
   for (let kr=0; kr<tkr; kr++) {
     const rm = []; const nm = p2 / Math.pow(2, kr + 1); const fmc = mc;
@@ -94,7 +118,8 @@ const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2) =
     }
     let rl = 'Mata-Mata'; if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas';
     rounds.push({ id: `ko_${kr}`, number: rl, status: 'locked', matches: rm });
-  } return { groups, rounds };
+  } 
+  return { groups, rounds };
 };
 
 const LoginScreen = ({ onLogin, onRegister }) => {
