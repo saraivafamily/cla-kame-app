@@ -1171,7 +1171,24 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Mata-Mata preenchido com os classificados!", "success");
   };
 
+  // 📝 PREPARA O MODAL DE EDIÇÃO DE CONFRONTO E PLACAR
+  const handleOpenEditModal = (m, roundId) => {
+    const playedMatch = (matches || []).find(x => x.matchId === m.id && x.compId === comp.id && x.status !== 'rejected');
+    setEditMatchData({ 
+      ...m, 
+      roundId: roundId,
+      scoreA: playedMatch ? playedMatch.scoreA : '',
+      scoreB: playedMatch ? playedMatch.scoreB : '',
+      penaltiesA: playedMatch && playedMatch.penaltiesA !== null && playedMatch.penaltiesA !== undefined ? playedMatch.penaltiesA : '',
+      penaltiesB: playedMatch && playedMatch.penaltiesB !== null && playedMatch.penaltiesB !== undefined ? playedMatch.penaltiesB : '',
+      hasPlayed: !!playedMatch,
+      playedMatchId: playedMatch ? playedMatch.id : null
+    }); 
+  };
+
+  // 💾 SALVA A EDIÇÃO (TIMES E/OU PLACAR JÁ VALIDADO)
   const saveMatchEdit = () => {
+    // 1. Atualiza a tabela com a troca de times
     const updatedRounds = comp.rounds.map(r => {
       if (r.id === editMatchData.roundId) {
         return {
@@ -1184,23 +1201,30 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     
     onEditComp({ ...comp, rounds: updatedRounds });
 
-    const playedMatch = (matches || []).find(m => m.matchId === editMatchData.id && m.compId === comp.id);
-    if (playedMatch && onUpdatePlayedMatch) {
-      const oldTeamA = playedMatch.teamA;
-      const oldTeamB = playedMatch.teamB;
-      
-      const updatedGoals = (playedMatch.goals || []).map(g => {
-        if (g.teamId === oldTeamA) return { ...g, teamId: editMatchData.teamA };
-        if (g.teamId === oldTeamB) return { ...g, teamId: editMatchData.teamB };
-        return g;
-      });
+    // 2. Se a partida já foi jogada, salva o novo placar e os novos times
+    if (editMatchData.hasPlayed && onUpdatePlayedMatch && editMatchData.playedMatchId) {
+      const playedMatch = matches.find(m => m.id === editMatchData.playedMatchId);
+      if (playedMatch) {
+        const oldTeamA = playedMatch.teamA;
+        const oldTeamB = playedMatch.teamB;
+        
+        const updatedGoals = (playedMatch.goals || []).map(g => {
+          if (g.teamId === oldTeamA) return { ...g, teamId: editMatchData.teamA };
+          if (g.teamId === oldTeamB) return { ...g, teamId: editMatchData.teamB };
+          return g;
+        });
 
-      onUpdatePlayedMatch({
-        ...playedMatch,
-        teamA: editMatchData.teamA,
-        teamB: editMatchData.teamB,
-        goals: updatedGoals
-      });
+        onUpdatePlayedMatch({
+          ...playedMatch,
+          teamA: editMatchData.teamA,
+          teamB: editMatchData.teamB,
+          scoreA: editMatchData.scoreA !== '' ? parseInt(editMatchData.scoreA) : playedMatch.scoreA,
+          scoreB: editMatchData.scoreB !== '' ? parseInt(editMatchData.scoreB) : playedMatch.scoreB,
+          penaltiesA: editMatchData.penaltiesA !== '' ? parseInt(editMatchData.penaltiesA) : null,
+          penaltiesB: editMatchData.penaltiesB !== '' ? parseInt(editMatchData.penaltiesB) : null,
+          goals: updatedGoals
+        });
+      }
     }
 
     setEditMatchData(null);
@@ -1228,7 +1252,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     if(!newTeamToAdd) return;
     const newTeams = [...(comp.teams || []), newTeamToAdd];
     const newPending = (comp.pendingTeams || []).filter(p => p.teamId !== newTeamToAdd);
-    
     onEditComp({ ...comp, teams: newTeams, pendingTeams: newPending });
     setNewTeamToAdd('');
     setShowAddTeam(false);
@@ -1318,7 +1341,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </button>
           )}
 
-          {isAdmin && (
+          {isAdmin && !isRegistration && (
             <>
               {showAddTeam ? (
                 <div className="flex gap-2 w-full sm:w-auto animate-in fade-in">
@@ -1407,7 +1430,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         <div className="bg-blue-900 border border-blue-800 rounded-3xl p-6 md:p-8 shadow-2xl animate-in slide-in-from-bottom-4">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-black text-emerald-400 uppercase tracking-widest drop-shadow-md mb-2">Inscrições Abertas</h2>
-            <p className="text-blue-300">Aguardando os times se cadastrarem pelo link ou via inserção manual.</p>
+            <p className="text-blue-300">Aguardando os times se cadastrarem pelo link.</p>
             <div className="mt-6 flex flex-col items-center justify-center gap-4">
                <div className="bg-blue-950 px-8 py-4 rounded-2xl border border-blue-800 shadow-inner">
                  <p className="text-xs text-blue-400 uppercase font-bold mb-1">Vagas Preenchidas</p>
@@ -1497,7 +1520,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         <h3 className="text-base font-bold text-blue-300 mb-2 pl-2">Calendário de Rodadas</h3>
                         {groupOrNormalRounds.map((round) => {
                           const isExpanded = expandedRoundId === round.id;
-                          const isLocked = round.status === 'locked'; // Vê se a rodada está trancada
+                          const isLocked = round.status === 'locked';
                           
                           return (
                             <div key={round.id} className={`bg-blue-900 border rounded-xl overflow-hidden ${isLocked ? 'border-blue-800/50' : 'border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.05)]'}`}>
@@ -1510,7 +1533,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                   <span className="text-blue-500 text-xs font-bold mr-2">{isExpanded ? '▲ Recolher' : '▼ Expandir'}</span>
                                 </button>
                                 
-                                {/* 🔓 BOTÃO DE LIBERAR RODADA (EXCLUSIVO LÍDERES) */}
                                 {isAdmin && isLocked && (
                                   <button type="button" onClick={(e) => { e.stopPropagation(); onReleaseRound(comp.id, round.id); }} className="bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[10px] px-3 py-1.5 rounded uppercase tracking-wider transition-colors shrink-0 shadow-md">
                                     🔓 Liberar
@@ -1523,41 +1545,44 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                   {round.matches.map(m => {
                                     const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                                     
-                                    // Adicionamos a opacidade pra deixar o jogo com cara de "Bloqueado"
                                     return (
-                                      <div key={m.id} onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
-                                        
-                                        {/* Esquerda: Escudo e nome */}
-                                        <div className="flex flex-col items-center text-center w-1/3 min-w-0">
-                                          <ShieldDisplay shield={tA?.shield} size="normal" />
-                                          <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tA?.name || m.placeholderA}</span>
-                                        </div>
+                                      <div key={m.id} className="relative group">
+                                        <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
+                                          
+                                          <div className="flex flex-col items-center text-center w-1/3 min-w-0">
+                                            <ShieldDisplay shield={tA?.shield} size="normal" />
+                                            <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tA?.name || m.placeholderA}</span>
+                                          </div>
 
-                                        {/* Centro: Badge de status e placar centralizado vertical e horizontalmente */}
-                                        <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
-                                          <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
-                                            {isLocked ? '🔒 Bloqueado' : sUI.text}
-                                          </span>
-                                          <div className="flex items-center justify-center gap-2">
-                                            {sUI.isPlayed ? (
-                                              <>
-                                                {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}
-                                                <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span>
+                                          <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
+                                            <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
+                                              {isLocked ? '🔒 Bloqueado' : sUI.text}
+                                            </span>
+                                            <div className="flex items-center justify-center gap-2">
+                                              {sUI.isPlayed ? (
+                                                <>
+                                                  {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}
+                                                  <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span>
+                                                  <span className="text-blue-700 font-bold text-xl">:</span>
+                                                  <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>
+                                                  {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}
+                                                </>
+                                              ) : (
                                                 <span className="text-blue-700 font-bold text-xl">:</span>
-                                                <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>
-                                                {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}
-                                              </>
-                                            ) : (
-                                              <span className="text-blue-700 font-bold text-xl">:</span>
-                                            )}
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          <div className="flex flex-col items-center text-center w-1/3 min-w-0">
+                                            <ShieldDisplay shield={tB?.shield} size="normal" />
+                                            <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tB?.name || m.placeholderB}</span>
                                           </div>
                                         </div>
-
-                                        {/* Direita: Escudo e nome */}
-                                        <div className="flex flex-col items-center text-center w-1/3 min-w-0">
-                                          <ShieldDisplay shield={tB?.shield} size="normal" />
-                                          <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tB?.name || m.placeholderB}</span>
-                                        </div>
+                                        
+                                        {/* ✏️ BOTÃO EDITAR (Tabela) */}
+                                        {isAdmin && (
+                                          <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto / Placar"><Edit size={12} /></button>
+                                        )}
                                       </div>
                                     );
                                   })}
@@ -1657,8 +1682,9 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
                                       </div>
                                       
+                                      {/* ✏️ BOTÃO EDITAR (Chaves) */}
                                       {isAdmin && (
-                                        <button type="button" onClick={(e) => { e.stopPropagation(); setEditMatchData({ ...m, roundId: round.id }); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto"><Edit size={10} /></button>
+                                        <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto / Placar"><Edit size={12} /></button>
                                       )}
                                     </div>
                                   );
@@ -1711,6 +1737,66 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
           </div>
         </>
       )}
+
+      {/* 📦 MODAL DE EDIÇÃO DE CONFRONTO E PLACAR */}
+      {editMatchData && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setEditMatchData(null)}>
+          <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-md p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Edit size={18} className="text-amber-400"/> Editar Partida</h3>
+            
+            <div className="space-y-4">
+              {/* Alterar Times */}
+              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800">
+                  <p className="text-xs font-bold text-blue-400 mb-2 uppercase tracking-widest">Alterar Times do Confronto</p>
+                  <div className="space-y-2">
+                      <select value={editMatchData.teamA} onChange={e => setEditMatchData({...editMatchData, teamA: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none">
+                          <option value="">A Definir / Sorteio</option>
+                          {(comp.teams || []).map(tId => {
+                              const t = getTeam(tId);
+                              return t ? <option key={t.id} value={t.id}>{t.name}</option> : null;
+                          })}
+                      </select>
+                      <div className="text-center text-blue-500 font-bold text-xs">X</div>
+                      <select value={editMatchData.teamB} onChange={e => setEditMatchData({...editMatchData, teamB: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none">
+                          <option value="">A Definir / Sorteio</option>
+                          {(comp.teams || []).map(tId => {
+                              const t = getTeam(tId);
+                              return t ? <option key={t.id} value={t.id}>{t.name}</option> : null;
+                          })}
+                      </select>
+                  </div>
+              </div>
+
+              {/* Alterar Placar (Se já foi jogado) */}
+              {editMatchData.hasPlayed && (
+                  <div className="bg-emerald-900/20 p-4 rounded-xl border border-emerald-500/30">
+                      <p className="text-xs font-bold text-emerald-400 mb-2 uppercase tracking-widest">Ajustar Placar Validado</p>
+                      <div className="flex items-center justify-center gap-3">
+                          <input type="number" value={editMatchData.scoreA} onChange={e => setEditMatchData({...editMatchData, scoreA: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none focus:border-amber-400" />
+                          <span className="font-bold text-blue-500">X</span>
+                          <input type="number" value={editMatchData.scoreB} onChange={e => setEditMatchData({...editMatchData, scoreB: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none focus:border-amber-400" />
+                      </div>
+                      {comp.format !== 'league' && (
+                          <div className="mt-3 flex items-center justify-center gap-3">
+                              <input type="number" placeholder="Pên A" value={editMatchData.penaltiesA} onChange={e => setEditMatchData({...editMatchData, penaltiesA: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
+                              <span className="text-[10px] text-amber-500 font-bold uppercase">Pênaltis</span>
+                              <input type="number" placeholder="Pên B" value={editMatchData.penaltiesB} onChange={e => setEditMatchData({...editMatchData, penaltiesB: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
+                          </div>
+                      )}
+                      <p className="text-[10px] text-emerald-500/70 text-center mt-3 leading-tight">Ao salvar, a tabela será recalculada automaticamente com este novo placar.</p>
+                  </div>
+              )}
+
+            </div>
+
+            <div className="flex justify-end gap-2 mt-5">
+              <Button variant="outline" onClick={() => setEditMatchData(null)} className="py-2 text-xs">Cancelar</Button>
+              <Button onClick={saveMatchEdit} className="py-2 text-xs bg-amber-600 hover:bg-amber-500 border-0 shadow-md text-white">Salvar Alterações</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
