@@ -1495,20 +1495,35 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         <h3 className="text-base font-bold text-blue-300 mb-2 pl-2">Calendário de Rodadas</h3>
                         {groupOrNormalRounds.map((round) => {
                           const isExpanded = expandedRoundId === round.id;
+                          const isLocked = round.status === 'locked'; // Vê se a rodada está trancada
+                          
                           return (
-                            <div key={round.id} className="bg-blue-900 border border-blue-800 rounded-xl overflow-hidden">
-                              <button type="button" onClick={() => toggleRound(round.id)} className="w-full bg-blue-950/60 p-4 flex justify-between items-center outline-none">
-                                <span className="text-sm font-bold text-white flex items-center gap-2"><PlayCircle size={16} className="text-emerald-500"/> Rodada {round.number}</span>
-                                <span className="text-blue-500 text-xs font-bold">{isExpanded ? '▲ Recolher' : '▼ Expandir'}</span>
-                              </button>
+                            <div key={round.id} className={`bg-blue-900 border rounded-xl overflow-hidden ${isLocked ? 'border-blue-800/50' : 'border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.05)]'}`}>
+                              <div className="w-full bg-blue-950/60 flex items-center justify-between pr-4">
+                                <button type="button" onClick={() => toggleRound(round.id)} className="flex-1 p-4 flex justify-between items-center outline-none">
+                                  <span className={`text-sm font-bold flex items-center gap-2 ${isLocked ? 'text-blue-400' : 'text-emerald-400'}`}>
+                                    {isLocked ? <Lock size={16} className="text-amber-500"/> : <PlayCircle size={16} className="text-emerald-500"/>} 
+                                    Rodada {round.number}
+                                  </span>
+                                  <span className="text-blue-500 text-xs font-bold mr-2">{isExpanded ? '▲ Recolher' : '▼ Expandir'}</span>
+                                </button>
+                                
+                                {/* 🔓 BOTÃO DE LIBERAR RODADA (EXCLUSIVO LÍDERES) */}
+                                {isAdmin && isLocked && (
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); onReleaseRound(comp.id, round.id); }} className="bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[10px] px-3 py-1.5 rounded uppercase tracking-wider transition-colors shrink-0 shadow-md">
+                                    🔓 Liberar
+                                  </button>
+                                )}
+                              </div>
+                              
                               {isExpanded && (
                                 <div className="p-4 bg-blue-950/40 grid grid-cols-1 gap-3 border-t border-blue-800">
                                   {round.matches.map(m => {
                                     const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                                     
-                                    {/* ⚡ ATUALIZAÇÃO DO VISUAL: Restaurado o layout vertical idêntico ao print */}
+                                    // Adicionamos a opacidade pra deixar o jogo com cara de "Bloqueado"
                                     return (
-                                      <div key={m.id} onClick={()=>{if(sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className="bg-blue-900/80 p-4 rounded-xl border border-blue-800 flex items-center justify-between cursor-pointer hover:border-blue-700 transition-colors shadow-sm">
+                                      <div key={m.id} onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
                                         
                                         {/* Esquerda: Escudo e nome */}
                                         <div className="flex flex-col items-center text-center w-1/3 min-w-0">
@@ -1519,7 +1534,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                         {/* Centro: Badge de status e placar centralizado vertical e horizontalmente */}
                                         <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
                                           <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
-                                            {sUI.text}
+                                            {isLocked ? '🔒 Bloqueado' : sUI.text}
                                           </span>
                                           <div className="flex items-center justify-center gap-2">
                                             {sUI.isPlayed ? (
@@ -1549,11 +1564,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                             </div>
                           );
                         })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
+                        
                 {viewType === 'bracket' && (
                   <div className="space-y-4 animate-in fade-in">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 pl-2">
