@@ -122,6 +122,70 @@ const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2, i
   return { groups, rounds };
 };
 
+const generateCupBracket = (teamIds, compId) => {
+  // Embaralha os times para o sorteio inicial das chaves
+  const shuffledTeams = [...teamIds].sort(() => 0.5 - Math.random());
+  
+  // Encontra a potência de 2 mais próxima para formar o chaveamento (ex: 2, 4, 8, 16)
+  let p2 = 1; 
+  while (p2 < shuffledTeams.length) p2 *= 2; 
+  
+  const totalKnockoutRounds = Math.log2(p2);
+  const rounds = [];
+  let matchCounter = 1;
+
+  for (let kr = 0; kr < totalKnockoutRounds; kr++) {
+    const roundMatches = [];
+    const numMatchesInRound = p2 / Math.pow(2, kr + 1);
+    const firstMatchIdOfRound = matchCounter;
+    
+    for (let i = 0; i < numMatchesInRound; i++) {
+      let teamA = '';
+      let teamB = '';
+      let placeholderA = 'A Definir';
+      let placeholderB = 'A Definir';
+
+      if (kr === 0) {
+        // Primeira rodada preenche com os times sorteados
+        teamA = shuffledTeams[i * 2] || '';
+        teamB = shuffledTeams[i * 2 + 1] || '';
+        placeholderA = teamA ? '' : 'Sorteio / Bye';
+        placeholderB = teamB ? '' : 'Sorteio / Bye';
+      } else {
+        // Rodadas subsequentes aguardam os vencedores dos jogos anteriores
+        placeholderA = `Venc. Jogo ${firstMatchIdOfRound - (numMatchesInRound * 2) + (i * 2)}`;
+        placeholderB = `Venc. Jogo ${firstMatchIdOfRound - (numMatchesInRound * 2) + (i * 2) + 1}`;
+      }
+
+      roundMatches.push({ 
+        id: `${compId}_ko_m${matchCounter}_kr${kr}`, 
+        teamA: teamA, 
+        teamB: teamB, 
+        placeholderA: placeholderA, 
+        placeholderB: placeholderB, 
+        status: 'pending_play' 
+      });
+      matchCounter++;
+    }
+    
+    // Define o nome da fase (Final, Semifinal, etc.)
+    let roundLabel = 'Mata-Mata';
+    if (numMatchesInRound === 1) roundLabel = 'Final';
+    else if (numMatchesInRound === 2) roundLabel = 'Semifinal';
+    else if (numMatchesInRound === 4) roundLabel = 'Quartas';
+    else if (numMatchesInRound === 8) roundLabel = 'Oitavas';
+    
+    rounds.push({ 
+      id: `ko_${kr}`, 
+      number: roundLabel, 
+      status: kr === 0 ? 'released' : 'locked', 
+      matches: roundMatches 
+    });
+  }
+  
+  return rounds;
+};
+
 const LoginScreen = ({ onLogin, onRegister }) => {
   const [view, setView] = useState('login'); 
   const [loginData, setLoginData] = useState({ identifier: '', password: '' });
