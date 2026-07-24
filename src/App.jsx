@@ -2046,17 +2046,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
-    
-    // NOVAS REGRAS DE VALIDAÇÃO:
-    if (!isAutoJoin && selectedTeams.length !== parseInt(teamCount)) { 
-      setError(`Atenção: Para gerar a tabela agora, você precisa marcar exatamente ${teamCount} times. Você selecionou ${selectedTeams.length}.`); 
-      return; 
-    }
-    if (isAutoJoin && selectedTeams.length > parseInt(teamCount)) {
-      setError(`Atenção: Você pré-confirmou mais times (${selectedTeams.length}) do que o limite total de vagas (${teamCount}).`);
-      return;
-    }
-
+    if (!isAutoJoin && selectedTeams.length !== parseInt(teamCount)) { setError(`Atenção: O formato exige ${teamCount} times, mas você selecionou ${selectedTeams.length}.`); return; }
     if (isPaid && (!entryFee || !pixKey || !prize1st || !prize2nd)) { setError('Em torneios pagos, preencha a taxa, a chave PIX e os prêmios do 1º e 2º lugar.'); return; }
 
     setError('');
@@ -2081,7 +2071,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
       id: compId, name, format, deadline, 
       teamCount: parseInt(teamCount),
       status: isAutoJoin ? 'registration' : 'active', 
-      teams: selectedTeams, // <-- ALTERADO: Agora ele sempre envia o que foi selecionado
+      teams: isAutoJoin ? [] : selectedTeams, 
       pendingTeams: [],
       rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido',
@@ -2171,35 +2161,25 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
           )}
         </div>
 
-        {/* BLOCO 3: SELEÇÃO DE EQUIPES (Agora sempre visível) */}
-        <div className="bg-blue-900 p-6 md:p-8 rounded-3xl border border-blue-800 shadow-xl animate-in fade-in">
-          <div className="flex flex-col mb-4">
-            <label className="text-sm font-bold text-blue-300">
-              {isAutoJoin 
-                ? `Equipes Pré-Confirmadas (Opcional: ${selectedTeams.length}/${teamCount || '0'})` 
-                : `Marcar as Equipes Manualmente (Obrigatório: ${selectedTeams.length}/${teamCount || '0'})`}
-            </label>
-            {isAutoJoin && (
-              <span className="text-xs text-emerald-400 mt-1">
-                Selecione sua equipe agora para garantir a vaga. As inscrições restantes ficarão para o link.
-              </span>
+        {/* BLOCO 3: SELEÇÃO MANUAL (SÓ SE AUTOJOIN FOR FALSO) */}
+        {!isAutoJoin && (
+          <div className="bg-blue-900 p-6 md:p-8 rounded-3xl border border-blue-800 shadow-xl animate-in fade-in">
+            <div className="flex justify-between items-end mb-4"><label className="text-sm font-bold text-blue-300">Marcar as Equipes Manualmente ({selectedTeams.length} marcadas)</label></div>
+            {teams.length === 0 ? <p className="text-blue-500 text-sm p-4 bg-blue-950 rounded border border-blue-800">Nenhum time cadastrado.</p> : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {teams.map(team => { 
+                  const isSelected = selectedTeams.includes(team.id); 
+                  return ( 
+                    <div key={team.id} onClick={() => toggleTeam(team.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-blue-950 border-blue-800 hover:border-blue-600'}`}>
+                      <ShieldDisplay shield={team.shield} size="small" />
+                      <span className={`font-medium text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-blue-300'}`}>{team.name}</span>
+                    </div> 
+                  ); 
+                })}
+              </div>
             )}
           </div>
-          
-          {teams.length === 0 ? <p className="text-blue-500 text-sm p-4 bg-blue-950 rounded border border-blue-800">Nenhum time cadastrado.</p> : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {teams.map(team => { 
-                const isSelected = selectedTeams.includes(team.id); 
-                return ( 
-                  <div key={team.id} onClick={() => toggleTeam(team.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-blue-950 border-blue-800 hover:border-blue-600'}`}>
-                    <ShieldDisplay shield={team.shield} size="small" />
-                    <span className={`font-medium text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-blue-300'}`}>{team.name}</span>
-                  </div> 
-                ); 
-              })}
-            </div>
-          )}
-        </div>
+        )}
         
         <Button type="submit" className={`w-full py-5 text-xl font-black mt-4 rounded-2xl ${isPaid ? 'bg-amber-500 hover:bg-amber-400 text-blue-950' : 'bg-emerald-500 hover:bg-emerald-400 text-blue-950'}`}>
           {isAutoJoin ? '🔗 Gerar Link de Inscrição' : '🏆 Criar e Gerar Tabela'}
