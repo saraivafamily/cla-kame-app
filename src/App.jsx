@@ -2107,9 +2107,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
           )}
         </div>
 
-        {/* BLOCO 3: SELEÇÃO MANUAL (SÓ SE AUTOJOIN FOR FALSO) */}
-        {!isAutoJoin && (
-          {/* BLOCO 3: SELEÇÃO DE EQUIPES (Agora sempre visível) */}
+        {/* BLOCO 3: SELEÇÃO DE EQUIPES (Agora sempre visível) */}
         <div className="bg-blue-900 p-6 md:p-8 rounded-3xl border border-blue-800 shadow-xl animate-in fade-in">
           <div className="flex flex-col mb-4">
             <label className="text-sm font-bold text-blue-300">
@@ -2138,7 +2136,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
             </div>
           )}
         </div>
-        )}
         
         <Button type="submit" className={`w-full py-5 text-xl font-black mt-4 rounded-2xl ${isPaid ? 'bg-amber-500 hover:bg-amber-400 text-blue-950' : 'bg-emerald-500 hover:bg-emerald-400 text-blue-950'}`}>
           {isAutoJoin ? '🔗 Gerar Link de Inscrição' : '🏆 Criar e Gerar Tabela'}
