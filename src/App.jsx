@@ -1979,7 +1979,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
     else setSelectedTeams([...selectedTeams, teamId]);
   };
 
- const handleSubmit = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
     
