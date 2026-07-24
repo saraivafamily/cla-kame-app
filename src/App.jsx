@@ -2870,7 +2870,7 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
               return(
                 <tr key={u.id} className="hover:bg-blue-950/40">
                   <td className="p-3 font-bold text-blue-200">{u.name}</td><td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-blue-400">{u.whatsapp}</td>
-                  <td className="p-3"><select disabled={!isSupremeLeader && currentUser?.id !== u.id} value={u.role} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-blue-900 text-blue-300 border border-blue-700 rounded p-1 outline-none disabled:opacity-50"><option value="member">Membro</option><option value="kaioh">Kaioh</option><option value="leader">Líder</option></select></td>
+                  <td className="p-3"><select disabled={!isSupremeLeader && currentUser?.id !== u.id} value={u.role} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-blue-900 text-blue-300 border border-blue-700 rounded p-1 outline-none disabled:opacity-50"><option value="member">Membro</option><option value="kaioh">Kaioh</option><option value="leader">Presidente</option></select></td>
                   <td className="p-3 flex justify-center gap-3 items-center">
                     {isSupremeLeader && <button onClick={()=>startEdit(u)} className="text-blue-500 hover:text-emerald-400 transition-colors p-1" title="Editar Técnico"><Edit size={16}/></button>}
                     {isLeader && <button onClick={()=>{if(window.confirm('Expulsar membro?')) onExpelUser(u.id)}} className="text-blue-500 hover:text-red-400 transition-colors p-1" title="Expulsar"><XCircle size={16}/></button>}
