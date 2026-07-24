@@ -24,7 +24,7 @@ const appId = 'cla-kame-oficial';
 const getPublicPath = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 const getPublicDocPath = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-const ROLE_NAMES = { leader: 'Presidente', kaioh: 'Senhor Kaioh', member: 'Membro Oficial' };
+const ROLE_NAMES = { leader: 'Líder Supremo', kaioh: 'Senhor Kaioh', member: 'Membro Oficial' };
 const inputClass = "w-full bg-blue-950 border border-blue-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none transition-colors text-sm";
 
 const processImage = (file, cb) => { if(!file) return; const r = new FileReader(); r.onload = e => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const MAX = 128; let w = img.width, h = img.height; if (w > h) { if (w > MAX) { h *= MAX / w; w = MAX; } } else { if (h > MAX) { w *= MAX / h; h = MAX; } } canvas.width = w; canvas.height = h; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h); cb(canvas.toDataURL('image/png')); }; img.src = e.target.result; }; r.readAsDataURL(file); };
@@ -1979,10 +1979,20 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
     else setSelectedTeams([...selectedTeams, teamId]);
   };
 
-  const handleSubmit = (e) => {
+ const handleSubmit = (e) => {
     e.preventDefault();
     if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
-    if (!isAutoJoin && selectedTeams.length !== parseInt(teamCount)) { setError(`Atenção: O formato exige ${teamCount} times, mas você selecionou ${selectedTeams.length}.`); return; }
+    
+    // NOVAS REGRAS DE VALIDAÇÃO:
+    if (!isAutoJoin && selectedTeams.length !== parseInt(teamCount)) { 
+      setError(`Atenção: Para gerar a tabela agora, você precisa marcar exatamente ${teamCount} times. Você selecionou ${selectedTeams.length}.`); 
+      return; 
+    }
+    if (isAutoJoin && selectedTeams.length > parseInt(teamCount)) {
+      setError(`Atenção: Você pré-confirmou mais times (${selectedTeams.length}) do que o limite total de vagas (${teamCount}).`);
+      return;
+    }
+
     if (isPaid && (!entryFee || !pixKey || !prize1st || !prize2nd)) { setError('Em torneios pagos, preencha a taxa, a chave PIX e os prêmios do 1º e 2º lugar.'); return; }
 
     setError('');
@@ -2007,7 +2017,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
       id: compId, name, format, deadline, 
       teamCount: parseInt(teamCount),
       status: isAutoJoin ? 'registration' : 'active', 
-      teams: isAutoJoin ? [] : selectedTeams, 
+      teams: selectedTeams, // <-- ALTERADO: Agora ele sempre envia o que foi selecionado
       pendingTeams: [],
       rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido',
@@ -2099,22 +2109,35 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
 
         {/* BLOCO 3: SELEÇÃO MANUAL (SÓ SE AUTOJOIN FOR FALSO) */}
         {!isAutoJoin && (
-          <div className="bg-blue-900 p-6 md:p-8 rounded-3xl border border-blue-800 shadow-xl animate-in fade-in">
-            <div className="flex justify-between items-end mb-4"><label className="text-sm font-bold text-blue-300">Marcar as Equipes Manualmente ({selectedTeams.length} marcadas)</label></div>
-            {teams.length === 0 ? <p className="text-blue-500 text-sm p-4 bg-blue-950 rounded border border-blue-800">Nenhum time cadastrado.</p> : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {teams.map(team => { 
-                  const isSelected = selectedTeams.includes(team.id); 
-                  return ( 
-                    <div key={team.id} onClick={() => toggleTeam(team.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-blue-950 border-blue-800 hover:border-blue-600'}`}>
-                      <ShieldDisplay shield={team.shield} size="small" />
-                      <span className={`font-medium text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-blue-300'}`}>{team.name}</span>
-                    </div> 
-                  ); 
-                })}
-              </div>
+          {/* BLOCO 3: SELEÇÃO DE EQUIPES (Agora sempre visível) */}
+        <div className="bg-blue-900 p-6 md:p-8 rounded-3xl border border-blue-800 shadow-xl animate-in fade-in">
+          <div className="flex flex-col mb-4">
+            <label className="text-sm font-bold text-blue-300">
+              {isAutoJoin 
+                ? `Equipes Pré-Confirmadas (Opcional: ${selectedTeams.length}/${teamCount || '0'})` 
+                : `Marcar as Equipes Manualmente (Obrigatório: ${selectedTeams.length}/${teamCount || '0'})`}
+            </label>
+            {isAutoJoin && (
+              <span className="text-xs text-emerald-400 mt-1">
+                Selecione sua equipe agora para garantir a vaga. As inscrições restantes ficarão para o link.
+              </span>
             )}
           </div>
+          
+          {teams.length === 0 ? <p className="text-blue-500 text-sm p-4 bg-blue-950 rounded border border-blue-800">Nenhum time cadastrado.</p> : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {teams.map(team => { 
+                const isSelected = selectedTeams.includes(team.id); 
+                return ( 
+                  <div key={team.id} onClick={() => toggleTeam(team.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-blue-950 border-blue-800 hover:border-blue-600'}`}>
+                    <ShieldDisplay shield={team.shield} size="small" />
+                    <span className={`font-medium text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-blue-300'}`}>{team.name}</span>
+                  </div> 
+                ); 
+              })}
+            </div>
+          )}
+        </div>
         )}
         
         <Button type="submit" className={`w-full py-5 text-xl font-black mt-4 rounded-2xl ${isPaid ? 'bg-amber-500 hover:bg-amber-400 text-blue-950' : 'bg-emerald-500 hover:bg-emerald-400 text-blue-950'}`}>
@@ -2870,7 +2893,7 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
               return(
                 <tr key={u.id} className="hover:bg-blue-950/40">
                   <td className="p-3 font-bold text-blue-200">{u.name}</td><td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-blue-400">{u.whatsapp}</td>
-                  <td className="p-3"><select disabled={!isSupremeLeader && currentUser?.id !== u.id} value={u.role} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-blue-900 text-blue-300 border border-blue-700 rounded p-1 outline-none disabled:opacity-50"><option value="member">Membro</option><option value="kaioh">Kaioh</option><option value="leader">Presidente</option></select></td>
+                  <td className="p-3"><select disabled={!isSupremeLeader && currentUser?.id !== u.id} value={u.role} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-blue-900 text-blue-300 border border-blue-700 rounded p-1 outline-none disabled:opacity-50"><option value="member">Membro</option><option value="kaioh">Kaioh</option><option value="leader">Líder</option></select></td>
                   <td className="p-3 flex justify-center gap-3 items-center">
                     {isSupremeLeader && <button onClick={()=>startEdit(u)} className="text-blue-500 hover:text-emerald-400 transition-colors p-1" title="Editar Técnico"><Edit size={16}/></button>}
                     {isLeader && <button onClick={()=>{if(window.confirm('Expulsar membro?')) onExpelUser(u.id)}} className="text-blue-500 hover:text-red-400 transition-colors p-1" title="Expulsar"><XCircle size={16}/></button>}
