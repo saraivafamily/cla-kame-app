@@ -379,6 +379,82 @@ const SocialFeed = ({ currentUser, teams, showToast }) => {
 const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpdateUserPhoto }) => { 
   const userTeams = teams.filter(t => t.ownerId === currentUser.id);
 
+  // 🧠 MOTOR DE RANKING (Espelhado para o Perfil)
+  const rankingData = useMemo(() => {
+    let stats = {};
+    (teams || []).forEach(t => { if(t && t.ownerId) stats[t.id] = { ...t, points: 0, played: 0, wins: 0 }; });
+
+    (competitions || []).forEach(c => {
+      if (c && c.teams) c.teams.forEach(tId => { if(stats[tId]) stats[tId].points += 10; });
+    });
+
+    (matches || []).forEach(m => {
+      if (m.status === 'approved') {
+        const tA = stats[m.teamA]; const tB = stats[m.teamB];
+        if(tA) { tA.played += 1; tA.points += 2; }
+        if(tB) { tB.played += 1; tB.points += 2; }
+
+        let scoreA = Number(m.scoreA||0); let scoreB = Number(m.scoreB||0);
+        let penA = m.penaltiesA !== null && m.penaltiesA !== undefined ? Number(m.penaltiesA) : null;
+        let penB = m.penaltiesB !== null && m.penaltiesB !== undefined ? Number(m.penaltiesB) : null;
+
+        let winner = null;
+        if (scoreA > scoreB) winner = 'A';
+        else if (scoreB > scoreA) winner = 'B';
+        else if (penA !== null && penB !== null) {
+            if (tA) tA.points += 1; if (tB) tB.points += 1;
+            if (penA > penB) winner = 'A'; else if (penB > penA) winner = 'B';
+        } else {
+            if (tA) tA.points += 1; if (tB) tB.points += 1;
+        }
+
+        if (winner === 'A' && tA) { tA.wins += 1; tA.points += 3; }
+        else if (winner === 'B' && tB) { tB.wins += 1; tB.points += 3; }
+      }
+    });
+
+    (competitions || []).forEach(c => {
+      if (!c.rounds) return;
+      const koRounds = c.rounds.filter(r => r.id.includes('ko') || c.format === 'cup');
+      let semiTeams = new Set(); let finalTeams = new Set();
+
+      koRounds.forEach(r => {
+        r.matches.forEach(m => {
+          const tA = stats[m.teamA]; const tB = stats[m.teamB];
+          if (r.number === 'Oitavas') { if(tA) tA.points += 5; if(tB) tB.points += 5; }
+          if (r.number === 'Quartas') { if(tA) tA.points += 10; if(tB) tB.points += 10; }
+          if (r.number === 'Semifinal') { if(tA) { tA.points += 15; semiTeams.add(m.teamA); } if(tB) { tB.points += 15; semiTeams.add(m.teamB); } }
+          if (r.number === 'Final') {
+            if(tA) finalTeams.add(m.teamA); if(tB) finalTeams.add(m.teamB);
+            const sUI = matches.find(x => x.matchId === m.id && x.compId === c.id && x.status === 'approved');
+            if (sUI) {
+              let scoreA = Number(sUI.scoreA||0); let scoreB = Number(sUI.scoreB||0);
+              let penA = sUI.penaltiesA !== null && sUI.penaltiesA !== undefined ? Number(sUI.penaltiesA) : null;
+              let penB = sUI.penaltiesB !== null && sUI.penaltiesB !== undefined ? Number(sUI.penaltiesB) : null;
+              let winnerId = null; let loserId = null;
+              if (scoreA > scoreB) { winnerId = m.teamA; loserId = m.teamB; }
+              else if (scoreB > scoreA) { winnerId = m.teamB; loserId = m.teamA; }
+              else if (penA !== null && penB !== null) { if (penA > penB) { winnerId = m.teamA; loserId = m.teamB; } else if (penB > penA) { winnerId = m.teamB; loserId = m.teamA; } }
+
+              if (winnerId && stats[winnerId]) stats[winnerId].points += 50; 
+              if (loserId && stats[loserId]) stats[loserId].points += 25; 
+            }
+          }
+        });
+      });
+      semiTeams.forEach(tId => { if (!finalTeams.has(tId) && stats[tId]) stats[tId].points += 15; });
+    });
+
+    return Object.values(stats).filter(t => t.played > 0 || t.points > 0).sort((a,b) => b.points - a.points || b.wins - a.wins);
+  }, [teams, matches, competitions]);
+
+  const getBadge = (pts) => {
+    if (pts >= 1000) return { label: 'Lenda Suprema', icon: '👑' };
+    if (pts >= 400) return { label: 'Mestre', icon: '💎' };
+    if (pts >= 150) return { label: 'Veterano', icon: '🛡️' };
+    return { label: 'Novato', icon: '🔰' };
+  };
+
   if (userTeams.length === 0) {
     return (
       <div className="animate-in fade-in text-center p-12 bg-blue-900 rounded-2xl border border-blue-800">
@@ -391,24 +467,46 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
 
   return (
     <div className="animate-in fade-in duration-500 space-y-6">
-      <div className="flex items-center gap-4 bg-blue-900 p-6 rounded-2xl border border-blue-800 shadow-lg">
-        <label className="cursor-pointer relative group flex flex-col items-center shrink-0" title="Clique para trocar sua foto">
-          <div className="relative w-24 h-24 bg-blue-800 rounded-full flex items-center justify-center text-3xl border-2 border-emerald-500/30 overflow-hidden shadow-lg">
-            {currentUser.photoURL ? <img src={currentUser.photoURL} alt="Perfil" className="w-full h-full object-cover" /> : <span>👤</span>}
-            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <UploadCloud size={20} className="text-white" />
+      <div className="flex flex-col md:flex-row items-center md:items-stretch gap-4">
+        {/* Cabeçalho Perfil */}
+        <div className="flex-1 w-full flex items-center gap-4 bg-blue-900 p-6 rounded-2xl border border-blue-800 shadow-lg">
+          <label className="cursor-pointer relative group flex flex-col items-center shrink-0" title="Clique para trocar sua foto">
+            <div className="relative w-24 h-24 bg-blue-800 rounded-full flex items-center justify-center text-3xl border-2 border-emerald-500/30 overflow-hidden shadow-lg">
+              {currentUser.photoURL ? <img src={currentUser.photoURL} alt="Perfil" className="w-full h-full object-cover" /> : <span>👤</span>}
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <UploadCloud size={20} className="text-white" />
+              </div>
             </div>
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+              processImage(e.target.files[0], (base64) => {
+                if (onUpdateUserPhoto) onUpdateUserPhoto(base64);
+              });
+            }} />
+          </label>
+          <div>
+            <h2 className="text-2xl font-bold text-white">{currentUser.name}</h2>
+            <p className="text-emerald-400 font-bold tracking-widest text-xs uppercase mt-1">{ROLE_NAMES[currentUser.role] || 'Membro'}</p>
           </div>
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-            processImage(e.target.files[0], (base64) => {
-              if (onUpdateUserPhoto) onUpdateUserPhoto(base64);
-            });
-          }} />
-        </label>
-        <div>
-          <h2 className="text-2xl font-bold text-white">{currentUser.name}</h2>
-          <p className="text-emerald-400 font-bold tracking-widest text-xs uppercase mt-1">{ROLE_NAMES[currentUser.role] || 'Membro'}</p>
         </div>
+
+        {/* 🌟 NOVO: CARD DE RANKING GLOBAL NO PERFIL */}
+        {userTeams.map(team => {
+          const myRankIndex = rankingData.findIndex(t => t.id === team.id);
+          const myRank = myRankIndex !== -1 ? myRankIndex + 1 : '-';
+          const myPoints = myRankIndex !== -1 ? rankingData[myRankIndex].points : 0;
+          const badge = getBadge(myPoints);
+
+          return (
+            <div key={`rank_${team.id}`} className="shrink-0 w-full md:w-auto bg-gradient-to-br from-amber-600 to-amber-900 p-6 rounded-2xl border border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)] flex flex-col justify-center items-center md:items-end text-center md:text-right">
+               <div className="flex items-center gap-2 mb-1">
+                 <span className="text-2xl drop-shadow-md">{badge.icon}</span>
+                 <p className="text-xs text-amber-100 uppercase font-black tracking-widest">Ranking Xclã</p>
+               </div>
+               <p className="text-4xl font-black text-white drop-shadow-md">{myRank}º <span className="text-lg font-bold text-amber-200">Lugar</span></p>
+               <p className="text-sm font-bold text-amber-100 mt-1 bg-black/20 px-3 py-1 rounded-full shadow-inner">{myPoints} Pontos Clã • {badge.label}</p>
+            </div>
+          );
+        })}
       </div>
 
       <div className="space-y-8">
@@ -3330,6 +3428,7 @@ export default function App() {
     { id: 'profile', label: 'Meu Perfil', icon: User },
     { id: 'teams_list', label: 'Times', icon: Shield }, 
     { id: 'competitions', label: 'Competições', icon: Medal },
+    { id: 'ranking', label: 'Ranking Xclã', icon: Crown },
     { id: 'feed', label: 'Feed da Resenha', icon: MessageCircle },
    { id: 'records', label: 'Mural de Recordes', icon: Trophy }, // 🏅 LINHA ADICIONADA AQUI!
     ...(isLeaderOrKaioh ? [
@@ -3389,6 +3488,7 @@ export default function App() {
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onUpdateUserPhoto={async (url) => { await updateDoc(getPublicDocPath('users', currentUser.id), { photoURL: url }); setCurrentUser(prev => ({...prev, photoURL: url})); }} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onDeleteTeam={async (id) => { await deleteDoc(getPublicDocPath('teams', id)); showToast("Time excluído com sucesso!", "success"); }} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
+      case 'ranking': return <GlobalRanking teams={teams} matches={matches} competitions={competitions} />; // 👑 ROTA ADICIONADA AQUI!
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(isLeaderOrKaioh ? 'validation' : 'dashboard'); })} />;
