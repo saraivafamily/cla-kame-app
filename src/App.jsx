@@ -608,13 +608,6 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
               });
           });
 
-          const conquistas = [];
-          
-          // INSERE OS TÍTULOS COMO AS PRIMEIRAS CONQUISTAS DO MURAL!
-          if (ligasKame > 0) conquistas.push({ icon: '🏆', title: `LIGA KAME - ${ligasKame} TÍTULO${ligasKame > 1 ? 'S' : ''}`, desc: 'Campeão da Divisão Principal' });
-          if (copasMain > 0) conquistas.push({ icon: '🏆', title: `COPA OFICIAL - ${copasMain} TÍTULO${copasMain > 1 ? 'S' : ''}`, desc: 'Campeão de Copas Maiores' });
-          if (copasFlash > 0) conquistas.push({ icon: '⚡', title: `COPA FLASH - ${copasFlash} TÍTULO${copasFlash > 1 ? 'S' : ''}`, desc: 'Campeão de Tiro Curto' });
-
           if (wins > 0) conquistas.push({ icon: '🌟', title: 'PRIMEIRA VITÓRIA', desc: 'Venceu uma partida oficial' });
           if (gf >= 100) conquistas.push({ icon: '⚽', title: 'GOLEADOR', desc: 'Marcou 100 ou mais gols' });
           if (gf >= 500) conquistas.push({ icon: '⚽', title: 'MERCENÁRIO', desc: 'Marcou 500 ou mais gols' });
@@ -623,7 +616,6 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
           if (biggestWin && (biggestWin.scoreFor - biggestWin.scoreAgainst) >= 5) conquistas.push({ icon: '⚡', title: 'IMPIEDOSO', desc: 'Venceu com 5+ gols de diferença' });
           if (draws >= 50) conquistas.push({ icon: '🤝', title: 'REI DO EMPATE', desc: 'Empatou 50 ou mais vezes' });
           
-
           const activeComps = competitions.filter(c => c.teams?.includes(team.id));
 
           return (
@@ -664,7 +656,6 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
                   ) : ( <div className="text-center p-6 bg-blue-950 rounded-xl border border-blue-800 border-dashed"><p className="text-blue-500 text-sm">Nenhuma conquista desbloqueada. Jogue e vença partidas para ganhar emblemas!</p></div> )}
                 </div>
 
-                {/* Restante do Perfil igual (Torneios, etc) */}
                 <div>
                   <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Trophy className="text-emerald-500" size={20}/> Desempenho nos Torneios</h4>
                   {activeComps.length > 0 ? (
