@@ -1292,12 +1292,26 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     extra: comp.prizes?.extra || ''
   });
 
+  // 🌟 NOVO: ESTADOS PARA EDIÇÃO DE CATEGORIA
+  const [showEditCategory, setShowEditCategory] = useState(false);
+  const [categoryData, setCategoryData] = useState(comp?.category || 'liga_a');
+
   if (!comp) return (<div className="text-center py-12"><p className="text-blue-400">Torneio não localizado.</p><button onClick={onBack} className="text-emerald-400 underline">Voltar</button></div>);
   
   const isRegistration = comp.status === 'registration';
   const getTeam = (id) => (teams || []).find(t => t && t.id === id);
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
+  // Mapeamento visual das categorias para o cabeçalho
+  const CATEGORY_NAMES = {
+    liga_a: '🥇 Liga Kame A',
+    liga_b: '🥈 Liga Kame B',
+    liga_c: '🥉 Liga Kame C',
+    liga_d: '🎖️ Liga Kame D',
+    copa_main: '🏆 Copa Oficial',
+    copa_flash: '⚡ Copa Flash'
+  };
+
   const getMatchStatusDisplay = (matchId) => {
     const ms = (matches || []).filter(m => m && m.matchId === matchId && m.compId === comp.id && m.status !== 'rejected');
     if(ms.length === 0) return { isPlayed: false, text: 'Aguardando', color: 'text-blue-500', bg: 'bg-blue-950 border-blue-800' };
@@ -1407,7 +1421,9 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       penaltiesA: playedMatch && playedMatch.penaltiesA !== null && playedMatch.penaltiesA !== undefined ? playedMatch.penaltiesA : '',
       penaltiesB: playedMatch && playedMatch.penaltiesB !== null && playedMatch.penaltiesB !== undefined ? playedMatch.penaltiesB : '',
       hasPlayed: !!playedMatch,
-      playedMatchId: playedMatch ? playedMatch.id : null
+      playedMatchId: playedMatch ? playedMatch.id : null,
+      woA: false,
+      woB: false
     }); 
   };
 
@@ -1430,27 +1446,50 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         const oldTeamA = playedMatch.teamA;
         const oldTeamB = playedMatch.teamB;
         
+        let finalScoreA = editMatchData.scoreA;
+        let finalScoreB = editMatchData.scoreB;
+        let isDoubleWo = false;
+        let winnerDoubleWo = null;
+
+        if (editMatchData.woA && editMatchData.woB) {
+            isDoubleWo = true;
+            winnerDoubleWo = Math.random() < 0.5 ? 'A' : 'B';
+            finalScoreA = winnerDoubleWo === 'A' ? 3 : 0;
+            finalScoreB = winnerDoubleWo === 'A' ? 0 : 3;
+        } else if (editMatchData.woA) {
+            finalScoreA = 0; finalScoreB = 3;
+        } else if (editMatchData.woB) {
+            finalScoreA = 3; finalScoreB = 0;
+        }
+
         const updatedGoals = (playedMatch.goals || []).map(g => {
           if (g.teamId === oldTeamA) return { ...g, teamId: editMatchData.teamA };
           if (g.teamId === oldTeamB) return { ...g, teamId: editMatchData.teamB };
           return g;
         });
 
+        const newObs = isDoubleWo 
+          ? `Sorteio de Duplo W.O.! Vencedor: ${winnerDoubleWo === 'A' ? getTeam(editMatchData.teamA)?.name : getTeam(editMatchData.teamB)?.name}\n${playedMatch.observacoes || ''}` 
+          : playedMatch.observacoes;
+
         onUpdatePlayedMatch({
           ...playedMatch,
           teamA: editMatchData.teamA,
           teamB: editMatchData.teamB,
-          scoreA: editMatchData.scoreA !== '' ? parseInt(editMatchData.scoreA) : playedMatch.scoreA,
-          scoreB: editMatchData.scoreB !== '' ? parseInt(editMatchData.scoreB) : playedMatch.scoreB,
+          scoreA: finalScoreA !== '' ? parseInt(finalScoreA) : playedMatch.scoreA,
+          scoreB: finalScoreB !== '' ? parseInt(finalScoreB) : playedMatch.scoreB,
           penaltiesA: editMatchData.penaltiesA !== '' ? parseInt(editMatchData.penaltiesA) : null,
           penaltiesB: editMatchData.penaltiesB !== '' ? parseInt(editMatchData.penaltiesB) : null,
-          goals: updatedGoals
+          goals: (editMatchData.woA || editMatchData.woB) ? [] : updatedGoals, // Limpa os gols em caso de W.O.
+          observacoes: newObs
         });
+
+        if(isDoubleWo && showToast) showToast(`Sorteio Duplo W.O.: ${winnerDoubleWo === 'A' ? getTeam(editMatchData.teamA)?.name : getTeam(editMatchData.teamB)?.name} venceu!`, "success");
       }
     }
 
     setEditMatchData(null);
-    showToast("Confronto e histórico atualizados permanentemente!", "success");
+    if(showToast && !(editMatchData.woA && editMatchData.woB)) showToast("Confronto e histórico atualizados permanentemente!", "success");
   };
 
   const handleSavePrizes = () => {
@@ -1465,6 +1504,16 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     });
     setShowEditPrizes(false);
     showToast("Quadro de premiações atualizado!", "success");
+  };
+
+  // 🌟 NOVO: FUNÇÃO PARA SALVAR A CATEGORIA DO TORNEIO
+  const handleSaveCategory = () => {
+    onEditComp({
+      ...comp,
+      category: categoryData
+    });
+    setShowEditCategory(false);
+    showToast("Categoria do torneio atualizada com sucesso!", "success");
   };
 
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
@@ -1551,19 +1600,30 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       <div className="bg-blue-900 p-5 rounded-3xl border border-blue-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl">
         <div>
           <h2 className="text-xl font-bold text-white">{String(comp.name)}</h2>
-          <p className="text-xs text-emerald-400 mt-1 uppercase font-bold">
-            {comp.format === 'league' ? 'Liga Corrida' : comp.format === 'groups' ? 'Fase de Grupos + Copa' : 'Copa Mata-Mata'}
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">
+              {comp.category ? CATEGORY_NAMES[comp.category] : 'Sem Categoria'}
+            </span>
+            <span className="text-xs text-blue-400 font-medium">
+              • {comp.format === 'league' ? 'Liga Corrida' : comp.format === 'groups' ? 'Fase de Grupos + Copa' : 'Copa Mata-Mata'}
+            </span>
+          </div>
         </div>
         
         <div className="flex gap-2 w-full md:w-auto flex-wrap">
           {isAdmin && (
-            <button onClick={() => setShowEditPrizes(!showEditPrizes)} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-amber-700 shadow-md flex items-center gap-1">
-              🏆 Configurar Premiação
+            <button onClick={() => { setShowEditCategory(!showEditCategory); setShowEditPrizes(false); }} className="bg-blue-800 hover:bg-blue-700 text-blue-200 text-xs font-bold py-2 px-3 rounded-lg border border-blue-600 shadow-md flex items-center gap-1">
+              ⚙️ Editar Categoria
             </button>
           )}
 
           {isAdmin && (
+            <button onClick={() => { setShowEditPrizes(!showEditPrizes); setShowEditCategory(false); }} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-amber-700 shadow-md flex items-center gap-1">
+              🏆 Premiação
+            </button>
+          )}
+
+          {isAdmin && !isRegistration && (
             <>
               {showAddTeam ? (
                 <div className="flex gap-2 w-full sm:w-auto animate-in fade-in">
@@ -1583,6 +1643,31 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
           )}
         </div>
       </div>
+
+      {/* 🌟 NOVO: CAIXA DE EDIÇÃO DE CATEGORIA */}
+      {showEditCategory && (
+        <div className="bg-blue-950/80 border border-blue-700 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
+          <h3 className="text-sm font-bold text-blue-300 uppercase tracking-wider flex items-center gap-2">⚙️ Reclassificar Torneio (Peso no Ranking)</h3>
+          <div className="flex flex-col sm:flex-row gap-3 items-end">
+            <div className="w-full space-y-1">
+              <label className="text-xs font-bold text-blue-400">Nova Categoria</label>
+              <select value={categoryData} onChange={e => setCategoryData(e.target.value)} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-amber-400">
+                <option value="liga_a">🥇 Liga Kame A (Série A)</option>
+                <option value="liga_b">🥈 Liga Kame B (Série B)</option>
+                <option value="liga_c">🥉 Liga Kame C (Série C)</option>
+                <option value="liga_d">🎖️ Liga Kame D (Série D)</option>
+                <option value="copa_main">🏆 Copas Oficiais (Ex: Copa do Clã)</option>
+                <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
+              </select>
+            </div>
+            <div className="flex shrink-0 gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+              <button onClick={() => setShowEditCategory(false)} className="px-4 py-2 bg-blue-900 border border-blue-700 rounded-lg text-xs text-blue-300 hover:text-white flex-1 sm:flex-none">Cancelar</button>
+              <button onClick={handleSaveCategory} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs shadow-md flex-1 sm:flex-none">Salvar Categoria</button>
+            </div>
+          </div>
+          <p className="text-[10px] text-blue-500 leading-tight">Ao mudar a categoria, os títulos dos jogadores no Perfil e os pontos totais no Ranking Xclã serão recalculados instantaneamente.</p>
+        </div>
+      )}
 
       {showEditPrizes && (
         <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
@@ -1742,7 +1827,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         <h3 className="text-base font-bold text-blue-300 mb-2 pl-2">Calendário de Rodadas</h3>
                         {groupOrNormalRounds.map((round) => {
                           const isExpanded = expandedRoundId === round.id;
-                          const isLocked = round.status === 'locked'; // Vê se a rodada está trancada
+                          const isLocked = round.status === 'locked'; 
                           
                           return (
                             <div key={round.id} className={`bg-blue-900 border rounded-xl overflow-hidden ${isLocked ? 'border-blue-800/50' : 'border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.05)]'}`}>
@@ -1755,7 +1840,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                   <span className="text-blue-500 text-xs font-bold mr-2">{isExpanded ? '▲ Recolher' : '▼ Expandir'}</span>
                                 </button>
                                 
-                                {/* 🔓 BOTÃO DE LIBERAR RODADA (EXCLUSIVO LÍDERES) */}
                                 {isAdmin && isLocked && (
                                   <button type="button" onClick={(e) => { e.stopPropagation(); onReleaseRound(comp.id, round.id); }} className="bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[10px] px-3 py-1.5 rounded uppercase tracking-wider transition-colors shrink-0 shadow-md">
                                     🔓 Liberar
@@ -1768,18 +1852,15 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                   {round.matches.map(m => {
                                     const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                                     
-                                    // Adicionamos a opacidade pra deixar o jogo com cara de "Bloqueado"
                                     return (
                                       <div key={m.id} className="relative group">
                                         <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
                                           
-                                          {/* Esquerda: Escudo e nome */}
                                           <div className="flex flex-col items-center text-center w-1/3 min-w-0">
                                             <ShieldDisplay shield={tA?.shield} size="normal" />
                                             <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tA?.name || m.placeholderA}</span>
                                           </div>
 
-                                          {/* Centro: Badge de status e placar centralizado vertical e horizontalmente */}
                                           <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
                                             <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
                                               {isLocked ? '🔒 Bloqueado' : sUI.text}
@@ -1799,7 +1880,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                             </div>
                                           </div>
 
-                                          {/* Direita: Escudo e nome */}
                                           <div className="flex flex-col items-center text-center w-1/3 min-w-0">
                                             <ShieldDisplay shield={tB?.shield} size="normal" />
                                             <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tB?.name || m.placeholderB}</span>
@@ -1997,12 +2077,42 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
               {/* Alterar Placar (Se já foi jogado) */}
               {editMatchData.hasPlayed && (
                   <div className="bg-emerald-900/20 p-4 rounded-xl border border-emerald-500/30">
-                      <p className="text-xs font-bold text-emerald-400 mb-2 uppercase tracking-widest">Ajustar Placar Validado</p>
-                      <div className="flex items-center justify-center gap-3">
-                          <input type="number" value={editMatchData.scoreA} onChange={e => setEditMatchData({...editMatchData, scoreA: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none focus:border-amber-400" />
-                          <span className="font-bold text-blue-500">X</span>
-                          <input type="number" value={editMatchData.scoreB} onChange={e => setEditMatchData({...editMatchData, scoreB: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none focus:border-amber-400" />
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Ajustar Placar Validado</p>
+                        <div className="flex gap-2">
+                          <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20">
+                            <input type="checkbox" checked={editMatchData.woA} onChange={e => {
+                               const isWo = e.target.checked;
+                               const otherWo = editMatchData.woB;
+                               let sA = editMatchData.scoreA; let sB = editMatchData.scoreB;
+                               if (isWo && !otherWo) { sA = 0; sB = 3; }
+                               else if (!isWo && otherWo) { sA = 3; sB = 0; }
+                               else if (isWo && otherWo) { sA = '?'; sB = '?'; }
+                               else { sA = ''; sB = ''; }
+                               setEditMatchData({...editMatchData, woA: isWo, scoreA: sA, scoreB: sB});
+                            }} className="accent-red-500 w-3 h-3" /> W.O. Equipe A
+                          </label>
+                          <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20">
+                            <input type="checkbox" checked={editMatchData.woB} onChange={e => {
+                               const isWo = e.target.checked;
+                               const otherWo = editMatchData.woA;
+                               let sA = editMatchData.scoreA; let sB = editMatchData.scoreB;
+                               if (isWo && !otherWo) { sB = 0; sA = 3; }
+                               else if (!isWo && otherWo) { sB = 3; sA = 0; }
+                               else if (isWo && otherWo) { sA = '?'; sB = '?'; }
+                               else { sA = ''; sB = ''; }
+                               setEditMatchData({...editMatchData, woB: isWo, scoreA: sA, scoreB: sB});
+                            }} className="accent-red-500 w-3 h-3" /> W.O. Equipe B
+                          </label>
+                        </div>
                       </div>
+                      
+                      <div className="flex items-center justify-center gap-3">
+                          <input type="text" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreA} onChange={e => setEditMatchData({...editMatchData, scoreA: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none focus:border-amber-400 disabled:opacity-50" />
+                          <span className="font-bold text-blue-500">X</span>
+                          <input type="text" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreB} onChange={e => setEditMatchData({...editMatchData, scoreB: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none focus:border-amber-400 disabled:opacity-50" />
+                      </div>
+                      
                       {comp.format !== 'league' && (
                           <div className="mt-3 flex items-center justify-center gap-3">
                               <input type="number" placeholder="Pên A" value={editMatchData.penaltiesA} onChange={e => setEditMatchData({...editMatchData, penaltiesA: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
@@ -2016,7 +2126,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </div>
 
             <div className="flex justify-between items-center mt-5 pt-4 border-t border-blue-800">
-              {/* 🗑️ NOVO BOTÃO DE EXCLUIR PLACAR */}
+              {/* 🗑️ BOTÃO DE EXCLUIR PLACAR */}
               {editMatchData.hasPlayed ? (
                 <button type="button" onClick={() => {
                   if(window.confirm('Tem certeza que deseja apagar o resultado desta partida? Ela voltará a ficar pendente e os pontos serão removidos da tabela.')) {
