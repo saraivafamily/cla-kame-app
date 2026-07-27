@@ -803,19 +803,28 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
     }
   });
 
-  // 🌟 LEITURA DINÂMICA DE TÍTULOS AQUI TAMBÉM
-  let ligasKame = 0; let copasMain = 0; let copasFlash = 0;
+  // 🌟 LEITURA ESTRUTURADA DE TÍTULOS
+  let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0;
+  let copasMain = 0; let copasFlash = 0;
+  
   (competitions || []).forEach(c => {
      const champId = getChampionId(c, matches, teams);
      if (champId === team.id) {
-         if (c.category === 'copa_flash') copasFlash++;
+         if (c.category === 'liga_a' || c.category === 'liga_main') ligaA++;
+         else if (c.category === 'liga_b') ligaB++;
+         else if (c.category === 'liga_c') ligaC++;
+         else if (c.category === 'liga_d') ligaD++;
+         else if (c.category === 'copa_flash') copasFlash++;
          else if (c.category === 'copa_main') copasMain++;
-         else ligasKame++;
+         else ligaA++; // Pega torneios legados
      }
   });
 
   const conquistas = [];
-  if (ligasKame > 0) conquistas.push({ icon: '🏆', title: `LIGA KAME - ${ligasKame} TÍTULO${ligasKame > 1 ? 'S' : ''}`, desc: 'Campeão da Divisão Principal' });
+  if (ligaA > 0) conquistas.push({ icon: '🥇', title: `LIGA KAME A - ${ligaA} TÍTULO${ligaA > 1 ? 'S' : ''}`, desc: 'Campeão da Divisão de Elite' });
+  if (ligaB > 0) conquistas.push({ icon: '🥈', title: `LIGA KAME B - ${ligaB} TÍTULO${ligaB > 1 ? 'S' : ''}`, desc: 'Campeão da Série B' });
+  if (ligaC > 0) conquistas.push({ icon: '🥉', title: `LIGA KAME C - ${ligaC} TÍTULO${ligaC > 1 ? 'S' : ''}`, desc: 'Campeão da Série C' });
+  if (ligaD > 0) conquistas.push({ icon: '🎖️', title: `LIGA KAME D - ${ligaD} TÍTULO${ligaD > 1 ? 'S' : ''}`, desc: 'Campeão da Série D' });
   if (copasMain > 0) conquistas.push({ icon: '🏆', title: `COPA OFICIAL - ${copasMain} TÍTULO${copasMain > 1 ? 'S' : ''}`, desc: 'Campeão de Copas Maiores' });
   if (copasFlash > 0) conquistas.push({ icon: '⚡', title: `COPA FLASH - ${copasFlash} TÍTULO${copasFlash > 1 ? 'S' : ''}`, desc: 'Campeão de Tiro Curto' });
 
@@ -834,7 +843,6 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
       <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl" onClick={e => e.stopPropagation()}>
         
-        {/* Cabeçalho */}
         <div className="sticky top-0 bg-blue-900/95 backdrop-blur border-b border-blue-800 p-4 sm:p-6 flex justify-between items-center z-10">
           <div className="flex items-center gap-4">
             <ShieldDisplay shield={team.shield} size="normal" />
@@ -846,10 +854,8 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
           <button onClick={onClose} className="text-blue-400 hover:text-white p-2 bg-blue-800 hover:bg-blue-700 rounded-full transition-colors"><X size={18}/></button>
         </div>
         
-        {/* Corpo com Estatísticas */}
         <div className="p-4 sm:p-6 space-y-8">
           
-          {/* Resumo da Temporada */}
           <div>
             <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Activity size={16}/> Visão Geral</h4>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -860,7 +866,6 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
             </div>
           </div>
 
-          {/* Recordes do Clube */}
           <div>
             <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Star size={16} className="text-amber-400"/> Recordes do Clube</h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -890,43 +895,6 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
             </div>
           </div>
 
-          {/* Desempenho em Torneios */}
-          <div>
-            <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Trophy size={16} className="text-emerald-500"/> Desempenho nos Campeonatos</h4>
-            {activeComps.length > 0 ? (
-              <div className="space-y-3">
-                {activeComps.map(comp => {
-                  const table = calculateStandings(matches, teams, comp.id);
-                  const rankIndex = table.findIndex(t => t.id === team.id);
-                  const myStats = rankIndex !== -1 ? table[rankIndex] : null;
-                  const rank = rankIndex !== -1 ? rankIndex + 1 : '-';
-                  
-                  return (
-                    <div key={comp.id} className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-                      <div className="flex-1 flex flex-col items-center sm:items-start w-full">
-                        <span className="font-bold text-blue-200 text-sm truncate">{comp.name}</span>
-                        <span className="text-[10px] text-blue-500 uppercase font-bold">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</span>
-                      </div>
-                      
-                      {myStats && myStats.p > 0 ? (
-                        <div className="flex items-center gap-4 shrink-0 bg-blue-900/50 px-4 py-2 rounded-lg border border-blue-800/50">
-                          <div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Posição</p><p className="text-base font-black text-emerald-400">{rank}º</p></div>
-                          <div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Pontos</p><p className="text-base font-black text-blue-200">{myStats.pts}</p></div>
-                          <div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Jogos</p><p className="text-base font-bold text-blue-300">{myStats.p}</p></div>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-blue-600 italic shrink-0">Sem jogos ainda</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-blue-500 text-center p-4 bg-blue-950 rounded-xl border border-blue-800 border-dashed">Ainda não disputou nenhum torneio.</p>
-            )}
-          </div>
-
-          {/* Conquistas e Títulos */}
           <div>
             <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Medal size={16} className="text-amber-400"/> Sala de Troféus</h4>
             {conquistas.length > 0 ? (
@@ -2136,7 +2104,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
 const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const [name, setName] = useState('');
   const [format, setFormat] = useState('league');
-  const [category, setCategory] = useState('liga_main'); // 🌟 NOVO: Categoria
+  const [category, setCategory] = useState('liga_a'); // 🌟 Padrão agora é Liga A
   const [teamCount, setTeamCount] = useState('');
   const [numGroups, setNumGroups] = useState('2');
   const [qualifiers, setQualifiers] = useState('2');
@@ -2194,7 +2162,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
     }
 
     const newComp = { 
-      id: compId, name, format, deadline, category, // 🌟 Salva a Categoria
+      id: compId, name, format, deadline, category,
       teamCount: parseInt(teamCount),
       status: isAutoJoin ? 'registration' : 'active', 
       teams: selectedTeams, 
@@ -2222,7 +2190,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3"><AlertCircle size={20} /><p className="text-sm font-medium">{error}</p></div>}
         
-        {/* BLOCO 1: DADOS BÁSICOS */}
         <div className="bg-blue-900 p-6 md:p-8 rounded-3xl border border-blue-800 shadow-xl">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <h3 className="text-lg font-bold text-emerald-400 flex items-center gap-2"><Trophy size={18}/> Estrutura do Torneio</h3>
@@ -2233,14 +2200,17 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Nome do Campeonato</label><input type="text" placeholder="Ex: Liga de Inverno" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Nome do Campeonato</label><input type="text" placeholder="Ex: Liga Kame 2026" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             
-            {/* 🌟 NOVO CAMPO: CATEGORIA */}
-            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Peso no Ranking Xclã</label>
+            {/* 🌟 NOVO: MENU DE CATEGORIAS EXPANDIDO */}
+            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Categoria (Divisão)</label>
               <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full bg-blue-950 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner">
-                <option value="liga_main">🏆 Ligas Kame (Divisões Principais)</option>
-                <option value="copa_main">🏆 Copas Oficiais (Peso Máximo)</option>
-                <option value="copa_flash">⚡ Copa Flash (Tiro Curto / Peso Reduzido)</option>
+                <option value="liga_a">🥇 Liga Kame A (Série A)</option>
+                <option value="liga_b">🥈 Liga Kame B (Série B)</option>
+                <option value="liga_c">🥉 Liga Kame C (Série C)</option>
+                <option value="liga_d">🎖️ Liga Kame D (Série D)</option>
+                <option value="copa_main">🏆 Copas Oficiais (Ex: Copa do Clã)</option>
+                <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
               </select>
             </div>
 
@@ -2270,7 +2240,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
           </div>
         </div>
 
-        {/* BLOCO 2: FINANCEIRO E PREMIAÇÃO */}
         <div className={`p-6 md:p-8 rounded-3xl border shadow-xl transition-colors ${isPaid ? 'bg-amber-500/10 border-amber-500/40' : 'bg-blue-900 border-blue-800'}`}>
           <div className="flex items-center justify-between mb-6">
              <h3 className={`text-lg font-bold flex items-center gap-2 ${isPaid ? 'text-amber-400' : 'text-blue-300'}`}>🤑 Torneio Premium (Pago)</h3>
@@ -2298,7 +2267,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
           )}
         </div>
 
-        {/* BLOCO 3: SELEÇÃO DE EQUIPES (Agora sempre visível) */}
         <div className="bg-blue-900 p-6 md:p-8 rounded-3xl border border-blue-800 shadow-xl animate-in fade-in">
           <div className="flex flex-col mb-4">
             <label className="text-sm font-bold text-blue-300">
@@ -2306,11 +2274,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
                 ? `Equipes Pré-Confirmadas (Opcional: ${selectedTeams.length}/${teamCount || '0'})` 
                 : `Marcar as Equipes Manualmente (Obrigatório: ${selectedTeams.length}/${teamCount || '0'})`}
             </label>
-            {isAutoJoin && (
-              <span className="text-xs text-emerald-400 mt-1">
-                Selecione sua equipe agora para garantir a vaga. As inscrições restantes ficarão para o link.
-              </span>
-            )}
           </div>
           
           {teams.length === 0 ? <p className="text-blue-500 text-sm p-4 bg-blue-950 rounded border border-blue-800">Nenhum time cadastrado.</p> : (
