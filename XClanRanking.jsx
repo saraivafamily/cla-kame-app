@@ -7,6 +7,19 @@ const XClanRanking = ({ rankedTeams = [] }) => {
   // Define o número de vagas para a Seleção do Clã
   const CALL_UP_LIMIT = 5;
 
+  // MOCK DE DADOS PARA TESTE VISUAL
+  const mockRankedTeams = [
+    { id: 't1', name: 'Irmandade Azulina', coach: 'Sávio', rankingPoints: 850, matchesPlayed: 45, wins: 32, titles: 3 },
+    { id: 't2', name: 'Afonso City', coach: 'Maysa', rankingPoints: 720, matchesPlayed: 40, wins: 28, titles: 1 },
+    { id: 't3', name: 'Ninho Cake FC', coach: 'Thiago', rankingPoints: 650, matchesPlayed: 38, wins: 25, titles: 2 },
+    { id: 't4', name: 'Leão de Antônio Baena', coach: 'Felipe', rankingPoints: 590, matchesPlayed: 35, wins: 20, titles: 0 },
+    { id: 't5', name: 'Kame Warriors', coach: 'Rafael', rankingPoints: 510, matchesPlayed: 30, wins: 18, titles: 0 },
+    // --- LINHA DE CORTE DO TOP 5 ---
+    { id: 't6', name: 'Ballerine United', coach: 'Lucas', rankingPoints: 480, matchesPlayed: 28, wins: 15, titles: 0 },
+    { id: 't7', name: 'Real Tapajós', coach: 'Pedro', rankingPoints: 320, matchesPlayed: 20, wins: 10, titles: 0 },
+    { id: 't8', name: 'Tuna Luso DLS', coach: 'João', rankingPoints: 150, matchesPlayed: 10, wins: 4, titles: 0 }
+  ];
+
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
