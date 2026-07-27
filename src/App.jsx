@@ -2651,27 +2651,29 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   
   const [isManualMode, setIsManualMode] = useState(false);
   
-  // W.O. States
   const [woA, setWoA] = useState(false);
   const [woB, setWoB] = useState(false);
+
+  // 🌟 ESTADOS DA ANIMAÇÃO DE SORTEIO
+  const [drawState, setDrawState] = useState({ 
+    active: false, 
+    phase: 'idle', // 'idle', 'spinning', 'revealed'
+    winner: null, 
+    flicker: 'A' 
+  });
 
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [tempKey, setTempKey] = useState('');
 
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-  
   const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
 
-  // 🌟 NOVO: Oculta campeonatos que já foram finalizados (sem jogos pendentes para enviar)
   const visibleCompetitions = useMemo(() => {
     return (competitions || []).filter(c => {
       if (!c || c.status !== 'active') return false;
-      
       const isParticipantOrAdmin = isAdmin || (c.teams || []).some(tId => userTeamIds.includes(tId));
       if (!isParticipantOrAdmin) return false;
-
-      // Verifica se o torneio ainda tem pelo menos 1 jogo liberado e não enviado para este usuário
       let hasAvailableMatch = false;
       if (c.rounds) {
         c.rounds.filter(r => r.status === 'released').forEach(round => {
@@ -2725,6 +2727,31 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setTeamA(null); setTeamB(null);
     }
   }, [selectedMatchId, availableMatches, teams]);
+
+  // 🌟 EFEITO DO PISCA-PISCA DO SORTEIO
+  useEffect(() => {
+    if (drawState.active && drawState.phase === 'spinning') {
+      let ticks = 0;
+      const interval = setInterval(() => {
+        setDrawState(prev => ({ ...prev, flicker: prev.flicker === 'A' ? 'B' : 'A' }));
+        ticks++;
+        
+        // Depois de ~3.5 segundos, para na equipe vencedora
+        if (ticks > 35) {
+          clearInterval(interval);
+          setDrawState(prev => ({ ...prev, phase: 'revealed', flicker: prev.winner }));
+          
+          // Aguarda mais 4 segundos pra galera ver o ganhador e envia os dados
+          setTimeout(() => {
+             processSubmission(drawState.winner);
+             setDrawState({ active: false, phase: 'idle', winner: null, flicker: 'A' });
+          }, 4000);
+        }
+      }, 100); // Velocidade do pisca-pisca
+
+      return () => clearInterval(interval);
+    }
+  }, [drawState.active, drawState.phase, drawState.winner]);
 
   const resetAI = () => {
     setScoreA(''); setScoreB('');
@@ -2801,7 +2828,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-      const safeKey = encodeURIComponent(userApiKey.trim());
+        const safeKey = encodeURIComponent(userApiKey.trim());
         const endpoints = [
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`,
@@ -2903,33 +2930,43 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     else { const updated = [...goalsB]; updated[index][field] = value; setGoalsB(updated); }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmitInit = (e) => {
     e.preventDefault();
     if(!selectedCompId || !selectedMatchId || scoreA === '' || scoreB === '') return;
 
+    if (scoreA === '?' || scoreB === '?' || scoreA === '' || scoreB === '') {
+      if (!woA && !woB) return; 
+    }
+
+    if (isCup && scoreA === scoreB && (penaltiesA === '' || penaltiesB === '') && !woA && !woB) {
+      if(showToast) showToast("Em jogos de eliminação, não pode haver empate. Preencha os Pênaltis!", "error");
+      return;
+    }
+
+    // Se for duplo W.O, inicia a animação de sorteio!
+    if (woA && woB) {
+      const drawnWinner = Math.random() < 0.5 ? 'A' : 'B';
+      setDrawState({ active: true, phase: 'spinning', winner: drawnWinner, flicker: 'A' });
+      return;
+    }
+
+    // Se for W.O comum ou jogo normal, segue reto
+    processSubmission(null);
+  };
+
+  // Função separada que faz o envio de fato para a nuvem
+  const processSubmission = (forcedDoubleWoWinner = null) => {
     let finalScoreA = scoreA;
     let finalScoreB = scoreB;
-    let isDoubleWo = false;
-    let winnerDoubleWo = null;
+    let isDoubleWo = forcedDoubleWoWinner !== null;
 
-    if (woA && woB) {
-        isDoubleWo = true;
-        winnerDoubleWo = Math.random() < 0.5 ? 'A' : 'B';
-        finalScoreA = winnerDoubleWo === 'A' ? 3 : 0;
-        finalScoreB = winnerDoubleWo === 'A' ? 0 : 3;
+    if (isDoubleWo) {
+        finalScoreA = forcedDoubleWoWinner === 'A' ? 3 : 0;
+        finalScoreB = forcedDoubleWoWinner === 'A' ? 0 : 3;
     } else if (woA) {
         finalScoreA = 0; finalScoreB = 3;
     } else if (woB) {
         finalScoreA = 3; finalScoreB = 0;
-    }
-    
-    if (finalScoreA === '?' || finalScoreB === '?' || finalScoreA === '' || finalScoreB === '') {
-      if (!woA && !woB) return; 
-    }
-
-    if (isCup && finalScoreA === finalScoreB && (penaltiesA === '' || penaltiesB === '')) {
-      if(showToast) showToast("Em jogos de eliminação, não pode haver empate. Preencha os Pênaltis!", "error");
-      return;
     }
 
     const matchDetails = availableMatches.find(m => m.id === selectedMatchId);
@@ -2940,7 +2977,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     ];
 
     const finalObs = isDoubleWo 
-      ? `Sorteio de Duplo W.O. realizado! Vencedor: ${winnerDoubleWo === 'A' ? teamA.name : teamB.name}\n${observacoes}`.trim() 
+      ? `Sorteio de Duplo W.O. realizado na resenha! Vencedor: ${forcedDoubleWoWinner === 'A' ? teamA.name : teamB.name}\n${observacoes}`.trim() 
       : (woA || woB ? `Vitória por W.O.\n${observacoes}`.trim() : observacoes.trim());
 
     onSubmit({
@@ -2954,7 +2991,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
       scoreB: parseInt(finalScoreB),
       penaltiesA: (isCup && finalScoreA === finalScoreB && penaltiesA !== '') ? parseInt(penaltiesA) : null,
       penaltiesB: (isCup && finalScoreA === finalScoreB && penaltiesB !== '') ? parseInt(penaltiesB) : null,
-      goals: (woA || woB) ? [] : allGoals,
+      goals: (woA || woB || isDoubleWo) ? [] : allGoals,
       observacoes: finalObs, 
       status: 'pending', 
       submittedBy: currentUser?.name || 'Técnico', 
@@ -2962,14 +2999,48 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     });
     
     setSelectedCompId('');
-    if(showToast) {
-       if (isDoubleWo) showToast(`Sorteio Duplo W.O. concluído! ${winnerDoubleWo === 'A' ? teamA.name : teamB.name} venceu por 3x0. Partida enviada!`, "success");
-       else showToast("Partida enviada para validação dos Líderes!", "success");
-    }
   };
 
   return (
-    <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12">
+    <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12 relative">
+      
+      {/* 🌟 TELA DE ANIMAÇÃO DO SORTEIO DUPLO W.O. */}
+      {drawState.active && (
+        <div className="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-md animate-in fade-in zoom-in-95 duration-300">
+          
+          <h2 className="text-3xl font-black text-amber-400 uppercase tracking-widest mb-12 animate-pulse text-center">
+            {drawState.phase === 'spinning' ? 'Sorteando Vencedor...' : 'VENCEDOR DO W.O. DUPLO!'}
+          </h2>
+
+          <div className="relative w-64 h-64 flex items-center justify-center">
+             {/* Efeito de brilho fundo */}
+             <div className={`absolute inset-0 rounded-full blur-3xl opacity-50 ${drawState.phase === 'revealed' ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'}`}></div>
+             
+             {/* Escudo Team A */}
+             <div className={`absolute transition-all duration-100 ${drawState.flicker === 'A' ? 'scale-110 opacity-100 z-10' : 'scale-90 opacity-20 blur-sm z-0'}`}>
+                <div className="flex flex-col items-center">
+                  <ShieldDisplay shield={teamA?.shield} size="large" />
+                  <span className="mt-6 text-2xl font-black text-white bg-black/50 px-4 py-2 rounded-xl text-center shadow-lg border border-white/10 uppercase tracking-wider">{teamA?.name}</span>
+                </div>
+             </div>
+
+             {/* Escudo Team B */}
+             <div className={`absolute transition-all duration-100 ${drawState.flicker === 'B' ? 'scale-110 opacity-100 z-10' : 'scale-90 opacity-20 blur-sm z-0'}`}>
+                <div className="flex flex-col items-center">
+                  <ShieldDisplay shield={teamB?.shield} size="large" />
+                  <span className="mt-6 text-2xl font-black text-white bg-black/50 px-4 py-2 rounded-xl text-center shadow-lg border border-white/10 uppercase tracking-wider">{teamB?.name}</span>
+                </div>
+             </div>
+          </div>
+
+          {drawState.phase === 'revealed' && (
+            <div className="mt-16 bg-emerald-600/20 border border-emerald-500 p-4 rounded-2xl animate-in slide-in-from-bottom-8">
+               <p className="text-emerald-400 font-bold text-center">Resultado gravado com sucesso. Enviando dados...</p>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Camera className="text-emerald-500" /> Registrar Partida</h2>
         <button onClick={() => setShowKeyInput(!showKeyInput)} className="text-xs flex items-center gap-1 bg-blue-800 hover:bg-blue-700 text-blue-300 px-3 py-1.5 rounded-lg border border-blue-700 transition-colors">
@@ -3054,7 +3125,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         )}
 
         {(imageUploaded || isManualMode) && (
-          <form onSubmit={handleSubmit} className="animate-in slide-in-from-bottom-4 space-y-6 pt-4 border-t border-blue-800">
+          <form onSubmit={handleSubmitInit} className="animate-in slide-in-from-bottom-4 space-y-6 pt-4 border-t border-blue-800">
             <div className="flex justify-between items-center mb-2">
               <label className="text-sm font-medium text-amber-400 flex items-center gap-2">
                 <AlertCircle size={16}/> 
@@ -3155,13 +3226,16 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
               <textarea placeholder="Ocorreu alguma queda de conexão? Relate aqui..." value={observacoes} onChange={e=>setObservacoes(e.target.value)} className="w-full bg-blue-950 border border-blue-700 focus:border-emerald-500 rounded-lg p-3 text-blue-300 text-sm h-24 outline-none resize-none transition-colors" />
             </div>
 
-            <Button type="submit" className="w-full py-4 text-lg">Enviar Partida para Líderes</Button>
+            <Button type="submit" className="w-full py-4 text-lg">
+               {woA && woB ? '🎲 Iniciar Sorteio de W.O' : 'Enviar Partida para Líderes'}
+            </Button>
           </form>
         )}
       </div>
     </div>
   );
 };
+
 const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToast }) => {
   const pending = (matches || []).filter(m => m && m.status === 'pending');
   const getTeam = (id) => (teams || []).find(t => t && t.id === id);
