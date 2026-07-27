@@ -3230,6 +3230,228 @@ const RecordsWall = ({ showToast, currentUser, globalRecords, onSaveRecords }) =
   );
 };
 
+const GlobalRanking = ({ teams, matches, competitions }) => {
+  const rankingData = useMemo(() => {
+    let stats = {};
+    (teams || []).forEach(t => {
+      // Ignora times "Manuais" que não têm técnico de verdade vinculado ainda
+      if(t && t.ownerId && t.ownerId !== 'manual') {
+        stats[t.id] = { ...t, points: 0, played: 0, wins: 0, draws: 0, titles: 0, comps: 0 };
+      }
+    });
+
+    // 1. Participações em Campeonatos (+10 pts por entrar)
+    (competitions || []).forEach(c => {
+      if (c && c.teams) {
+        c.teams.forEach(tId => {
+          if(stats[tId]) {
+            stats[tId].points += 10;
+            stats[tId].comps += 1;
+          }
+        });
+      }
+    });
+
+    // 2. Partidas Jogadas, Vitórias e Empates
+    (matches || []).forEach(m => {
+      if (m.status === 'approved') {
+        const tA = stats[m.teamA];
+        const tB = stats[m.teamB];
+        
+        // +2 por partida jogada (Recompensa disciplina e pune W.O)
+        if(tA) { tA.played += 1; tA.points += 2; }
+        if(tB) { tB.played += 1; tB.points += 2; }
+
+        let scoreA = Number(m.scoreA||0);
+        let scoreB = Number(m.scoreB||0);
+        let penA = m.penaltiesA !== null && m.penaltiesA !== undefined ? Number(m.penaltiesA) : null;
+        let penB = m.penaltiesB !== null && m.penaltiesB !== undefined ? Number(m.penaltiesB) : null;
+
+        let winner = null;
+        if (scoreA > scoreB) winner = 'A';
+        else if (scoreB > scoreA) winner = 'B';
+        else if (penA !== null && penB !== null) {
+            // Em caso de pênaltis, foi empate no tempo normal (+1 pt para os dois)
+            if (tA) { tA.draws += 1; tA.points += 1; }
+            if (tB) { tB.draws += 1; tB.points += 1; }
+            if (penA > penB) winner = 'A';
+            else if (penB > penA) winner = 'B';
+        } else {
+            // Empate comum (+1 pt para os dois)
+            if (tA) { tA.draws += 1; tA.points += 1; }
+            if (tB) { tB.draws += 1; tB.points += 1; }
+        }
+
+        // +3 pts por Vitória 
+        if (winner === 'A') {
+            if (tA) { tA.wins += 1; tA.points += 3; }
+        } else if (winner === 'B') {
+            if (tB) { tB.wins += 1; tB.points += 3; }
+        }
+      }
+    });
+
+    // 3. Fases de Mata-Mata e Pódio
+    (competitions || []).forEach(c => {
+      if (!c.rounds) return;
+      const koRounds = c.rounds.filter(r => r.id.includes('ko') || c.format === 'cup');
+      
+      let semiTeams = new Set();
+      let finalTeams = new Set();
+
+      koRounds.forEach(r => {
+        const isOitavas = r.number === 'Oitavas';
+        const isQuartas = r.number === 'Quartas';
+        const isSemi = r.number === 'Semifinal';
+        const isFinal = r.number === 'Final';
+
+        r.matches.forEach(m => {
+          const tA = stats[m.teamA];
+          const tB = stats[m.teamB];
+
+          // Pontos por avanço de fase (Basta estar no confronto)
+          if (isOitavas) {
+            if(tA) tA.points += 5;
+            if(tB) tB.points += 5;
+          }
+          if (isQuartas) {
+            if(tA) tA.points += 10;
+            if(tB) tB.points += 10;
+          }
+          if (isSemi) {
+            if(tA) { tA.points += 15; semiTeams.add(m.teamA); }
+            if(tB) { tB.points += 15; semiTeams.add(m.teamB); }
+          }
+          if (isFinal) {
+            if(tA) finalTeams.add(m.teamA);
+            if(tB) finalTeams.add(m.teamB);
+            
+            // Verifica o Pódio se a final já foi jogada e validada
+            const sUI = matches.find(x => x.matchId === m.id && x.compId === c.id && x.status === 'approved');
+            if (sUI) {
+              let scoreA = Number(sUI.scoreA||0);
+              let scoreB = Number(sUI.scoreB||0);
+              let penA = sUI.penaltiesA !== null && sUI.penaltiesA !== undefined ? Number(sUI.penaltiesA) : null;
+              let penB = sUI.penaltiesB !== null && sUI.penaltiesB !== undefined ? Number(sUI.penaltiesB) : null;
+              
+              let winnerId = null;
+              let loserId = null;
+              if (scoreA > scoreB) { winnerId = m.teamA; loserId = m.teamB; }
+              else if (scoreB > scoreA) { winnerId = m.teamB; loserId = m.teamA; }
+              else if (penA !== null && penB !== null) {
+                  if (penA > penB) { winnerId = m.teamA; loserId = m.teamB; }
+                  else if (penB > penA) { winnerId = m.teamB; loserId = m.teamA; }
+              }
+
+              if (winnerId && stats[winnerId]) {
+                  stats[winnerId].points += 50; // 🏆 Campeão
+                  stats[winnerId].titles += 1;
+              }
+              if (loserId && stats[loserId]) {
+                  stats[loserId].points += 25; // 🥈 Vice
+              }
+            }
+          }
+        });
+      });
+
+      // 🥉 3º Lugar (Aquele que chegou na Semifinal, mas não chegou na Final)
+      semiTeams.forEach(tId => {
+        if (!finalTeams.has(tId) && stats[tId]) {
+          stats[tId].points += 15;
+        }
+      });
+    });
+
+    // Ordena do maior para o menor
+    return Object.values(stats).filter(t => t.played > 0 || t.comps > 0).sort((a,b) => b.points - a.points || b.wins - a.wins);
+  }, [teams, matches, competitions]);
+
+  const getBadge = (pts) => {
+    if (pts >= 1000) return { label: 'Lenda Suprema', icon: '👑', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' };
+    if (pts >= 400) return { label: 'Mestre', icon: '💎', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' };
+    if (pts >= 150) return { label: 'Veterano', icon: '🛡️', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
+    return { label: 'Novato', icon: '🔰', color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' };
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
+      <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex flex-col md:flex-row items-center gap-4">
+        <div className="bg-blue-950 p-4 rounded-full border-2 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.3)]">
+          <Crown size={32} className="text-amber-500 animate-pulse" />
+        </div>
+        <div className="text-center md:text-left">
+          <h2 className="text-2xl font-black text-white uppercase tracking-wider">Ranking Global Xclã</h2>
+          <p className="text-sm text-blue-400 mt-1">A meritocracia do Clã Kame. Jogue, avance e conquiste seu lugar no topo.</p>
+        </div>
+      </div>
+
+      <div className="bg-blue-950 rounded-3xl border border-blue-800 shadow-2xl overflow-hidden">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="bg-blue-900 text-blue-300 font-bold border-b border-blue-800">
+              <tr>
+                <th className="p-4 w-16 text-center">Pos</th>
+                <th className="p-4">Técnico / Clube</th>
+                <th className="p-4 text-center">Patente</th>
+                <th className="p-4 text-center">Pts Xclã</th>
+                <th className="p-4 text-center">Títulos</th>
+                <th className="p-4 text-center">Jogos</th>
+                <th className="p-4 text-center">V / E</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-blue-800/40">
+              {rankingData.length === 0 ? (
+                <tr><td colSpan="7" className="p-8 text-center text-blue-500">O ranking será gerado assim que houver participações e jogos oficiais.</td></tr>
+              ) : (
+                rankingData.map((t, index) => {
+                  const badge = getBadge(t.points);
+                  const isTop3 = index < 3;
+                  const rankColors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
+                  
+                  return (
+                    <tr key={t.id} className={`hover:bg-blue-900/50 transition-colors ${index === 0 ? 'bg-amber-500/5' : ''}`}>
+                      <td className="p-4 text-center">
+                        <span className={`text-xl font-black ${isTop3 ? rankColors[index] : 'text-blue-500'}`}>
+                          {index + 1}º
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <ShieldDisplay shield={t.shield} size="small" />
+                          <div className="flex flex-col">
+                            <span className="font-bold text-white text-base leading-tight">{t.coach}</span>
+                            <span className="text-[10px] text-blue-400 uppercase font-medium">{t.name}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${badge.color}`}>
+                          <span>{badge.icon}</span> {badge.label}
+                        </div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className={`text-2xl font-black drop-shadow-md ${index === 0 ? 'text-amber-500' : 'text-emerald-400'}`}>
+                          {t.points}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center text-amber-400 font-bold text-lg">{t.titles > 0 ? `🏆 ${t.titles}` : '-'}</td>
+                      <td className="p-4 text-center text-blue-200 font-medium">{t.played}</td>
+                      <td className="p-4 text-center text-blue-300 font-medium">
+                        <span className="text-emerald-400">{t.wins}</span> / <span className="text-blue-400">{t.draws}</span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => { const saved = localStorage.getItem('claKame_user'); return saved ? JSON.parse(saved) : null; });
   
