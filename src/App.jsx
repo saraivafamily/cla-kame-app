@@ -568,14 +568,24 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
             else { losses++; }
           });
 
-          // 🌟 LEITURA DINÂMICA DE TÍTULOS
-          let ligasKame = 0; let copasMain = 0; let copasFlash = 0;
+          // 🌟 LEITURA ESTRUTURADA DE TÍTULOS
+          let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0;
+          let copasMain = 0; let copasFlash = 0;
+          
           competitions.forEach(c => {
              const champId = getChampionId(c, matches, teams);
              if (champId === team.id) {
-                 if (c.category === 'copa_flash') copasFlash++;
+                 if (c.category === 'liga_a' || c.category === 'liga_main') ligaA++;
+                 else if (c.category === 'liga_b') ligaB++;
+                 else if (c.category === 'liga_c') ligaC++;
+                 else if (c.category === 'liga_d') ligaD++;
+                 else if (c.category === 'copa_flash') copasFlash++;
                  else if (c.category === 'copa_main') copasMain++;
-                 else ligasKame++;
+                 else {
+                     // 🛡️ CORREÇÃO: Filtro inteligente para torneios antigos (legados)
+                     if (c.format === 'league') ligaA++; 
+                     else copasMain++; 
+                 }
              }
           });
 
@@ -771,6 +781,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
     </div>
   );
 };
+
 const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
   if (!team) return null;
   
@@ -804,21 +815,25 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
   });
 
   // 🌟 LEITURA ESTRUTURADA DE TÍTULOS
-  let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0;
-  let copasMain = 0; let copasFlash = 0;
-  
-  (competitions || []).forEach(c => {
-     const champId = getChampionId(c, matches, teams);
-     if (champId === team.id) {
-         if (c.category === 'liga_a' || c.category === 'liga_main') ligaA++;
-         else if (c.category === 'liga_b') ligaB++;
-         else if (c.category === 'liga_c') ligaC++;
-         else if (c.category === 'liga_d') ligaD++;
-         else if (c.category === 'copa_flash') copasFlash++;
-         else if (c.category === 'copa_main') copasMain++;
-         else ligaA++; // Pega torneios legados
-     }
-  });
+          let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0;
+          let copasMain = 0; let copasFlash = 0;
+          
+          competitions.forEach(c => {
+             const champId = getChampionId(c, matches, teams);
+             if (champId === team.id) {
+                 if (c.category === 'liga_a' || c.category === 'liga_main') ligaA++;
+                 else if (c.category === 'liga_b') ligaB++;
+                 else if (c.category === 'liga_c') ligaC++;
+                 else if (c.category === 'liga_d') ligaD++;
+                 else if (c.category === 'copa_flash') copasFlash++;
+                 else if (c.category === 'copa_main') copasMain++;
+                 else {
+                     // 🛡️ CORREÇÃO: Filtro inteligente para torneios antigos (legados)
+                     if (c.format === 'league') ligaA++; 
+                     else copasMain++; 
+                 }
+             }
+          });
 
   const conquistas = [];
   if (ligaA > 0) conquistas.push({ icon: '🥇', title: `LIGA KAME A - ${ligaA} TÍTULO${ligaA > 1 ? 'S' : ''}`, desc: 'Campeão da Divisão de Elite' });
