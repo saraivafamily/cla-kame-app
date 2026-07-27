@@ -2650,6 +2650,10 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [imageUploaded, setImageUploaded] = useState(false);
   
   const [isManualMode, setIsManualMode] = useState(false);
+  
+  // W.O. States
+  const [woA, setWoA] = useState(false);
+  const [woB, setWoB] = useState(false);
 
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [showKeyInput, setShowKeyInput] = useState(false);
@@ -2659,12 +2663,29 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   
   const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
 
-  // 🔒 TRAVA DE SEGURANÇA ATUALIZADA: Filtra apenas campeonatos 'active' (em andamento)
-  const visibleCompetitions = (competitions || []).filter(c => 
-    c && 
-    c.status === 'active' && 
-    (isAdmin || (c.teams || []).some(tId => userTeamIds.includes(tId)))
-  );
+  // 🌟 NOVO: Oculta campeonatos que já foram finalizados (sem jogos pendentes para enviar)
+  const visibleCompetitions = useMemo(() => {
+    return (competitions || []).filter(c => {
+      if (!c || c.status !== 'active') return false;
+      
+      const isParticipantOrAdmin = isAdmin || (c.teams || []).some(tId => userTeamIds.includes(tId));
+      if (!isParticipantOrAdmin) return false;
+
+      // Verifica se o torneio ainda tem pelo menos 1 jogo liberado e não enviado para este usuário
+      let hasAvailableMatch = false;
+      if (c.rounds) {
+        c.rounds.filter(r => r.status === 'released').forEach(round => {
+          round.matches.forEach(rm => {
+            const alreadySubmitted = matches.some(m => m.matchId === rm.id && m.compId === c.id && (m.status === 'pending' || m.status === 'approved'));
+            if (!alreadySubmitted && rm.teamA && rm.teamB && (isAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
+              hasAvailableMatch = true;
+            }
+          });
+        });
+      }
+      return hasAvailableMatch;
+    });
+  }, [competitions, matches, isAdmin, userTeamIds]);
 
   const selectedComp = useMemo(() => (competitions || []).find(c => c.id === selectedCompId), [selectedCompId, competitions]);
   const isCup = selectedComp?.format === 'cup' || (selectedComp?.format === 'groups' && selectedMatchId.includes('_ko_'));
@@ -2682,7 +2703,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       let toPlay = [];
       comp.rounds.filter(r => r.status === 'released').forEach(round => {
         round.matches.forEach(rm => {
-          const alreadySubmitted = matches.some(m => m.matchId === rm.id && (m.status === 'pending' || m.status === 'approved'));
+          const alreadySubmitted = matches.some(m => m.matchId === rm.id && m.compId === comp.id && (m.status === 'pending' || m.status === 'approved'));
           if (!alreadySubmitted && rm.teamA && rm.teamB && (isAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
             toPlay.push({ ...rm, roundId: round.id });
           }
@@ -2712,7 +2733,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     setObservacoes('');
     setImageUploaded(false);
     setMatchImageBase64(null);
-    setIsManualMode(false); // Zerando o modo manual ao trocar de jogo
+    setIsManualMode(false); 
+    setWoA(false); setWoB(false);
   };
 
   const calculateSimilarity = (str1, str2) => {
@@ -2884,8 +2906,28 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
   const handleSubmit = (e) => {
     e.preventDefault();
     if(!selectedCompId || !selectedMatchId || scoreA === '' || scoreB === '') return;
+
+    let finalScoreA = scoreA;
+    let finalScoreB = scoreB;
+    let isDoubleWo = false;
+    let winnerDoubleWo = null;
+
+    if (woA && woB) {
+        isDoubleWo = true;
+        winnerDoubleWo = Math.random() < 0.5 ? 'A' : 'B';
+        finalScoreA = winnerDoubleWo === 'A' ? 3 : 0;
+        finalScoreB = winnerDoubleWo === 'A' ? 0 : 3;
+    } else if (woA) {
+        finalScoreA = 0; finalScoreB = 3;
+    } else if (woB) {
+        finalScoreA = 3; finalScoreB = 0;
+    }
     
-    if (isCup && isTie && (penaltiesA === '' || penaltiesB === '')) {
+    if (finalScoreA === '?' || finalScoreB === '?' || finalScoreA === '' || finalScoreB === '') {
+      if (!woA && !woB) return; 
+    }
+
+    if (isCup && finalScoreA === finalScoreB && (penaltiesA === '' || penaltiesB === '')) {
       if(showToast) showToast("Em jogos de eliminação, não pode haver empate. Preencha os Pênaltis!", "error");
       return;
     }
@@ -2897,6 +2939,10 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
       ...(goalsB || []).map(g => ({ teamId: teamB.id, player: g.player, assist: g.assist || '', minute: g.minute }))
     ];
 
+    const finalObs = isDoubleWo 
+      ? `Sorteio de Duplo W.O. realizado! Vencedor: ${winnerDoubleWo === 'A' ? teamA.name : teamB.name}\n${observacoes}`.trim() 
+      : (woA || woB ? `Vitória por W.O.\n${observacoes}`.trim() : observacoes.trim());
+
     onSubmit({
       id: `m_${Date.now()}`, 
       compId: selectedCompId, 
@@ -2904,18 +2950,22 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
       matchId: selectedMatchId, 
       teamA: teamA.id, 
       teamB: teamB.id, 
-      scoreA: parseInt(scoreA), 
-      scoreB: parseInt(scoreB),
-      penaltiesA: (isCup && isTie && penaltiesA !== '') ? parseInt(penaltiesA) : null,
-      penaltiesB: (isCup && isTie && penaltiesB !== '') ? parseInt(penaltiesB) : null,
-      goals: allGoals, 
-      observacoes: observacoes.trim(), 
+      scoreA: parseInt(finalScoreA), 
+      scoreB: parseInt(finalScoreB),
+      penaltiesA: (isCup && finalScoreA === finalScoreB && penaltiesA !== '') ? parseInt(penaltiesA) : null,
+      penaltiesB: (isCup && finalScoreA === finalScoreB && penaltiesB !== '') ? parseInt(penaltiesB) : null,
+      goals: (woA || woB) ? [] : allGoals,
+      observacoes: finalObs, 
       status: 'pending', 
       submittedBy: currentUser?.name || 'Técnico', 
       imageUrl: matchImageBase64
     });
+    
     setSelectedCompId('');
-    if(showToast) showToast("Partida enviada para validação dos Líderes!", "success");
+    if(showToast) {
+       if (isDoubleWo) showToast(`Sorteio Duplo W.O. concluído! ${winnerDoubleWo === 'A' ? teamA.name : teamB.name} venceu por 3x0. Partida enviada!`, "success");
+       else showToast("Partida enviada para validação dos Líderes!", "success");
+    }
   };
 
   return (
@@ -2947,6 +2997,9 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             <option value="">Escolha um campeonato...</option>
             {visibleCompetitions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          {visibleCompetitions.length === 0 && (
+            <p className="text-xs text-blue-500 mt-2">Nenhuma competição pendente disponível para você no momento.</p>
+          )}
         </div>
 
         {selectedCompId && (
@@ -2965,7 +3018,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           </div>
         )}
 
-        {/* Exibe o box de envio apenas se não estiver no modo manual */}
         {selectedMatchId && !isManualMode && (
           <div className="animate-in slide-in-from-top-4">
             <label className="block text-sm font-medium text-blue-400 mb-2">3. Envie o Print do Resultado</label>
@@ -3001,7 +3053,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           </div>
         )}
 
-        {/* O formulário abre se enviou a imagem OU se ativou o modo manual */}
         {(imageUploaded || isManualMode) && (
           <form onSubmit={handleSubmit} className="animate-in slide-in-from-bottom-4 space-y-6 pt-4 border-t border-blue-800">
             <div className="flex justify-between items-center mb-2">
@@ -3019,10 +3070,22 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             
             <div className="flex flex-col md:flex-row gap-6 items-start bg-blue-950 p-4 rounded-xl border border-blue-800">
               <div className="flex-1 w-full space-y-3">
-                <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2"><ShieldDisplay shield={teamA?.shield} size="small" /> {teamA?.name}</div>
-                <input type="number" value={scoreA} onChange={e=>setScoreA(e.target.value)} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none" required />
+                <div className="flex justify-between items-center mb-2">
+                  <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2"><ShieldDisplay shield={teamA?.shield} size="small" /> {teamA?.name}</div>
+                  <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20 hover:bg-red-500/20 transition-colors">
+                    <input type="checkbox" checked={woA} onChange={(e) => {
+                      const isWo = e.target.checked;
+                      setWoA(isWo);
+                      if (isWo && !woB) { setScoreA('0'); setScoreB('3'); setGoalsA([]); setGoalsB([]); }
+                      else if (!isWo && woB) { setScoreA('3'); setScoreB('0'); }
+                      else if (isWo && woB) { setScoreA('?'); setScoreB('?'); setGoalsA([]); setGoalsB([]); }
+                      else { setScoreA(''); setScoreB(''); }
+                    }} className="accent-red-500 w-3 h-3" /> DAR W.O.
+                  </label>
+                </div>
+                <input type="text" value={scoreA} onChange={e=>setScoreA(e.target.value)} disabled={woA || woB} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none disabled:opacity-50" required />
                 
-                {isCup && isTie && (
+                {isCup && isTie && !woA && !woB && (
                   <div className="mt-2">
                     <label className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Pênaltis A</label>
                     <input type="number" required value={penaltiesA} onChange={e=>setPenaltiesA(e.target.value)} className="w-full bg-blue-900 border border-amber-500/50 text-center font-bold text-lg text-amber-400 rounded p-2 outline-none focus:border-amber-500" />
@@ -3041,19 +3104,31 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                       </div>
                     </div>
                   ))}
-                  <button type="button" onClick={()=>handleAddGoal('A')} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar Gol</button>
+                  {!woA && !woB && <button type="button" onClick={()=>handleAddGoal('A')} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar Gol</button>}
                 </div>
               </div>
               
               <div className="text-blue-500 font-bold text-xl self-center pt-8 hidden md:block">X</div>
               
               <div className="flex-1 w-full space-y-3">
-                <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2">{teamB?.name} <ShieldDisplay shield={teamB?.shield} size="small" /></div>
-                <input type="number" value={scoreB} onChange={e=>setScoreB(e.target.value)} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none" required />
+                <div className="flex justify-between items-center mb-2">
+                  <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20 hover:bg-red-500/20 transition-colors">
+                    <input type="checkbox" checked={woB} onChange={(e) => {
+                      const isWo = e.target.checked;
+                      setWoB(isWo);
+                      if (isWo && !woA) { setScoreB('0'); setScoreA('3'); setGoalsA([]); setGoalsB([]); }
+                      else if (!isWo && woA) { setScoreB('3'); setScoreA('0'); }
+                      else if (isWo && woA) { setScoreA('?'); setScoreB('?'); setGoalsA([]); setGoalsB([]); }
+                      else { setScoreA(''); setScoreB(''); }
+                    }} className="accent-red-500 w-3 h-3" /> DAR W.O.
+                  </label>
+                  <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2">{teamB?.name} <ShieldDisplay shield={teamB?.shield} size="small" /></div>
+                </div>
+                <input type="text" value={scoreB} onChange={e=>setScoreB(e.target.value)} disabled={woA || woB} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none disabled:opacity-50" required />
                 
-                {isCup && isTie && (
+                {isCup && isTie && !woA && !woB && (
                   <div className="mt-2">
-                    <label className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Pênaltis B</label>
+                    <label className="text-[10px] text-amber-400 uppercase tracking-widest font-bold text-right block">Pênaltis B</label>
                     <input type="number" required value={penaltiesB} onChange={e=>setPenaltiesB(e.target.value)} className="w-full bg-blue-900 border border-amber-500/50 text-center font-bold text-lg text-amber-400 rounded p-2 outline-none focus:border-amber-500" />
                   </div>
                 )}
@@ -3070,9 +3145,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                       </div>
                     </div>
                   ))}
-                  <div className="flex justify-end">
-                    <button type="button" onClick={()=>handleAddGoal('B')} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar Gol</button>
-                  </div>
+                  {!woA && !woB && <div className="flex justify-end"><button type="button" onClick={()=>handleAddGoal('B')} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar Gol</button></div>}
                 </div>
               </div>
             </div>
@@ -3089,7 +3162,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     </div>
   );
 };
-
 const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToast }) => {
   const pending = (matches || []).filter(m => m && m.status === 'pending');
   const getTeam = (id) => (teams || []).find(t => t && t.id === id);
