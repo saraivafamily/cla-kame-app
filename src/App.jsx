@@ -53,6 +53,40 @@ const calculateStandings = (matches, teams, compId) => {
   return Object.values(table).map(t => ({ ...t, gd: t.gf - t.ga })).sort((a, b) => { if (b.pts !== a.pts) return b.pts - a.pts; if (b.w !== a.w) return b.w - a.w; if (b.gd !== a.gd) return b.gd - a.gd; return b.gf - a.gf; });
 };
 
+const getChampionId = (comp, matches, teams) => {
+  if (!comp || !comp.rounds || comp.rounds.length === 0) return null;
+  if (comp.format === 'cup' || comp.format === 'groups') {
+    const knockoutRounds = comp.rounds.filter(r => r.id.includes('ko') || comp.format === 'cup');
+    if (knockoutRounds.length === 0) return null;
+    const lastRound = knockoutRounds[knockoutRounds.length - 1];
+    const finalMatch = lastRound.matches[0];
+    if (finalMatch) {
+      const sUI = matches.find(m => m.matchId === finalMatch.id && m.compId === comp.id && m.status === 'approved');
+      if (sUI) {
+        const scoreA = Number(sUI.scoreA || 0); const scoreB = Number(sUI.scoreB || 0);
+        const penA = sUI.penaltiesA !== null && sUI.penaltiesA !== undefined ? Number(sUI.penaltiesA) : null;
+        const penB = sUI.penaltiesB !== null && sUI.penaltiesB !== undefined ? Number(sUI.penaltiesB) : null;
+        if (scoreA > scoreB) return finalMatch.teamA;
+        if (scoreB > scoreA) return finalMatch.teamB;
+        if (penA !== null && penB !== null) {
+          if (penA > penB) return finalMatch.teamA;
+          if (penB > penA) return finalMatch.teamB;
+        }
+      }
+    }
+  } else if (comp.format === 'league') {
+    const groupOrNormalRounds = comp.rounds.filter(r => !r.id.includes('ko'));
+    const totalMatches = groupOrNormalRounds.reduce((acc, r) => acc + r.matches.length, 0);
+    const approvedMatches = matches.filter(m => m.compId === comp.id && m.status === 'approved').length;
+    if (totalMatches > 0 && approvedMatches === totalMatches) {
+      const compTeams = teams.filter(t => comp.teams?.includes(t.id));
+      const standings = calculateStandings(matches, compTeams, comp.id);
+      return standings.length > 0 ? standings[0].id : null;
+    }
+  }
+  return null;
+};
+
 const generateRoundRobin = (teamIds, compId, isDoubleRound = false) => {
   let teams = [...teamIds]; if (teams.length % 2 !== 0) teams.push(null);
   const n = teams.length; const h = n / 2; const rounds = []; let c = 1;
@@ -379,20 +413,25 @@ const SocialFeed = ({ currentUser, teams, showToast }) => {
 const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpdateUserPhoto }) => { 
   const userTeams = teams.filter(t => t.ownerId === currentUser.id);
 
-  // 🧠 MOTOR DE RANKING (Espelhado para o Perfil)
+  // 🧠 MOTOR DE RANKING ESPELHADO
   const rankingData = useMemo(() => {
     let stats = {};
     (teams || []).forEach(t => { if(t && t.ownerId) stats[t.id] = { ...t, points: 0, played: 0, wins: 0 }; });
 
     (competitions || []).forEach(c => {
-      if (c && c.teams) c.teams.forEach(tId => { if(stats[tId]) stats[tId].points += 10; });
+      const ptsJoin = c.category === 'copa_flash' ? 2 : 10;
+      if (c && c.teams) c.teams.forEach(tId => { if(stats[tId]) stats[tId].points += ptsJoin; });
     });
 
     (matches || []).forEach(m => {
       if (m.status === 'approved') {
+        const c = (competitions || []).find(comp => comp.id === m.compId);
+        const isFlash = c?.category === 'copa_flash';
+        const ptsPlay = isFlash ? 1 : 2; const ptsWin = isFlash ? 1 : 3; const ptsDraw = isFlash ? 0 : 1;
+
         const tA = stats[m.teamA]; const tB = stats[m.teamB];
-        if(tA) { tA.played += 1; tA.points += 2; }
-        if(tB) { tB.played += 1; tB.points += 2; }
+        if(tA) { tA.played += 1; tA.points += ptsPlay; }
+        if(tB) { tB.played += 1; tB.points += ptsPlay; }
 
         let scoreA = Number(m.scoreA||0); let scoreB = Number(m.scoreB||0);
         let penA = m.penaltiesA !== null && m.penaltiesA !== undefined ? Number(m.penaltiesA) : null;
@@ -402,28 +441,33 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
         if (scoreA > scoreB) winner = 'A';
         else if (scoreB > scoreA) winner = 'B';
         else if (penA !== null && penB !== null) {
-            if (tA) tA.points += 1; if (tB) tB.points += 1;
+            if (tA) tA.points += ptsDraw; if (tB) tB.points += ptsDraw;
             if (penA > penB) winner = 'A'; else if (penB > penA) winner = 'B';
         } else {
-            if (tA) tA.points += 1; if (tB) tB.points += 1;
+            if (tA) tA.points += ptsDraw; if (tB) tB.points += ptsDraw;
         }
 
-        if (winner === 'A' && tA) { tA.wins += 1; tA.points += 3; }
-        else if (winner === 'B' && tB) { tB.wins += 1; tB.points += 3; }
+        if (winner === 'A' && tA) { tA.wins += 1; tA.points += ptsWin; }
+        else if (winner === 'B' && tB) { tB.wins += 1; tB.points += ptsWin; }
       }
     });
 
     (competitions || []).forEach(c => {
       if (!c.rounds) return;
+      const isFlash = c.category === 'copa_flash';
+      const ptsOitavas = isFlash ? 0 : 5; const ptsQuartas = isFlash ? 2 : 10;
+      const ptsSemi = isFlash ? 5 : 15; const ptsThird = isFlash ? 5 : 15;
+      const ptsVice = isFlash ? 10 : 25; const ptsChamp = isFlash ? 20 : 50;
+
       const koRounds = c.rounds.filter(r => r.id.includes('ko') || c.format === 'cup');
       let semiTeams = new Set(); let finalTeams = new Set();
 
       koRounds.forEach(r => {
         r.matches.forEach(m => {
           const tA = stats[m.teamA]; const tB = stats[m.teamB];
-          if (r.number === 'Oitavas') { if(tA) tA.points += 5; if(tB) tB.points += 5; }
-          if (r.number === 'Quartas') { if(tA) tA.points += 10; if(tB) tB.points += 10; }
-          if (r.number === 'Semifinal') { if(tA) { tA.points += 15; semiTeams.add(m.teamA); } if(tB) { tB.points += 15; semiTeams.add(m.teamB); } }
+          if (r.number === 'Oitavas') { if(tA) tA.points += ptsOitavas; if(tB) tB.points += ptsOitavas; }
+          if (r.number === 'Quartas') { if(tA) tA.points += ptsQuartas; if(tB) tB.points += ptsQuartas; }
+          if (r.number === 'Semifinal') { if(tA) { tA.points += ptsSemi; semiTeams.add(m.teamA); } if(tB) { tB.points += ptsSemi; semiTeams.add(m.teamB); } }
           if (r.number === 'Final') {
             if(tA) finalTeams.add(m.teamA); if(tB) finalTeams.add(m.teamB);
             const sUI = matches.find(x => x.matchId === m.id && x.compId === c.id && x.status === 'approved');
@@ -436,13 +480,13 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
               else if (scoreB > scoreA) { winnerId = m.teamB; loserId = m.teamA; }
               else if (penA !== null && penB !== null) { if (penA > penB) { winnerId = m.teamA; loserId = m.teamB; } else if (penB > penA) { winnerId = m.teamB; loserId = m.teamA; } }
 
-              if (winnerId && stats[winnerId]) stats[winnerId].points += 50; 
-              if (loserId && stats[loserId]) stats[loserId].points += 25; 
+              if (winnerId && stats[winnerId]) stats[winnerId].points += ptsChamp; 
+              if (loserId && stats[loserId]) stats[loserId].points += ptsVice; 
             }
           }
         });
       });
-      semiTeams.forEach(tId => { if (!finalTeams.has(tId) && stats[tId]) stats[tId].points += 15; });
+      semiTeams.forEach(tId => { if (!finalTeams.has(tId) && stats[tId]) stats[tId].points += ptsThird; });
     });
 
     return Object.values(stats).filter(t => t.played > 0 || t.points > 0).sort((a,b) => b.points - a.points || b.wins - a.wins);
@@ -524,7 +568,24 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
             else { losses++; }
           });
 
+          // 🌟 LEITURA DINÂMICA DE TÍTULOS
+          let ligasKame = 0; let copasMain = 0; let copasFlash = 0;
+          competitions.forEach(c => {
+             const champId = getChampionId(c, matches, teams);
+             if (champId === team.id) {
+                 if (c.category === 'copa_flash') copasFlash++;
+                 else if (c.category === 'copa_main') copasMain++;
+                 else ligasKame++;
+             }
+          });
+
           const conquistas = [];
+          
+          // INSERE OS TÍTULOS COMO AS PRIMEIRAS CONQUISTAS DO MURAL!
+          if (ligasKame > 0) conquistas.push({ icon: '🏆', title: `LIGA KAME - ${ligasKame} TÍTULO${ligasKame > 1 ? 'S' : ''}`, desc: 'Campeão da Divisão Principal' });
+          if (copasMain > 0) conquistas.push({ icon: '🏆', title: `COPA OFICIAL - ${copasMain} TÍTULO${copasMain > 1 ? 'S' : ''}`, desc: 'Campeão de Copas Maiores' });
+          if (copasFlash > 0) conquistas.push({ icon: '⚡', title: `COPA FLASH - ${copasFlash} TÍTULO${copasFlash > 1 ? 'S' : ''}`, desc: 'Campeão de Tiro Curto' });
+
           if (wins > 0) conquistas.push({ icon: '🌟', title: 'PRIMEIRA VITÓRIA', desc: 'Venceu uma partida oficial' });
           if (gf >= 100) conquistas.push({ icon: '⚽', title: 'GOLEADOR', desc: 'Marcou 100 ou mais gols' });
           if (gf >= 500) conquistas.push({ icon: '⚽', title: 'MERCENÁRIO', desc: 'Marcou 500 ou mais gols' });
@@ -557,18 +618,24 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
 
               <div className="p-6 space-y-10">
                 <div>
-                  <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Medal className="text-amber-400" size={20}/> Conquistas Desbloqueadas</h4>
+                  <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Medal className="text-amber-400" size={20}/> Conquistas e Títulos</h4>
                   {conquistas.length > 0 ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {conquistas.map((c, i) => (
-                        <div key={i} className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center justify-center transition-all hover:border-amber-500/50 hover:bg-blue-900 group">
-                          <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{c.icon}</span><p className="text-sm font-bold text-white">{c.title}</p><p className="text-[10px] text-blue-400 mt-1 leading-tight">{c.desc}</p>
-                        </div>
-                      ))}
+                      {conquistas.map((c, i) => {
+                        const isTitle = c.title.includes('TÍTULO');
+                        return (
+                          <div key={i} className={`p-4 rounded-xl border text-center flex flex-col items-center justify-center transition-all group ${isTitle ? 'bg-gradient-to-br from-amber-600/20 to-amber-900/40 border-amber-500/50 hover:border-amber-400' : 'bg-blue-950 border-blue-800 hover:border-amber-500/50 hover:bg-blue-900'}`}>
+                            <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{c.icon}</span>
+                            <p className={`text-sm font-bold ${isTitle ? 'text-amber-400 drop-shadow-md' : 'text-white'}`}>{c.title}</p>
+                            <p className={`text-[10px] mt-1 leading-tight ${isTitle ? 'text-amber-200/80 font-bold' : 'text-blue-400'}`}>{c.desc}</p>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : ( <div className="text-center p-6 bg-blue-950 rounded-xl border border-blue-800 border-dashed"><p className="text-blue-500 text-sm">Nenhuma conquista desbloqueada. Jogue e vença partidas para ganhar emblemas!</p></div> )}
                 </div>
 
+                {/* Restante do Perfil igual (Torneios, etc) */}
                 <div>
                   <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Trophy className="text-emerald-500" size={20}/> Desempenho nos Torneios</h4>
                   {activeComps.length > 0 ? (
@@ -707,7 +774,6 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
 const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
   if (!team) return null;
   
-  // Filtra as partidas oficiais do time e calcula as estatísticas
   const teamMatches = (matches || []).filter(m => m.status === 'approved' && (m.teamA === team.id || m.teamB === team.id));
   let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0; 
   let biggestWin = null; let maxGd = -1;
@@ -737,8 +803,22 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
     }
   });
 
-  // Sistema de Conquistas
+  // 🌟 LEITURA DINÂMICA DE TÍTULOS AQUI TAMBÉM
+  let ligasKame = 0; let copasMain = 0; let copasFlash = 0;
+  (competitions || []).forEach(c => {
+     const champId = getChampionId(c, matches, teams);
+     if (champId === team.id) {
+         if (c.category === 'copa_flash') copasFlash++;
+         else if (c.category === 'copa_main') copasMain++;
+         else ligasKame++;
+     }
+  });
+
   const conquistas = [];
+  if (ligasKame > 0) conquistas.push({ icon: '🏆', title: `LIGA KAME - ${ligasKame} TÍTULO${ligasKame > 1 ? 'S' : ''}`, desc: 'Campeão da Divisão Principal' });
+  if (copasMain > 0) conquistas.push({ icon: '🏆', title: `COPA OFICIAL - ${copasMain} TÍTULO${copasMain > 1 ? 'S' : ''}`, desc: 'Campeão de Copas Maiores' });
+  if (copasFlash > 0) conquistas.push({ icon: '⚡', title: `COPA FLASH - ${copasFlash} TÍTULO${copasFlash > 1 ? 'S' : ''}`, desc: 'Campeão de Tiro Curto' });
+
   if (wins > 0) conquistas.push({ icon: '🌟', title: '1ª VITÓRIA', desc: 'Venceu uma partida oficial' });
   if (gf >= 100) conquistas.push({ icon: '⚽', title: 'GOLEADOR', desc: 'Marcou 100 ou mais gols' });
   if (gf >= 500) conquistas.push({ icon: '⚽', title: 'MERCENÁRIO', desc: 'Marcou 500 ou mais gols' });
@@ -846,16 +926,21 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
             )}
           </div>
 
-          {/* Conquistas */}
+          {/* Conquistas e Títulos */}
           <div>
             <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Medal size={16} className="text-amber-400"/> Sala de Troféus</h4>
             {conquistas.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {conquistas.map((c, i) => (
-                  <div key={i} className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center">
-                    <span className="text-3xl mb-2 drop-shadow-md">{c.icon}</span><p className="text-xs font-bold text-white">{c.title}</p><p className="text-[9px] text-blue-500 mt-1 leading-tight">{c.desc}</p>
-                  </div>
-                ))}
+                {conquistas.map((c, i) => {
+                  const isTitle = c.title.includes('TÍTULO');
+                  return (
+                    <div key={i} className={`p-4 rounded-xl border text-center flex flex-col items-center justify-center transition-all group ${isTitle ? 'bg-gradient-to-br from-amber-600/20 to-amber-900/40 border-amber-500/50 hover:border-amber-400' : 'bg-blue-950 border-blue-800 hover:border-amber-500/50 hover:bg-blue-900'}`}>
+                      <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{c.icon}</span>
+                      <p className={`text-xs font-bold ${isTitle ? 'text-amber-400 drop-shadow-md' : 'text-white'}`}>{c.title}</p>
+                      <p className={`text-[9px] mt-1 leading-tight ${isTitle ? 'text-amber-200/80 font-bold' : 'text-blue-500'}`}>{c.desc}</p>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-xs text-blue-500 text-center p-6 bg-blue-950 rounded-xl border border-blue-800 border-dashed">Nenhuma conquista desbloqueada ainda.</p>
@@ -2051,16 +2136,15 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
 const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const [name, setName] = useState('');
   const [format, setFormat] = useState('league');
+  const [category, setCategory] = useState('liga_main'); // 🌟 NOVO: Categoria
   const [teamCount, setTeamCount] = useState('');
   const [numGroups, setNumGroups] = useState('2');
   const [qualifiers, setQualifiers] = useState('2');
   const [isDoubleRound, setIsDoubleRound] = useState(false);
   const [deadline, setDeadline] = useState('');
   
-  // NOVO: Link Automático
   const [isAutoJoin, setIsAutoJoin] = useState(true);
 
-  // ESTADOS FINANCEIROS
   const [isPaid, setIsPaid] = useState(false);
   const [entryFee, setEntryFee] = useState('');
   const [pixKey, setPixKey] = useState('');
@@ -2081,7 +2165,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
     e.preventDefault();
     if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
     
-    // NOVAS REGRAS DE VALIDAÇÃO:
     if (!isAutoJoin && selectedTeams.length !== parseInt(teamCount)) { 
       setError(`Atenção: Para gerar a tabela agora, você precisa marcar exatamente ${teamCount} times. Você selecionou ${selectedTeams.length}.`); 
       return; 
@@ -2098,7 +2181,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
     let finalRounds = [];
     let groupsData = null;
 
-    // Só gera a tabela agora se NÃO for inscrição por link
     if (!isAutoJoin) {
       if (format === 'groups') {
         const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound);
@@ -2112,10 +2194,10 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
     }
 
     const newComp = { 
-      id: compId, name, format, deadline, 
+      id: compId, name, format, deadline, category, // 🌟 Salva a Categoria
       teamCount: parseInt(teamCount),
       status: isAutoJoin ? 'registration' : 'active', 
-      teams: selectedTeams, // <-- ALTERADO: Agora ele sempre envia o que foi selecionado
+      teams: selectedTeams, 
       pendingTeams: [],
       rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido',
@@ -2152,11 +2234,22 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Nome do Campeonato</label><input type="text" placeholder="Ex: Liga de Inverno" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+            
+            {/* 🌟 NOVO CAMPO: CATEGORIA */}
+            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Peso no Ranking Xclã</label>
+              <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full bg-blue-950 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner">
+                <option value="liga_main">🏆 Ligas Kame (Divisões Principais)</option>
+                <option value="copa_main">🏆 Copas Oficiais (Peso Máximo)</option>
+                <option value="copa_flash">⚡ Copa Flash (Tiro Curto / Peso Reduzido)</option>
+              </select>
+            </div>
+
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Formato</label>
               <select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
                 <option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option>
               </select>
             </div>
+            
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Qtd. Total de Vagas (Times)</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-emerald-400 font-black text-lg focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Prazo das Inscrições/Jogos</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             
@@ -3234,20 +3327,17 @@ const GlobalRanking = ({ teams, matches, competitions }) => {
   const rankingData = useMemo(() => {
     let stats = {};
     (teams || []).forEach(t => {
-      // Ignora times "Manuais" que não têm técnico de verdade vinculado ainda
       if(t && t.ownerId && t.ownerId !== 'manual') {
         stats[t.id] = { ...t, points: 0, played: 0, wins: 0, draws: 0, titles: 0, comps: 0 };
       }
     });
 
-    // 1. Participações em Campeonatos (+10 pts por entrar)
+    // 1. Participações (+10 pt Principal, +2 pt Flash)
     (competitions || []).forEach(c => {
+      const ptsJoin = c.category === 'copa_flash' ? 2 : 10;
       if (c && c.teams) {
         c.teams.forEach(tId => {
-          if(stats[tId]) {
-            stats[tId].points += 10;
-            stats[tId].comps += 1;
-          }
+          if(stats[tId]) { stats[tId].points += ptsJoin; stats[tId].comps += 1; }
         });
       }
     });
@@ -3255,15 +3345,18 @@ const GlobalRanking = ({ teams, matches, competitions }) => {
     // 2. Partidas Jogadas, Vitórias e Empates
     (matches || []).forEach(m => {
       if (m.status === 'approved') {
-        const tA = stats[m.teamA];
-        const tB = stats[m.teamB];
+        const c = (competitions || []).find(comp => comp.id === m.compId);
+        const isFlash = c?.category === 'copa_flash';
         
-        // +2 por partida jogada (Recompensa disciplina e pune W.O)
-        if(tA) { tA.played += 1; tA.points += 2; }
-        if(tB) { tB.played += 1; tB.points += 2; }
+        const ptsPlay = isFlash ? 1 : 2;
+        const ptsWin = isFlash ? 1 : 3;
+        const ptsDraw = isFlash ? 0 : 1;
 
-        let scoreA = Number(m.scoreA||0);
-        let scoreB = Number(m.scoreB||0);
+        const tA = stats[m.teamA]; const tB = stats[m.teamB];
+        if(tA) { tA.played += 1; tA.points += ptsPlay; }
+        if(tB) { tB.played += 1; tB.points += ptsPlay; }
+
+        let scoreA = Number(m.scoreA||0); let scoreB = Number(m.scoreB||0);
         let penA = m.penaltiesA !== null && m.penaltiesA !== undefined ? Number(m.penaltiesA) : null;
         let penB = m.penaltiesB !== null && m.penaltiesB !== undefined ? Number(m.penaltiesB) : null;
 
@@ -3271,71 +3364,50 @@ const GlobalRanking = ({ teams, matches, competitions }) => {
         if (scoreA > scoreB) winner = 'A';
         else if (scoreB > scoreA) winner = 'B';
         else if (penA !== null && penB !== null) {
-            // Em caso de pênaltis, foi empate no tempo normal (+1 pt para os dois)
-            if (tA) { tA.draws += 1; tA.points += 1; }
-            if (tB) { tB.draws += 1; tB.points += 1; }
-            if (penA > penB) winner = 'A';
-            else if (penB > penA) winner = 'B';
+            if (tA) { tA.draws += 1; tA.points += ptsDraw; }
+            if (tB) { tB.draws += 1; tB.points += ptsDraw; }
+            if (penA > penB) winner = 'A'; else if (penB > penA) winner = 'B';
         } else {
-            // Empate comum (+1 pt para os dois)
-            if (tA) { tA.draws += 1; tA.points += 1; }
-            if (tB) { tB.draws += 1; tB.points += 1; }
+            if (tA) { tA.draws += 1; tA.points += ptsDraw; }
+            if (tB) { tB.draws += 1; tB.points += ptsDraw; }
         }
 
-        // +3 pts por Vitória 
-        if (winner === 'A') {
-            if (tA) { tA.wins += 1; tA.points += 3; }
-        } else if (winner === 'B') {
-            if (tB) { tB.wins += 1; tB.points += 3; }
-        }
+        if (winner === 'A' && tA) { tA.wins += 1; tA.points += ptsWin; } 
+        else if (winner === 'B' && tB) { tB.wins += 1; tB.points += ptsWin; }
       }
     });
 
     // 3. Fases de Mata-Mata e Pódio
     (competitions || []).forEach(c => {
       if (!c.rounds) return;
+      const isFlash = c.category === 'copa_flash';
+      const ptsOitavas = isFlash ? 0 : 5;
+      const ptsQuartas = isFlash ? 2 : 10;
+      const ptsSemi = isFlash ? 5 : 15;
+      const ptsThird = isFlash ? 5 : 15;
+      const ptsVice = isFlash ? 10 : 25;
+      const ptsChamp = isFlash ? 20 : 50;
+
       const koRounds = c.rounds.filter(r => r.id.includes('ko') || c.format === 'cup');
-      
-      let semiTeams = new Set();
-      let finalTeams = new Set();
+      let semiTeams = new Set(); let finalTeams = new Set();
 
       koRounds.forEach(r => {
-        const isOitavas = r.number === 'Oitavas';
-        const isQuartas = r.number === 'Quartas';
-        const isSemi = r.number === 'Semifinal';
-        const isFinal = r.number === 'Final';
-
         r.matches.forEach(m => {
-          const tA = stats[m.teamA];
-          const tB = stats[m.teamB];
+          const tA = stats[m.teamA]; const tB = stats[m.teamB];
 
-          // Pontos por avanço de fase (Basta estar no confronto)
-          if (isOitavas) {
-            if(tA) tA.points += 5;
-            if(tB) tB.points += 5;
-          }
-          if (isQuartas) {
-            if(tA) tA.points += 10;
-            if(tB) tB.points += 10;
-          }
-          if (isSemi) {
-            if(tA) { tA.points += 15; semiTeams.add(m.teamA); }
-            if(tB) { tB.points += 15; semiTeams.add(m.teamB); }
-          }
-          if (isFinal) {
-            if(tA) finalTeams.add(m.teamA);
-            if(tB) finalTeams.add(m.teamB);
-            
-            // Verifica o Pódio se a final já foi jogada e validada
+          if (r.number === 'Oitavas') { if(tA) tA.points += ptsOitavas; if(tB) tB.points += ptsOitavas; }
+          if (r.number === 'Quartas') { if(tA) tA.points += ptsQuartas; if(tB) tB.points += ptsQuartas; }
+          if (r.number === 'Semifinal') { if(tA) { tA.points += ptsSemi; semiTeams.add(m.teamA); } if(tB) { tB.points += ptsSemi; semiTeams.add(m.teamB); } }
+          
+          if (r.number === 'Final') {
+            if(tA) finalTeams.add(m.teamA); if(tB) finalTeams.add(m.teamB);
             const sUI = matches.find(x => x.matchId === m.id && x.compId === c.id && x.status === 'approved');
             if (sUI) {
-              let scoreA = Number(sUI.scoreA||0);
-              let scoreB = Number(sUI.scoreB||0);
+              let scoreA = Number(sUI.scoreA||0); let scoreB = Number(sUI.scoreB||0);
               let penA = sUI.penaltiesA !== null && sUI.penaltiesA !== undefined ? Number(sUI.penaltiesA) : null;
               let penB = sUI.penaltiesB !== null && sUI.penaltiesB !== undefined ? Number(sUI.penaltiesB) : null;
               
-              let winnerId = null;
-              let loserId = null;
+              let winnerId = null; let loserId = null;
               if (scoreA > scoreB) { winnerId = m.teamA; loserId = m.teamB; }
               else if (scoreB > scoreA) { winnerId = m.teamB; loserId = m.teamA; }
               else if (penA !== null && penB !== null) {
@@ -3343,27 +3415,15 @@ const GlobalRanking = ({ teams, matches, competitions }) => {
                   else if (penB > penA) { winnerId = m.teamB; loserId = m.teamA; }
               }
 
-              if (winnerId && stats[winnerId]) {
-                  stats[winnerId].points += 50; // 🏆 Campeão
-                  stats[winnerId].titles += 1;
-              }
-              if (loserId && stats[loserId]) {
-                  stats[loserId].points += 25; // 🥈 Vice
-              }
+              if (winnerId && stats[winnerId]) { stats[winnerId].points += ptsChamp; stats[winnerId].titles += 1; }
+              if (loserId && stats[loserId]) { stats[loserId].points += ptsVice; }
             }
           }
         });
       });
-
-      // 🥉 3º Lugar (Aquele que chegou na Semifinal, mas não chegou na Final)
-      semiTeams.forEach(tId => {
-        if (!finalTeams.has(tId) && stats[tId]) {
-          stats[tId].points += 15;
-        }
-      });
+      semiTeams.forEach(tId => { if (!finalTeams.has(tId) && stats[tId]) stats[tId].points += ptsThird; });
     });
 
-    // Ordena do maior para o menor
     return Object.values(stats).filter(t => t.played > 0 || t.comps > 0).sort((a,b) => b.points - a.points || b.wins - a.wins);
   }, [teams, matches, competitions]);
 
