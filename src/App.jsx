@@ -862,14 +862,6 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
       });
   });
 
-  const conquistas = [];
-  if (ligaA > 0) conquistas.push({ icon: '🥇', title: `LIGA KAME A - ${ligaA} TÍTULO${ligaA > 1 ? 'S' : ''}`, desc: 'Campeão da Divisão de Elite' });
-  if (ligaB > 0) conquistas.push({ icon: '🥈', title: `LIGA KAME B - ${ligaB} TÍTULO${ligaB > 1 ? 'S' : ''}`, desc: 'Campeão da Série B' });
-  if (ligaC > 0) conquistas.push({ icon: '🥉', title: `LIGA KAME C - ${ligaC} TÍTULO${ligaC > 1 ? 'S' : ''}`, desc: 'Campeão da Série C' });
-  if (ligaD > 0) conquistas.push({ icon: '🎖️', title: `LIGA KAME D - ${ligaD} TÍTULO${ligaD > 1 ? 'S' : ''}`, desc: 'Campeão da Série D' });
-  if (copasMain > 0) conquistas.push({ icon: '🏆', title: `COPA OFICIAL - ${copasMain} TÍTULO${copasMain > 1 ? 'S' : ''}`, desc: 'Campeão de Copas Maiores' });
-  if (copasFlash > 0) conquistas.push({ icon: '⚡', title: `COPA FLASH - ${copasFlash} TÍTULO${copasFlash > 1 ? 'S' : ''}`, desc: 'Campeão de Tiro Curto' });
-
   if (wins > 0) conquistas.push({ icon: '🌟', title: '1ª VITÓRIA', desc: 'Venceu uma partida oficial' });
   if (gf >= 100) conquistas.push({ icon: '⚽', title: 'GOLEADOR', desc: 'Marcou 100 ou mais gols' });
   if (gf >= 500) conquistas.push({ icon: '⚽', title: 'MERCENÁRIO', desc: 'Marcou 500 ou mais gols' });
@@ -885,6 +877,7 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
       <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl" onClick={e => e.stopPropagation()}>
         
+        {/* Cabeçalho */}
         <div className="sticky top-0 bg-blue-900/95 backdrop-blur border-b border-blue-800 p-4 sm:p-6 flex justify-between items-center z-10">
           <div className="flex items-center gap-4">
             <ShieldDisplay shield={team.shield} size="normal" />
@@ -896,8 +889,10 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
           <button onClick={onClose} className="text-blue-400 hover:text-white p-2 bg-blue-800 hover:bg-blue-700 rounded-full transition-colors"><X size={18}/></button>
         </div>
         
+        {/* Corpo com Estatísticas */}
         <div className="p-4 sm:p-6 space-y-8">
           
+          {/* Resumo da Temporada */}
           <div>
             <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Activity size={16}/> Visão Geral</h4>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -908,6 +903,7 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
             </div>
           </div>
 
+          {/* Recordes do Clube */}
           <div>
             <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Star size={16} className="text-amber-400"/> Recordes do Clube</h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -937,6 +933,43 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
             </div>
           </div>
 
+          {/* Desempenho em Torneios */}
+          <div>
+            <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Trophy size={16} className="text-emerald-500"/> Desempenho nos Campeonatos</h4>
+            {activeComps.length > 0 ? (
+              <div className="space-y-3">
+                {activeComps.map(comp => {
+                  const table = calculateStandings(matches, teams, comp.id);
+                  const rankIndex = table.findIndex(t => t.id === team.id);
+                  const myStats = rankIndex !== -1 ? table[rankIndex] : null;
+                  const rank = rankIndex !== -1 ? rankIndex + 1 : '-';
+                  
+                  return (
+                    <div key={comp.id} className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <div className="flex-1 flex flex-col items-center sm:items-start w-full">
+                        <span className="font-bold text-blue-200 text-sm truncate">{comp.name}</span>
+                        <span className="text-[10px] text-blue-500 uppercase font-bold">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</span>
+                      </div>
+                      
+                      {myStats && myStats.p > 0 ? (
+                        <div className="flex items-center gap-4 shrink-0 bg-blue-900/50 px-4 py-2 rounded-lg border border-blue-800/50">
+                          <div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Posição</p><p className="text-base font-black text-emerald-400">{rank}º</p></div>
+                          <div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Pontos</p><p className="text-base font-black text-blue-200">{myStats.pts}</p></div>
+                          <div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Jogos</p><p className="text-base font-bold text-blue-300">{myStats.p}</p></div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-blue-600 italic shrink-0">Sem jogos ainda</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-blue-500 text-center p-4 bg-blue-950 rounded-xl border border-blue-800 border-dashed">Ainda não disputou nenhum torneio.</p>
+            )}
+          </div>
+
+          {/* Conquistas e Títulos */}
           <div>
             <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Medal size={16} className="text-amber-400"/> Sala de Troféus</h4>
             {conquistas.length > 0 ? (
