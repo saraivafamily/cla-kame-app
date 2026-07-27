@@ -568,11 +568,12 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
             else { losses++; }
           });
 
-          // 🌟 LEITURA ESTRUTURADA DE TÍTULOS
+          // 🌟 LEITURA DINÂMICA DE TÍTULOS (Com Nomes Reais para Copas)
           let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0;
-          let copasMain = 0; let copasFlash = 0;
+          let copasFlash = 0;
+          let customTitles = {};
           
-          competitions.forEach(c => {
+          (competitions || []).forEach(c => {
              const champId = getChampionId(c, matches, teams);
              if (champId === team.id) {
                  if (c.category === 'liga_a' || c.category === 'liga_main') ligaA++;
@@ -580,13 +581,31 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
                  else if (c.category === 'liga_c') ligaC++;
                  else if (c.category === 'liga_d') ligaD++;
                  else if (c.category === 'copa_flash') copasFlash++;
-                 else if (c.category === 'copa_main') copasMain++;
                  else {
-                     // 🛡️ CORREÇÃO: Filtro inteligente para torneios antigos (legados)
-                     if (c.format === 'league') ligaA++; 
-                     else copasMain++; 
+                     // Qualquer outro torneio (Copas Oficiais ou torneios antigos) pega o nome exato!
+                     const compName = c.name || 'Torneio Oficial';
+                     customTitles[compName] = (customTitles[compName] || 0) + 1;
                  }
              }
+          });
+
+          const conquistas = [];
+          
+          // INSERE OS TÍTULOS COMO AS PRIMEIRAS CONQUISTAS DO MURAL!
+          if (ligaA > 0) conquistas.push({ icon: '🥇', title: `LIGA KAME A - ${ligaA} TÍTULO${ligaA > 1 ? 'S' : ''}`, desc: 'Campeão da Divisão de Elite' });
+          if (ligaB > 0) conquistas.push({ icon: '🥈', title: `LIGA KAME B - ${ligaB} TÍTULO${ligaB > 1 ? 'S' : ''}`, desc: 'Campeão da Série B' });
+          if (ligaC > 0) conquistas.push({ icon: '🥉', title: `LIGA KAME C - ${ligaC} TÍTULO${ligaC > 1 ? 'S' : ''}`, desc: 'Campeão da Série C' });
+          if (ligaD > 0) conquistas.push({ icon: '🎖️', title: `LIGA KAME D - ${ligaD} TÍTULO${ligaD > 1 ? 'S' : ''}`, desc: 'Campeão da Série D' });
+          if (copasFlash > 0) conquistas.push({ icon: '⚡', title: `COPA FLASH - ${copasFlash} TÍTULO${copasFlash > 1 ? 'S' : ''}`, desc: 'Campeão de Tiro Curto' });
+
+          // 🌟 INSERE OS TÍTULOS COM NOMES REAIS (Ex: Copa das Estrelas)
+          Object.keys(customTitles).forEach(compName => {
+              const count = customTitles[compName];
+              conquistas.push({ 
+                  icon: '🏆', 
+                  title: `${compName.toUpperCase()} - ${count} TÍTULO${count > 1 ? 'S' : ''}`, 
+                  desc: 'Campeão Oficial' 
+              });
           });
 
           const conquistas = [];
@@ -814,26 +833,43 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
     }
   });
 
-  // 🌟 LEITURA ESTRUTURADA DE TÍTULOS
-          let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0;
-          let copasMain = 0; let copasFlash = 0;
-          
-          competitions.forEach(c => {
-             const champId = getChampionId(c, matches, teams);
-             if (champId === team.id) {
-                 if (c.category === 'liga_a' || c.category === 'liga_main') ligaA++;
-                 else if (c.category === 'liga_b') ligaB++;
-                 else if (c.category === 'liga_c') ligaC++;
-                 else if (c.category === 'liga_d') ligaD++;
-                 else if (c.category === 'copa_flash') copasFlash++;
-                 else if (c.category === 'copa_main') copasMain++;
-                 else {
-                     // 🛡️ CORREÇÃO: Filtro inteligente para torneios antigos (legados)
-                     if (c.format === 'league') ligaA++; 
-                     else copasMain++; 
-                 }
-             }
-          });
+  // 🌟 LEITURA DINÂMICA DE TÍTULOS (Com Nomes Reais para Copas)
+  let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0;
+  let copasFlash = 0;
+  let customTitles = {};
+  
+  (competitions || []).forEach(c => {
+     const champId = getChampionId(c, matches, teams);
+     if (champId === team.id) {
+         if (c.category === 'liga_a' || c.category === 'liga_main') ligaA++;
+         else if (c.category === 'liga_b') ligaB++;
+         else if (c.category === 'liga_c') ligaC++;
+         else if (c.category === 'liga_d') ligaD++;
+         else if (c.category === 'copa_flash') copasFlash++;
+         else {
+             // Qualquer outro torneio (Copas Oficiais ou torneios antigos) pega o nome exato!
+             const compName = c.name || 'Torneio Oficial';
+             customTitles[compName] = (customTitles[compName] || 0) + 1;
+         }
+     }
+  });
+
+  const conquistas = [];
+  
+  if (ligaA > 0) conquistas.push({ icon: '🥇', title: `LIGA KAME A - ${ligaA} TÍTULO${ligaA > 1 ? 'S' : ''}`, desc: 'Campeão da Divisão de Elite' });
+  if (ligaB > 0) conquistas.push({ icon: '🥈', title: `LIGA KAME B - ${ligaB} TÍTULO${ligaB > 1 ? 'S' : ''}`, desc: 'Campeão da Série B' });
+  if (ligaC > 0) conquistas.push({ icon: '🥉', title: `LIGA KAME C - ${ligaC} TÍTULO${ligaC > 1 ? 'S' : ''}`, desc: 'Campeão da Série C' });
+  if (ligaD > 0) conquistas.push({ icon: '🎖️', title: `LIGA KAME D - ${ligaD} TÍTULO${ligaD > 1 ? 'S' : ''}`, desc: 'Campeão da Série D' });
+  if (copasFlash > 0) conquistas.push({ icon: '⚡', title: `COPA FLASH - ${copasFlash} TÍTULO${copasFlash > 1 ? 'S' : ''}`, desc: 'Campeão de Tiro Curto' });
+
+  Object.keys(customTitles).forEach(compName => {
+      const count = customTitles[compName];
+      conquistas.push({ 
+          icon: '🏆', 
+          title: `${compName.toUpperCase()} - ${count} TÍTULO${count > 1 ? 'S' : ''}`, 
+          desc: 'Campeão Oficial' 
+      });
+  });
 
   const conquistas = [];
   if (ligaA > 0) conquistas.push({ icon: '🥇', title: `LIGA KAME A - ${ligaA} TÍTULO${ligaA > 1 ? 'S' : ''}`, desc: 'Campeão da Divisão de Elite' });
