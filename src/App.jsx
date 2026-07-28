@@ -2416,14 +2416,19 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
             )}
 
             {format === 'groups' && (
-              <><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Quantidade de Grupos</label>
-                  <select value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="2">2 Grupos</option><option value="4">4 Grupos</option><option value="8">8 Grupos</option></select>
-                </div><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Classificados por Grupo</label>
-                  <select value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="1">1 Time</option><option value="2">2 Times</option><option value="4">4 Times</option></select>
-                </div></>
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-blue-300">Quantidade de Grupos</label>
+                  {/* 🌟 MUDANÇA AQUI: De Select para Input Livre */}
+                  <input type="number" min="2" placeholder="Ex: 2, 3, 4..." value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-blue-300">Classificados por Grupo</label>
+                  {/* 🌟 MUDANÇA AQUI: Input Livre para classificados também */}
+                  <input type="number" min="1" placeholder="Ex: 2" value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required />
+                </div>
+              </>
             )}
-          </div>
-        </div>
 
         <div className={`p-6 md:p-8 rounded-3xl border shadow-xl transition-colors ${isPaid ? 'bg-amber-500/10 border-amber-500/40' : 'bg-blue-900 border-blue-800'}`}>
           <div className="flex items-center justify-between mb-6">
