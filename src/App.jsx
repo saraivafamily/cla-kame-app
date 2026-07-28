@@ -2394,7 +2394,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
                 <option value="liga_b">🥈 Liga Kame B (Série B)</option>
                 <option value="liga_c">🥉 Liga Kame C (Série C)</option>
                 <option value="liga_d">🎖️ Liga Kame D (Série D)</option>
-                <option value="copa_main">🏆 Copas Oficiais (Ex: Copa do Clã)</option>
+                <option value="copa_main">🏆 Copas Oficiais (Ex: Copa da Amazônia)</option>
                 <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
               </select>
             </div>
@@ -2417,10 +2417,21 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
 
             {format === 'groups' && (
               <><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Quantidade de Grupos</label>
-                  <select value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="2">2 Grupos</option><option value="4">4 Grupos</option><option value="8">8 Grupos</option></select>
+                  <select value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
+                    <option value="2">2 Grupos</option>
+                    <option value="4">4 Grupos</option>
+                    <option value="6">6 Grupos</option>
+                    <option value="8">8 Grupos</option>
+                  </select>
                 </div><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Classificados por Grupo</label>
-                  <select value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="1">1 Time</option><option value="2">2 Times</option><option value="4">4 Times</option></select>
+                  <select value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
+                    <option value="1">1 Time</option>
+                    <option value="2">2 Times</option>
+                    <option value="4">4 Times</option>
+                  </select>
                 </div></>
+)}
+
             )}
           </div>
         </div>
