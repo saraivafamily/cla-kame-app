@@ -2417,20 +2417,13 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
 
             {format === 'groups' && (
               <><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Quantidade de Grupos</label>
-                  <select value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
-                    <option value="2">2 Grupos</option>
-                    <option value="4">4 Grupos</option>
-                    <option value="6">6 Grupos</option>
-                    <option value="8">8 Grupos</option>
-                  </select>
+                  <select value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="2">2 Grupos</option><option value="4">4 Grupos</option><option value="8">8 Grupos</option></select>
                 </div><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Classificados por Grupo</label>
-                  <select value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
-                    <option value="1">1 Time</option>
-                    <option value="2">2 Times</option>
-                    <option value="4">4 Times</option>
-                  </select>
+                  <select value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"><option value="1">1 Time</option><option value="2">2 Times</option><option value="4">4 Times</option></select>
                 </div></>
-)}
+            )}
+          </div>
+        </div>
 
         <div className={`p-6 md:p-8 rounded-3xl border shadow-xl transition-colors ${isPaid ? 'bg-amber-500/10 border-amber-500/40' : 'bg-blue-900 border-blue-800'}`}>
           <div className="flex items-center justify-between mb-6">
@@ -2486,8 +2479,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
         <Button type="submit" className={`w-full py-5 text-xl font-black mt-4 rounded-2xl ${isPaid ? 'bg-amber-500 hover:bg-amber-400 text-blue-950' : 'bg-emerald-500 hover:bg-emerald-400 text-blue-950'}`}>
           {isAutoJoin ? '🔗 Gerar Link de Inscrição' : '🏆 Criar e Gerar Tabela'}
         </Button>
-            </div>
-          
       </form>
     </div>
   );
