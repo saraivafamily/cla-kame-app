@@ -1474,20 +1474,21 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   };
 
   const handleOpenEditModal = (m, roundId) => {
-    const playedMatch = (matches || []).find(x => x.matchId === m.id && x.compId === comp.id && x.status !== 'rejected');
-    setEditMatchData({ 
-      ...m, 
-      roundId: roundId,
-      scoreA: playedMatch ? playedMatch.scoreA : '',
-      scoreB: playedMatch ? playedMatch.scoreB : '',
-      penaltiesA: playedMatch && playedMatch.penaltiesA !== null && playedMatch.penaltiesA !== undefined ? playedMatch.penaltiesA : '',
-      penaltiesB: playedMatch && playedMatch.penaltiesB !== null && playedMatch.penaltiesB !== undefined ? playedMatch.penaltiesB : '',
-      hasPlayed: !!playedMatch,
-      playedMatchId: playedMatch ? playedMatch.id : null,
-      woA: false,
-      woB: false
-    }); 
-  };
+  const playedMatch = (matches || []).find(x => x.matchId === m.id && x.compId === comp.id && x.status !== 'rejected');
+  setEditMatchData({ 
+    ...m, 
+    roundId: roundId,
+    group: m.group || 'A', // 🌟 Carrega o grupo atual da partida
+    scoreA: playedMatch ? playedMatch.scoreA : '',
+    scoreB: playedMatch ? playedMatch.scoreB : '',
+    penaltiesA: playedMatch && playedMatch.penaltiesA !== null && playedMatch.penaltiesA !== undefined ? playedMatch.penaltiesA : '',
+    penaltiesB: playedMatch && playedMatch.penaltiesB !== null && playedMatch.penaltiesB !== undefined ? playedMatch.penaltiesB : '',
+    hasPlayed: !!playedMatch,
+    playedMatchId: playedMatch ? playedMatch.id : null,
+    woA: false,
+    woB: false
+  }); 
+};
 
   const saveMatchEdit = () => {
     const updatedRounds = comp.rounds.map(r => {
@@ -1922,25 +1923,20 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                   {isExpanded && (
                                     <div className="p-4 bg-blue-950/40 border-t border-blue-800">
                                       {comp.format === 'groups' ? (
-                                         <div className="space-y-6">
-                                           {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(groupLetter => {
-                                             const groupTeamIds = comp.groups && comp.groups[groupLetter] ? comp.groups[groupLetter] : [];
-                                             const matchesInGroup = round.matches.filter(m => groupTeamIds.includes(m.teamA) || groupTeamIds.includes(m.teamB));
-                                             
-                                             if (matchesInGroup.length === 0) return null;
-
-                                             return (
-                                               <div key={groupLetter} className="space-y-3">
-                                                 <div className="bg-blue-900/50 py-1 px-3 rounded-lg border border-blue-800/50 inline-block">
-                                                   <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-                                                     Confrontos Grupo {groupLetter}
-                                                   </span>
-                                                 </div>
-                                                 
-                                                 <div className="grid grid-cols-1 gap-3">
-                                                   {matchesInGroup.map(m => {
-                                                     const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
-                                                     return (
+                                        <div className="space-y-6">
+                                          {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(groupLetter => {
+                                          // 🌟 CORREÇÃO: Filtra estritamente pelo grupo fixo da partida (m.group)
+                                          const matchesInGroup = round.matches.filter(m => {
+                                            if (m.group) {
+                                              return m.group.toUpperCase() === groupLetter.toUpperCase();
+                                            }
+                                            // Fallback para compatibilidade caso a partida antiga não tenha o grupo salvo
+                                            const groupTeamIds = comp.groups && comp.groups[groupLetter] ? comp.groups[groupLetter] : [];
+                                            return groupTeamIds.includes(m.teamA) || groupTeamIds.includes(m.teamB);
+                                          });
+                                          if (matchesInGroup.length === 0) return null;
+                                          
+                                          return (         
                                                        <div key={m.id} className="relative group">
                                                          <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
                                                            
