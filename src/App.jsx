@@ -2427,7 +2427,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
                   {/* 🌟 MUDANÇA AQUI: Input Livre para classificados também */}
                   <input type="number" min="1" placeholder="Ex: 2" value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required />
                 </div>
-              </>
             )}
 
         <div className={`p-6 md:p-8 rounded-3xl border shadow-xl transition-colors ${isPaid ? 'bg-amber-500/10 border-amber-500/40' : 'bg-blue-900 border-blue-800'}`}>
