@@ -2486,6 +2486,8 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
         <Button type="submit" className={`w-full py-5 text-xl font-black mt-4 rounded-2xl ${isPaid ? 'bg-amber-500 hover:bg-amber-400 text-blue-950' : 'bg-emerald-500 hover:bg-emerald-400 text-blue-950'}`}>
           {isAutoJoin ? '🔗 Gerar Link de Inscrição' : '🏆 Criar e Gerar Tabela'}
         </Button>
+            </div>
+          
       </form>
     </div>
   );
