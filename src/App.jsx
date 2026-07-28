@@ -2394,7 +2394,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
                 <option value="liga_b">🥈 Liga Kame B (Série B)</option>
                 <option value="liga_c">🥉 Liga Kame C (Série C)</option>
                 <option value="liga_d">🎖️ Liga Kame D (Série D)</option>
-                <option value="copa_main">🏆 Copas Oficiais (Ex: Copa da Amazônia)</option>
+                <option value="copa_main">🏆 Copas Oficiais (Ex: Copa do Clã)</option>
                 <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
               </select>
             </div>
@@ -2431,10 +2431,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
                   </select>
                 </div></>
 )}
-
-            )}
-          </div>
-        </div>
 
         <div className={`p-6 md:p-8 rounded-3xl border shadow-xl transition-colors ${isPaid ? 'bg-amber-500/10 border-amber-500/40' : 'bg-blue-900 border-blue-800'}`}>
           <div className="flex items-center justify-between mb-6">
