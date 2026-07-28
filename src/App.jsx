@@ -1318,6 +1318,10 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const [showEditCategory, setShowEditCategory] = useState(false);
   const [categoryData, setCategoryData] = useState(comp?.category || 'liga_a');
 
+  // 🌟 NOVO: ESTADOS PARA GERENCIAR A EDIÇÃO DOS GRUPOS
+  const [showEditGroups, setShowEditGroups] = useState(false);
+  const [teamGroupMapping, setTeamGroupMapping] = useState({});
+
   if (!comp) return (<div className="text-center py-12"><p className="text-blue-400">Torneio não localizado.</p><button onClick={onBack} className="text-emerald-400 underline">Voltar</button></div>);
   
   const isRegistration = comp.status === 'registration';
@@ -1401,6 +1405,43 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   };
 
   const toggleRound = (id) => { setExpandedRoundId(prev => prev === id ? null : id); };
+
+  // 🌟 NOVO: FUNÇÕES DE ABERTURA E SALVAMENTO DOS GRUPOS
+  const handleOpenEditGroups = () => {
+    const mapping = {};
+    if (comp.groups) {
+      Object.keys(comp.groups).forEach(gName => {
+        (comp.groups[gName] || []).forEach(tId => {
+          mapping[tId] = gName;
+        });
+      });
+    }
+    // Garantir que todos os times da competição tenham um grupo padrão se faltarem
+    (comp.teams || []).forEach(tId => {
+      if (!mapping[tId]) {
+        const firstGroupKey = Object.keys(comp.groups || {})[0] || 'A';
+        mapping[tId] = firstGroupKey;
+      }
+    });
+    setTeamGroupMapping(mapping);
+    setShowEditGroups(true);
+  };
+
+  const handleSaveGroups = () => {
+    const newGroups = {};
+    const groupKeys = Object.keys(comp.groups || { A: [], B: [] });
+    groupKeys.forEach(k => { newGroups[k] = []; });
+
+    Object.keys(teamGroupMapping).forEach(tId => {
+      const gName = teamGroupMapping[tId];
+      if (!newGroups[gName]) newGroups[gName] = [];
+      newGroups[gName].push(tId);
+    });
+
+    onEditComp({ ...comp, groups: newGroups });
+    setShowEditGroups(false);
+    showToast("Estrutura dos grupos atualizada com sucesso!", "success");
+  };
 
   const handleAutoMigrateKnockout = () => {
     if (!comp.groups) return;
@@ -1630,6 +1671,13 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </div>
         
         <div className="flex gap-2 w-full md:w-auto flex-wrap">
+          {/* 🌟 BOTÃO PARA GERENCIAR GRUPOS (Aparece apenas se for formato groups) */}
+          {isAdmin && comp.format === 'groups' && comp.groups && (
+            <button onClick={handleOpenEditGroups} className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-purple-700 shadow-md flex items-center gap-1">
+              👥 Gerenciar Grupos
+            </button>
+          )}
+
           {isAdmin && (
             <button onClick={() => { setShowEditCategory(!showEditCategory); setShowEditPrizes(false); }} className="bg-blue-800 hover:bg-blue-700 text-blue-200 text-xs font-bold py-2 px-3 rounded-lg border border-blue-600 shadow-md flex items-center gap-1">
               ⚙️ Editar Categoria
@@ -2134,6 +2182,48 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             )}
           </div>
         </>
+      )}
+
+      {/* 🌟 MODAL DE EDIÇÃO DA ESTRUTURA DOS GRUPOS */}
+      {showEditGroups && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setShowEditGroups(false)}>
+          <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2"><Users size={18} className="text-purple-400"/> Gerenciar Equipes nos Grupos</h3>
+            <p className="text-xs text-blue-300 mb-4">Mude o grupo de cada equipe conforme necessário. A tabela se atualizará instantaneamente ao salvar.</p>
+            
+            <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1 my-2">
+              {(comp.teams || []).map(tId => {
+                const t = getTeam(tId);
+                if (!t) return null;
+                return (
+                  <div key={tId} className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ShieldDisplay shield={t.shield} size="small" />
+                      <span className="font-bold text-xs text-white truncate">{t.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[10px] font-bold text-blue-400 uppercase">Grupo:</span>
+                      <select 
+                        value={teamGroupMapping[tId] || 'A'} 
+                        onChange={e => setTeamGroupMapping({...teamGroupMapping, [tId]: e.target.value})} 
+                        className="bg-blue-900 border border-purple-500/50 rounded-lg p-1.5 text-purple-300 text-xs font-bold outline-none"
+                      >
+                        {Object.keys(comp.groups || {}).map(gName => (
+                          <option key={gName} value={gName}>Grupo {gName}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-blue-800">
+              <Button variant="outline" onClick={() => setShowEditGroups(false)} className="py-2 text-xs">Cancelar</Button>
+              <Button onClick={handleSaveGroups} className="py-2 text-xs bg-purple-600 hover:bg-purple-500 border-0 shadow-md text-white">Salvar Grupos</Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {editMatchData && (
