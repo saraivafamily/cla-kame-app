@@ -1318,7 +1318,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const [showEditCategory, setShowEditCategory] = useState(false);
   const [categoryData, setCategoryData] = useState(comp?.category || 'liga_a');
 
-  // 🌟 NOVO: ESTADOS PARA GERENCIAR A EDIÇÃO DOS GRUPOS
   const [showEditGroups, setShowEditGroups] = useState(false);
   const [teamGroupMapping, setTeamGroupMapping] = useState({});
 
@@ -1406,7 +1405,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
   const toggleRound = (id) => { setExpandedRoundId(prev => prev === id ? null : id); };
 
-  // 🌟 NOVO: FUNÇÕES DE ABERTURA E SALVAMENTO DOS GRUPOS
   const handleOpenEditGroups = () => {
     const mapping = {};
     if (comp.groups) {
@@ -1416,7 +1414,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         });
       });
     }
-    // Garantir que todos os times da competição tenham um grupo padrão se faltarem
     (comp.teams || []).forEach(tId => {
       if (!mapping[tId]) {
         const firstGroupKey = Object.keys(comp.groups || {})[0] || 'A';
@@ -1474,28 +1471,33 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   };
 
   const handleOpenEditModal = (m, roundId) => {
-  const playedMatch = (matches || []).find(x => x.matchId === m.id && x.compId === comp.id && x.status !== 'rejected');
-  setEditMatchData({ 
-    ...m, 
-    roundId: roundId,
-    group: m.group || 'A', // 🌟 Carrega o grupo atual da partida
-    scoreA: playedMatch ? playedMatch.scoreA : '',
-    scoreB: playedMatch ? playedMatch.scoreB : '',
-    penaltiesA: playedMatch && playedMatch.penaltiesA !== null && playedMatch.penaltiesA !== undefined ? playedMatch.penaltiesA : '',
-    penaltiesB: playedMatch && playedMatch.penaltiesB !== null && playedMatch.penaltiesB !== undefined ? playedMatch.penaltiesB : '',
-    hasPlayed: !!playedMatch,
-    playedMatchId: playedMatch ? playedMatch.id : null,
-    woA: false,
-    woB: false
-  }); 
-};
+    const playedMatch = (matches || []).find(x => x.matchId === m.id && x.compId === comp.id && x.status !== 'rejected');
+    setEditMatchData({ 
+      ...m, 
+      roundId: roundId,
+      group: m.group || 'A',
+      scoreA: playedMatch ? playedMatch.scoreA : '',
+      scoreB: playedMatch ? playedMatch.scoreB : '',
+      penaltiesA: playedMatch && playedMatch.penaltiesA !== null && playedMatch.penaltiesA !== undefined ? playedMatch.penaltiesA : '',
+      penaltiesB: playedMatch && playedMatch.penaltiesB !== null && playedMatch.penaltiesB !== undefined ? playedMatch.penaltiesB : '',
+      hasPlayed: !!playedMatch,
+      playedMatchId: playedMatch ? playedMatch.id : null,
+      woA: false,
+      woB: false
+    }); 
+  };
 
   const saveMatchEdit = () => {
     const updatedRounds = comp.rounds.map(r => {
       if (r.id === editMatchData.roundId) {
         return {
           ...r,
-          matches: r.matches.map(m => m.id === editMatchData.id ? { ...m, teamA: editMatchData.teamA, teamB: editMatchData.teamB } : m)
+          matches: r.matches.map(m => m.id === editMatchData.id ? { 
+            ...m, 
+            teamA: editMatchData.teamA, 
+            teamB: editMatchData.teamB,
+            group: editMatchData.group 
+          } : m)
         };
       }
       return r;
@@ -1672,7 +1674,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </div>
         
         <div className="flex gap-2 w-full md:w-auto flex-wrap">
-          {/* 🌟 BOTÃO PARA GERENCIAR GRUPOS (Aparece apenas se for formato groups) */}
           {isAdmin && comp.format === 'groups' && comp.groups && (
             <button onClick={handleOpenEditGroups} className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-purple-700 shadow-md flex items-center gap-1">
               👥 Gerenciar Grupos
@@ -1923,20 +1924,30 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                   {isExpanded && (
                                     <div className="p-4 bg-blue-950/40 border-t border-blue-800">
                                       {comp.format === 'groups' ? (
-                                        <div className="space-y-6">
-                                          {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(groupLetter => {
-                                          // 🌟 CORREÇÃO: Filtra estritamente pelo grupo fixo da partida (m.group)
-                                          const matchesInGroup = round.matches.filter(m => {
-                                            if (m.group) {
-                                              return m.group.toUpperCase() === groupLetter.toUpperCase();
-                                            }
-                                            // Fallback para compatibilidade caso a partida antiga não tenha o grupo salvo
-                                            const groupTeamIds = comp.groups && comp.groups[groupLetter] ? comp.groups[groupLetter] : [];
-                                            return groupTeamIds.includes(m.teamA) || groupTeamIds.includes(m.teamB);
-                                          });
-                                          if (matchesInGroup.length === 0) return null;
-                                          
-                                          return (         
+                                         <div className="space-y-6">
+                                           {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(groupLetter => {
+                                             const matchesInGroup = round.matches.filter(m => {
+                                               if (m.group) {
+                                                 return m.group.toUpperCase() === groupLetter.toUpperCase();
+                                               }
+                                               const groupTeamIds = comp.groups && comp.groups[groupLetter] ? comp.groups[groupLetter] : [];
+                                               return groupTeamIds.includes(m.teamA) || groupTeamIds.includes(m.teamB);
+                                             });
+                                             
+                                             if (matchesInGroup.length === 0) return null;
+
+                                             return (
+                                               <div key={groupLetter} className="space-y-3">
+                                                 <div className="bg-blue-900/50 py-1 px-3 rounded-lg border border-blue-800/50 inline-block">
+                                                   <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                                                     Confrontos Grupo {groupLetter}
+                                                   </span>
+                                                 </div>
+                                                 
+                                                 <div className="grid grid-cols-1 gap-3">
+                                                   {matchesInGroup.map(m => {
+                                                     const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                                                     return (
                                                        <div key={m.id} className="relative group">
                                                          <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
                                                            
@@ -2180,7 +2191,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </>
       )}
 
-      {/* 🌟 MODAL DE EDIÇÃO DA ESTRUTURA DOS GRUPOS */}
       {showEditGroups && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setShowEditGroups(false)}>
           <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -2228,8 +2238,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Edit size={18} className="text-amber-400"/> Editar Partida</h3>
             
             <div className="space-y-4">
-              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800">
-                  <p className="text-xs font-bold text-blue-400 mb-2 uppercase tracking-widest">Alterar Times do Confronto</p>
+              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 space-y-3">
+                  <p className="text-xs font-bold text-blue-400 uppercase tracking-widest">Alterar Times do Confronto</p>
                   <div className="space-y-2">
                       <select value={editMatchData.teamA} onChange={e => setEditMatchData({...editMatchData, teamA: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none">
                           <option value="">A Definir / Sorteio</option>
@@ -2247,6 +2257,21 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                           })}
                       </select>
                   </div>
+
+                  {comp.format === 'groups' && (
+                    <div className="pt-2 border-t border-blue-800">
+                      <label className="text-[10px] font-bold text-purple-400 uppercase tracking-widest block mb-1">Pertencente ao Grupo</label>
+                      <select 
+                        value={editMatchData.group || 'A'} 
+                        onChange={e => setEditMatchData({...editMatchData, group: e.target.value})} 
+                        className="w-full bg-blue-900 border border-purple-500/40 rounded p-2 text-purple-300 text-xs font-bold outline-none"
+                      >
+                        {Object.keys(comp.groups || {}).map(gName => (
+                          <option key={gName} value={gName}>Grupo {gName}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
               </div>
 
               {editMatchData.hasPlayed && (
@@ -2325,7 +2350,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     </div>
   );
 };
-
 const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onBack, showToast }) => {
   const [receipt, setReceipt] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
