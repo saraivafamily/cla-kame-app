@@ -1490,13 +1490,11 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Nova partida em branco adicionada!", "success");
   };
 
-  // 🌟 NOVO: Função para criar um grupo inteiramente novo
   const handleAddNewGroup = (roundId) => {
     const novoG = window.prompt("Qual a letra ou nome do novo grupo? (Ex: E)");
     if (novoG && novoG.trim()) {
       const upperG = novoG.trim().toUpperCase();
       
-      // Atualiza a estrutura geral de grupos da competição, se já não existir
       let updatedGroups = { ...(comp.groups || {}) };
       if (!updatedGroups[upperG]) {
         updatedGroups[upperG] = [];
@@ -1961,10 +1959,82 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                       <h3 className="text-lg font-bold text-white">Classificação da Competição</h3>
                       <Button onClick={() => captureSection('capture-standings', `Tabela-${comp.name}`)} className="text-[10px] py-1.5 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar Tabela</Button>
                     </div>
-                    <div id="capture-standings" className="bg-blue-950 p-6 sm:p-8 rounded-3xl border border-blue-800 shadow-2xl">
-                      <div className="flex items-center gap-4 mb-6"><img src={LOGO_URL} alt="Logo" className="w-16 h-16 object-contain" /><h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-wider">TABELA - {comp.name}</h2></div>
-                      <Standings matches={matches} teams={compTeams} comp={comp} />
+                    
+                    {/* INÍCIO DO NOVO CONTAINER SPLIT VIEW DA TABELA */}
+                    <div id="capture-standings" className="bg-[#0b1120] p-6 sm:p-8 rounded-3xl border border-blue-800 shadow-2xl flex flex-col relative w-full overflow-hidden">
+                        <div className="flex flex-col items-center justify-center mb-8 border-b border-blue-800/50 pb-6">
+                            <h2 className="text-3xl md:text-4xl font-black text-sky-400 uppercase tracking-widest text-center drop-shadow-md">{comp.name}</h2>
+                            <p className="text-blue-300 font-bold uppercase mt-2 tracking-wide">
+                                Classificação Geral {comp.format === 'groups' ? '- Fase de Grupos' : ''}
+                            </p>
+                        </div>
+
+                        {(() => {
+                            // Calcula os dados reais usando sua função já existente!
+                            const tableData = calculateStandings(matches, compTeams, comp.id) || [];
+                            const isSplit = tableData.length > 10;
+                            
+                            const leftCol = isSplit ? tableData.slice(0, 10) : tableData;
+                            const rightCol = isSplit ? tableData.slice(10, 20) : [];
+
+                            const renderRows = (data, startIndex) => (
+                                <table className="w-full text-center border-collapse">
+                                    <thead>
+                                        <tr className="border-b-2 border-blue-800/80">
+                                            <th className="text-left text-blue-300 py-3 font-bold text-xs uppercase tracking-wider px-2" colSpan={2}>CLUBE</th>
+                                            <th className="text-blue-300 py-3 font-bold text-xs uppercase tracking-wider">PTS</th>
+                                            <th className="text-blue-300 py-3 font-bold text-xs uppercase tracking-wider">J</th>
+                                            <th className="text-blue-300 py-3 font-bold text-xs uppercase tracking-wider hidden sm:table-cell">V</th>
+                                            <th className="text-blue-300 py-3 font-bold text-xs uppercase tracking-wider">SG</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {data.map((row, idx) => {
+                                            const pos = startIndex + idx + 1;
+                                            const t = getTeam(row.id);
+                                            
+                                            // Ajuste as zonas de rebaixamento e classificação como desejar
+                                            const isGreenZone = pos <= 4;
+                                            const isRedZone = tableData.length > 12 && pos > tableData.length - 4;
+                                            
+                                            return (
+                                                <tr key={row.id} className="border-b border-white/5 even:bg-white/[0.02] hover:bg-white/5 transition-colors">
+                                                    <td className={`text-left py-3 px-2 flex items-center gap-3 border-l-4 ${isGreenZone ? 'border-emerald-500' : isRedZone ? 'border-red-500' : 'border-transparent'}`}>
+                                                        <span className={`font-bold w-5 text-center ${isGreenZone ? 'text-emerald-500' : isRedZone ? 'text-red-500' : 'text-slate-400'}`}>{pos}</span>
+                                                        <div className="shrink-0"><ShieldDisplay shield={t?.shield} size="small" /></div>
+                                                        <span className="font-bold text-[#f8fafc] truncate max-w-[100px] sm:max-w-[150px]">{t?.name || 'Time Removido'}</span>
+                                                    </td>
+                                                    <td className="font-black text-sky-400 text-lg">{row.points ?? row.pts ?? 0}</td>
+                                                    <td className="text-slate-300 font-medium">{row.played ?? row.j ?? 0}</td>
+                                                    <td className="text-slate-300 font-medium hidden sm:table-cell">{row.won ?? row.v ?? 0}</td>
+                                                    <td className="text-slate-300 font-medium">{row.goalsDifference ?? row.sg ?? 0}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            );
+
+                            return (
+                                <div className={`flex flex-col lg:flex-row gap-6 w-full ${!isSplit && 'max-w-2xl mx-auto'}`}>
+                                    <div className="flex-1 bg-blue-950/40 rounded-2xl p-4 shadow-inner border border-blue-800/50">
+                                        {renderRows(leftCol, 0)}
+                                    </div>
+                                    {isSplit && (
+                                        <div className="flex-1 bg-blue-950/40 rounded-2xl p-4 shadow-inner border border-blue-800/50">
+                                            {renderRows(rightCol, 10)}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                        
+                        <div className="mt-6 flex flex-wrap justify-center gap-6 text-[10px] font-bold uppercase tracking-wider">
+                            <span className="text-emerald-500 flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-emerald-500 rounded-sm"></div> Top 4 (Classificados)</span>
+                            <span className="text-red-500 flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-red-500 rounded-sm"></div> Zona de Risco</span>
+                        </div>
                     </div>
+                    {/* FIM DO NOVO CONTAINER SPLIT VIEW DA TABELA */}
 
                     {groupOrNormalRounds.length > 0 && (
                       <div className="space-y-3 pt-4 border-t border-blue-800/50">
@@ -2001,7 +2071,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                     <div className="p-4 bg-blue-950/40 border-t border-blue-800">
                                       {comp.format === 'groups' ? (
                                          <div className="space-y-6">
-                                           {/* 🌟 AJUSTE AQUI: Grupos dinâmicos e em ordem alfabética */}
                                            {(() => {
                                              const roundGroupsSet = new Set();
                                              if (comp.groups) Object.keys(comp.groups).forEach(g => roundGroupsSet.add(g.toUpperCase()));
@@ -2328,7 +2397,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         onChange={e => setTeamGroupMapping({...teamGroupMapping, [tId]: e.target.value})} 
                         className="bg-blue-900 border border-purple-500/50 rounded-lg p-1.5 text-purple-300 text-xs font-bold outline-none"
                       >
-                        {/* 🌟 AJUSTE: Também coloca os grupos em ordem alfabética no dropdown */}
                         {Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (
                           <option key={gName} value={gName}>Grupo {gName}</option>
                         ))}
@@ -2371,7 +2439,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         }} 
                         className="w-full bg-blue-900 border border-purple-500/40 rounded p-2 text-purple-300 text-xs font-bold outline-none"
                       >
-                        {/* 🌟 AJUSTE: Também ordena os grupos de edição de partida */}
                         {Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (
                           <option key={gName} value={gName}>Grupo {gName}</option>
                         ))}
