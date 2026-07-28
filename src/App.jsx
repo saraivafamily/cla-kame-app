@@ -1315,7 +1315,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     extra: comp.prizes?.extra || ''
   });
 
-  // 🌟 NOVO: ESTADOS PARA EDIÇÃO DE CATEGORIA
   const [showEditCategory, setShowEditCategory] = useState(false);
   const [categoryData, setCategoryData] = useState(comp?.category || 'liga_a');
 
@@ -1325,7 +1324,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const getTeam = (id) => (teams || []).find(t => t && t.id === id);
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
-  // Mapeamento visual das categorias para o cabeçalho
   const CATEGORY_NAMES = {
     liga_a: '🥇 Liga Kame A',
     liga_b: '🥈 Liga Kame B',
@@ -1503,7 +1501,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
           scoreB: finalScoreB !== '' ? parseInt(finalScoreB) : playedMatch.scoreB,
           penaltiesA: editMatchData.penaltiesA !== '' ? parseInt(editMatchData.penaltiesA) : null,
           penaltiesB: editMatchData.penaltiesB !== '' ? parseInt(editMatchData.penaltiesB) : null,
-          goals: (editMatchData.woA || editMatchData.woB) ? [] : updatedGoals, // Limpa os gols em caso de W.O.
+          goals: (editMatchData.woA || editMatchData.woB) ? [] : updatedGoals,
           observacoes: newObs
         });
 
@@ -1529,7 +1527,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Quadro de premiações atualizado!", "success");
   };
 
-  // 🌟 NOVO: FUNÇÃO PARA SALVAR A CATEGORIA DO TORNEIO
   const handleSaveCategory = () => {
     onEditComp({
       ...comp,
@@ -1580,7 +1577,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   };
 
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
-
   const knockoutRounds = (comp.rounds || []).filter(r => r.id.includes('ko') || comp.format === 'cup');
   const groupOrNormalRounds = (comp.rounds || []).filter(r => !r.id.includes('ko') && comp.format !== 'cup');
 
@@ -1667,7 +1663,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </div>
       </div>
 
-      {/* 🌟 NOVO: CAIXA DE EDIÇÃO DE CATEGORIA */}
       {showEditCategory && (
         <div className="bg-blue-950/80 border border-blue-700 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
           <h3 className="text-sm font-bold text-blue-300 uppercase tracking-wider flex items-center gap-2">⚙️ Reclassificar Torneio (Peso no Ranking)</h3>
@@ -1812,8 +1807,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
           <div className="mt-8 pt-8 border-t border-blue-800">
              <Button onClick={handleGenerateBracket} disabled={comp.teams?.length !== comp.teamCount} className="w-full py-5 text-xl font-black rounded-2xl bg-emerald-500 text-blue-950 hover:bg-emerald-400 disabled:bg-blue-900 disabled:text-blue-700 shadow-2xl">
-                🏆 Encerrar Inscrições e Gerar Tabela
-              </Button>
+               🏆 Encerrar Inscrições e Gerar Tabela
+             </Button>
           </div>
         </div>
       ) : (
@@ -1846,224 +1841,155 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                     </div>
 
                     {groupOrNormalRounds.length > 0 && (
-  <div className="space-y-3 pt-4 border-t border-blue-800/50">
-    
-    {/* NOVO: Botão de Toggle do Calendário */}
-    <Button 
-      onClick={() => setShowCalendar(!showCalendar)} 
-      className="w-full mt-4 py-4 bg-blue-900 border border-blue-700 hover:bg-blue-800 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-md"
-    >
-      {showCalendar ? 'Esconder Calendário' : '📅 Ver Calendário de Partidas'}
-    </Button>
+                      <div className="space-y-3 pt-4 border-t border-blue-800/50">
+                        <Button onClick={() => setShowCalendar(!showCalendar)} className="w-full mt-4 py-4 bg-blue-900 border border-blue-700 hover:bg-blue-800 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-md">
+                          {showCalendar ? 'Esconder Calendário' : '📅 Ver Calendário de Partidas'}
+                        </Button>
 
-    {/* Calendário Renderizado Condicionalmente */}
-    {showCalendar && (
-      <div className="mt-6 space-y-4 animate-in slide-in-from-top-4">
-        <h3 className="text-base font-bold text-blue-300 mb-2 pl-2">Calendário de Rodadas</h3>
-        {groupOrNormalRounds.map((round) => {
-          const isExpanded = expandedRoundId === round.id;
-          const isLocked = round.status === 'locked'; 
-          
-          return (
-            <div key={round.id} className={`bg-blue-900 border rounded-xl overflow-hidden ${isLocked ? 'border-blue-800/50' : 'border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.05)]'}`}>
-              <div className="w-full bg-blue-950/60 flex items-center justify-between pr-4">
-                <button type="button" onClick={() => toggleRound(round.id)} className="flex-1 p-4 flex justify-between items-center outline-none">
-                  <span className={`text-sm font-bold flex items-center gap-2 ${isLocked ? 'text-blue-400' : 'text-emerald-400'}`}>
-                    {isLocked ? <Lock size={16} className="text-amber-500"/> : <PlayCircle size={16} className="text-emerald-500"/>} 
-                    Rodada {round.number}
-                  </span>
-                  <span className="text-blue-500 text-xs font-bold mr-2">{isExpanded ? '▲ Recolher' : '▼ Expandir'}</span>
-                </button>
-                
-                {isAdmin && isLocked && (
-                  <button type="button" onClick={(e) => { e.stopPropagation(); onReleaseRound(comp.id, round.id); }} className="bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[10px] px-3 py-1.5 rounded uppercase tracking-wider transition-colors shrink-0 shadow-md">
-                    🔓 Liberar
-                  </button>
-                )}
-              </div>
-              
-              {isExpanded && (
-                <div className="p-4 bg-blue-950/40 border-t border-blue-800">
-                  
-                  {/* NOVO: Lógica Condicional para Fase de Grupos vs Liga Normal */}
-                  {comp.format === 'groups' ? (
-                     <div className="space-y-6">
-                       {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(groupLetter => {
-                         // Filtra os jogos para identificar quais times pertencem ao grupo atual
-                         // Verifica no comp.groups quais IDs de times estão naquele grupo
-                         const groupTeamIds = comp.groups && comp.groups[groupLetter] ? comp.groups[groupLetter] : [];
-                         
-                         const matchesInGroup = round.matches.filter(m => 
-                           groupTeamIds.includes(m.teamA) || groupTeamIds.includes(m.teamB)
-                         );
-                         
-                         if (matchesInGroup.length === 0) return null;
-
-                         return (
-                           <div key={groupLetter} className="space-y-3">
-                             <div className="bg-blue-900/50 py-1 px-3 rounded-lg border border-blue-800/50 inline-block">
-                               <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-                                 Confrontos Grupo {groupLetter}
-                               </span>
-                             </div>
-                             
-                             <div className="grid grid-cols-1 gap-3">
-                               {matchesInGroup.map(m => {
-                                 // CÓDIGO DO SEU CARD DE PARTIDA ORIGINAL
-                                 const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
-                                 return (
-                                   <div key={m.id} className="relative group">
-                                     <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
-                                       
-                                       <div className="flex flex-col items-center text-center w-1/3 min-w-0">
-                                         <ShieldDisplay shield={tA?.shield} size="normal" />
-                                         <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tA?.name || m.placeholderA}</span>
-                                       </div>
-
-                                       <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
-                                         <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
-                                           {isLocked ? '🔒 Bloqueado' : sUI.text}
-                                         </span>
-                                         <div className="flex items-center justify-center gap-2">
-                                           {sUI.isPlayed ? (
-                                             <>
-                                               {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}
-                                               <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span>
-                                               <span className="text-blue-700 font-bold text-xl">:</span>
-                                               <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>
-                                               {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}
-                                             </>
-                                           ) : (
-                                             <span className="text-blue-700 font-bold text-xl">:</span>
-                                           )}
-                                         </div>
-                                       </div>
-
-                                       <div className="flex flex-col items-center text-center w-1/3 min-w-0">
-                                         <ShieldDisplay shield={tB?.shield} size="normal" />
-                                         <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tB?.name || m.placeholderB}</span>
-                                       </div>
-                                     </div>
-                                     
-                                     {isAdmin && (
-                                       <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto / Placar"><Edit size={12} /></button>
-                                     )}
-                                   </div>
-                                 );
-                               })}
-                             </div>
-                           </div>
-                         );
-                       })}
-                     </div>
-                  ) : (
-                     // LÓGICA ORIGINAL PARA LIGAS (Pontos Corridos Sem Grupos)
-                     <div className="grid grid-cols-1 gap-3">
-                       {round.matches.map(m => {
-                         const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
-                         return (
-                           <div key={m.id} className="relative group">
-                             <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
-                               
-                               <div className="flex flex-col items-center text-center w-1/3 min-w-0">
-                                 <ShieldDisplay shield={tA?.shield} size="normal" />
-                                 <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tA?.name || m.placeholderA}</span>
-                               </div>
-
-                               <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
-                                 <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
-                                   {isLocked ? '🔒 Bloqueado' : sUI.text}
-                                 </span>
-                                 <div className="flex items-center justify-center gap-2">
-                                   {sUI.isPlayed ? (
-                                     <>
-                                       {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}
-                                       <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span>
-                                       <span className="text-blue-700 font-bold text-xl">:</span>
-                                       <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>
-                                       {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}
-                                     </>
-                                   ) : (
-                                     <span className="text-blue-700 font-bold text-xl">:</span>
-                                   )}
-                                 </div>
-                               </div>
-
-                               <div className="flex flex-col items-center text-center w-1/3 min-w-0">
-                                 <ShieldDisplay shield={tB?.shield} size="normal" />
-                                 <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tB?.name || m.placeholderB}</span>
-                               </div>
-                             </div>
-                             
-                             {isAdmin && (
-                               <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto / Placar"><Edit size={12} /></button>
-                             )}
-                           </div>
-                         );
-                       })}
-                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    )}
-  </div>
-)}
+                        {showCalendar && (
+                          <div className="mt-6 space-y-4 animate-in slide-in-from-top-4">
+                            <h3 className="text-base font-bold text-blue-300 mb-2 pl-2">Calendário de Rodadas</h3>
+                            {groupOrNormalRounds.map((round) => {
+                              const isExpanded = expandedRoundId === round.id;
+                              const isLocked = round.status === 'locked'; 
                               
-                              {isExpanded && (
-                                <div className="p-4 bg-blue-950/40 grid grid-cols-1 gap-3 border-t border-blue-800">
-                                  {round.matches.map(m => {
-                                    const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                              return (
+                                <div key={round.id} className={`bg-blue-900 border rounded-xl overflow-hidden ${isLocked ? 'border-blue-800/50' : 'border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.05)]'}`}>
+                                  <div className="w-full bg-blue-950/60 flex items-center justify-between pr-4">
+                                    <button type="button" onClick={() => toggleRound(round.id)} className="flex-1 p-4 flex justify-between items-center outline-none">
+                                      <span className={`text-sm font-bold flex items-center gap-2 ${isLocked ? 'text-blue-400' : 'text-emerald-400'}`}>
+                                        {isLocked ? <Lock size={16} className="text-amber-500"/> : <PlayCircle size={16} className="text-emerald-500"/>} 
+                                        Rodada {round.number}
+                                      </span>
+                                      <span className="text-blue-500 text-xs font-bold mr-2">{isExpanded ? '▲ Recolher' : '▼ Expandir'}</span>
+                                    </button>
                                     
-                                    return (
-                                      <div key={m.id} className="relative group">
-                                        <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
-                                          
-                                          <div className="flex flex-col items-center text-center w-1/3 min-w-0">
-                                            <ShieldDisplay shield={tA?.shield} size="normal" />
-                                            <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tA?.name || m.placeholderA}</span>
-                                          </div>
+                                    {isAdmin && isLocked && (
+                                      <button type="button" onClick={(e) => { e.stopPropagation(); onReleaseRound(comp.id, round.id); }} className="bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[10px] px-3 py-1.5 rounded uppercase tracking-wider transition-colors shrink-0 shadow-md">
+                                        🔓 Liberar
+                                      </button>
+                                    )}
+                                  </div>
+                                  
+                                  {isExpanded && (
+                                    <div className="p-4 bg-blue-950/40 border-t border-blue-800">
+                                      {comp.format === 'groups' ? (
+                                         <div className="space-y-6">
+                                           {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(groupLetter => {
+                                             const groupTeamIds = comp.groups && comp.groups[groupLetter] ? comp.groups[groupLetter] : [];
+                                             const matchesInGroup = round.matches.filter(m => groupTeamIds.includes(m.teamA) || groupTeamIds.includes(m.teamB));
+                                             
+                                             if (matchesInGroup.length === 0) return null;
 
-                                          <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
-                                            <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
-                                              {isLocked ? '🔒 Bloqueado' : sUI.text}
-                                            </span>
-                                            <div className="flex items-center justify-center gap-2">
-                                              {sUI.isPlayed ? (
-                                                <>
-                                                  {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}
-                                                  <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span>
-                                                  <span className="text-blue-700 font-bold text-xl">:</span>
-                                                  <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>
-                                                  {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}
-                                                </>
-                                              ) : (
-                                                <span className="text-blue-700 font-bold text-xl">:</span>
-                                              )}
-                                            </div>
-                                          </div>
+                                             return (
+                                               <div key={groupLetter} className="space-y-3">
+                                                 <div className="bg-blue-900/50 py-1 px-3 rounded-lg border border-blue-800/50 inline-block">
+                                                   <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                                                     Confrontos Grupo {groupLetter}
+                                                   </span>
+                                                 </div>
+                                                 
+                                                 <div className="grid grid-cols-1 gap-3">
+                                                   {matchesInGroup.map(m => {
+                                                     const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                                                     return (
+                                                       <div key={m.id} className="relative group">
+                                                         <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
+                                                           
+                                                           <div className="flex flex-col items-center text-center w-1/3 min-w-0">
+                                                             <ShieldDisplay shield={tA?.shield} size="normal" />
+                                                             <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tA?.name || m.placeholderA}</span>
+                                                           </div>
 
-                                          <div className="flex flex-col items-center text-center w-1/3 min-w-0">
-                                            <ShieldDisplay shield={tB?.shield} size="normal" />
-                                            <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tB?.name || m.placeholderB}</span>
-                                          </div>
-                                        </div>
-                                        
-                                        {/* ✏️ BOTÃO EDITAR (Tabela) */}
-                                        {isAdmin && (
-                                          <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto / Placar"><Edit size={12} /></button>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                                                           <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
+                                                             <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
+                                                               {isLocked ? '🔒 Bloqueado' : sUI.text}
+                                                             </span>
+                                                             <div className="flex items-center justify-center gap-2">
+                                                               {sUI.isPlayed ? (
+                                                                 <>
+                                                                   {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}
+                                                                   <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span>
+                                                                   <span className="text-blue-700 font-bold text-xl">:</span>
+                                                                   <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>
+                                                                   {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}
+                                                                 </>
+                                                               ) : (
+                                                                 <span className="text-blue-700 font-bold text-xl">:</span>
+                                                               )}
+                                                             </div>
+                                                           </div>
+
+                                                           <div className="flex flex-col items-center text-center w-1/3 min-w-0">
+                                                             <ShieldDisplay shield={tB?.shield} size="normal" />
+                                                             <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tB?.name || m.placeholderB}</span>
+                                                           </div>
+                                                         </div>
+                                                         
+                                                         {isAdmin && (
+                                                           <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto / Placar"><Edit size={12} /></button>
+                                                         )}
+                                                       </div>
+                                                     );
+                                                   })}
+                                                 </div>
+                                               </div>
+                                             );
+                                           })}
+                                         </div>
+                                      ) : (
+                                         <div className="grid grid-cols-1 gap-3">
+                                           {round.matches.map(m => {
+                                             const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                                             return (
+                                               <div key={m.id} className="relative group">
+                                                 <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
+                                                   
+                                                   <div className="flex flex-col items-center text-center w-1/3 min-w-0">
+                                                     <ShieldDisplay shield={tA?.shield} size="normal" />
+                                                     <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tA?.name || m.placeholderA}</span>
+                                                   </div>
+
+                                                   <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
+                                                     <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
+                                                       {isLocked ? '🔒 Bloqueado' : sUI.text}
+                                                     </span>
+                                                     <div className="flex items-center justify-center gap-2">
+                                                       {sUI.isPlayed ? (
+                                                         <>
+                                                           {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}
+                                                           <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span>
+                                                           <span className="text-blue-700 font-bold text-xl">:</span>
+                                                           <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>
+                                                           {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}
+                                                         </>
+                                                       ) : (
+                                                         <span className="text-blue-700 font-bold text-xl">:</span>
+                                                       )}
+                                                     </div>
+                                                   </div>
+
+                                                   <div className="flex flex-col items-center text-center w-1/3 min-w-0">
+                                                     <ShieldDisplay shield={tB?.shield} size="normal" />
+                                                     <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tB?.name || m.placeholderB}</span>
+                                                   </div>
+                                                 </div>
+                                                 
+                                                 {isAdmin && (
+                                                   <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto / Placar"><Edit size={12} /></button>
+                                                 )}
+                                               </div>
+                                             );
+                                           })}
+                                         </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2155,7 +2081,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
                                       </div>
                                       
-                                      {/* ✏️ BOTÃO EDITAR (Chaves) */}
                                       {isAdmin && (
                                         <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto / Placar"><Edit size={12} /></button>
                                       )}
@@ -2211,14 +2136,12 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </>
       )}
 
-      {/* 📦 MODAL DE EDIÇÃO DE CONFRONTO E PLACAR */}
       {editMatchData && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setEditMatchData(null)}>
           <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-md p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Edit size={18} className="text-amber-400"/> Editar Partida</h3>
             
             <div className="space-y-4">
-              {/* Alterar Times */}
               <div className="bg-blue-950 p-4 rounded-xl border border-blue-800">
                   <p className="text-xs font-bold text-blue-400 mb-2 uppercase tracking-widest">Alterar Times do Confronto</p>
                   <div className="space-y-2">
@@ -2240,7 +2163,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                   </div>
               </div>
 
-              {/* Alterar Placar (Se já foi jogado) */}
               {editMatchData.hasPlayed && (
                   <div className="bg-emerald-900/20 p-4 rounded-xl border border-emerald-500/30">
                       <div className="flex justify-between items-center mb-2">
@@ -2292,7 +2214,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </div>
 
             <div className="flex justify-between items-center mt-5 pt-4 border-t border-blue-800">
-              {/* 🗑️ BOTÃO DE EXCLUIR PLACAR */}
               {editMatchData.hasPlayed ? (
                 <button type="button" onClick={() => {
                   if(window.confirm('Tem certeza que deseja apagar o resultado desta partida? Ela voltará a ficar pendente e os pontos serão removidos da tabela.')) {
