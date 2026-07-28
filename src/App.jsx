@@ -1470,7 +1470,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Mata-Mata preenchido com os classificados!", "success");
   };
 
-  // 🌟 NOVO: FUNÇÃO PARA ADICIONAR PARTIDA MANUALMENTE NO GRUPO
   const handleAddMatchToGroup = (roundId, groupLetter) => {
     const newMatch = {
       id: `m_manual_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
@@ -1491,6 +1490,39 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Nova partida em branco adicionada!", "success");
   };
 
+  // 🌟 NOVO: Função para criar um grupo inteiramente novo
+  const handleAddNewGroup = (roundId) => {
+    const novoG = window.prompt("Qual a letra ou nome do novo grupo? (Ex: E)");
+    if (novoG && novoG.trim()) {
+      const upperG = novoG.trim().toUpperCase();
+      
+      // Atualiza a estrutura geral de grupos da competição, se já não existir
+      let updatedGroups = { ...(comp.groups || {}) };
+      if (!updatedGroups[upperG]) {
+        updatedGroups[upperG] = [];
+      }
+      
+      const newMatch = {
+        id: `m_manual_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        teamA: '',
+        teamB: '',
+        group: upperG,
+        placeholderA: 'A Definir',
+        placeholderB: 'A Definir'
+      };
+      
+      const updatedRounds = comp.rounds.map(r => {
+        if (r.id === roundId) {
+          return { ...r, matches: [...r.matches, newMatch] };
+        }
+        return r;
+      });
+      
+      onEditComp({ ...comp, rounds: updatedRounds, groups: updatedGroups });
+      showToast(`Grupo ${upperG} criado com sucesso!`, "success");
+    }
+  };
+
   const handleOpenEditModal = (m, roundId) => {
     const playedMatch = (matches || []).find(x => x.matchId === m.id && x.compId === comp.id && x.status !== 'rejected');
     setEditMatchData({ 
@@ -1508,11 +1540,9 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     }); 
   };
 
-  // 🌟 NOVO: FUNÇÃO PARA EXCLUIR PARTIDA INTEIRA DO CALENDÁRIO
   const handleDeleteMatchCompletely = () => {
     if(!window.confirm("Tem certeza que deseja apagar ESTA PARTIDA INTEIRA do calendário?")) return;
     
-    // Se a partida tiver resultado validado, apaga ele também do histórico geral
     if (editMatchData.hasPlayed && onDeleteMatch && editMatchData.playedMatchId) {
        onDeleteMatch(editMatchData.playedMatchId);
     }
@@ -1625,7 +1655,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
   const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id));
 
-  // 🌟 NOVO: FILTRA OS TIMES DISPONÍVEIS NO MODAL BASEADO NO GRUPO ESCOLHIDO
   const availableTeamsForEdit = (comp.format === 'groups' && editMatchData?.group && comp.groups)
     ? (comp.groups[editMatchData.group] || [])
     : (comp.teams || []);
@@ -1972,82 +2001,104 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                     <div className="p-4 bg-blue-950/40 border-t border-blue-800">
                                       {comp.format === 'groups' ? (
                                          <div className="space-y-6">
-                                           {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(groupLetter => {
-                                             const matchesInGroup = round.matches.filter(m => {
-                                               if (m.group) {
-                                                 return m.group.toUpperCase() === groupLetter.toUpperCase();
-                                               }
-                                               const groupTeamIds = comp.groups && comp.groups[groupLetter] ? comp.groups[groupLetter] : [];
-                                               return groupTeamIds.includes(m.teamA) || groupTeamIds.includes(m.teamB);
+                                           {/* 🌟 AJUSTE AQUI: Grupos dinâmicos e em ordem alfabética */}
+                                           {(() => {
+                                             const roundGroupsSet = new Set();
+                                             if (comp.groups) Object.keys(comp.groups).forEach(g => roundGroupsSet.add(g.toUpperCase()));
+                                             round.matches.forEach(m => {
+                                               if (m.group) roundGroupsSet.add(m.group.toUpperCase());
                                              });
-                                             
-                                             if (matchesInGroup.length === 0) return null;
+                                             const sortedGroups = Array.from(roundGroupsSet).sort((a, b) => a.localeCompare(b));
 
                                              return (
-                                               <div key={groupLetter} className="space-y-3">
-                                                 <div className="bg-blue-900/50 py-1 px-3 rounded-lg border border-blue-800/50 inline-flex items-center gap-3">
-                                                   <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-                                                     Confrontos Grupo {groupLetter}
-                                                   </span>
-                                                   {/* 🌟 BOTÃO: ADICIONAR PARTIDA AO GRUPO */}
-                                                   {isAdmin && !isLocked && (
-                                                     <button type="button" onClick={() => handleAddMatchToGroup(round.id, groupLetter)} className="text-[9px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-0.5 rounded shadow transition-colors">
-                                                       + Novo Jogo
-                                                     </button>
-                                                   )}
-                                                 </div>
-                                                 
-                                                 <div className="grid grid-cols-1 gap-3">
-                                                   {matchesInGroup.map(m => {
-                                                     const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
-                                                     return (
-                                                       <div key={m.id} className="relative group">
-                                                         <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
-                                                           
-                                                           <div className="flex flex-col items-center text-center w-1/3 min-w-0">
-                                                             <ShieldDisplay shield={tA?.shield} size="normal" />
-                                                             <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tA?.name || m.placeholderA}</span>
-                                                           </div>
+                                               <>
+                                                 {sortedGroups.map(groupLetter => {
+                                                   const matchesInGroup = round.matches.filter(m => {
+                                                     if (m.group) {
+                                                       return m.group.toUpperCase() === groupLetter;
+                                                     }
+                                                     const groupTeamIds = comp.groups && comp.groups[groupLetter] ? comp.groups[groupLetter] : [];
+                                                     return groupTeamIds.includes(m.teamA) || groupTeamIds.includes(m.teamB);
+                                                   });
 
-                                                           <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
-                                                             <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
-                                                               {isLocked ? '🔒 Bloqueado' : sUI.text}
-                                                             </span>
-                                                             <div className="flex items-center justify-center gap-2">
-                                                               {sUI.isPlayed ? (
-                                                                 <>
-                                                                   {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}
-                                                                   <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span>
-                                                                   <span className="text-blue-700 font-bold text-xl">:</span>
-                                                                   <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>
-                                                                   {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}
-                                                                 </>
-                                                               ) : (
-                                                                 <span className="text-blue-700 font-bold text-xl">:</span>
-                                                               )}
-                                                             </div>
-                                                           </div>
-
-                                                           <div className="flex flex-col items-center text-center w-1/3 min-w-0">
-                                                             <ShieldDisplay shield={tB?.shield} size="normal" />
-                                                             <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tB?.name || m.placeholderB}</span>
-                                                           </div>
-                                                         </div>
-                                                         
-                                                         {isAdmin && (
-                                                           <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto / Placar"><Edit size={12} /></button>
+                                                   return (
+                                                     <div key={groupLetter} className="space-y-3">
+                                                       <div className="bg-blue-900/50 py-1 px-3 rounded-lg border border-blue-800/50 flex items-center justify-between gap-3">
+                                                         <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                                                           Confrontos Grupo {groupLetter}
+                                                         </span>
+                                                         {isAdmin && !isLocked && (
+                                                           <button type="button" onClick={() => handleAddMatchToGroup(round.id, groupLetter)} className="text-[9px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-0.5 rounded shadow transition-colors shrink-0">
+                                                             + Novo Jogo
+                                                           </button>
                                                          )}
                                                        </div>
-                                                     );
-                                                   })}
-                                                 </div>
-                                               </div>
+                                                       
+                                                       {matchesInGroup.length === 0 ? (
+                                                         <p className="text-[10px] text-blue-400/70 italic px-2">Sem jogos marcados para este grupo nesta rodada.</p>
+                                                       ) : (
+                                                         <div className="grid grid-cols-1 gap-3">
+                                                           {matchesInGroup.map(m => {
+                                                             const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                                                             return (
+                                                               <div key={m.id} className="relative group">
+                                                                 <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
+                                                                   
+                                                                   <div className="flex flex-col items-center text-center w-1/3 min-w-0">
+                                                                     <ShieldDisplay shield={tA?.shield} size="normal" />
+                                                                     <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tA?.name || m.placeholderA}</span>
+                                                                   </div>
+
+                                                                   <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
+                                                                     <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>
+                                                                       {isLocked ? '🔒 Bloqueado' : sUI.text}
+                                                                     </span>
+                                                                     <div className="flex items-center justify-center gap-2">
+                                                                       {sUI.isPlayed ? (
+                                                                         <>
+                                                                           {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}
+                                                                           <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span>
+                                                                           <span className="text-blue-700 font-bold text-xl">:</span>
+                                                                           <span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>
+                                                                           {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}
+                                                                         </>
+                                                                       ) : (
+                                                                         <span className="text-blue-700 font-bold text-xl">:</span>
+                                                                       )}
+                                                                     </div>
+                                                                   </div>
+
+                                                                   <div className="flex flex-col items-center text-center w-1/3 min-w-0">
+                                                                     <ShieldDisplay shield={tB?.shield} size="normal" />
+                                                                     <span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1">{tB?.name || m.placeholderB}</span>
+                                                                   </div>
+                                                                 </div>
+                                                                 
+                                                                 {isAdmin && (
+                                                                   <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto / Placar"><Edit size={12} /></button>
+                                                                 )}
+                                                               </div>
+                                                             );
+                                                           })}
+                                                         </div>
+                                                       )}
+                                                     </div>
+                                                   );
+                                                 })}
+
+                                                 {isAdmin && !isLocked && (
+                                                   <div className="mt-4 pt-4 border-t border-blue-800/50">
+                                                     <button type="button" onClick={() => handleAddNewGroup(round.id)} className="text-[10px] bg-blue-800 hover:bg-blue-700 text-blue-300 font-bold px-3 py-2 rounded shadow transition-colors w-full border border-blue-700 border-dashed">
+                                                       + Criar Novo Grupo na Rodada
+                                                     </button>
+                                                   </div>
+                                                 )}
+                                               </>
                                              );
-                                           })}
+                                           })()}
                                          </div>
                                       ) : (
                                          <div>
-                                           {/* 🌟 BOTÃO: ADICIONAR PARTIDA (Caso seja Liga sem grupos) */}
                                            {isAdmin && !isLocked && (
                                              <div className="mb-3">
                                                <button type="button" onClick={() => handleAddMatchToGroup(round.id, null)} className="text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded shadow transition-colors">
@@ -2277,7 +2328,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         onChange={e => setTeamGroupMapping({...teamGroupMapping, [tId]: e.target.value})} 
                         className="bg-blue-900 border border-purple-500/50 rounded-lg p-1.5 text-purple-300 text-xs font-bold outline-none"
                       >
-                        {Object.keys(comp.groups || {}).map(gName => (
+                        {/* 🌟 AJUSTE: Também coloca os grupos em ordem alfabética no dropdown */}
+                        {Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (
                           <option key={gName} value={gName}>Grupo {gName}</option>
                         ))}
                       </select>
@@ -2310,7 +2362,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                       <select 
                         value={editMatchData.group || 'A'} 
                         onChange={e => {
-                          // Se mudar o grupo, zera os times escolhidos pra evitar erro
                           setEditMatchData({
                             ...editMatchData, 
                             group: e.target.value,
@@ -2320,7 +2371,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         }} 
                         className="w-full bg-blue-900 border border-purple-500/40 rounded p-2 text-purple-300 text-xs font-bold outline-none"
                       >
-                        {Object.keys(comp.groups || {}).map(gName => (
+                        {/* 🌟 AJUSTE: Também ordena os grupos de edição de partida */}
+                        {Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (
                           <option key={gName} value={gName}>Grupo {gName}</option>
                         ))}
                       </select>
@@ -2379,16 +2431,16 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                       </div>
                       
                       <div className="flex items-center justify-center gap-3">
-                          <input type="text" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreA} onChange={e => setEditMatchData({...editMatchData, scoreA: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none focus:border-amber-400 disabled:opacity-50" />
+                          <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreA} onChange={e => setEditMatchData({...editMatchData, scoreA: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none focus:border-amber-400 disabled:opacity-50" />
                           <span className="font-bold text-blue-500">X</span>
-                          <input type="text" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreB} onChange={e => setEditMatchData({...editMatchData, scoreB: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none focus:border-amber-400 disabled:opacity-50" />
+                          <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreB} onChange={e => setEditMatchData({...editMatchData, scoreB: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none focus:border-amber-400 disabled:opacity-50" />
                       </div>
                       
                       {comp.format !== 'league' && (
                           <div className="mt-3 flex items-center justify-center gap-3">
-                              <input type="number" placeholder="Pên A" value={editMatchData.penaltiesA} onChange={e => setEditMatchData({...editMatchData, penaltiesA: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
+                              <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="Pên A" value={editMatchData.penaltiesA} onChange={e => setEditMatchData({...editMatchData, penaltiesA: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
                               <span className="text-[10px] text-amber-500 font-bold uppercase">Pênaltis</span>
-                              <input type="number" placeholder="Pên B" value={editMatchData.penaltiesB} onChange={e => setEditMatchData({...editMatchData, penaltiesB: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
+                              <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="Pên B" value={editMatchData.penaltiesB} onChange={e => setEditMatchData({...editMatchData, penaltiesB: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
                           </div>
                       )}
                       <p className="text-[10px] text-emerald-500/70 text-center mt-3 leading-tight">Ao salvar, a tabela será recalculada automaticamente com este novo placar.</p>
