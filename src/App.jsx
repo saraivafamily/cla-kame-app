@@ -1074,7 +1074,6 @@ const RulesPage = () => {
           <h3 className="font-bold text-emerald-400 mb-3 flex items-center gap-2">🤝 1. Fair Play e Respeito</h3>
           <ul className="text-sm text-blue-200 space-y-2 list-disc pl-4">
             <li>É terminantemente proibido ofender, xingar ou desrespeitar qualquer membro do clã.</li>
-            <li>Goleiro na linha, toques na zaga por muito tempo (cera) e antijogo passível de denúncia gerarão punições severas.</li>
             <li>Mantenha a resenha saudável. Foco na diversão e competição limpa.</li>
           </ul>
         </div>
@@ -1083,7 +1082,6 @@ const RulesPage = () => {
           <h3 className="font-bold text-amber-400 mb-3 flex items-center gap-2">⏰ 2. Prazos e W.O.</h3>
           <ul className="text-sm text-blue-200 space-y-2 list-disc pl-4">
             <li>Os líderes definirão prazos para as rodadas. Jogos não realizados no prazo darão W.O. duplo, a menos que um dos técnicos prove que procurou o adversário.</li>
-            <li>Se o adversário marcar com você e não comparecer após 15 minutos de tolerância, você pode reivindicar a vitória por W.O (3x0).</li>
           </ul>
         </div>
 
@@ -1091,7 +1089,7 @@ const RulesPage = () => {
           <h3 className="font-bold text-sky-400 mb-3 flex items-center gap-2">📸 3. Envio de Resultados</h3>
           <ul className="text-sm text-blue-200 space-y-2 list-disc pl-4">
             <li>Sempre tire o PRINT DA TELA FINAL DE ESTATÍSTICAS do jogo (aquela que mostra gols, chutes, posse).</li>
-            <li>Vá na aba "Registrar Partida" e anexe o print. A nossa Inteligência Artificial vai ler o placar automaticamente.</li>
+            <li>Nos envie o print no grupo do Whatsapp</li>
             <li>Resultados forjados ou prints editados resultarão em banimento imediato.</li>
           </ul>
         </div>
