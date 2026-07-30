@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
-import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key } from 'lucide-react';
+import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal } from 'lucide-react';
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
 const firebaseConfig = { 
@@ -225,31 +225,21 @@ const LoginScreen = ({ onLogin, onRegister }) => {
   );
 };
 
-const SocialFeed = ({ currentUser, teams, showToast }) => {
-  const [posts, setPosts] = useState([]);
+const SocialFeed = ({ currentUser, teams, showToast, posts }) => {
   const [newPost, setNewPost] = useState('');
   const [commentText, setCommentText] = useState({});
   const [postImage, setPostImage] = useState(null);
   const [isPosting, setIsPosting] = useState(false);
+  const [activeMenu, setActiveMenu] = useState(null); // Controla os 3 pontinhos
 
-  // 1. CONECTA O FEED COM O FIREBASE EM TEMPO REAL
-  useEffect(() => {
-    const unsub = onSnapshot(getPublicPath('feed'), snap => {
-      const fetched = snap.docs.map(d => d.data()).sort((a, b) => b.timestamp - a.timestamp);
-      setPosts(fetched);
-    });
-    return () => unsub();
-  }, []);
-
-  // 2. FUNÇÃO PARA LER E COMPRIMIR A FOTO
+  // 1. FUNÇÃO PARA LER E COMPRIMIR A FOTO
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if(!file) return;
-    // Usamos o processScreenshot que deixa a qualidade boa (900px) sem pesar o banco de dados
     processScreenshot(file, (base64) => setPostImage(base64));
   };
 
-  // 3. ENVIAR PARA O FIREBASE
+  // 2. ENVIAR PARA O FIREBASE
   const handlePost = async (e) => {
     e.preventDefault();
     if (!newPost.trim() && !postImage) return;
@@ -291,7 +281,6 @@ const SocialFeed = ({ currentUser, teams, showToast }) => {
     if (!text?.trim()) return;
     const post = posts.find(p => p.id === postId);
     if(!post) return;
-    // Salvamos o authorId para poder exibir o time dele no comentário também
     const newComment = { id: `c_${Date.now()}`, authorId: currentUser?.id || 'anon', authorName: currentUser?.name || 'Membro', text, timestamp: Date.now() };
     await updateDoc(getPublicDocPath('feed', postId), { comments: [...post.comments, newComment] });
     setCommentText({ ...commentText, [postId]: '' });
@@ -300,10 +289,11 @@ const SocialFeed = ({ currentUser, teams, showToast }) => {
   const handleDelete = async (postId) => {
     if(window.confirm('Tem certeza que deseja apagar esta publicação?')) {
       await deleteDoc(getPublicDocPath('feed', postId));
+      setActiveMenu(null);
+      showToast("Publicação apagada.", "success");
     }
   };
 
-  // 4. FUNÇÃO MÁGICA: Acha o time correspondente ao técnico na hora de exibir
   const getUserTeamName = (userId) => {
     if (!userId || userId === 'anon') return '';
     const team = (teams || []).find(t => t.ownerId === userId);
@@ -312,95 +302,138 @@ const SocialFeed = ({ currentUser, teams, showToast }) => {
 
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in pb-12">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">📱 Feed da Resenha</h2>
-
-      {/* Caixa de Nova Publicação */}
-      <div className="bg-blue-900 p-4 rounded-2xl border border-blue-800 mb-8 shadow-lg">
-        <form onSubmit={handlePost} className="flex flex-col gap-3">
-          <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="Mande a resenha, cole o link do seu vídeo ou anexe uma foto..." className="w-full bg-blue-950 border border-blue-700 rounded-xl p-4 text-white placeholder:text-blue-500 focus:ring-2 focus:ring-emerald-500 outline-none resize-none min-h-[80px]" />
-          
-          {postImage && (
-            <div className="relative inline-block self-start mt-2">
-              <img src={postImage} alt="Preview" className="h-32 rounded-lg border border-emerald-500/50 shadow-md object-contain bg-black/50" />
-              <button type="button" onClick={() => setPostImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:scale-110 transition-transform"><X size={14}/></button>
-            </div>
-          )}
-
-          <div className="flex justify-between items-center mt-2 border-t border-blue-800/50 pt-3">
-            <label className="cursor-pointer text-blue-400 hover:text-emerald-400 flex items-center gap-2 transition-colors px-2 py-1 rounded-lg hover:bg-blue-800">
-              <Camera size={20} /> <span className="text-sm font-bold">Anexar Foto</span>
-              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-            </label>
-            <button type="submit" disabled={(!newPost.trim() && !postImage) || isPosting} className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-blue-800 disabled:text-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2">
-              <Send size={16} /> {isPosting ? 'Enviando...' : 'Publicar'}
-            </button>
-          </div>
-        </form>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-black text-white tracking-wide">Feed da Resenha</h2>
       </div>
 
-      {/* Lista de Posts Sincronizada */}
-      <div className="space-y-6">
-        {posts.length === 0 && <p className="text-center text-blue-500 p-8 bg-blue-900 rounded-2xl border border-blue-800">Nenhuma publicação ainda. Seja o primeiro a postar!</p>}
+      {/* 🚀 NOVA CAIXA DE PUBLICAÇÃO (Estilo Twitter/X) */}
+      <div className="bg-blue-900/60 p-4 sm:p-5 rounded-3xl border border-blue-800/80 mb-8 shadow-xl">
+        <div className="flex gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-800 rounded-full flex items-center justify-center overflow-hidden border-2 border-emerald-500/30 shrink-0 shadow-inner">
+            {currentUser?.photoURL ? <img src={currentUser.photoURL} alt="Você" className="w-full h-full object-cover"/> : <User size={20} className="text-blue-400"/>}
+          </div>
+          <form onSubmit={handlePost} className="flex-1 flex flex-col pt-1">
+            <textarea 
+              value={newPost} 
+              onChange={e => setNewPost(e.target.value)} 
+              placeholder="O que está acontecendo na arena?" 
+              className="w-full bg-transparent text-white placeholder:text-blue-400 text-lg focus:outline-none resize-none min-h-[60px]" 
+            />
+            
+            {postImage && (
+              <div className="relative inline-block self-start mt-3 mb-2 group">
+                <img src={postImage} alt="Preview" className="max-h-48 rounded-2xl border border-blue-700 shadow-md object-contain bg-black/40" />
+                <button type="button" onClick={() => setPostImage(null)} className="absolute top-2 right-2 bg-black/70 hover:bg-red-500 text-white rounded-full p-1.5 backdrop-blur-sm transition-colors"><X size={16}/></button>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center mt-3 pt-3 border-t border-blue-800/50">
+              <label className="cursor-pointer text-emerald-500 hover:bg-emerald-500/10 p-2 rounded-full transition-colors" title="Anexar Imagem">
+                <Camera size={20} />
+                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+              </label>
+              <button type="submit" disabled={(!newPost.trim() && !postImage) || isPosting} className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-1.5 px-5 rounded-full transition-all shadow-md flex items-center gap-2">
+                {isPosting ? 'Postando...' : 'Postar'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* 📰 LISTA DE POSTS */}
+      <div className="space-y-5">
+        {posts.length === 0 && <p className="text-center text-blue-500 p-8 bg-blue-900/30 rounded-3xl border border-blue-800/50 border-dashed">Nenhuma resenha ainda. Seja o primeiro!</p>}
         {posts.map(post => {
           const isLiked = post.likes.includes(currentUser?.id);
           const isAuthorOrAdmin = post.authorId === currentUser?.id || currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-          
-          // Busca o time dinamicamente
           const teamName = getUserTeamName(post.authorId);
           
           return (
-            <div key={post.id} className="bg-blue-900 rounded-2xl border border-blue-800 p-5 shadow-md relative group">
+            <div key={post.id} className="bg-blue-950/40 rounded-3xl border border-blue-800/60 p-4 sm:p-5 shadow-md hover:border-blue-700 transition-colors">
               
-              {isAuthorOrAdmin && (
-                <button onClick={() => handleDelete(post.id)} className="absolute top-4 right-4 text-blue-500 hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-blue-950 p-2 rounded-lg" title="Apagar Post"><Trash2 size={16}/></button>
-              )}
+              {/* Header do Post */}
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-800 rounded-full flex items-center justify-center overflow-hidden shrink-0 border border-blue-700">
+                    {post.authorPhoto ? <img src={post.authorPhoto} alt="Foto" className="w-full h-full object-cover"/> : <User size={18} className="text-blue-400"/>}
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-white text-sm hover:underline cursor-pointer">{post.authorName}</span>
+                      {teamName && <span className="text-[10px] bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded font-medium border border-blue-800">{teamName}</span>}
+                    </div>
+                    <span className="text-[10px] text-blue-500 font-medium">
+                      {new Date(post.timestamp).toLocaleDateString()} às {new Date(post.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    </span>
+                  </div>
+                </div>
 
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-blue-800 rounded-full flex items-center justify-center overflow-hidden border border-emerald-500/30 shrink-0">
-                  {post.authorPhoto ? <img src={post.authorPhoto} alt="Foto" className="w-full h-full object-cover"/> : <span>👤</span>}
-                </div>
-                <div>
-                  <p className="font-bold text-emerald-400 flex items-center flex-wrap gap-1">
-                    {post.authorName}
-                    {teamName && <span className="text-blue-300 text-xs font-medium mt-0.5">• {teamName}</span>}
-                  </p>
-                  <p className="text-[10px] text-blue-500">{new Date(post.timestamp).toLocaleString()}</p>
-                </div>
+                {isAuthorOrAdmin && (
+                  <div className="relative">
+                    <button onClick={() => setActiveMenu(activeMenu === post.id ? null : post.id)} className="text-blue-500 hover:bg-blue-900 p-1.5 rounded-full transition-colors">
+                      <MoreHorizontal size={18} />
+                    </button>
+                    {activeMenu === post.id && (
+                      <div className="absolute right-0 mt-1 w-32 bg-blue-900 border border-red-500/30 rounded-xl shadow-xl overflow-hidden z-10 animate-in fade-in zoom-in-95">
+                        <button onClick={() => handleDelete(post.id)} className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-red-500/10 font-bold flex items-center gap-2">
+                          <Trash2 size={14}/> Apagar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               
-              {post.content && <p className="text-blue-200 mb-4 whitespace-pre-wrap">{post.content}</p>}
+              {/* Conteúdo */}
+              {post.content && <p className="text-blue-100 mb-3 text-sm sm:text-base leading-relaxed whitespace-pre-wrap">{post.content}</p>}
               
               {post.imageUrl && (
-                <div className="mb-4 rounded-xl overflow-hidden border border-blue-800 bg-black/50">
-                  <img src={post.imageUrl} alt="Imagem do post" className="w-full max-h-[400px] object-contain" />
+                <div className="mb-4 rounded-2xl overflow-hidden border border-blue-800/80 bg-black/40">
+                  <img src={post.imageUrl} alt="Anexo" className="w-full max-h-[500px] object-cover sm:object-contain" loading="lazy" />
                 </div>
               )}
               
-              <div className="flex items-center gap-4 border-t border-blue-800 pt-3 mb-3">
-                <button onClick={() => toggleLike(post.id)} className={`flex items-center gap-1.5 text-sm font-bold transition-transform ${isLiked ? 'text-red-400 scale-110' : 'text-blue-400 hover:text-red-400 hover:scale-110'}`}>
-                  {isLiked ? '❤️' : '🤍'} {post.likes.length > 0 && post.likes.length}
-                </button>
-                <span className="flex items-center gap-1.5 text-sm font-medium text-blue-400">
-                  💬 {post.comments.length}
-                </span>
-              </div>
-
-              <div className="bg-blue-950 rounded-xl p-3 space-y-3">
-                {post.comments.map(c => {
-                  const cTeamName = getUserTeamName(c.authorId);
-                  return (
-                  <div key={c.id} className="text-sm border-b border-blue-800/50 pb-2 last:border-0 last:pb-0">
-                    <span className="font-bold text-emerald-400">{c.authorName}</span>
-                    {cTeamName && <span className="text-[10px] text-blue-400 font-bold ml-1">({cTeamName})</span>}
-                    <span className="text-emerald-400 mr-1">:</span>
-                    <span className="text-blue-300">{c.text}</span>
+              {/* Botões de Interação */}
+              <div className="flex items-center gap-6 pt-2">
+                <button onClick={() => toggleLike(post.id)} className={`flex items-center gap-1.5 text-sm font-bold transition-all group ${isLiked ? 'text-red-500' : 'text-blue-400 hover:text-red-400'}`}>
+                  <div className={`p-1.5 rounded-full group-hover:bg-red-500/10 transition-colors ${isLiked ? 'bg-red-500/10' : ''}`}>
+                    <Heart size={18} className={isLiked ? 'fill-current' : ''} />
                   </div>
-                )})}
-                <div className="flex gap-2 mt-2 pt-1">
-                  <input type="text" placeholder="Comente algo..." value={commentText[post.id] || ''} onChange={e => setCommentText({...commentText, [post.id]: e.target.value})} onKeyDown={e => e.key === 'Enter' && handleComment(post.id)} className="flex-1 bg-blue-900 border border-blue-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
-                  <button onClick={() => handleComment(post.id)} className="text-emerald-500 hover:text-emerald-400 font-bold px-2 text-sm"><Send size={18}/></button>
+                  <span>{post.likes.length > 0 && post.likes.length}</span>
+                </button>
+                <div className="flex items-center gap-1.5 text-sm font-bold text-blue-400 group cursor-default">
+                  <div className="p-1.5 rounded-full group-hover:bg-blue-500/10 transition-colors">
+                    <MessageCircle size={18} />
+                  </div>
+                  <span>{post.comments.length > 0 && post.comments.length}</span>
                 </div>
               </div>
+
+              {/* Área de Comentários */}
+              {(post.comments.length > 0 || commentText[post.id] !== undefined) && (
+                <div className="mt-4 pt-4 border-t border-blue-800/40 space-y-3">
+                  {post.comments.map(c => {
+                    const cTeamName = getUserTeamName(c.authorId);
+                    return (
+                      <div key={c.id} className="flex gap-2">
+                        <div className="w-6 h-6 bg-blue-800 rounded-full flex items-center justify-center shrink-0 mt-0.5"><User size={12} className="text-blue-400"/></div>
+                        <div className="bg-blue-900/50 px-3 py-2 rounded-2xl rounded-tl-none border border-blue-800/50">
+                          <p className="text-xs font-bold text-emerald-400">
+                            {c.authorName} {cTeamName && <span className="text-[9px] text-blue-400 font-medium">({cTeamName})</span>}
+                          </p>
+                          <p className="text-xs text-blue-100 mt-0.5 leading-snug">{c.text}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  
+                  <div className="flex gap-2 mt-2 items-center">
+                    <div className="w-6 h-6 bg-blue-800 rounded-full flex items-center justify-center shrink-0"><User size={12} className="text-blue-400"/></div>
+                    <input type="text" placeholder="Adicione um comentário..." value={commentText[post.id] || ''} onChange={e => setCommentText({...commentText, [post.id]: e.target.value})} onKeyDown={e => e.key === 'Enter' && handleComment(post.id)} className="flex-1 bg-blue-900/50 border border-blue-800 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:border-emerald-500 transition-colors" />
+                    <button onClick={() => handleComment(post.id)} disabled={!commentText[post.id]?.trim()} className="text-emerald-500 disabled:text-blue-700 p-1.5 hover:bg-emerald-500/10 rounded-full transition-colors"><Send size={16}/></button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -4305,7 +4338,8 @@ const GlobalRanking = ({ teams, matches, competitions }) => {
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => { const saved = localStorage.getItem('claKame_user'); return saved ? JSON.parse(saved) : null; });
 
-  
+  const [feedPosts, setFeedPosts] = useState([]);
+  const [lastSeenFeed, setLastSeenFeed] = useState(() => parseInt(localStorage.getItem('kame_last_seen_feed') || '0'));
   
   // ⚡ MÁGICA DA VELOCIDADE: Lê os parâmetros da URL imediatamente antes de criar os estados
   const urlParams = new URLSearchParams(window.location.search);
@@ -4324,14 +4358,11 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState(null); 
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
 
-  // Substitua aquele antigo useEffect do join por este aqui, que apenas limpa a URL de forma limpa
   useEffect(() => {
     if (joinIdFromUrl && currentUser) {
        window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [currentUser]);
-
-  // ... restante de todas as suas funções do App (pode manter tudo igual abaixo)
+  }, [currentUser, joinIdFromUrl]);
 
   const handleJoinComp = async (compId, teamId, receiptBase64) => {
     const comp = competitions.find(c => c.id === compId);
@@ -4342,34 +4373,38 @@ export default function App() {
     
     try {
       const newPending = [...(comp.pendingTeams || []), { teamId, receipt: receiptBase64, timestamp: Date.now() }];
-      
-      // Salva diretamente no caminho público estruturado do seu projeto
       await updateDoc(getPublicDocPath('competitions', compId), { pendingTeams: newPending });
-      
       showToast("Inscrição enviada com sucesso para os líderes!", "success");
       setCurrentTab('dashboard');
     } catch (error) {
       console.error("Erro crítico ao gravar inscrição no Firebase:", error);
       showToast(`Falha no Servidor Cloud: ${error.message}`, "error");
-      throw error; // Repassa o erro para a interface parar o estado de carregamento
+      throw error;
     }
   };
   
   const showToast = (text, type = 'success') => { let msg = text; if (typeof text === 'object') { msg = text.message ? text.message : JSON.stringify(text); } setToastMessage({ text: String(msg), type }); setTimeout(() => setToastMessage(null), 4000); };
 
+  // 🛠️ CORREÇÃO AQUI: useEffect do Firebase unificado e sem erros de sintaxe!
   useEffect(() => {
     const unsubU = onSnapshot(getPublicPath('users'), snap => setUsers(snap.docs.map(d=>d.data())));
     const unsubT = onSnapshot(getPublicPath('teams'), snap => setTeams(snap.docs.map(d=>d.data())));
     const unsubC = onSnapshot(getPublicPath('competitions'), snap => setCompetitions(snap.docs.map(d=>d.data())));
     const unsubM = onSnapshot(getPublicPath('matches'), snap => setMatches(snap.docs.map(d=>d.data())));
-    setIsFirebaseLoading(false); return () => { unsubU(); unsubT(); unsubC(); unsubM(); };
+    
+    const unsubF = onSnapshot(getPublicPath('feed'), snap => {
+      const fetched = snap.docs.map(d => d.data()).sort((a, b) => b.timestamp - a.timestamp);
+      setFeedPosts(fetched);
+    });
+
+    setIsFirebaseLoading(false); 
+    return () => { unsubU(); unsubT(); unsubC(); unsubM(); unsubF(); };
   }, []);
 
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('claKame_user', JSON.stringify(currentUser)); const stillExists = users.find(u => u && u.id === currentUser.id);
       if (users.length > 0 && !stillExists) { setCurrentUser(null); localStorage.removeItem('claKame_user'); } 
-      // ⚡ CORREÇÃO: Agora o sistema percebe instantaneamente quando o status muda de 'pending' para 'active'!
       else if (stillExists && (stillExists.role !== currentUser.role || stillExists.status !== currentUser.status)) { 
         setCurrentUser(stillExists); 
       }
@@ -4380,50 +4415,31 @@ export default function App() {
   const handleSelectComp = (id) => { setSelectedCompId(id); setCurrentTab('comp_details'); };
   const handleSelectMatch = (match) => { setSelectedMatch(match); setPrevTab(currentTab); setCurrentTab('match_details'); };
   const handleDeleteMatch = async (matchId) => { await deleteDoc(getPublicDocPath('matches', matchId)); showToast("Placar excluído!", "success"); };
-   const handleEditTeam = async (updatedTeam) => { 
+  
+  const handleEditTeam = async (updatedTeam) => { 
     const oldTeam = teams.find(t => t.id === updatedTeam.id);
-    
-    // Verifica se o time era "Manual" e agora está sendo vinculado a um "Técnico"
     if (oldTeam && oldTeam.ownerId === 'manual' && updatedTeam.ownerId !== 'manual') {
       const userId = updatedTeam.ownerId;
-      
-      // Busca os dados do usuário real que acabou de ser vinculado
       const linkedUser = users.find(u => u.id === userId);
-      
       if (linkedUser) {
-        // Sincroniza os dados: O time absorve o Nome e WhatsApp reais do técnico cadastrado
         updatedTeam.coach = linkedUser.name;
         updatedTeam.whatsapp = linkedUser.whatsapp;
       }
-      
-      // 1. Apaga o time provisório vazio que foi criado quando o técnico se cadastrou
-      try { 
-        await deleteDoc(getPublicDocPath('teams', `t_${userId}`)); 
-      } catch(e) {}
-      
+      try { await deleteDoc(getPublicDocPath('teams', `t_${userId}`)); } catch(e) {}
       showToast("Técnico vinculado e histórico migrado!", "success");
     } else {
       showToast("Time atualizado!", "success");
     }
-    
-    // 2. Salva a nova posse e dados do time na nuvem
     await updateDoc(getPublicDocPath('teams', updatedTeam.id), updatedTeam); 
   };
+
   const handleCreateTeamAndUser = async ({ user, team }) => { await setDoc(getPublicDocPath('users', user.id), user); await setDoc(getPublicDocPath('teams', team.id), team); setCurrentTab('teams_list'); showToast("Treinador registrado!"); return true; };
+  
   const handleExpelUser = async (userId) => {
-    // 1. Apaga a conta do usuário
     await deleteDoc(getPublicDocPath('users', userId));
-    
-    // 2. Encontra o time do usuário expulso
     const userTeam = teams.find(t => t.ownerId === userId);
-    
     if (userTeam) {
-      // 3. Em vez de apagar o time, transformamos ele num time "Manual"
-      // Assim ele continua na tabela, mantendo os resultados e permitindo W.O.
-      await updateDoc(getPublicDocPath('teams', userTeam.id), {
-        ownerId: 'manual',
-        whatsapp: '' // Removemos o número pessoal por privacidade
-      });
+      await updateDoc(getPublicDocPath('teams', userTeam.id), { ownerId: 'manual', whatsapp: '' });
       showToast("Técnico expulso. O time dele agora é manual (sem dono).", "success");
     } else {
       showToast("Técnico expulso com sucesso.", "success");
@@ -4436,7 +4452,6 @@ export default function App() {
     const cleanPhone = data.whatsapp.replace(/\D/g, '');
     const fullName = `${data.firstName} ${data.lastName}`.trim();
     
-    // Cria a conta no Firebase e desloga imediatamente para ir pra espera
     const userCredential = await createUserWithEmailAndPassword(auth, email, data.password);
     const uid = userCredential.user.uid;
     
@@ -4461,7 +4476,6 @@ export default function App() {
       if (foundUser?.email) emFake = foundUser.email; 
     }
     
-    // Bloqueia o login e gera o aviso se a conta não estiver validada
     if (foundUser && foundUser.status === 'pending') {
       throw new Error("Aguardando aprovação dos líderes.");
     }
@@ -4478,7 +4492,7 @@ export default function App() {
   useEffect(() => { const unsub = onAuthStateChanged(auth, (fbUser) => { if (fbUser && users.length > 0) { const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); if (found) setCurrentUser(found); } }); return () => unsub(); }, [users]);
 
   if (isFirebaseLoading) return (<div className="min-h-screen bg-blue-950 text-amber-400 flex items-center justify-center font-sans font-bold text-sm shadow-xl animate-pulse">🛡️ Carregando Arena Kame...</div>);
- if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} />;
+  if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} />;
 
   if (currentUser.status === 'pending') {
     return (
@@ -4493,27 +4507,26 @@ export default function App() {
     );
   }
 
-
   const isLeaderOrKaioh = currentUser.role === 'leader' || currentUser.role === 'kaioh';
   
-  // Note que 'settings' foi removida da lista.
- const TABS = [
+  // 🛠️ CORREÇÃO AQUI: Aba de regras liberada para todos verem!
+  const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home }, 
     { id: 'profile', label: 'Meu Perfil', icon: User },
     { id: 'teams_list', label: 'Times', icon: Shield }, 
     { id: 'competitions', label: 'Competições', icon: Medal },
     { id: 'ranking', label: 'Ranking Xclã', icon: Crown },
     { id: 'feed', label: 'Feed da Resenha', icon: MessageCircle },
-   { id: 'records', label: 'Mural de Recordes', icon: Trophy }, // 🏅 LINHA ADICIONADA AQUI!
+    { id: 'records', label: 'Mural de Recordes', icon: Trophy },
+    { id: 'rules', label: 'Regras do Clã', icon: BookOpen },
     ...(isLeaderOrKaioh ? [
-      { id: 'rules', label: 'Regras do Clã', icon: BookOpen },
       { id: 'submit', label: 'Registrar', icon: Camera }, 
       { id: 'validation', label: 'Validação', icon: CheckSquare }, 
       { id: 'members_list', label: 'Técnicos', icon: Award },
       { id: 'create_comp', label: 'Nova Comp', icon: PlusCircle }, 
       { id: 'create_team', label: 'Convidar Técnico', icon: Users },
       { id: 'create_team_manual', label: 'Time Simples', icon: UserPlus } 
-    ] : []), // <-- Deixe os colchetes vazios aqui
+    ] : []),
   ];
 
   const handleUpdateMatchStatus = async (id, st, updatedData = null) => {
@@ -4540,20 +4553,9 @@ export default function App() {
   };
 
   const handleEditUser = async (userId, updatedData) => {
-    await updateDoc(getPublicDocPath('users', userId), {
-      name: updatedData.name,
-      whatsapp: updatedData.whatsapp
-    });
-    
-    // Atualizar também o nome do técnico no time dele para não ficar divergente
+    await updateDoc(getPublicDocPath('users', userId), { name: updatedData.name, whatsapp: updatedData.whatsapp });
     const userTeam = teams.find(t => t.ownerId === userId);
-    if (userTeam) {
-      await updateDoc(getPublicDocPath('teams', userTeam.id), {
-        coach: updatedData.name,
-        whatsapp: updatedData.whatsapp
-      });
-    }
-    
+    if (userTeam) { await updateDoc(getPublicDocPath('teams', userTeam.id), { coach: updatedData.name, whatsapp: updatedData.whatsapp }); }
     showToast("Dados do técnico atualizados com sucesso!", "success");
   };
   
@@ -4563,7 +4565,7 @@ export default function App() {
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onUpdateUserPhoto={async (url) => { await updateDoc(getPublicDocPath('users', currentUser.id), { photoURL: url }); setCurrentUser(prev => ({...prev, photoURL: url})); }} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onDeleteTeam={async (id) => { await deleteDoc(getPublicDocPath('teams', id)); showToast("Time excluído com sucesso!", "success"); }} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
-      case 'ranking': return <GlobalRanking teams={teams} matches={matches} competitions={competitions} />; // 👑 ROTA ADICIONADA AQUI!
+      case 'ranking': return <GlobalRanking teams={teams} matches={matches} competitions={competitions} />;
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(isLeaderOrKaioh ? 'validation' : 'dashboard'); })} />;
@@ -4572,9 +4574,10 @@ export default function App() {
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
       case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
       case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
-      case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} />;
+      // 🛠️ CORREÇÃO AQUI: Passando os posts lidos lá do Firebase para a página do Feed!
+      case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} posts={feedPosts} />;
       case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} />;
-      case 'records': return <RecordsWall showToast={showToast} currentUser={currentUser} />; // 🏅 ADICIONE ESTA LINHA AQUI!
+      case 'records': return <RecordsWall showToast={showToast} currentUser={currentUser} />;
       case 'rules': return <RulesPage />;
         
       default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} onChangeTab={setCurrentTab} onJoinOpenComp={(id) => { setSelectedCompId(id); setCurrentTab('join_comp'); }} />;
@@ -4594,8 +4597,37 @@ export default function App() {
         <div className="p-6 flex items-center gap-3"><img src={LOGO_URL} alt="Clã Kame" className="w-24 h-24" /><div><h1 className="font-bold text-white text-lg">Clã Kame</h1><p className="text-[10px] text-emerald-400 font-bold uppercase">Arena DLS</p></div></div>
         <nav className="flex-1 px-4 pb-4 overflow-y-auto flex md:flex-col gap-2 overflow-x-auto custom-scrollbar">
           {TABS.map(tab => {
-            const isActive = currentTab === tab.id || (tab.id === 'competitions' && currentTab === 'comp_details'); const Icon = tab.icon;
-            return ( <button key={tab.id} onClick={() => setCurrentTab(tab.id)} className={`flex items-center gap-3 px-4 py-3 rounded-xl whitespace-nowrap outline-none border ${isActive ? 'bg-emerald-500/10 text-emerald-400 font-bold border-emerald-500/20' : 'text-blue-400 hover:bg-blue-800 hover:text-blue-200 border-transparent'}`}><Icon size={18} /> <span className="text-sm">{tab.label}</span>{(tab.id === 'validation' && matches.filter(m=>m?.status==='pending').length > 0) && <span className="ml-auto bg-amber-500 text-blue-950 text-xs font-bold px-2 py-0.5 rounded-full">{matches.filter(m=>m?.status==='pending').length}</span>}</button> );
+            const isActive = currentTab === tab.id || (tab.id === 'competitions' && currentTab === 'comp_details'); 
+            const Icon = tab.icon;
+            
+            // Lógica da Bolinha Vermelha
+            const hasNewFeed = tab.id === 'feed' && feedPosts.length > 0 && feedPosts[0].timestamp > lastSeenFeed;
+
+            return ( 
+              <button 
+                key={tab.id} 
+                onClick={() => {
+                  if (tab.id === 'feed') {
+                    const now = Date.now();
+                    setLastSeenFeed(now);
+                    localStorage.setItem('kame_last_seen_feed', now.toString());
+                  }
+                  setCurrentTab(tab.id);
+                }} 
+                className={`relative flex items-center gap-3 px-4 py-3 rounded-xl whitespace-nowrap outline-none border ${isActive ? 'bg-emerald-500/10 text-emerald-400 font-bold border-emerald-500/20' : 'text-blue-400 hover:bg-blue-800 hover:text-blue-200 border-transparent'}`}
+              >
+                <Icon size={18} /> 
+                <span className="text-sm">{tab.label}</span>
+                
+                {/* 🔴 Bolinha Vermelha do Feed */}
+                {hasNewFeed && (
+                  <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse"></span>
+                )}
+
+                {/* Notificação de Validação (Admin) */}
+                {(tab.id === 'validation' && matches.filter(m=>m?.status==='pending').length > 0) && <span className="ml-auto bg-amber-500 text-blue-950 text-xs font-bold px-2 py-0.5 rounded-full">{matches.filter(m=>m?.status==='pending').length}</span>}
+              </button> 
+            );
           })}
         </nav>
         <div className="p-4 border-t border-blue-800 hidden md:block"><div className="bg-blue-950 rounded-xl p-4 border border-blue-800/50 relative overflow-hidden"><div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div><p className="font-bold text-white text-sm truncate">{String(currentUser?.name)}</p><p className="text-[10px] text-emerald-400 uppercase font-bold mb-3">{ROLE_NAMES[currentUser?.role]}</p><button onClick={() => { setCurrentUser(null); signOut(auth); }} className="w-full text-xs text-blue-400 hover:text-white py-1.5 rounded bg-blue-900 border border-blue-700/60"><LogOut size={12} className="inline mr-1"/> Sair</button></div></div>
