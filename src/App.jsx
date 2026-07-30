@@ -1302,7 +1302,7 @@ const Standings = ({ matches, teams, comp }) => {
   const isGroupsFormat = comp?.format === 'groups' && comp?.groups;
   return (
     <div className="animate-in fade-in duration-500 w-full">
-      <div className="bg-sky-900/30 rounded-2xl border border-sky-800/50 overflow-x-auto shadow-2xl">
+      <div className="bg-sky-900/30 rounded-2xl border border-sky-800/50 overflow-x-auto shadow-2xl custom-scrollbar">
         {isGroupsFormat ? (
           <div className="flex flex-col">
             {Object.keys(comp.groups || {}).map((gName, idx) => {
@@ -1312,7 +1312,6 @@ const Standings = ({ matches, teams, comp }) => {
                 <div key={gName} className={idx > 0 ? "border-t-4 border-blue-950" : ""}>
                   <div className="bg-blue-950/80 p-3 text-center border-b border-sky-800/50 flex justify-between px-4"><h3 className="text-sm font-bold text-white uppercase tracking-widest drop-shadow-md">Grupo {gName}</h3></div>
                   
-                  {/* 🌟 AJUSTE 1: min-w-[650px] adicionado para forçar o scroll lateral no celular */}
                   <table className="w-full min-w-[650px] text-left text-sm whitespace-nowrap">
                     <thead className="bg-blue-950/90 text-sky-300 font-bold">
                       <tr><th className="p-4 w-12 text-center">#</th><th className="p-4">Time</th><th className="p-4 text-center">PTS</th><th className="p-4 text-center">J</th><th className="p-4 text-center">V</th><th className="p-4 text-center">E</th><th className="p-4 text-center">D</th><th className="p-4 text-center">GP</th><th className="p-4 text-center">GC</th><th className="p-4 text-center">SG</th></tr>
@@ -1330,11 +1329,11 @@ const Standings = ({ matches, teams, comp }) => {
                           <tr key={row.id} className={`hover:bg-sky-800/40 transition-colors ${borderClass} ${bgClass}`}>
                             <td className={`p-4 text-center text-lg ${textNumberClass}`}>{index + 1}</td>
                             
-                            {/* 🌟 AJUSTE 2: Div extra para controlar nomes de times muito longos */}
+                            {/* 🌟 AJUSTE: Nomes soltos, sem truncate e com min-w-max para evitar corte no Print */}
                             <td className="p-4 font-bold text-white uppercase tracking-wide">
-                              <div className="flex items-center gap-3 max-w-[140px] sm:max-w-[220px]">
+                              <div className="flex items-center gap-3 min-w-max py-1">
                                 <div className="shrink-0"><ShieldDisplay shield={row.shield} size="normal" /></div>
-                                <span className="truncate" title={String(row.name)}>{String(row.name)}</span>
+                                <span className="leading-normal block pb-0.5">{String(row.name)}</span>
                               </div>
                             </td>
 
@@ -1356,7 +1355,6 @@ const Standings = ({ matches, teams, comp }) => {
             })}
           </div>
         ) : (
-          /* 🌟 AJUSTE 1: min-w-[650px] adicionado à tabela da liga normal também */
           <table className="w-full min-w-[650px] text-left text-sm whitespace-nowrap">
             <thead className="bg-blue-950/90 text-sky-300 font-bold">
               <tr><th className="p-4 w-12 text-center">#</th><th className="p-4">Time</th><th className="p-4 text-center">PTS</th><th className="p-4 text-center">J</th><th className="p-4 text-center">V</th><th className="p-4 text-center">E</th><th className="p-4 text-center">D</th><th className="p-4 text-center">GP</th><th className="p-4 text-center">GC</th><th className="p-4 text-center">SG</th></tr>
@@ -1381,11 +1379,11 @@ const Standings = ({ matches, teams, comp }) => {
                     <tr key={row.id} className={`hover:bg-sky-800/40 transition-colors ${borderClass} ${bgClass}`}>
                       <td className={`p-4 text-center text-lg ${textNumberClass}`}>{index + 1}</td>
                       
-                      {/* 🌟 AJUSTE 2: Div extra para controlar nomes de times muito longos */}
+                      {/* 🌟 AJUSTE: Nomes soltos, sem truncate e com min-w-max para evitar corte no Print */}
                       <td className="p-4 font-bold text-white uppercase tracking-wide">
-                        <div className="flex items-center gap-3 max-w-[140px] sm:max-w-[220px]">
+                        <div className="flex items-center gap-3 min-w-max py-1">
                           <div className="shrink-0"><ShieldDisplay shield={row.shield} size="normal" /></div>
-                          <span className="truncate" title={String(row.name)}>{String(row.name)}</span>
+                          <span className="leading-normal block pb-0.5">{String(row.name)}</span>
                         </div>
                       </td>
 
