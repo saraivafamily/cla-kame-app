@@ -1302,7 +1302,15 @@ const Standings = ({ matches, teams, comp }) => {
   const isGroupsFormat = comp?.format === 'groups' && comp?.groups;
   return (
     <div className="animate-in fade-in duration-500 w-full">
-      <div className="bg-sky-900/30 rounded-2xl border border-sky-800/50 overflow-x-auto shadow-2xl custom-scrollbar">
+      {/* 🌟 ESTILIZAÇÃO DA BARRA DE ROLAGEM TEMÁTICA (APENAS PARA ESTA TABELA) */}
+      <style>{`
+        .scrollbar-kame::-webkit-scrollbar { width: 8px; height: 8px; }
+        .scrollbar-kame::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); border-radius: 10px; }
+        .scrollbar-kame::-webkit-scrollbar-thumb { background: #059669; border-radius: 10px; border: 2px solid rgba(15, 23, 42, 0.6); }
+        .scrollbar-kame::-webkit-scrollbar-thumb:hover { background: #10b981; }
+      `}</style>
+
+      <div className="bg-sky-900/30 rounded-2xl border border-sky-800/50 overflow-hidden shadow-2xl">
         {isGroupsFormat ? (
           <div className="flex flex-col">
             {Object.keys(comp.groups || {}).map((gName, idx) => {
@@ -1312,95 +1320,125 @@ const Standings = ({ matches, teams, comp }) => {
                 <div key={gName} className={idx > 0 ? "border-t-4 border-blue-950" : ""}>
                   <div className="bg-blue-950/80 p-3 text-center border-b border-sky-800/50 flex justify-between px-4"><h3 className="text-sm font-bold text-white uppercase tracking-widest drop-shadow-md">Grupo {gName}</h3></div>
                   
-                  <table className="w-full min-w-[650px] text-left text-sm whitespace-nowrap">
-                    <thead className="bg-blue-950/90 text-sky-300 font-bold">
-                      <tr><th className="p-4 w-12 text-center">#</th><th className="p-4">Time</th><th className="p-4 text-center">PTS</th><th className="p-4 text-center">J</th><th className="p-4 text-center">V</th><th className="p-4 text-center">E</th><th className="p-4 text-center">D</th><th className="p-4 text-center">GP</th><th className="p-4 text-center">GC</th><th className="p-4 text-center">SG</th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-sky-800/30">
-                      {gTable.map((row, index) => {
-                        const isQualified = index < (comp.qualifiersPerGroup || 2);
-                        const isBottom = index >= gTable.length - (gTable.length >= 4 ? 2 : 1);
-                        
-                        const borderClass = isQualified ? 'border-l-4 border-green-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
-                        const bgClass = isQualified ? 'bg-green-500/30' : (isBottom ? 'bg-red-500/30' : '');
-                        const textNumberClass = isQualified ? 'text-green-400 font-black' : (isBottom ? 'text-red-400 font-black' : 'text-sky-200 font-bold');
+                  {/* Container com rolagem limitada a ~10 times */}
+                  <div className="max-h-[480px] overflow-y-auto overflow-x-auto scrollbar-kame relative">
+                    <table className="w-full min-w-[600px] text-left text-xs sm:text-sm whitespace-nowrap">
+                      {/* Cabeçalho Fixo (Sticky) */}
+                      <thead className="text-sky-300 font-bold sticky top-0 z-20">
+                        <tr>
+                          <th className="bg-blue-950 px-3 py-2 w-10 text-center shadow-md">#</th>
+                          <th className="bg-blue-950 px-3 py-2 shadow-md">Time</th>
+                          <th className="bg-blue-950 px-3 py-2 text-center shadow-md">PTS</th>
+                          <th className="bg-blue-950 px-3 py-2 text-center shadow-md">J</th>
+                          <th className="bg-blue-950 px-3 py-2 text-center shadow-md">V</th>
+                          <th className="bg-blue-950 px-3 py-2 text-center shadow-md">E</th>
+                          <th className="bg-blue-950 px-3 py-2 text-center shadow-md">D</th>
+                          <th className="bg-blue-950 px-3 py-2 text-center shadow-md">GP</th>
+                          <th className="bg-blue-950 px-3 py-2 text-center shadow-md">GC</th>
+                          <th className="bg-blue-950 px-3 py-2 text-center shadow-md">SG</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-sky-800/30">
+                        {gTable.map((row, index) => {
+                          const isQualified = index < (comp.qualifiersPerGroup || 2);
+                          const isBottom = index >= gTable.length - (gTable.length >= 4 ? 2 : 1);
+                          
+                          const borderClass = isQualified ? 'border-l-4 border-green-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
+                          const bgClass = isQualified ? 'bg-green-500/20' : (isBottom ? 'bg-red-500/20' : 'bg-blue-900/40');
+                          const textNumberClass = isQualified ? 'text-green-400 font-black' : (isBottom ? 'text-red-400 font-black' : 'text-sky-200 font-bold');
 
-                        return (
-                          <tr key={row.id} className={`hover:bg-sky-800/40 transition-colors ${borderClass} ${bgClass}`}>
-                            <td className={`p-4 text-center text-lg ${textNumberClass}`}>{index + 1}</td>
-                            
-                            {/* 🌟 AJUSTE: Nomes soltos, sem truncate e com min-w-max para evitar corte no Print */}
-                            <td className="p-4 font-bold text-white uppercase tracking-wide">
-                              <div className="flex items-center gap-3 min-w-max py-1">
-                                <div className="shrink-0"><ShieldDisplay shield={row.shield} size="normal" /></div>
-                                <span className="leading-normal block pb-0.5">{String(row.name)}</span>
-                              </div>
-                            </td>
+                          return (
+                            <tr key={row.id} className={`hover:bg-sky-800/60 transition-colors ${borderClass} ${bgClass}`}>
+                              <td className={`px-3 py-2 text-center text-base ${textNumberClass}`}>{index + 1}</td>
+                              
+                              {/* Elementos menores para caber mais na tela */}
+                              <td className="px-3 py-2 font-bold text-white uppercase tracking-wide">
+                                <div className="flex items-center gap-2 min-w-max py-0.5">
+                                  <div className="shrink-0"><ShieldDisplay shield={row.shield} size="small" /></div>
+                                  <span className="leading-normal block text-xs sm:text-sm">{String(row.name)}</span>
+                                </div>
+                              </td>
 
-                            <td className="p-4 text-center font-black text-green-400 text-lg drop-shadow-md">{row.pts}</td>
-                            <td className="p-4 text-center text-sky-200 font-medium">{row.p}</td>
-                            <td className="p-4 text-center text-sky-200 font-medium">{row.w}</td>
-                            <td className="p-4 text-center text-sky-200 font-medium">{row.d}</td>
-                            <td className="p-4 text-center text-sky-200 font-medium">{row.l}</td>
-                            <td className="p-4 text-center text-sky-200 font-medium">{row.gf}</td>
-                            <td className="p-4 text-center text-sky-200 font-medium">{row.ga}</td>
-                            <td className="p-4 text-center text-sky-200 font-bold">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                              <td className="px-3 py-2 text-center font-black text-green-400 text-base drop-shadow-md">{row.pts}</td>
+                              <td className="px-3 py-2 text-center text-sky-200 font-medium">{row.p}</td>
+                              <td className="px-3 py-2 text-center text-sky-200 font-medium">{row.w}</td>
+                              <td className="px-3 py-2 text-center text-sky-200 font-medium">{row.d}</td>
+                              <td className="px-3 py-2 text-center text-sky-200 font-medium">{row.l}</td>
+                              <td className="px-3 py-2 text-center text-sky-200 font-medium">{row.gf}</td>
+                              <td className="px-3 py-2 text-center text-sky-200 font-medium">{row.ga}</td>
+                              <td className="px-3 py-2 text-center text-sky-200 font-bold">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               );
             })}
           </div>
         ) : (
-          <table className="w-full min-w-[650px] text-left text-sm whitespace-nowrap">
-            <thead className="bg-blue-950/90 text-sky-300 font-bold">
-              <tr><th className="p-4 w-12 text-center">#</th><th className="p-4">Time</th><th className="p-4 text-center">PTS</th><th className="p-4 text-center">J</th><th className="p-4 text-center">V</th><th className="p-4 text-center">E</th><th className="p-4 text-center">D</th><th className="p-4 text-center">GP</th><th className="p-4 text-center">GC</th><th className="p-4 text-center">SG</th></tr>
-            </thead>
-            <tbody className="divide-y divide-sky-800/30">
-              {(() => {
-                const table = calculateStandings(matches, teams, comp?.id);
-                const displayTable = table.filter(t => t.p > 0 || table.length > 0);
-                const totalTeams = displayTable.length;
-                const bottomCount = comp?.bottomRelegated !== undefined ? comp.bottomRelegated : (totalTeams > 10 ? 4 : 2); 
-                const topCount = comp?.topQualifiers || 4; 
+          /* Container com rolagem limitada a ~10 times para Liga Normal */
+          <div className="max-h-[480px] overflow-y-auto overflow-x-auto scrollbar-kame relative">
+            <table className="w-full min-w-[600px] text-left text-xs sm:text-sm whitespace-nowrap">
+              {/* Cabeçalho Fixo (Sticky) */}
+              <thead className="text-sky-300 font-bold sticky top-0 z-20">
+                <tr>
+                  <th className="bg-blue-950 px-3 py-2 w-10 text-center shadow-md">#</th>
+                  <th className="bg-blue-950 px-3 py-2 shadow-md">Time</th>
+                  <th className="bg-blue-950 px-3 py-2 text-center shadow-md">PTS</th>
+                  <th className="bg-blue-950 px-3 py-2 text-center shadow-md">J</th>
+                  <th className="bg-blue-950 px-3 py-2 text-center shadow-md">V</th>
+                  <th className="bg-blue-950 px-3 py-2 text-center shadow-md">E</th>
+                  <th className="bg-blue-950 px-3 py-2 text-center shadow-md">D</th>
+                  <th className="bg-blue-950 px-3 py-2 text-center shadow-md">GP</th>
+                  <th className="bg-blue-950 px-3 py-2 text-center shadow-md">GC</th>
+                  <th className="bg-blue-950 px-3 py-2 text-center shadow-md">SG</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-sky-800/30">
+                {(() => {
+                  const table = calculateStandings(matches, teams, comp?.id);
+                  const displayTable = table.filter(t => t.p > 0 || table.length > 0);
+                  const totalTeams = displayTable.length;
+                  const bottomCount = comp?.bottomRelegated !== undefined ? comp.bottomRelegated : (totalTeams > 10 ? 4 : 2); 
+                  const topCount = comp?.topQualifiers || 4; 
 
-                return displayTable.map((row, index) => {
-                  const isTop = index < topCount; 
-                  const isBottom = index >= totalTeams - bottomCount;
-                  
-                  const borderClass = isTop ? 'border-l-4 border-green-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
-                  const bgClass = isTop ? 'bg-green-500/30' : (isBottom ? 'bg-red-500/30' : '');
-                  const textNumberClass = isTop ? 'text-green-400 font-black' : (isBottom ? 'text-red-400 font-black' : 'text-sky-200 font-bold');
+                  return displayTable.map((row, index) => {
+                    const isTop = index < topCount; 
+                    const isBottom = index >= totalTeams - bottomCount;
+                    
+                    const borderClass = isTop ? 'border-l-4 border-green-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
+                    const bgClass = isTop ? 'bg-green-500/20' : (isBottom ? 'bg-red-500/20' : 'bg-blue-900/40');
+                    const textNumberClass = isTop ? 'text-green-400 font-black' : (isBottom ? 'text-red-400 font-black' : 'text-sky-200 font-bold');
 
-                  return (
-                    <tr key={row.id} className={`hover:bg-sky-800/40 transition-colors ${borderClass} ${bgClass}`}>
-                      <td className={`p-4 text-center text-lg ${textNumberClass}`}>{index + 1}</td>
-                      
-                      {/* 🌟 AJUSTE: Nomes soltos, sem truncate e com min-w-max para evitar corte no Print */}
-                      <td className="p-4 font-bold text-white uppercase tracking-wide">
-                        <div className="flex items-center gap-3 min-w-max py-1">
-                          <div className="shrink-0"><ShieldDisplay shield={row.shield} size="normal" /></div>
-                          <span className="leading-normal block pb-0.5">{String(row.name)}</span>
-                        </div>
-                      </td>
+                    return (
+                      <tr key={row.id} className={`hover:bg-sky-800/60 transition-colors ${borderClass} ${bgClass}`}>
+                        <td className={`px-3 py-2 text-center text-base ${textNumberClass}`}>{index + 1}</td>
+                        
+                        {/* Elementos menores para caber mais na tela */}
+                        <td className="px-3 py-2 font-bold text-white uppercase tracking-wide">
+                          <div className="flex items-center gap-2 min-w-max py-0.5">
+                            <div className="shrink-0"><ShieldDisplay shield={row.shield} size="small" /></div>
+                            <span className="leading-normal block text-xs sm:text-sm">{String(row.name)}</span>
+                          </div>
+                        </td>
 
-                      <td className="p-4 text-center font-black text-green-400 text-lg drop-shadow-md">{row.pts}</td>
-                      <td className="p-4 text-center text-sky-200 font-medium">{row.p}</td>
-                      <td className="p-4 text-center text-sky-200 font-medium">{row.w}</td>
-                      <td className="p-4 text-center text-sky-200 font-medium">{row.d}</td>
-                      <td className="p-4 text-center text-sky-200 font-medium">{row.l}</td>
-                      <td className="p-4 text-center text-sky-200 font-medium">{row.gf}</td>
-                      <td className="p-4 text-center text-sky-200 font-medium">{row.ga}</td>
-                      <td className="p-4 text-center text-sky-200 font-bold">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
-                    </tr>
-                  );
-                });
-              })()}
-            </tbody>
-          </table>
+                        <td className="px-3 py-2 text-center font-black text-green-400 text-base drop-shadow-md">{row.pts}</td>
+                        <td className="px-3 py-2 text-center text-sky-200 font-medium">{row.p}</td>
+                        <td className="px-3 py-2 text-center text-sky-200 font-medium">{row.w}</td>
+                        <td className="px-3 py-2 text-center text-sky-200 font-medium">{row.d}</td>
+                        <td className="px-3 py-2 text-center text-sky-200 font-medium">{row.l}</td>
+                        <td className="px-3 py-2 text-center text-sky-200 font-medium">{row.gf}</td>
+                        <td className="px-3 py-2 text-center text-sky-200 font-medium">{row.ga}</td>
+                        <td className="px-3 py-2 text-center text-sky-200 font-bold">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
+                      </tr>
+                    );
+                  });
+                })()}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
@@ -1488,13 +1526,22 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       element.style.width = 'max-content';
       element.style.overflow = 'visible';
       
-      const scrollables = element.querySelectorAll('.overflow-x-auto');
-      scrollables.forEach(el => { el.style.overflow = 'visible'; el.style.width = 'max-content'; });
+      // MUDANÇA NESTA LINHA: Adicionada a busca por .scrollbar-kame
+      const scrollables = element.querySelectorAll('.scrollbar-kame, .overflow-x-auto');
+      scrollables.forEach(el => { 
+        el.style.overflow = 'visible'; 
+        el.style.width = 'max-content'; 
+        el.style.maxHeight = 'none'; // <-- ISSO GARANTE QUE A FOTO SAIA COMPLETA
+      });
 
       window.html2canvas(element, { backgroundColor: '#020617', scale: 2, useCORS: true }).then(canvas => {
         element.style.width = originalWidth;
         element.style.overflow = originalOverflow;
-        scrollables.forEach(el => { el.style.overflow = ''; el.style.width = ''; });
+        scrollables.forEach(el => { 
+          el.style.overflow = ''; 
+          el.style.width = ''; 
+          el.style.maxHeight = ''; // <-- Restaura o tamanho original
+        });
 
         const link = document.createElement('a');
         link.download = `${fileName}.png`;
