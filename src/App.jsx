@@ -715,20 +715,80 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
   // 🏆 FILTRA OS CAMPEONATOS QUE ESTÃO COM INSCRIÇÕES ABERTAS
   const openCompetitions = (competitions || []).filter(c => c && c.status === 'registration');
 
+  // ⚔️ NOVO: FILTRA OS JOGOS PENDENTES DO USUÁRIO ATUAL
+  const myPendingMatches = (matches || []).filter(m => 
+    (userTeamIds.includes(m.teamA) || userTeamIds.includes(m.teamB)) &&
+    m.status !== 'approved' && m.status !== 'rejected'
+  );
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+      
+      {/* 1. BANNER PRINCIPAL */}
       <div className="bg-gradient-to-r from-emerald-900/50 to-blue-900 p-6 rounded-2xl border border-emerald-900/50 shadow-xl">
         <h2 className="text-2xl font-bold text-white mb-2">QG Clã Kame</h2>
         <p className="text-blue-400">Gerencie e acompanhe seus resultados do DLS.</p>
       </div>
 
-      {/* 🚀 NOVA VITRINE DE INSCRIÇÕES ABERTAS */}
+      {/* 2. AÇÕES RÁPIDAS (NOVO) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {isAdmin && (
+          <button className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
+            <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
+              <PlusCircle size={20} className="text-emerald-400" />
+            </div>
+            <span className="text-xs font-bold text-blue-200">Novo Resultado</span>
+          </button>
+        )}
+        <button className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
+          <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
+            <Shield size={20} className="text-amber-400" />
+          </div>
+          <span className="text-xs font-bold text-blue-200">Meu Perfil</span>
+        </button>
+        <button className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
+          <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
+            <Trophy size={20} className="text-purple-400" />
+          </div>
+          <span className="text-xs font-bold text-blue-200">Ranking Xclã</span>
+        </button>
+        <button className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
+          <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
+            <BookOpen size={20} className="text-sky-400" />
+          </div>
+          <span className="text-xs font-bold text-blue-200">Regras</span>
+        </button>
+      </div>
+
+      {/* 3. MEUS JOGOS PENDENTES (NOVO) */}
+      {myPendingMatches.length > 0 && (
+        <div className="bg-blue-950/80 p-5 rounded-2xl border border-amber-500/40 shadow-lg relative overflow-hidden animate-in slide-in-from-bottom-4">
+          <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+          <h3 className="text-sm font-bold text-amber-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <AlertCircle size={16} /> Você tem {myPendingMatches.length} {myPendingMatches.length === 1 ? 'jogo pendente' : 'jogos pendentes'}!
+          </h3>
+          <div className="space-y-2">
+            {myPendingMatches.slice(0, 3).map(m => {
+              const tA = getTeam(m.teamA);
+              const tB = getTeam(m.teamB);
+              return (
+                <div key={m.id} onClick={() => onSelectMatch && onSelectMatch(m)} className="bg-blue-900/50 hover:bg-blue-800/80 p-3 rounded-xl border border-blue-800 hover:border-amber-500/50 flex justify-between items-center gap-2 cursor-pointer transition-all">
+                  <span className={`text-xs font-bold truncate flex-1 text-right ${userTeamIds.includes(m.teamA) ? 'text-emerald-400' : 'text-blue-200'}`}>{tA?.name || 'A Definir'}</span>
+                  <span className="text-[10px] text-blue-500 font-black px-2">VS</span>
+                  <span className={`text-xs font-bold truncate flex-1 text-left ${userTeamIds.includes(m.teamB) ? 'text-emerald-400' : 'text-blue-200'}`}>{tB?.name || 'A Definir'}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 4. VITRINE DE INSCRIÇÕES ABERTAS */}
       {openCompetitions.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2"><Trophy size={20} /> Inscrições Abertas</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {openCompetitions.map(comp => {
-              // PROTEÇÃO ANTI-TELA PRETA: Garante que sejam lidos como arrays, mesmo que venham corrompidos
               const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
               const compPending = Array.isArray(comp.pendingTeams) ? comp.pendingTeams : [];
               const teamCount = parseInt(comp.teamCount) || 0;
@@ -769,6 +829,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
         </div>
       )}
 
+      {/* 5. ÚLTIMOS RESULTADOS */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados Enviados</h3>
         <div className="space-y-3">
