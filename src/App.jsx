@@ -4440,7 +4440,7 @@ const GlobalRanking = ({ teams, matches, competitions }) => {
 
 const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, predictions, onSavePrediction, showToast }) => {
   const [activeTab, setActiveTab] = useState('open');
-  const [localScores, setLocalScores] = useState({});
+  const [betData, setBetData] = useState({}); // Guarda a opção e o valor da aposta
 
   const getTeam = (id) => (teams || []).find(t => t.id === id);
   const getMyPred = (matchId) => (predictions || []).find(p => p.matchId === matchId && p.userId === currentUser.id);
@@ -4462,125 +4462,154 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
     return open;
   }, [competitions, matches]);
 
+  // 🎲 MATEMÁTICA DAS ODDS DINÂMICAS
+  const getOdds = (matchId) => {
+    const preds = (predictions || []).filter(p => p.matchId === matchId);
+    const pool = preds.reduce((sum, p) => sum + p.amount, 0);
+    const poolA = preds.reduce((sum, p) => sum + (p.option === 'A' ? p.amount : 0), 0);
+    const poolB = preds.reduce((sum, p) => sum + (p.option === 'B' ? p.amount : 0), 0);
+    const poolD = preds.reduce((sum, p) => sum + (p.option === 'D' ? p.amount : 0), 0);
+
+    // Se ninguém apostou ainda, simula uma pool inicial equilibrada
+    if (pool === 0) return { A: '2.85', B: '2.85', D: '2.85', total: 0 };
+
+    // Cálculo: (Total Arrecadado * 0.95) / Total Apostado na Opção
+    // O 0.95 representa a taxa de 5% da "Casa" (Clã)
+    const calc = (sidePool) => sidePool > 0 ? (pool * 0.95 / sidePool).toFixed(2) : ((pool + 10) * 0.95 / 10).toFixed(2);
+    
+    return { A: calc(poolA), B: calc(poolB), D: calc(poolD), total: pool };
+  };
+
   const ranking = useMemo(() => {
      const userPoints = {};
-     (users || []).forEach(u => userPoints[u.id] = { ...u, pts: 0, exato: 0, vencedor: 0 });
+     (users || []).forEach(u => userPoints[u.id] = { ...u, bets: 0, wins: 0, profit: 0 });
 
-     (predictions || []).forEach(pred => {
-        const realMatch = matches.find(m => m.matchId === pred.matchId && m.compId === pred.compId && m.status === 'approved');
-        if (realMatch && userPoints[pred.userId]) {
-           const rA = Number(realMatch.scoreA); const rB = Number(realMatch.scoreB);
-           const pA = Number(pred.scoreA); const pB = Number(pred.scoreB);
-           
-           if (rA === pA && rB === pB) {
-              userPoints[pred.userId].pts += 3; 
-              userPoints[pred.userId].exato += 1;
-           } else if ((rA > rB && pA > pB) || (rA < rB && pA < pB) || (rA === rB && pA === pB)) {
-              userPoints[pred.userId].pts += 1; 
-              userPoints[pred.userId].vencedor += 1;
+     (predictions || []).forEach(p => {
+        if (p.status) { // Se a aposta já foi resolvida pelo Líder
+           if (userPoints[p.userId]) {
+              userPoints[p.userId].bets += 1;
+              if (p.status === 'won') userPoints[p.userId].wins += 1;
+              userPoints[p.userId].profit += (p.profit || 0);
            }
         }
      });
 
      return Object.values(userPoints)
-       .filter(u => u.pts > 0 || (predictions || []).some(p => p.userId === u.id))
-       .sort((a,b) => b.pts - a.pts || b.exato - a.exato);
-  }, [predictions, matches, users]);
+       .filter(u => u.bets > 0)
+       .sort((a,b) => b.profit - a.profit || b.wins - a.wins);
+  }, [predictions, users]);
 
   const handleSave = (m) => {
-     const sA = localScores[`${m.id}_A`];
-     const sB = localScores[`${m.id}_B`];
-     if(sA === undefined || sB === undefined || sA === '' || sB === '') { 
-       showToast("Preencha o placar completo antes de salvar!", "error"); 
+     const data = betData[m.id];
+     if (!data || !data.option || !data.amount || data.amount <= 0) { 
+       showToast("Escolha um vencedor e digite um valor válido!", "error"); 
        return; 
      }
+
+     const amountNum = parseInt(data.amount);
+     const myPred = getMyPred(m.id);
+     const oldAmount = myPred ? myPred.amount : 0;
+     const costDiff = amountNum - oldAmount;
+
+     if ((currentUser.kameCoins || 0) < costDiff) {
+       showToast(`Saldo insuficiente! Faltam ${costDiff - (currentUser.kameCoins || 0)} KC.`, "error");
+       return;
+     }
+
      onSavePrediction({
-        id: `pred_${currentUser.id}_${m.id}`,
+        id: myPred ? myPred.id : `pred_${currentUser.id}_${m.id}`,
         userId: currentUser.id,
         matchId: m.id,
         compId: m.compId,
-        scoreA: parseInt(sA),
-        scoreB: parseInt(sB),
+        option: data.option, // 'A', 'B', ou 'D'
+        amount: amountNum,
         timestamp: Date.now()
-     });
-     showToast("Palpite registrado com sucesso! Boa sorte 🍀", "success");
+     }, oldAmount);
+     
+     showToast("Aposta registrada com sucesso na Casa de Apostas! 🍀", "success");
   };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in pb-12">
       <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex items-center gap-4">
         <div className="bg-blue-950 p-3 rounded-full border border-amber-500/50 shadow-inner">
-          <Dices size={32} className="text-amber-400" />
+          <Dices size={32} className="text-amber-400 animate-pulse" />
         </div>
-        <div>
-          <h2 className="text-2xl font-black text-white uppercase tracking-wider">Bolão do Clã</h2>
-          <p className="text-sm text-blue-400 mt-1">Acerte na mosca (3 Pts) ou acerte o vencedor (1 Pt).</p>
+        <div className="flex-1 flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-black text-white uppercase tracking-wider">KameBet</h2>
+            <p className="text-sm text-blue-400 mt-1">As ODDs mudam conforme as apostas da galera!</p>
+          </div>
+          <div className="bg-blue-950 p-3 rounded-xl border border-amber-500/30 text-center">
+            <p className="text-[10px] text-amber-400 font-bold uppercase">Sua Carteira</p>
+            <p className="text-xl font-black text-white">{currentUser.kameCoins || 0} KC</p>
+          </div>
         </div>
       </div>
 
       <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800">
-        <button onClick={()=>setActiveTab('open')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab==='open'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>🎯 Palpitar ({openMatches.length})</button>
-        <button onClick={()=>setActiveTab('ranking')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab==='ranking'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>🏆 Ranking</button>
+        <button onClick={()=>setActiveTab('open')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab==='open'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>🎯 Apostar ({openMatches.length})</button>
+        <button onClick={()=>setActiveTab('ranking')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab==='ranking'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>🏆 Top Apostadores</button>
       </div>
 
       {activeTab === 'open' && (
         <div className="space-y-4 animate-in slide-in-from-left-4">
           {openMatches.length === 0 ? (
             <div className="bg-blue-900 p-8 rounded-2xl border border-blue-800 text-center text-blue-400 border-dashed">
-              Nenhum jogo em aberto no momento. Aguarde os líderes liberarem novas rodadas!
+              A casa de apostas está fechada. Aguarde novos jogos!
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {openMatches.map(m => {
                 const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
                 const myPred = getMyPred(m.id);
-                const isEditing = localScores[`${m.id}_A`] !== undefined;
+                const currentData = betData[m.id] || { option: myPred?.option || null, amount: myPred?.amount || '' };
+                const odds = getOdds(m.id);
 
                 return (
                   <div key={m.id} className="bg-blue-900 p-5 rounded-2xl border border-blue-800 shadow-lg hover:border-amber-500/30 transition-all group">
-                    <div className="text-center mb-3">
+                    <div className="flex justify-between items-center mb-3">
                       <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-widest">{m.compName} • Rodada {m.roundName}</span>
+                      <span className="text-[10px] text-blue-400 font-bold">Total Apostado: <span className="text-emerald-400">{odds.total} KC</span></span>
                     </div>
                     
-                    <div className="flex items-center justify-between gap-2 bg-blue-950 p-3 rounded-xl border border-blue-800/50">
-                      <div className="flex-1 flex flex-col items-center min-w-0">
-                        <ShieldDisplay shield={tA?.shield} size="small" />
-                        <span className="text-[10px] md:text-xs font-bold text-white mt-1 truncate w-full text-center">{tA?.name}</span>
-                      </div>
+                    {/* Botões de Seleção da Aposta */}
+                    <div className="grid grid-cols-3 gap-2 mb-4">
+                      <button onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'A'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'A' ? 'bg-emerald-600 border-emerald-500 shadow-inner' : 'bg-blue-950 border-blue-800 hover:border-emerald-500/50'}`}>
+                         <ShieldDisplay shield={tA?.shield} size="small" />
+                         <span className="text-[10px] text-white font-bold truncate w-full text-center">{tA?.name}</span>
+                         <span className={`text-xs font-black ${currentData.option === 'A' ? 'text-blue-950' : 'text-amber-400'}`}>{odds.A}x</span>
+                      </button>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <input 
-                          type="number" inputMode="numeric" pattern="[0-9]*" 
-                          value={localScores[`${m.id}_A`] ?? (myPred?.scoreA ?? '')} 
-                          onChange={e => setLocalScores({...localScores, [`${m.id}_A`]: e.target.value})}
-                          className="w-10 h-10 md:w-12 md:h-12 bg-blue-900 border border-blue-700 text-white text-center font-black text-lg rounded-lg outline-none focus:border-amber-500" 
-                        />
-                        <span className="text-blue-500 font-bold">X</span>
-                        <input 
-                          type="number" inputMode="numeric" pattern="[0-9]*" 
-                          value={localScores[`${m.id}_B`] ?? (myPred?.scoreB ?? '')} 
-                          onChange={e => setLocalScores({...localScores, [`${m.id}_B`]: e.target.value})}
-                          className="w-10 h-10 md:w-12 md:h-12 bg-blue-900 border border-blue-700 text-white text-center font-black text-lg rounded-lg outline-none focus:border-amber-500" 
-                        />
-                      </div>
+                      <button onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'D'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'D' ? 'bg-slate-500 border-slate-400 shadow-inner' : 'bg-blue-950 border-blue-800 hover:border-slate-400/50'}`}>
+                         <div className="w-10 h-10 flex items-center justify-center font-black text-slate-400">EMPATE</div>
+                         <span className={`text-xs font-black mt-1 ${currentData.option === 'D' ? 'text-blue-950' : 'text-amber-400'}`}>{odds.D}x</span>
+                      </button>
 
-                      <div className="flex-1 flex flex-col items-center min-w-0">
-                        <ShieldDisplay shield={tB?.shield} size="small" />
-                        <span className="text-[10px] md:text-xs font-bold text-white mt-1 truncate w-full text-center">{tB?.name}</span>
-                      </div>
+                      <button onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'B'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'B' ? 'bg-emerald-600 border-emerald-500 shadow-inner' : 'bg-blue-950 border-blue-800 hover:border-emerald-500/50'}`}>
+                         <ShieldDisplay shield={tB?.shield} size="small" />
+                         <span className="text-[10px] text-white font-bold truncate w-full text-center">{tB?.name}</span>
+                         <span className={`text-xs font-black ${currentData.option === 'B' ? 'text-blue-950' : 'text-amber-400'}`}>{odds.B}x</span>
+                      </button>
                     </div>
 
-                    <div className="mt-4 flex justify-center">
-                      {(myPred && !isEditing) ? (
-                        <Button variant="outline" onClick={() => setLocalScores({...localScores, [`${m.id}_A`]: myPred.scoreA, [`${m.id}_B`]: myPred.scoreB})} className="w-full text-xs border-amber-500/30 text-amber-400">
-                          ✏️ Alterar Palpite
-                        </Button>
-                      ) : (
-                        <Button onClick={() => handleSave(m)} className="w-full text-xs bg-amber-600 hover:bg-amber-500 border-0 text-white shadow-md">
-                          {myPred ? '💾 Salvar Alteração' : '🎯 Confirmar Palpite'}
-                        </Button>
-                      )}
+                    <div className="flex gap-2 items-end">
+                      <div className="flex-1">
+                        <label className="text-[10px] text-blue-400 uppercase font-bold block mb-1">Valor da Aposta (KC)</label>
+                        <input 
+                          type="number" inputMode="numeric" placeholder="Ex: 50"
+                          value={currentData.amount} 
+                          onChange={e => setBetData({...betData, [m.id]: {...currentData, amount: e.target.value}})}
+                          className="w-full bg-blue-950 border border-blue-700 text-amber-400 font-black text-lg p-2 rounded-lg outline-none focus:border-amber-500" 
+                        />
+                      </div>
+                      <Button onClick={() => handleSave(m)} disabled={!currentData.option || !currentData.amount} className="flex-1 py-3 text-xs bg-amber-600 hover:bg-amber-500 border-0 text-white shadow-md uppercase tracking-wider">
+                        {myPred ? 'Atualizar' : 'Apostar'}
+                      </Button>
                     </div>
+                    {currentData.option && currentData.amount && (
+                      <p className="text-center text-[10px] text-emerald-400 mt-2 font-medium">Retorno Estimado: <b className="text-amber-400">{Math.floor(currentData.amount * odds[currentData.option])} KC</b></p>
+                    )}
                   </div>
                 );
               })}
@@ -4596,15 +4625,15 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
               <thead className="bg-blue-900 text-blue-300 font-bold border-b border-blue-800">
                 <tr>
                   <th className="p-4 w-12 text-center">Pos</th>
-                  <th className="p-4">Palpiteiro</th>
-                  <th className="p-4 text-center">Na Mosca (3)</th>
-                  <th className="p-4 text-center">Acertos (1)</th>
-                  <th className="p-4 text-center">Pontos</th>
+                  <th className="p-4">Apostador</th>
+                  <th className="p-4 text-center">Apostas</th>
+                  <th className="p-4 text-center">Acertos</th>
+                  <th className="p-4 text-center">Lucro Total (KC)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-blue-800/40">
                 {ranking.length === 0 ? (
-                  <tr><td colSpan="5" className="p-8 text-center text-blue-500">Nenhum ponto registrado ainda. Os pontos aparecem quando o líder validar os jogos oficiais.</td></tr>
+                  <tr><td colSpan="5" className="p-8 text-center text-blue-500">O ranking será gerado assim que as apostas forem liquidadas.</td></tr>
                 ) : (
                   ranking.map((u, idx) => {
                     const isTop3 = idx < 3;
@@ -4613,9 +4642,13 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                       <tr key={u.id} className="hover:bg-blue-900/50 transition-colors">
                         <td className="p-4 text-center"><span className={`text-xl font-black ${isTop3 ? rankColors[idx] : 'text-blue-500'}`}>{idx + 1}º</span></td>
                         <td className="p-4 font-bold text-white">{u.name}</td>
-                        <td className="p-4 text-center text-emerald-400 font-bold">{u.exato}</td>
-                        <td className="p-4 text-center text-blue-300 font-medium">{u.vencedor}</td>
-                        <td className="p-4 text-center"><span className={`text-2xl font-black ${idx === 0 ? 'text-amber-500 drop-shadow-md' : 'text-white'}`}>{u.pts}</span></td>
+                        <td className="p-4 text-center text-blue-300 font-medium">{u.bets}</td>
+                        <td className="p-4 text-center text-emerald-400 font-bold">{u.wins}</td>
+                        <td className="p-4 text-center">
+                          <span className={`text-lg font-black px-3 py-1 rounded-lg ${u.profit > 0 ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' : u.profit < 0 ? 'text-red-400 bg-red-500/10 border border-red-500/20' : 'text-blue-300'}`}>
+                            {u.profit > 0 ? `+${u.profit}` : u.profit}
+                          </span>
+                        </td>
                       </tr>
                     )
                   })
@@ -4886,8 +4919,48 @@ export default function App() {
     
     if (st === 'approved') {
       const match = matches.find(m => m && m.id === id); if (!match) return; const comp = competitions.find(c => c && c.id === match.compId);
+      
+      const finalScoreA = updatedData && updatedData.scoreA !== undefined ? parseInt(updatedData.scoreA) : match.scoreA; 
+      const finalScoreB = updatedData && updatedData.scoreB !== undefined ? parseInt(updatedData.scoreB) : match.scoreB; 
+      const finalPenaltiesA = updatedData && updatedData.penaltiesA !== undefined ? parseInt(updatedData.penaltiesA) : match.penaltiesA; 
+      const finalPenaltiesB = updatedData && updatedData.penaltiesB !== undefined ? parseInt(updatedData.penaltiesB) : match.penaltiesB;
+      
+      // 🎲 CÁLCULO E DISTRIBUIÇÃO DOS PRÊMIOS DA CASA DE APOSTAS
+      const matchPreds = predictions.filter(p => p.matchId === id);
+      if (matchPreds.length > 0) {
+         // Define o resultado real ('A', 'B' ou 'D')
+         let realOutcome = 'D';
+         if (finalScoreA > finalScoreB) realOutcome = 'A';
+         else if (finalScoreB > finalScoreA) realOutcome = 'B';
+         else if (finalPenaltiesA !== null && finalPenaltiesB !== null) {
+            if (finalPenaltiesA > finalPenaltiesB) realOutcome = 'A';
+            else if (finalPenaltiesB > finalPenaltiesA) realOutcome = 'B';
+         }
+
+         // Calcula o tamanho da piscina e a ODD final (com 5% da casa)
+         const totalPool = matchPreds.reduce((sum, p) => sum + p.amount, 0);
+         const winningPool = matchPreds.reduce((sum, p) => sum + (p.option === realOutcome ? p.amount : 0), 0);
+         const finalOdd = winningPool > 0 ? (totalPool * 0.95 / winningPool) : 0;
+
+         // Paga os vencedores e atualiza o histórico de apostas
+         matchPreds.forEach(async (pred) => {
+            const isWin = pred.option === realOutcome;
+            const payout = isWin ? Math.floor(pred.amount * finalOdd) : 0;
+            const profit = isWin ? (payout - pred.amount) : -pred.amount;
+
+            // Se ganhou dinheiro, deposita na carteira!
+            if (payout > 0) {
+               const u = users.find(x => x.id === pred.userId);
+               if (u) await updateDoc(getPublicDocPath('users', u.id), { kameCoins: (u.kameCoins || 0) + payout });
+            }
+
+            // Atualiza o bilhete da aposta com o resultado (para o Ranking)
+            await updateDoc(getPublicDocPath('predictions', pred.id), { status: isWin ? 'won' : 'lost', payout, profit });
+         });
+      }
+
       if (comp && (comp.format === 'cup' || comp.format === 'groups')) {
-        let winnerId = null; const finalScoreA = updatedData && updatedData.scoreA !== undefined ? parseInt(updatedData.scoreA) : match.scoreA; const finalScoreB = updatedData && updatedData.scoreB !== undefined ? parseInt(updatedData.scoreB) : match.scoreB; const finalPenaltiesA = updatedData && updatedData.penaltiesA !== undefined ? parseInt(updatedData.penaltiesA) : match.penaltiesA; const finalPenaltiesB = updatedData && updatedData.penaltiesB !== undefined ? parseInt(updatedData.penaltiesB) : match.penaltiesB;
+        let winnerId = null; 
         if (finalScoreA > finalScoreB) winnerId = match.teamA; else if (finalScoreB > finalScoreA) winnerId = match.teamB; else if (finalPenaltiesA !== null && finalPenaltiesA !== undefined) { if (finalPenaltiesA > finalPenaltiesB) winnerId = match.teamA; else if (finalPenaltiesB > finalPenaltiesA) winnerId = match.teamB; }
         
         if (winnerId) {
@@ -4903,7 +4976,7 @@ export default function App() {
                const newRounds = JSON.parse(JSON.stringify(comp.rounds)); 
                const loserId = winnerId === match.teamA ? match.teamB : match.teamA;
 
-               const isNextRoundFinal = newRounds[nextRIndex].matches.some(m => m.id.includes('_f1') || m.id.includes('_3rd'));
+               const isNextRoundFinal = newRounds[nextRIndex].matches.some(x => x.id.includes('_f1') || x.id.includes('_3rd'));
 
                if (isNextRoundFinal) {
                   newRounds[nextRIndex].matches.forEach(nextMatch => {
@@ -4957,8 +5030,14 @@ export default function App() {
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
       case 'ranking': return <GlobalRanking teams={teams} matches={matches} competitions={competitions} />;
       
-      case 'predictions': return <PredictionsPanel competitions={competitions} matches={matches} teams={teams} users={users} currentUser={currentUser} predictions={predictions} showToast={showToast} onSavePrediction={async (p) => { await setDoc(getPublicDocPath('predictions', p.id), p); }} />;
-      
+      case 'predictions': return <PredictionsPanel competitions={competitions} matches={matches} teams={teams} users={users} currentUser={currentUser} predictions={predictions} showToast={showToast} onSavePrediction={async (p, oldAmount) => { 
+          const costDiff = p.amount - oldAmount;
+          const newBalance = (currentUser.kameCoins || 0) - costDiff;
+          await updateDoc(getPublicDocPath('users', currentUser.id), { kameCoins: newBalance });
+          setCurrentUser(prev => ({...prev, kameCoins: newBalance}));
+          await setDoc(getPublicDocPath('predictions', p.id), p); 
+      }} />;
+        
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(hasEventAccess ? 'validation' : 'dashboard'); })} />;
