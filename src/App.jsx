@@ -2145,8 +2145,34 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       )}
 
       {isRegistration ? (
-        <div className="bg-blue-900 border border-blue-800 rounded-3xl p-6 md:p-8 shadow-2xl animate-in slide-in-from-bottom-4">
-          <div className="text-center mb-8">
+        <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-bold text-emerald-400 uppercase flex items-center gap-2"><CheckCircle size={16}/> Times Confirmados</h3>
+              </div>
+
+              {/* 🌟 NOVA ÁREA: INSERÇÃO MANUAL PARA ADMINS NA FASE DE INSCRIÇÃO */}
+              {isAdmin && (
+                <div className="mb-4">
+                  {showAddTeam ? (
+                    <div className="flex flex-col sm:flex-row gap-2 w-full animate-in fade-in bg-blue-950/80 p-3 rounded-xl border border-emerald-500/40 shadow-inner">
+                      <select value={newTeamToAdd} onChange={e=>setNewTeamToAdd(e.target.value)} className="flex-1 bg-blue-900 border border-blue-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500">
+                        <option value="">Escolher time para inserir...</option>
+                        {availableTeamsToAdd.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                      <div className="flex gap-2">
+                        <Button onClick={handleAddTeamToComp} className="py-1 px-4 text-xs bg-emerald-600 flex-1 sm:flex-none border-0 shadow-md text-white">Adicionar</Button>
+                        <Button variant="outline" onClick={()=>{setShowAddTeam(false); setNewTeamToAdd('');}} className="py-1 px-3 text-xs font-bold text-red-400 border-red-500/30 hover:bg-red-500/20 flex-1 sm:flex-none">Cancelar</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button variant="outline" onClick={()=>setShowAddTeam(true)} className="py-2 px-3 text-xs w-full flex items-center justify-center gap-2 border-dashed border-emerald-500/50 hover:bg-emerald-500/20 text-emerald-400 transition-all">
+                      <span className="font-bold text-lg leading-none">+</span> Inserir Time Manualmente
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
             <h2 className="text-3xl font-black text-emerald-400 uppercase tracking-widest drop-shadow-md mb-2">Inscrições Abertas</h2>
             <p className="text-blue-300">Aguardando os times se cadastrarem pelo link ou via inserção manual.</p>
             <div className="mt-6 flex flex-col items-center justify-center gap-4">
