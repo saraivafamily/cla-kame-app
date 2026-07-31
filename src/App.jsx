@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
-import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal } from 'lucide-react';
+import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices } from 'lucide-react';
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
 const firebaseConfig = { 
@@ -4421,17 +4421,209 @@ const GlobalRanking = ({ teams, matches, competitions }) => {
   );
 };
 
+const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, predictions, onSavePrediction, showToast }) => {
+  const [activeTab, setActiveTab] = useState('open');
+  const [localScores, setLocalScores] = useState({});
+
+  const getTeam = (id) => (teams || []).find(t => t.id === id);
+  const getMyPred = (matchId) => (predictions || []).find(p => p.matchId === matchId && p.userId === currentUser.id);
+
+  const openMatches = useMemo(() => {
+    const open = [];
+    (competitions || []).forEach(c => {
+      if (c.status !== 'active') return;
+      c.rounds?.forEach(r => {
+        if (r.status !== 'released') return;
+        r.matches.forEach(m => {
+          const hasResult = matches.some(x => x.matchId === m.id && x.compId === c.id && x.status !== 'rejected');
+          if (!hasResult && m.teamA && m.teamB) {
+            open.push({ ...m, compName: c.name, compId: c.id, roundName: r.number });
+          }
+        });
+      });
+    });
+    return open;
+  }, [competitions, matches]);
+
+  const ranking = useMemo(() => {
+     const userPoints = {};
+     (users || []).forEach(u => userPoints[u.id] = { ...u, pts: 0, exato: 0, vencedor: 0 });
+
+     (predictions || []).forEach(pred => {
+        const realMatch = matches.find(m => m.matchId === pred.matchId && m.compId === pred.compId && m.status === 'approved');
+        if (realMatch && userPoints[pred.userId]) {
+           const rA = Number(realMatch.scoreA); const rB = Number(realMatch.scoreB);
+           const pA = Number(pred.scoreA); const pB = Number(pred.scoreB);
+           
+           if (rA === pA && rB === pB) {
+              userPoints[pred.userId].pts += 3; 
+              userPoints[pred.userId].exato += 1;
+           } else if ((rA > rB && pA > pB) || (rA < rB && pA < pB) || (rA === rB && pA === pB)) {
+              userPoints[pred.userId].pts += 1; 
+              userPoints[pred.userId].vencedor += 1;
+           }
+        }
+     });
+
+     return Object.values(userPoints)
+       .filter(u => u.pts > 0 || (predictions || []).some(p => p.userId === u.id))
+       .sort((a,b) => b.pts - a.pts || b.exato - a.exato);
+  }, [predictions, matches, users]);
+
+  const handleSave = (m) => {
+     const sA = localScores[`${m.id}_A`];
+     const sB = localScores[`${m.id}_B`];
+     if(sA === undefined || sB === undefined || sA === '' || sB === '') { 
+       showToast("Preencha o placar completo antes de salvar!", "error"); 
+       return; 
+     }
+     onSavePrediction({
+        id: `pred_${currentUser.id}_${m.id}`,
+        userId: currentUser.id,
+        matchId: m.id,
+        compId: m.compId,
+        scoreA: parseInt(sA),
+        scoreB: parseInt(sB),
+        timestamp: Date.now()
+     });
+     showToast("Palpite registrado com sucesso! Boa sorte 🍀", "success");
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in pb-12">
+      <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex items-center gap-4">
+        <div className="bg-blue-950 p-3 rounded-full border border-amber-500/50 shadow-inner">
+          <Dices size={32} className="text-amber-400" />
+        </div>
+        <div>
+          <h2 className="text-2xl font-black text-white uppercase tracking-wider">Bolão do Clã</h2>
+          <p className="text-sm text-blue-400 mt-1">Acerte na mosca (3 Pts) ou acerte o vencedor (1 Pt).</p>
+        </div>
+      </div>
+
+      <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800">
+        <button onClick={()=>setActiveTab('open')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab==='open'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>🎯 Palpitar ({openMatches.length})</button>
+        <button onClick={()=>setActiveTab('ranking')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab==='ranking'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>🏆 Ranking</button>
+      </div>
+
+      {activeTab === 'open' && (
+        <div className="space-y-4 animate-in slide-in-from-left-4">
+          {openMatches.length === 0 ? (
+            <div className="bg-blue-900 p-8 rounded-2xl border border-blue-800 text-center text-blue-400 border-dashed">
+              Nenhum jogo em aberto no momento. Aguarde os líderes liberarem novas rodadas!
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {openMatches.map(m => {
+                const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
+                const myPred = getMyPred(m.id);
+                const isEditing = localScores[`${m.id}_A`] !== undefined;
+
+                return (
+                  <div key={m.id} className="bg-blue-900 p-5 rounded-2xl border border-blue-800 shadow-lg hover:border-amber-500/30 transition-all group">
+                    <div className="text-center mb-3">
+                      <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-widest">{m.compName} • Rodada {m.roundName}</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between gap-2 bg-blue-950 p-3 rounded-xl border border-blue-800/50">
+                      <div className="flex-1 flex flex-col items-center min-w-0">
+                        <ShieldDisplay shield={tA?.shield} size="small" />
+                        <span className="text-[10px] md:text-xs font-bold text-white mt-1 truncate w-full text-center">{tA?.name}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <input 
+                          type="number" inputMode="numeric" pattern="[0-9]*" 
+                          value={localScores[`${m.id}_A`] ?? (myPred?.scoreA ?? '')} 
+                          onChange={e => setLocalScores({...localScores, [`${m.id}_A`]: e.target.value})}
+                          className="w-10 h-10 md:w-12 md:h-12 bg-blue-900 border border-blue-700 text-white text-center font-black text-lg rounded-lg outline-none focus:border-amber-500" 
+                        />
+                        <span className="text-blue-500 font-bold">X</span>
+                        <input 
+                          type="number" inputMode="numeric" pattern="[0-9]*" 
+                          value={localScores[`${m.id}_B`] ?? (myPred?.scoreB ?? '')} 
+                          onChange={e => setLocalScores({...localScores, [`${m.id}_B`]: e.target.value})}
+                          className="w-10 h-10 md:w-12 md:h-12 bg-blue-900 border border-blue-700 text-white text-center font-black text-lg rounded-lg outline-none focus:border-amber-500" 
+                        />
+                      </div>
+
+                      <div className="flex-1 flex flex-col items-center min-w-0">
+                        <ShieldDisplay shield={tB?.shield} size="small" />
+                        <span className="text-[10px] md:text-xs font-bold text-white mt-1 truncate w-full text-center">{tB?.name}</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex justify-center">
+                      {(myPred && !isEditing) ? (
+                        <Button variant="outline" onClick={() => setLocalScores({...localScores, [`${m.id}_A`]: myPred.scoreA, [`${m.id}_B`]: myPred.scoreB})} className="w-full text-xs border-amber-500/30 text-amber-400">
+                          ✏️ Alterar Palpite
+                        </Button>
+                      ) : (
+                        <Button onClick={() => handleSave(m)} className="w-full text-xs bg-amber-600 hover:bg-amber-500 border-0 text-white shadow-md">
+                          {myPred ? '💾 Salvar Alteração' : '🎯 Confirmar Palpite'}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'ranking' && (
+        <div className="bg-blue-950 rounded-3xl border border-blue-800 shadow-2xl overflow-hidden animate-in slide-in-from-right-4">
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-blue-900 text-blue-300 font-bold border-b border-blue-800">
+                <tr>
+                  <th className="p-4 w-12 text-center">Pos</th>
+                  <th className="p-4">Palpiteiro</th>
+                  <th className="p-4 text-center">Na Mosca (3)</th>
+                  <th className="p-4 text-center">Acertos (1)</th>
+                  <th className="p-4 text-center">Pontos</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-blue-800/40">
+                {ranking.length === 0 ? (
+                  <tr><td colSpan="5" className="p-8 text-center text-blue-500">Nenhum ponto registrado ainda. Os pontos aparecem quando o líder validar os jogos oficiais.</td></tr>
+                ) : (
+                  ranking.map((u, idx) => {
+                    const isTop3 = idx < 3;
+                    const rankColors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
+                    return (
+                      <tr key={u.id} className="hover:bg-blue-900/50 transition-colors">
+                        <td className="p-4 text-center"><span className={`text-xl font-black ${isTop3 ? rankColors[idx] : 'text-blue-500'}`}>{idx + 1}º</span></td>
+                        <td className="p-4 font-bold text-white">{u.name}</td>
+                        <td className="p-4 text-center text-emerald-400 font-bold">{u.exato}</td>
+                        <td className="p-4 text-center text-blue-300 font-medium">{u.vencedor}</td>
+                        <td className="p-4 text-center"><span className={`text-2xl font-black ${idx === 0 ? 'text-amber-500 drop-shadow-md' : 'text-white'}`}>{u.pts}</span></td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => { const saved = localStorage.getItem('claKame_user'); return saved ? JSON.parse(saved) : null; });
 
   const [feedPosts, setFeedPosts] = useState([]);
   const [lastSeenFeed, setLastSeenFeed] = useState(() => parseInt(localStorage.getItem('kame_last_seen_feed') || '0'));
   
-  // ⚡ MÁGICA DA VELOCIDADE: Lê os parâmetros da URL imediatamente antes de criar os estados
+  // 🎲 O ESTADO DO BOLÃO VOLTOU!
+  const [predictions, setPredictions] = useState([]);
+  
   const urlParams = new URLSearchParams(window.location.search);
   const joinIdFromUrl = urlParams.get('join');
 
-  // O app já nasce configurado na aba de inscrição, sem passar pelo Dashboard!
   const [currentTab, setCurrentTab] = useState(joinIdFromUrl ? 'join_comp' : 'dashboard');
   const [selectedCompId, setSelectedCompId] = useState(joinIdFromUrl);
   
@@ -4452,26 +4644,19 @@ export default function App() {
 
   const handleJoinComp = async (compId, teamId, receiptBase64) => {
     const comp = competitions.find(c => c.id === compId);
-    if (!comp) {
-      showToast("Erro: Campeonato não localizado no sistema.", "error");
-      return;
-    }
-    
+    if (!comp) { showToast("Erro: Campeonato não localizado no sistema.", "error"); return; }
     try {
       const newPending = [...(comp.pendingTeams || []), { teamId, receipt: receiptBase64, timestamp: Date.now() }];
       await updateDoc(getPublicDocPath('competitions', compId), { pendingTeams: newPending });
       showToast("Inscrição enviada com sucesso para os líderes!", "success");
       setCurrentTab('dashboard');
     } catch (error) {
-      console.error("Erro crítico ao gravar inscrição no Firebase:", error);
-      showToast(`Falha no Servidor Cloud: ${error.message}`, "error");
-      throw error;
+      showToast(`Falha no Servidor Cloud: ${error.message}`, "error"); throw error;
     }
   };
   
   const showToast = (text, type = 'success') => { let msg = text; if (typeof text === 'object') { msg = text.message ? text.message : JSON.stringify(text); } setToastMessage({ text: String(msg), type }); setTimeout(() => setToastMessage(null), 4000); };
 
-  // 🛠️ CORREÇÃO AQUI: useEffect do Firebase unificado e sem erros de sintaxe!
   useEffect(() => {
     const unsubU = onSnapshot(getPublicPath('users'), snap => setUsers(snap.docs.map(d=>d.data())));
     const unsubT = onSnapshot(getPublicPath('teams'), snap => setTeams(snap.docs.map(d=>d.data())));
@@ -4483,15 +4668,20 @@ export default function App() {
       setFeedPosts(fetched);
     });
 
+    // 🎲 O FIREBASE DO BOLÃO VOLTOU!
+    const unsubP = onSnapshot(getPublicPath('predictions'), snap => {
+      setPredictions(snap.docs.map(d => d.data()));
+    });
+
     setIsFirebaseLoading(false); 
-    return () => { unsubU(); unsubT(); unsubC(); unsubM(); unsubF(); };
+    return () => { unsubU(); unsubT(); unsubC(); unsubM(); unsubF(); unsubP(); };
   }, []);
 
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('claKame_user', JSON.stringify(currentUser)); const stillExists = users.find(u => u && u.id === currentUser.id);
       if (users.length > 0 && !stillExists) { setCurrentUser(null); localStorage.removeItem('claKame_user'); } 
-      else if (stillExists && (stillExists.role !== currentUser.role || stillExists.status !== currentUser.status)) { 
+      else if (stillExists && (stillExists.role !== currentUser.role || stillExists.status !== currentUser.status || stillExists.kameCoins !== currentUser.kameCoins)) { 
         setCurrentUser(stillExists); 
       }
     } else { localStorage.removeItem('claKame_user'); }
@@ -4507,10 +4697,7 @@ export default function App() {
     if (oldTeam && oldTeam.ownerId === 'manual' && updatedTeam.ownerId !== 'manual') {
       const userId = updatedTeam.ownerId;
       const linkedUser = users.find(u => u.id === userId);
-      if (linkedUser) {
-        updatedTeam.coach = linkedUser.name;
-        updatedTeam.whatsapp = linkedUser.whatsapp;
-      }
+      if (linkedUser) { updatedTeam.coach = linkedUser.name; updatedTeam.whatsapp = linkedUser.whatsapp; }
       try { await deleteDoc(getPublicDocPath('teams', `t_${userId}`)); } catch(e) {}
       showToast("Técnico vinculado e histórico migrado!", "success");
     } else {
@@ -4533,6 +4720,7 @@ export default function App() {
   };
 
   const formatarParaEmail = (texto) => { const textoLimpo = String(texto).trim().toLowerCase(); if (textoLimpo.includes('@')) return textoLimpo; return textoLimpo.replace(/[-\s().]/g, '') + '@clakame.com'; };
+  
   const handleRegister = async (data) => {
     const email = data.email.trim().toLowerCase();
     const cleanPhone = data.whatsapp.replace(/\D/g, '');
@@ -4541,7 +4729,8 @@ export default function App() {
     const userCredential = await createUserWithEmailAndPassword(auth, email, data.password);
     const uid = userCredential.user.uid;
     
-    const newUser = { id: uid, name: fullName, email: email, whatsapp: cleanPhone, role: 'member', status: 'pending' };
+    // 🪙 KAME COINS AQUI: 100 KC de Boas-Vindas
+    const newUser = { id: uid, name: fullName, email: email, whatsapp: cleanPhone, role: 'member', status: 'pending', kameCoins: 100, receivedProfileBonus: false };
     const newTeam = { id: `t_${uid}`, name: data.teamName, coach: fullName, whatsapp: cleanPhone, ownerId: uid, shield: '🛡️' };
     
     await setDoc(getPublicDocPath('users', uid), newUser);
@@ -4553,7 +4742,7 @@ export default function App() {
 
   const handleLogin = async (identifier, password) => {
     const cleanPhone = String(identifier).replace(/\D/g, '');
-    if (users.length === 0 && (String(identifier).toLowerCase().includes('savio') || cleanPhone === '91998270658')) { const masterUser = { id: 'u_master', name: 'Sávio Saraiva', role: 'leader', whatsapp: '91998270658', email: 'saviosaraiva777@gmail.com', password: password, status: 'active' }; await setDoc(getPublicDocPath('users', 'u_master'), masterUser); setCurrentUser(masterUser); setCurrentTab('dashboard'); return; }
+    if (users.length === 0 && (String(identifier).toLowerCase().includes('savio') || cleanPhone === '91998270658')) { const masterUser = { id: 'u_master', name: 'Sávio Saraiva', role: 'leader', whatsapp: '91998270658', email: 'saviosaraiva777@gmail.com', password: password, status: 'active', kameCoins: 9999 }; await setDoc(getPublicDocPath('users', 'u_master'), masterUser); setCurrentUser(masterUser); setCurrentTab('dashboard'); return; }
     
     let emFake = formatarParaEmail(identifier); 
     let foundUser = null;
@@ -4562,10 +4751,7 @@ export default function App() {
       if (foundUser?.email) emFake = foundUser.email; 
     }
     
-    if (foundUser && foundUser.status === 'pending') {
-      throw new Error("Aguardando aprovação dos líderes.");
-    }
-    
+    if (foundUser && foundUser.status === 'pending') { throw new Error("Aguardando aprovação dos líderes."); }
     try { await signInWithEmailAndPassword(auth, emFake, password); } 
     catch (e) { throw new Error("Acesso negado. Verifique os dados."); }
   };
@@ -4595,7 +4781,7 @@ export default function App() {
 
   const isLeaderOrKaioh = currentUser.role === 'leader' || currentUser.role === 'kaioh';
   const isOrganizer = currentUser.role === 'organizer';
-  const hasEventAccess = isLeaderOrKaioh || isOrganizer; // Permissão para gerenciar jogos
+  const hasEventAccess = isLeaderOrKaioh || isOrganizer;
   
   const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home }, 
@@ -4608,20 +4794,19 @@ export default function App() {
     { id: 'records', label: 'Mural de Recordes', icon: Trophy },
     { id: 'rules', label: 'Regras do Clã', icon: BookOpen },
     
-    // 🟢 ACESSO DO ORGANIZADOR E DOS LÍDERES
     ...(hasEventAccess ? [
       { id: 'submit', label: 'Registrar', icon: Camera }, 
       { id: 'validation', label: 'Validação', icon: CheckSquare }, 
       { id: 'create_comp', label: 'Nova Comp', icon: PlusCircle }
     ] : []),
 
-    // 🔴 ACESSO RESTRITO APENAS PARA LÍDERES
     ...(isLeaderOrKaioh ? [
       { id: 'members_list', label: 'Técnicos', icon: Award },
       { id: 'create_team', label: 'Convidar Técnico', icon: Users },
       { id: 'create_team_manual', label: 'Time Simples', icon: UserPlus } 
     ] : []),
   ];
+
   const handleUpdateMatchStatus = async (id, st, updatedData = null) => {
     const updatePayload = { status: st };
     if (updatedData) {
@@ -4629,16 +4814,46 @@ export default function App() {
       if (updatedData.penaltiesA !== undefined) updatePayload.penaltiesA = parseInt(updatedData.penaltiesA); if (updatedData.penaltiesB !== undefined) updatePayload.penaltiesB = parseInt(updatedData.penaltiesB);
     }
     await updateDoc(getPublicDocPath('matches', id), updatePayload);
+    
     if (st === 'approved') {
       const match = matches.find(m => m && m.id === id); if (!match) return; const comp = competitions.find(c => c && c.id === match.compId);
       if (comp && (comp.format === 'cup' || comp.format === 'groups')) {
         let winnerId = null; const finalScoreA = updatedData && updatedData.scoreA !== undefined ? parseInt(updatedData.scoreA) : match.scoreA; const finalScoreB = updatedData && updatedData.scoreB !== undefined ? parseInt(updatedData.scoreB) : match.scoreB; const finalPenaltiesA = updatedData && updatedData.penaltiesA !== undefined ? parseInt(updatedData.penaltiesA) : match.penaltiesA; const finalPenaltiesB = updatedData && updatedData.penaltiesB !== undefined ? parseInt(updatedData.penaltiesB) : match.penaltiesB;
         if (finalScoreA > finalScoreB) winnerId = match.teamA; else if (finalScoreB > finalScoreA) winnerId = match.teamB; else if (finalPenaltiesA !== null && finalPenaltiesA !== undefined) { if (finalPenaltiesA > finalPenaltiesB) winnerId = match.teamA; else if (finalPenaltiesB > finalPenaltiesA) winnerId = match.teamB; }
+        
         if (winnerId) {
-          const rIndex = comp.rounds.findIndex(r => r && r.id === match.roundId); const isKnockoutMatch = match.matchId.includes('_ko_') || comp.format === 'cup';
+          const rIndex = comp.rounds.findIndex(r => r && r.id === match.roundId); 
+          const isKnockoutMatch = match.matchId.includes('_ko_') || comp.format === 'cup';
+          
           if (rIndex >= 0 && rIndex < comp.rounds.length - 1 && isKnockoutMatch) {
             const mIndex = comp.rounds[rIndex].matches.findIndex(m => m && m.id === match.matchId);
-            if (mIndex >= 0) { const nextRIndex = rIndex + 1; const nextMIndex = Math.floor(mIndex / 2); const isTeamA = mIndex % 2 === 0; const newRounds = JSON.parse(JSON.stringify(comp.rounds)); if (isTeamA) newRounds[nextRIndex].matches[nextMIndex].teamA = winnerId; else newRounds[nextRIndex].matches[nextMIndex].teamB = winnerId; await updateDoc(getPublicDocPath('competitions', comp.id), { rounds: newRounds }); }
+            if (mIndex >= 0) {
+               const nextRIndex = rIndex + 1; 
+               const nextMIndex = Math.floor(mIndex / 2); 
+               const isTeamA = mIndex % 2 === 0; 
+               const newRounds = JSON.parse(JSON.stringify(comp.rounds)); 
+               const loserId = winnerId === match.teamA ? match.teamB : match.teamA;
+
+               const isNextRoundFinal = newRounds[nextRIndex].matches.some(m => m.id.includes('_f1') || m.id.includes('_3rd'));
+
+               if (isNextRoundFinal) {
+                  newRounds[nextRIndex].matches.forEach(nextMatch => {
+                     if (nextMatch.id.includes('_3rd')) {
+                        if (isTeamA) nextMatch.teamA = loserId; else nextMatch.teamB = loserId;
+                     } else {
+                        if (nextMatch.id.includes('_f2')) {
+                           if (isTeamA) nextMatch.teamB = winnerId; else nextMatch.teamA = winnerId;
+                        } else {
+                           if (isTeamA) nextMatch.teamA = winnerId; else nextMatch.teamB = winnerId;
+                        }
+                     }
+                  });
+               } else {
+                  if (isTeamA) newRounds[nextRIndex].matches[nextMIndex].teamA = winnerId; 
+                  else newRounds[nextRIndex].matches[nextMIndex].teamB = winnerId;
+               }
+               await updateDoc(getPublicDocPath('competitions', comp.id), { rounds: newRounds });
+            }
           }
         }
       }
@@ -4655,19 +4870,34 @@ export default function App() {
   const renderContent = () => {
     switch (currentTab) {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} onChangeTab={setCurrentTab} onJoinOpenComp={(id) => { setSelectedCompId(id); setCurrentTab('join_comp'); }} />;
-      case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onUpdateUserPhoto={async (url) => { await updateDoc(getPublicDocPath('users', currentUser.id), { photoURL: url }); setCurrentUser(prev => ({...prev, photoURL: url})); }} />;
+      
+      case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onUpdateUserPhoto={async (url) => { 
+          const updates = { photoURL: url }; let rewardMsg = "";
+          // 🪙 KAME COINS: Dá 50 KC se for a primeira vez atualizando foto!
+          if (!currentUser.receivedProfileBonus) {
+            updates.kameCoins = (currentUser.kameCoins || 0) + 50;
+            updates.receivedProfileBonus = true;
+            rewardMsg = " 🎁 +50 KC de Bônus ganho!";
+          }
+          await updateDoc(getPublicDocPath('users', currentUser.id), updates); 
+          setCurrentUser(prev => ({...prev, ...updates})); 
+          showToast("Foto atualizada!" + rewardMsg, "success"); 
+        }} />;
+
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onDeleteTeam={async (id) => { await deleteDoc(getPublicDocPath('teams', id)); showToast("Time excluído com sucesso!", "success"); }} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
       case 'ranking': return <GlobalRanking teams={teams} matches={matches} competitions={competitions} />;
+      
+      case 'predictions': return <PredictionsPanel competitions={competitions} matches={matches} teams={teams} users={users} currentUser={currentUser} predictions={predictions} showToast={showToast} onSavePrediction={async (p) => { await setDoc(getPublicDocPath('predictions', p.id), p); }} />;
+      
       case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
-      case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(isLeaderOrKaioh ? 'validation' : 'dashboard'); })} />;
+      case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(hasEventAccess ? 'validation' : 'dashboard'); })} />;
       case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} showToast={showToast} />;
       case 'create_comp': return <CreateCompetition teams={teams} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
       case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
       case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
-      // 🛠️ CORREÇÃO AQUI: Passando os posts lidos lá do Firebase para a página do Feed!
       case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} posts={feedPosts} />;
       case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} />;
       case 'records': return <RecordsWall showToast={showToast} currentUser={currentUser} />;
@@ -4688,12 +4918,12 @@ export default function App() {
 
       <aside className="w-full md:w-64 bg-blue-900 border-b md:border-b-0 md:border-r border-blue-800 flex flex-col shrink-0 z-10 shadow-2xl">
         <div className="p-6 flex items-center gap-3"><img src={LOGO_URL} alt="Clã Kame" className="w-24 h-24" /><div><h1 className="font-bold text-white text-lg">Clã Kame</h1><p className="text-[10px] text-emerald-400 font-bold uppercase">Arena DLS</p></div></div>
+        
         <nav className="flex-1 px-4 pb-4 overflow-y-auto flex md:flex-col gap-2 overflow-x-auto custom-scrollbar">
           {TABS.map(tab => {
             const isActive = currentTab === tab.id || (tab.id === 'competitions' && currentTab === 'comp_details'); 
             const Icon = tab.icon;
             
-            // Lógica da Bolinha Vermelha
             const hasNewFeed = tab.id === 'feed' && feedPosts.length > 0 && feedPosts[0].timestamp > lastSeenFeed;
 
             return ( 
@@ -4712,18 +4942,33 @@ export default function App() {
                 <Icon size={18} /> 
                 <span className="text-sm">{tab.label}</span>
                 
-                {/* 🔴 Bolinha Vermelha do Feed */}
                 {hasNewFeed && (
                   <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse"></span>
                 )}
 
-                {/* Notificação de Validação (Admin) */}
                 {(tab.id === 'validation' && matches.filter(m=>m?.status==='pending').length > 0) && <span className="ml-auto bg-amber-500 text-blue-950 text-xs font-bold px-2 py-0.5 rounded-full">{matches.filter(m=>m?.status==='pending').length}</span>}
               </button> 
             );
           })}
         </nav>
-        <div className="p-4 border-t border-blue-800 hidden md:block"><div className="bg-blue-950 rounded-xl p-4 border border-blue-800/50 relative overflow-hidden"><div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div><p className="font-bold text-white text-sm truncate">{String(currentUser?.name)}</p><p className="text-[10px] text-emerald-400 uppercase font-bold mb-3">{ROLE_NAMES[currentUser?.role]}</p><button onClick={() => { setCurrentUser(null); signOut(auth); }} className="w-full text-xs text-blue-400 hover:text-white py-1.5 rounded bg-blue-900 border border-blue-700/60"><LogOut size={12} className="inline mr-1"/> Sair</button></div></div>
+        
+        <div className="p-4 border-t border-blue-800 hidden md:block">
+          <div className="bg-blue-950 rounded-xl p-4 border border-blue-800/50 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+            <p className="font-bold text-white text-sm truncate">{String(currentUser?.name)}</p>
+            <p className="text-[10px] text-emerald-400 uppercase font-bold mb-3">{ROLE_NAMES[currentUser?.role]}</p>
+            
+            {/* 🪙 A CARTEIRA KAME COINS */}
+            <div className="bg-blue-900/50 border border-amber-500/30 rounded-lg p-2.5 mb-3 flex items-center justify-between shadow-inner">
+               <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1.5"><Star size={12}/> Saldo</span>
+               <span className="text-sm font-black text-white">{currentUser?.kameCoins || 0} <span className="text-amber-500 text-xs">KC</span></span>
+            </div>
+
+            <button onClick={() => { setCurrentUser(null); signOut(auth); }} className="w-full text-xs text-blue-400 hover:text-white py-1.5 rounded bg-blue-900 border border-blue-700/60 transition-colors hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30">
+              <LogOut size={12} className="inline mr-1"/> Sair
+            </button>
+          </div>
+        </div>
       </aside>
       <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-blue-950"><div className="max-w-5xl mx-auto pb-20 md:pb-0">{renderContent()}</div></main>
     </div>
