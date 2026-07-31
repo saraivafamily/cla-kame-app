@@ -4705,24 +4705,59 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
 const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
   const [bankTab, setBankTab] = useState('extrato');
   const [selectedPackage, setSelectedPackage] = useState(null);
+  
+  // 💳 ESTADOS DO CHECKOUT AUTOMÁTICO
+  const [checkoutStep, setCheckoutStep] = useState('idle'); // 'idle', 'generating', 'waiting', 'success'
+  const [pixPayload, setPixPayload] = useState('');
 
   const getTeam = (id) => (teams || []).find(t => t.id === id);
   const myPreds = (predictions || []).filter(p => p.userId === currentUser?.id).sort((a,b) => b.timestamp - a.timestamp);
 
-  // 🛒 PACOTES DE MOEDAS DA LOJA
   const KC_PACKAGES = [
     { id: 'p1', name: 'Pacote Iniciante', coins: 300, price: 5.00, bonus: 0, color: 'from-blue-600 to-blue-900', border: 'border-blue-500' },
     { id: 'p2', name: 'Pacote Profissional', coins: 700, price: 10.00, bonus: 100, color: 'from-emerald-600 to-emerald-900', border: 'border-emerald-500' },
     { id: 'p3', name: 'Pacote Magnata', coins: 1600, price: 20.00, bonus: 400, color: 'from-amber-500 to-amber-800', border: 'border-amber-400' },
   ];
 
-  const handleSendReceipt = () => {
-     if (!selectedPackage) return;
-     const msg = `Fala Líder! Fiz o PIX de R$ ${selectedPackage.price.toFixed(2)} para comprar o pacote de ${selectedPackage.coins} KC. Segue o comprovante!`;
-     // Mude o número abaixo para o seu WhatsApp oficial de recebimentos
-     window.open(`https://wa.me/5591998270658?text=${encodeURIComponent(msg)}`, '_blank');
-     setSelectedPackage(null);
-     showToast("Redirecionando para o WhatsApp...", "success");
+  // 1. INICIA O PAGAMENTO
+  const handleStartCheckout = (pkg) => {
+    setSelectedPackage(pkg);
+    setCheckoutStep('generating');
+
+    // Aqui, no futuro, chamaremos a API do MercadoPago. Por enquanto, simulamos a geração da chave.
+    setTimeout(() => {
+      // Exemplo de um PIX Copia e Cola falso para o visual
+      setPixPayload(`00020126580014br.gov.bcb.pix0136${pkg.id}-kame-bank-api-mercado-pago-5204000053039865802BR5902BR600${pkg.price}6207SAOPAULO6304KAME64041234`);
+      setCheckoutStep('waiting');
+    }, 1500);
+  };
+
+  const handleCopyPix = () => {
+    navigator.clipboard.writeText(pixPayload);
+    showToast("PIX Copia e Cola copiado! Abra o app do seu banco.", "success");
+  };
+
+  const closeCheckout = () => {
+    setSelectedPackage(null);
+    setCheckoutStep('idle');
+    setPixPayload('');
+  };
+
+  // 🤖 SIMULADOR DE WEBHOOK (Substituiremos isso pela resposta real do Mercado Pago)
+  const simulateAutomaticWebhook = async () => {
+    showToast("Processando pagamento no banco...", "info");
+    
+    setTimeout(async () => {
+      // Adiciona as moedas do pacote + bônus
+      const totalCoins = selectedPackage.coins + selectedPackage.bonus;
+      const newBalance = (currentUser.kameCoins || 0) + totalCoins;
+      
+      // Atualiza no Firebase
+      await updateDoc(getPublicDocPath('users', currentUser.id), { kameCoins: newBalance });
+      
+      setCheckoutStep('success');
+      showToast("Pagamento Aprovado! Moedas adicionadas.", "success");
+    }, 2000);
   };
 
   return (
@@ -4808,12 +4843,12 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
         <div className="space-y-6 animate-in slide-in-from-right-4">
           <div className="bg-blue-900 p-6 rounded-2xl border border-blue-800 text-center">
             <h3 className="text-xl font-bold text-white mb-2">Comprar Kame Coins</h3>
-            <p className="text-sm text-blue-300 max-w-lg mx-auto">Adquira moedas para participar de torneios premium, fazer apostas maiores na KameBet e comprar itens na futura loja do clã.</p>
+            <p className="text-sm text-blue-300 max-w-lg mx-auto">Pagamento automático via PIX. As moedas caem na sua conta em até 10 segundos após a confirmação do pagamento!</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {KC_PACKAGES.map(pkg => (
-              <div key={pkg.id} className={`bg-gradient-to-b ${pkg.color} rounded-3xl p-1 shadow-xl hover:scale-105 transition-transform cursor-pointer relative overflow-hidden group`} onClick={() => setSelectedPackage(pkg)}>
+              <div key={pkg.id} onClick={() => handleStartCheckout(pkg)} className={`bg-gradient-to-b ${pkg.color} rounded-3xl p-1 shadow-xl hover:scale-105 transition-transform cursor-pointer relative overflow-hidden group`}>
                 {pkg.bonus > 0 && (
                   <div className="absolute top-4 -right-8 bg-red-500 text-white text-[10px] font-black uppercase tracking-wider py-1 px-10 transform rotate-45 shadow-lg z-10">
                     Bônus +{pkg.bonus}
@@ -4828,7 +4863,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                     <h4 className="text-4xl font-black text-white mb-1">{pkg.coins}</h4>
                     <p className="text-amber-500 font-bold text-sm">Kame Coins</p>
                   </div>
-                  <button className={`w-full mt-6 py-3 rounded-xl font-black text-blue-950 uppercase tracking-wide bg-gradient-to-r ${pkg.color} shadow-lg`}>
+                  <button className={`w-full mt-6 py-3 rounded-xl font-black text-blue-950 uppercase tracking-wide bg-gradient-to-r ${pkg.color} shadow-lg flex items-center justify-center gap-2`}>
                     R$ {pkg.price.toFixed(2)}
                   </button>
                 </div>
@@ -4838,40 +4873,87 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
         </div>
       )}
 
-      {/* MODAL DE PAGAMENTO PIX */}
+      {/* 💳 MODAL DE CHECKOUT (PIX AUTOMÁTICO) */}
       {selectedPackage && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setSelectedPackage(null)}>
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={checkoutStep === 'success' ? closeCheckout : null}>
           <div className="bg-blue-900 border border-blue-700 rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setSelectedPackage(null)} className="absolute top-4 right-4 text-blue-400 hover:text-white bg-blue-800 p-2 rounded-full"><X size={16}/></button>
             
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Wallet className="text-emerald-400" size={32}/>
-              </div>
-              <h3 className="text-2xl font-black text-white">Finalizar Compra</h3>
-              <p className="text-blue-300 text-sm mt-1">Você está comprando <b className="text-amber-400">{selectedPackage.coins} KC</b></p>
-            </div>
+            {checkoutStep !== 'success' && checkoutStep !== 'generating' && (
+              <button onClick={closeCheckout} className="absolute top-4 right-4 text-blue-400 hover:text-white bg-blue-800 p-2 rounded-full"><X size={16}/></button>
+            )}
 
-            <div className="bg-blue-950 p-5 rounded-2xl border border-blue-800 mb-6 space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-blue-400 text-sm">Valor do Pacote:</span>
-                <span className="text-xl font-black text-emerald-400">R$ {selectedPackage.price.toFixed(2)}</span>
-              </div>
-              <div className="pt-4 border-t border-blue-800/50">
-                <p className="text-xs text-blue-400 font-bold uppercase mb-2">1. Copie a chave PIX do Clã</p>
-                <div className="bg-blue-900 p-3 rounded-lg flex justify-between items-center border border-blue-700">
-                  <span className="font-mono text-white text-sm">celular: 91998270658</span>
-                  <button onClick={() => {navigator.clipboard.writeText("91998270658"); showToast("Chave PIX copiada!", "success");}} className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded font-bold transition-colors">Copiar</button>
+            {/* PASSO 1: GERANDO O PIX */}
+            {checkoutStep === 'generating' && (
+              <div className="text-center py-8 space-y-6">
+                <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <div>
+                  <h3 className="text-xl font-black text-white">Conectando ao Banco...</h3>
+                  <p className="text-blue-400 text-sm mt-2">Gerando chave PIX exclusiva para você.</p>
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className="space-y-3">
-              <p className="text-xs text-amber-400 text-center font-bold">2. Envie o comprovante para receber as moedas</p>
-              <Button onClick={handleSendReceipt} className="w-full py-4 text-sm font-black bg-emerald-600 hover:bg-emerald-500">
-                Enviar Comprovante (WhatsApp)
-              </Button>
-            </div>
+            {/* PASSO 2: AGUARDANDO PAGAMENTO (PIX COPIA E COLA) */}
+            {checkoutStep === 'waiting' && (
+              <div className="space-y-6 animate-in zoom-in-95 duration-300">
+                <div className="text-center">
+                  <h3 className="text-2xl font-black text-white">Pagamento PIX</h3>
+                  <p className="text-blue-300 text-sm mt-1">Pacote: <b className="text-amber-400">{selectedPackage.coins} KC</b> (+{selectedPackage.bonus} Bônus)</p>
+                </div>
+
+                <div className="bg-blue-950 p-5 rounded-2xl border border-blue-800 text-center shadow-inner">
+                  <p className="text-xs text-blue-400 font-bold uppercase mb-2">Valor a Pagar</p>
+                  <p className="text-4xl font-black text-emerald-400">R$ {selectedPackage.price.toFixed(2)}</p>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <p className="text-xs text-amber-400 font-bold uppercase text-center">PIX Copia e Cola</p>
+                  <div className="flex gap-2">
+                    <input type="text" readOnly value={pixPayload} className="flex-1 bg-blue-950 border border-blue-700 rounded-xl p-3 text-white text-xs font-mono outline-none" />
+                    <button onClick={handleCopyPix} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 rounded-xl font-bold transition-colors shadow-md">
+                      Copiar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl flex items-center gap-3">
+                  <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin shrink-0"></div>
+                  <p className="text-xs text-amber-200 font-medium">
+                    <b className="text-amber-400 block">Aguardando Pagamento...</b>
+                    Deixe esta tela aberta. As moedas cairão automaticamente assim que você pagar no seu banco.
+                  </p>
+                </div>
+
+                {/* BOTÃO SECRETO APENAS PARA O LÍDER TESTAR A ENGENHARIA */}
+                {(currentUser?.role === 'leader' || currentUser?.role === 'kaioh') && (
+                  <div className="pt-4 border-t border-blue-800/50 mt-4">
+                    <button onClick={simulateAutomaticWebhook} className="w-full bg-blue-800 hover:bg-blue-700 text-blue-300 border border-blue-700 border-dashed text-xs py-2 rounded-lg transition-colors">
+                      🛠️ Modo Dev: Simular Pagamento Aprovado
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* PASSO 3: PAGAMENTO CONFIRMADO (SUCESSO!) */}
+            {checkoutStep === 'success' && (
+              <div className="text-center py-6 space-y-6 animate-in zoom-in-95 duration-500">
+                <div className="w-24 h-24 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(16,185,129,0.4)]">
+                  <CheckCircle className="text-emerald-400" size={48}/>
+                </div>
+                <div>
+                  <h3 className="text-3xl font-black text-white uppercase tracking-wider">Aprovado!</h3>
+                  <p className="text-blue-300 mt-2 text-sm">O seu pagamento foi confirmado pelo banco.</p>
+                </div>
+                <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 inline-block mx-auto min-w-[200px]">
+                  <p className="text-xs text-blue-400 font-bold uppercase mb-1">Moedas Adicionadas</p>
+                  <p className="text-2xl font-black text-amber-400">+{selectedPackage.coins + selectedPackage.bonus} KC</p>
+                </div>
+                <Button onClick={closeCheckout} className="w-full py-4 text-sm font-black bg-emerald-600 hover:bg-emerald-500 mt-4">
+                  Voltar para o Banco
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
