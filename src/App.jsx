@@ -1559,8 +1559,12 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     extra: comp?.prizes?.extra || ''
   });
 
-  const [showEditCategory, setShowEditCategory] = useState(false);
-  const [categoryData, setCategoryData] = useState(comp?.category || 'liga_a');
+  const [showEditSettings, setShowEditSettings] = useState(false);
+  const [settingsData, setSettingsData] = useState({
+    category: comp?.category || 'liga_a',
+    playStyle: comp?.playStyle || 'Livre',
+    rules: comp?.rules || ''
+  });
 
   const [showEditGroups, setShowEditGroups] = useState(false);
   const [teamGroupMapping, setTeamGroupMapping] = useState({});
@@ -1919,14 +1923,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Time inserido manualmente com sucesso!", "success");
   };
 
-  const handleRemoveTeamFromComp = (teamIdToRemove) => {
-    if(window.confirm("Tem certeza que deseja remover este time da competição?")) {
-      const newTeams = (comp.teams || []).filter(id => id !== teamIdToRemove);
-      onEditComp({ ...comp, teams: newTeams });
-      showToast("Time removido da competição com sucesso!", "success");
-    }
-  };
-
   const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}?join=${comp.id}`); showToast("Link copiado!", "success"); };
   
   const handleApproveTeam = (req) => {
@@ -2013,17 +2009,26 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       
       <div className="bg-blue-900 p-5 rounded-3xl border border-blue-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl">
         <div>
-          <h2 className="text-xl font-bold text-white">{String(comp.name)}</h2>
-          <div className="flex items-center gap-2 mt-1">
+          <h2 className="text-xl font-bold text-white">
+             {comp.category === 'copa_flash' ? `COPA FLASH KAME - ${comp.name}` : String(comp.name)}
+          </h2>
+          <div className="flex items-center flex-wrap gap-2 mt-2">
             <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">
               {comp.category ? CATEGORY_NAMES[comp.category] : 'Sem Categoria'}
             </span>
-            <span className="text-xs text-blue-400 font-medium">
-              • {comp.format === 'league' ? 'Liga Corrida' : comp.format === 'groups' ? 'Fase de Grupos + Copa' : 'Copa Mata-Mata'}
+            <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">
+              Estilo: {comp.playStyle || 'Livre'}
+            </span>
+            {comp.status === 'finished' && (
+              <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-black tracking-widest uppercase flex items-center gap-1">
+                 <Lock size={10}/> Encerrado
+              </span>
+            )}
+            <span className="text-xs text-blue-400 font-medium ml-1">
+              • {comp.format === 'league' ? 'Pontos Corridos' : comp.format === 'groups' ? 'Fase de Grupos + Copa' : 'Copa Mata-Mata'}
             </span>
           </div>
         </div>
-        
         <div className="flex gap-2 w-full md:w-auto flex-wrap">
           {isAdmin && comp.format === 'groups' && comp.groups && (
             <button onClick={handleOpenEditGroups} className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-purple-700 shadow-md flex items-center gap-1">
@@ -2031,9 +2036,20 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </button>
           )}
 
-          {isAdmin && (
-            <button onClick={() => { setShowEditCategory(!showEditCategory); setShowEditPrizes(false); }} className="bg-blue-800 hover:bg-blue-700 text-blue-200 text-xs font-bold py-2 px-3 rounded-lg border border-blue-600 shadow-md flex items-center gap-1">
-              ⚙️ Editar Categoria
+          {isAdmin && comp.status !== 'finished' && (
+            <button onClick={() => { setShowEditSettings(!showEditSettings); setShowEditPrizes(false); }} className="bg-blue-800 hover:bg-blue-700 text-blue-200 text-xs font-bold py-2 px-3 rounded-lg border border-blue-600 shadow-md flex items-center gap-1">
+              ⚙️ Configurações
+            </button>
+          )}
+
+          {isAdmin && comp.status !== 'finished' && (
+            <button onClick={() => {
+              if(window.confirm("Deseja encerrar oficialmente esta competição? Ela irá para o histórico de finalizadas e não poderá mais receber resultados.")) {
+                onEditComp({ ...comp, status: 'finished' });
+                showToast("Competição encerrada com sucesso!", "success");
+              }
+            }} className="bg-red-900/80 hover:bg-red-800 text-red-200 text-xs font-bold py-2 px-3 rounded-lg border border-red-700 shadow-md flex items-center gap-1">
+              🛑 Encerrar Torneio
             </button>
           )}
 
@@ -2064,13 +2080,13 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </div>
       </div>
 
-      {showEditCategory && (
+      {showEditSettings && (
         <div className="bg-blue-950/80 border border-blue-700 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
-          <h3 className="text-sm font-bold text-blue-300 uppercase tracking-wider flex items-center gap-2">⚙️ Reclassificar Torneio (Peso no Ranking)</h3>
-          <div className="flex flex-col sm:flex-row gap-3 items-end">
-            <div className="w-full space-y-1">
-              <label className="text-xs font-bold text-blue-400">Nova Categoria</label>
-              <select value={categoryData} onChange={e => setCategoryData(e.target.value)} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-amber-400">
+          <h3 className="text-sm font-bold text-blue-300 uppercase tracking-wider flex items-center gap-2">⚙️ Configurações Gerais</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-blue-400">Categoria (Ranking)</label>
+              <select value={settingsData.category} onChange={e => setSettingsData({...settingsData, category: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500">
                 <option value="liga_a">🥇 Liga Kame A (Série A)</option>
                 <option value="liga_b">🥈 Liga Kame B (Série B)</option>
                 <option value="liga_c">🥉 Liga Kame C (Série C)</option>
@@ -2079,12 +2095,27 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
               </select>
             </div>
-            <div className="flex shrink-0 gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-              <button onClick={() => setShowEditCategory(false)} className="px-4 py-2 bg-blue-900 border border-blue-700 rounded-lg text-xs text-blue-300 hover:text-white flex-1 sm:flex-none">Cancelar</button>
-              <button onClick={handleSaveCategory} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs shadow-md flex-1 sm:flex-none">Salvar Categoria</button>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-blue-400">Estilo de Jogo</label>
+              <select value={settingsData.playStyle} onChange={e => setSettingsData({...settingsData, playStyle: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500">
+                <option value="Livre">Livre (Qualquer Estilo)</option>
+                <option value="Full Razz">Full Razz (Sem Balão)</option>
+                <option value="Personalizado">Regras Personalizadas</option>
+              </select>
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-xs font-bold text-blue-400">Regras da Competição</label>
+              <textarea value={settingsData.rules} onChange={e => setSettingsData({...settingsData, rules: e.target.value})} placeholder="Descreva as regras de times, overral e proibições..." className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500 min-h-[80px] resize-y" />
             </div>
           </div>
-          <p className="text-[10px] text-blue-500 leading-tight">Ao mudar a categoria, os títulos dos jogadores no Perfil e os pontos totais no Ranking Xclã serão recalculados instantaneamente.</p>
+          <div className="flex justify-end gap-2 pt-2">
+            <button onClick={() => setShowEditSettings(false)} className="px-4 py-2 bg-blue-900 border border-blue-700 rounded-lg text-xs text-blue-300 hover:text-white">Cancelar</button>
+            <button onClick={() => {
+              onEditComp({ ...comp, category: settingsData.category, playStyle: settingsData.playStyle, rules: settingsData.rules });
+              setShowEditSettings(false);
+              showToast("Configurações atualizadas!", "success");
+            }} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs shadow-md">Salvar</button>
+          </div>
         </div>
       )}
 
@@ -2153,34 +2184,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       )}
 
       {isRegistration ? (
-        <div>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-bold text-emerald-400 uppercase flex items-center gap-2"><CheckCircle size={16}/> Times Confirmados</h3>
-              </div>
-
-              {/* 🌟 NOVA ÁREA: INSERÇÃO MANUAL PARA ADMINS NA FASE DE INSCRIÇÃO */}
-              {isAdmin && (
-                <div className="mb-4">
-                  {showAddTeam ? (
-                    <div className="flex flex-col sm:flex-row gap-2 w-full animate-in fade-in bg-blue-950/80 p-3 rounded-xl border border-emerald-500/40 shadow-inner">
-                      <select value={newTeamToAdd} onChange={e=>setNewTeamToAdd(e.target.value)} className="flex-1 bg-blue-900 border border-blue-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500">
-                        <option value="">Escolher time para inserir...</option>
-                        {availableTeamsToAdd.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                      </select>
-                      <div className="flex gap-2">
-                        <Button onClick={handleAddTeamToComp} className="py-1 px-4 text-xs bg-emerald-600 flex-1 sm:flex-none border-0 shadow-md text-white">Adicionar</Button>
-                        <Button variant="outline" onClick={()=>{setShowAddTeam(false); setNewTeamToAdd('');}} className="py-1 px-3 text-xs font-bold text-red-400 border-red-500/30 hover:bg-red-500/20 flex-1 sm:flex-none">Cancelar</Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <Button variant="outline" onClick={()=>setShowAddTeam(true)} className="py-2 px-3 text-xs w-full flex items-center justify-center gap-2 border-dashed border-emerald-500/50 hover:bg-emerald-500/20 text-emerald-400 transition-all">
-                      <span className="font-bold text-lg leading-none">+</span> Inserir Time Manualmente
-                    </Button>
-                  )}
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2">
+        <div className="bg-blue-900 border border-blue-800 rounded-3xl p-6 md:p-8 shadow-2xl animate-in slide-in-from-bottom-4">
+          <div className="text-center mb-8">
             <h2 className="text-3xl font-black text-emerald-400 uppercase tracking-widest drop-shadow-md mb-2">Inscrições Abertas</h2>
             <p className="text-blue-300">Aguardando os times se cadastrarem pelo link ou via inserção manual.</p>
             <div className="mt-6 flex flex-col items-center justify-center gap-4">
@@ -2222,22 +2227,9 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 {(comp.teams || []).map(tId => {
                   const t = getTeam(tId);
                   return (
-                    <div key={tId} className="bg-blue-950 p-2.5 rounded-xl border border-emerald-500/20 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <ShieldDisplay shield={t?.shield} size="small" />
-                        <span className="font-bold text-xs text-blue-100 truncate">{t?.name}</span>
-                      </div>
-                      
-                      {/* 🗑️ BOTÃO DE REMOVER (Apenas para Admins) */}
-                      {isAdmin && (
-                        <button 
-                          onClick={() => handleRemoveTeamFromComp(tId)} 
-                          className="text-blue-500 hover:text-red-400 bg-blue-900/50 hover:bg-red-500/10 p-1.5 rounded-lg transition-colors shrink-0" 
-                          title="Remover da Competição"
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
+                    <div key={tId} className="bg-blue-950 p-3 rounded-xl border border-emerald-500/20 flex items-center gap-2">
+                      <ShieldDisplay shield={t?.shield} size="small" />
+                      <span className="font-bold text-xs text-blue-100 truncate">{t?.name}</span>
                     </div>
                   );
                 })}
@@ -2261,6 +2253,13 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
           <div className="space-y-8 mt-4">
             {subTab === 'overview' && (
               <div className="space-y-6 animate-in slide-in-from-left-4">
+                
+                {comp.rules && (
+                  <div className="bg-blue-950/80 p-5 rounded-2xl border border-blue-800 shadow-inner">
+                    <h4 className="text-sm font-bold text-sky-400 mb-2 flex items-center gap-2"><BookOpen size={16}/> Regras do Torneio</h4>
+                    <p className="text-xs text-blue-200 whitespace-pre-wrap leading-relaxed">{comp.rules}</p>
+                  </div>
+                )}
                 
                 {comp.format !== 'league' && (
                   <div className="flex justify-center"><div className="bg-blue-950 p-1 rounded-xl border border-blue-800 flex gap-1">
@@ -2941,6 +2940,11 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const [name, setName] = useState('');
   const [format, setFormat] = useState('league');
   const [category, setCategory] = useState('liga_a');
+  
+  // 🌟 NOVOS CAMPOS
+  const [playStyle, setPlayStyle] = useState('Livre');
+  const [rules, setRules] = useState('');
+
   const [teamCount, setTeamCount] = useState('');
   const [numGroups, setNumGroups] = useState('2');
   const [qualifiers, setQualifiers] = useState('2');
@@ -2960,6 +2964,13 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
 
   const [selectedTeams, setSelectedTeams] = useState([]);
   const [error, setError] = useState('');
+
+  // 🌟 AUTOMAÇÃO DA COPA FLASH
+  useEffect(() => {
+    if (category === 'copa_flash') {
+      setFormat('cup');
+    }
+  }, [category]);
 
   const toggleTeam = (teamId) => {
     if (selectedTeams.includes(teamId)) setSelectedTeams(selectedTeams.filter(id => id !== teamId));
@@ -2999,7 +3010,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
     }
 
     const newComp = { 
-      id: compId, name, format, deadline, category,
+      id: compId, name, format, deadline, category, playStyle, rules,
       teamCount: parseInt(teamCount),
       status: isAutoJoin ? 'registration' : 'active', 
       teams: selectedTeams, 
@@ -3028,8 +3039,8 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3"><AlertCircle size={20} /><p className="text-sm font-medium">{error}</p></div>}
         
-        <div className="bg-blue-900 p-6 md:p-8 rounded-3xl border border-blue-800 shadow-xl">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div className="bg-blue-900 pt-6 md:pt-8 rounded-3xl border border-blue-800 shadow-xl overflow-hidden">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 px-6 md:px-8">
             <h3 className="text-lg font-bold text-emerald-400 flex items-center gap-2"><Trophy size={18}/> Estrutura do Torneio</h3>
             <label className="flex items-center gap-2 cursor-pointer bg-blue-950 p-2 rounded-xl border border-blue-800">
               <input type="checkbox" checked={isAutoJoin} onChange={e=>setIsAutoJoin(e.target.checked)} className="w-5 h-5 accent-emerald-500 cursor-pointer" />
@@ -3037,8 +3048,8 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
             </label>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Nome do Campeonato</label><input type="text" placeholder="Ex: Liga Kame 2026" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 md:px-8">
+            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Nome do Campeonato</label><input type="text" placeholder={category === 'copa_flash' ? "Ex: Edição #4" : "Ex: Liga Kame 2026"} value={name} onChange={e=>setName(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Categoria (Divisão)</label>
               <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full bg-blue-950 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner">
@@ -3052,8 +3063,17 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
             </div>
 
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Formato</label>
-              <select value={format} onChange={e=>setFormat(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
+              <select value={format} onChange={e=>setFormat(e.target.value)} disabled={category === 'copa_flash'} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed">
                 <option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option>
+              </select>
+              {category === 'copa_flash' && <p className="text-[10px] text-amber-400">O formato Copa Flash exige chaveamento Mata-Mata.</p>}
+            </div>
+
+            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Estilo de Jogo</label>
+              <select value={playStyle} onChange={e=>setPlayStyle(e.target.value)} className="w-full bg-blue-950 border border-purple-500/50 rounded-xl p-3 text-purple-300 font-bold focus:ring-2 focus:ring-emerald-500 outline-none">
+                <option value="Livre">Livre (Qualquer Estilo)</option>
+                <option value="Full Razz">Full Razz (Sem Balão)</option>
+                <option value="Personalizado">Regras Especiais</option>
               </select>
             </div>
             
@@ -3087,6 +3107,11 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
                 </div>
               </>
             )}
+          </div>
+          
+          <div className="bg-blue-950/50 mt-6 p-6 md:p-8 border-t border-blue-800">
+             <label className="text-sm font-bold text-sky-400 flex items-center gap-2 mb-2"><BookOpen size={16}/> Regras do Campeonato (Opcional)</label>
+             <textarea placeholder="Descreva aqui limites de overral de jogadores, times permitidos, ou regras de conduta específicas para este torneio..." value={rules} onChange={e=>setRules(e.target.value)} className="w-full bg-blue-900 border border-blue-700 focus:border-emerald-500 rounded-xl p-3 text-blue-200 text-sm min-h-[100px] outline-none resize-y" />
           </div>
         </div>
 
@@ -3148,24 +3173,61 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
 };
 
 const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp }) => {
-  // Organizador vê as opções de admin, mas só Leader e Kaioh podem excluir
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh' || currentUser?.role === 'organizer';
   const canDelete = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
   const visible = (competitions || []).filter(c => c && (isAdmin || c.teams?.some(t => userTeamIds.includes(t))));
+
+  // Filtra as ativas e as finalizadas
+  const activeComps = visible.filter(c => c.status !== 'finished');
+  const finishedComps = visible.filter(c => c.status === 'finished');
+
+  // Formata o nome para a Copa Flash
+  const formatName = (c) => c.category === 'copa_flash' ? `COPA FLASH KAME - ${c.name}` : String(c.name);
+
   return (
-    <div className="space-y-4 animate-in fade-in">
-      <div className="flex items-center gap-2 mb-4"><Medal className="text-emerald-500"/><h2 className="text-xl font-bold text-white">Campeonatos Ativos</h2></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {visible.map(c => (
-          <div key={c.id} onClick={()=>onSelectComp(c.id)} className="bg-blue-900 p-5 rounded-2xl border border-blue-800 hover:border-emerald-500/40 transition-all cursor-pointer flex justify-between items-center group">
-            <div><h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors">{String(c.name)}</h3><p className="text-xs text-blue-500 mt-1">{c.teams?.length || 0} Clubes inscritos</p></div>
-            {/* 🔒 Trava aplicada aqui: Apenas Líder e Kaioh veem a lixeira do torneio */}
-            {canDelete && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-blue-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>}
+    <div className="space-y-8 animate-in fade-in pb-8">
+      
+      {/* 🟢 COMPETIÇÕES ATIVAS */}
+      <div>
+        <div className="flex items-center gap-2 mb-4"><Medal className="text-emerald-500"/><h2 className="text-xl font-bold text-white">Campeonatos Ativos</h2></div>
+        {activeComps.length === 0 ? (
+          <p className="text-blue-500 text-sm p-4 bg-blue-950 rounded-xl border border-blue-800">Nenhuma competição ativa no momento.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {activeComps.map(c => (
+              <div key={c.id} onClick={()=>onSelectComp(c.id)} className="bg-blue-900 p-5 rounded-2xl border border-blue-800 hover:border-emerald-500/40 transition-all cursor-pointer flex justify-between items-center group shadow-md relative overflow-hidden">
+                {c.category === 'copa_flash' && <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>}
+                <div className={c.category === 'copa_flash' ? 'pl-2' : ''}>
+                  <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors">{formatName(c)}</h3>
+                  <p className="text-xs text-blue-400 mt-1">{c.teams?.length || 0} Clubes inscritos • <span className="text-emerald-500 font-medium">{c.status === 'registration' ? 'Inscrições Abertas' : 'Em Andamento'}</span></p>
+                </div>
+                {canDelete && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-blue-600 hover:text-red-400 p-2 z-10"><Trash2 size={16}/></button>}
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
+
+      {/* 🔴 COMPETIÇÕES FINALIZADAS */}
+      {finishedComps.length > 0 && (
+        <div className="pt-6 border-t border-blue-800/50">
+          <div className="flex items-center gap-2 mb-4"><BookOpen className="text-slate-400"/><h2 className="text-xl font-bold text-slate-300">Histórico de Finalizadas</h2></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {finishedComps.map(c => (
+              <div key={c.id} onClick={()=>onSelectComp(c.id)} className="bg-blue-950/60 p-4 rounded-2xl border border-blue-900 hover:border-slate-500/40 transition-all cursor-pointer flex justify-between items-center group opacity-80 hover:opacity-100">
+                {c.category === 'copa_flash' && <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500/50"></div>}
+                <div className={c.category === 'copa_flash' ? 'pl-2' : ''}>
+                  <h3 className="font-bold text-slate-300 group-hover:text-white transition-colors">{formatName(c)}</h3>
+                  <p className="text-xs text-slate-500 mt-1">Finalizada</p>
+                </div>
+                {canDelete && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio do histórico?')) onDeleteComp(c.id)}} className="text-blue-800 hover:text-red-400 p-2 z-10"><Trash2 size={14}/></button>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
