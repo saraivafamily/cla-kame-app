@@ -1568,7 +1568,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   
   const isRegistration = comp.status === 'registration';
   const getTeam = (id) => (teams || []).find(t => t && t.id === id);
-  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh' || currentUser?.role === 'organizer';
   
   const CATEGORY_NAMES = {
     liga_a: '🥇 Liga Kame A',
@@ -2256,7 +2256,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                       <span className="text-blue-500 text-xs font-bold mr-2">{isExpanded ? '▲ Recolher' : '▼ Expandir'}</span>
                                     </button>
                                     
-                                   {isAdmin && isLocked && (
+                                    {isAdmin && isLocked && (
                                       <button type="button" onClick={(e) => { e.stopPropagation(); onReleaseRound(comp.id, round.id); }} className="bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[10px] px-3 py-1.5 rounded uppercase tracking-wider transition-colors shrink-0 shadow-md">
                                         🔓 Liberar
                                       </button>
@@ -2266,6 +2266,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                         🔒 Travar
                                       </button>
                                     )}
+                                  </div>
                                   
                                   {isExpanded && (
                                     <div className="p-4 bg-blue-950/40 border-t border-blue-800">
@@ -2492,7 +2493,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                     <div key={m.id} className="relative group">
                                       <div onClick={() => { if(sUI.isPlayed && onSelectMatch){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} cursor-pointer relative overflow-hidden`}>
                                         
-                                        {/* 🌟 AJUSTE: O RÓTULO DINÂMICO PARA FINAIS E 3º LUGAR */}
                                         <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
                                           <span className="text-blue-500">
                                             {m.id.includes('_f1') && round.matches.length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' 
@@ -2755,6 +2755,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     </div>
   );
 };
+
 const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onBack, showToast }) => {
   const [receipt, setReceipt] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
