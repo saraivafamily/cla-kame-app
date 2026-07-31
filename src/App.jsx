@@ -261,7 +261,7 @@ const LoginScreen = ({ onLogin, onRegister }) => {
   );
 };
 
-const SocialFeed = ({ currentUser, teams, showToast, posts }) => {
+const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskCompleted }) => {
   const [newPost, setNewPost] = useState('');
   const [commentText, setCommentText] = useState({});
   const [postImage, setPostImage] = useState(null);
@@ -298,6 +298,10 @@ const SocialFeed = ({ currentUser, teams, showToast, posts }) => {
       setNewPost('');
       setPostImage(null);
       showToast("Publicado para todo o Clã!", "success");
+      
+      // 🪙 NOVO: Chama a missão de postagem (+20 KC)
+      if (onTaskCompleted) onTaskCompleted('post', 20);
+      
     } catch (err) {
       showToast("Erro ao publicar. A imagem pode estar muito pesada.", "error");
     }
@@ -310,6 +314,11 @@ const SocialFeed = ({ currentUser, teams, showToast, posts }) => {
     const hasLiked = post.likes.includes(currentUser?.id);
     const newLikes = hasLiked ? post.likes.filter(id => id !== currentUser?.id) : [...post.likes, currentUser?.id];
     await updateDoc(getPublicDocPath('feed', postId), { likes: newLikes });
+    
+    // 🪙 NOVO: Chama a missão de Like (+5 KC, e apenas se ele estiver DANDO o like, não tirando)
+    if (!hasLiked && onTaskCompleted) {
+       onTaskCompleted('like', 5);
+    }
   };
 
   const handleComment = async (postId) => {
@@ -4636,6 +4645,57 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState(null); 
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
 
+  // 🪙 1. O MOTOR DE MISSÕES DO FEED (Post e Like)
+  const handleTaskCompleted = async (taskName, reward) => {
+    const today = new Date().toLocaleDateString('pt-BR');
+    const taskKey = taskName === 'post' ? 'lastPostDate' : 'lastLikeDate';
+    
+    // Só recompensa se a data da última missão for diferente de hoje
+    if (currentUser[taskKey] !== today) {
+       const newCoins = (currentUser.kameCoins || 0) + reward;
+       const updates = { kameCoins: newCoins, [taskKey]: today };
+       await updateDoc(getPublicDocPath('users', currentUser.id), updates);
+       setCurrentUser(prev => ({...prev, ...updates}));
+       showToast(`🎯 Missão Concluída! +${reward} KC`, "success");
+    }
+  };
+
+  // 🪙 2. BÔNUS DOS VETERANOS E CHECK-IN DIÁRIO
+  useEffect(() => {
+    if (currentUser && currentUser.id) {
+       const today = new Date().toLocaleDateString('pt-BR');
+       let updates = {};
+       let hasChanges = false;
+       let msg = "";
+
+       // Se o membro é antigo e não tem a carteira, cria a carteira dele agora
+       if (currentUser.kameCoins === undefined) {
+          updates.kameCoins = 100;
+          updates.receivedProfileBonus = !!currentUser.photoURL;
+          if (currentUser.photoURL) updates.kameCoins += 50;
+          hasChanges = true;
+          msg = "🎁 Bônus de veterano: Conta atualizada! ";
+       }
+
+       const currentCoins = updates.kameCoins !== undefined ? updates.kameCoins : currentUser.kameCoins;
+
+       // Verifica o Check-in Diário
+       if (currentUser.lastCheckInDate !== today) {
+          updates.kameCoins = currentCoins + 5;
+          updates.lastCheckInDate = today;
+          hasChanges = true;
+          msg += "📅 +5 KC de Check-in Diário!";
+       }
+
+       // Salva tudo no Firebase de forma invisível
+       if (hasChanges) {
+          updateDoc(getPublicDocPath('users', currentUser.id), updates);
+          setCurrentUser(prev => ({...prev, ...updates}));
+          if (msg) setTimeout(() => showToast(msg.trim(), "success"), 2000);
+       }
+    }
+  }, [currentUser?.id, currentUser?.lastCheckInDate, currentUser?.kameCoins]);
+
   useEffect(() => {
     if (joinIdFromUrl && currentUser) {
        window.history.replaceState({}, document.title, window.location.pathname);
@@ -4898,7 +4958,7 @@ export default function App() {
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
       case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
       case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
-      case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} posts={feedPosts} />;
+      case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} posts={feedPosts} onTaskCompleted={handleTaskCompleted} />;
       case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} />;
       case 'records': return <RecordsWall showToast={showToast} currentUser={currentUser} />;
       case 'rules': return <RulesPage />;
