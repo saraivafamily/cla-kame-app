@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
-import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices } from 'lucide-react';
+import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet } from 'lucide-react';
+
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
 const firebaseConfig = { 
@@ -4700,6 +4701,184 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
     </div>
   );
 };
+
+const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
+  const [bankTab, setBankTab] = useState('extrato');
+  const [selectedPackage, setSelectedPackage] = useState(null);
+
+  const getTeam = (id) => (teams || []).find(t => t.id === id);
+  const myPreds = (predictions || []).filter(p => p.userId === currentUser?.id).sort((a,b) => b.timestamp - a.timestamp);
+
+  // 🛒 PACOTES DE MOEDAS DA LOJA
+  const KC_PACKAGES = [
+    { id: 'p1', name: 'Pacote Iniciante', coins: 300, price: 5.00, bonus: 0, color: 'from-blue-600 to-blue-900', border: 'border-blue-500' },
+    { id: 'p2', name: 'Pacote Profissional', coins: 700, price: 10.00, bonus: 100, color: 'from-emerald-600 to-emerald-900', border: 'border-emerald-500' },
+    { id: 'p3', name: 'Pacote Magnata', coins: 1600, price: 20.00, bonus: 400, color: 'from-amber-500 to-amber-800', border: 'border-amber-400' },
+  ];
+
+  const handleSendReceipt = () => {
+     if (!selectedPackage) return;
+     const msg = `Fala Líder! Fiz o PIX de R$ ${selectedPackage.price.toFixed(2)} para comprar o pacote de ${selectedPackage.coins} KC. Segue o comprovante!`;
+     // Mude o número abaixo para o seu WhatsApp oficial de recebimentos
+     window.open(`https://wa.me/5591998270658?text=${encodeURIComponent(msg)}`, '_blank');
+     setSelectedPackage(null);
+     showToast("Redirecionando para o WhatsApp...", "success");
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in pb-12">
+      {/* 🏦 HEADER DO BANCO */}
+      <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex flex-col sm:flex-row justify-between items-center gap-6">
+        <div className="flex items-center gap-4">
+          <div className="bg-blue-950 p-4 rounded-full border border-emerald-500/50 shadow-inner">
+            <Landmark size={32} className="text-emerald-400" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-white uppercase tracking-wider">Kame Bank</h2>
+            <p className="text-sm text-blue-400 mt-1">Sua agência financeira do clã.</p>
+          </div>
+        </div>
+        <div className="bg-blue-950/80 p-4 rounded-2xl border border-amber-500/40 min-w-[200px] text-center shadow-inner">
+          <p className="text-xs text-amber-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5"><Wallet size={14}/> Saldo Disponível</p>
+          <p className="text-4xl font-black text-white">{currentUser?.kameCoins || 0} <span className="text-xl text-amber-500">KC</span></p>
+        </div>
+      </div>
+
+      {/* 🧭 NAVEGAÇÃO DO BANCO */}
+      <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800">
+        <button onClick={()=>setBankTab('extrato')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='extrato'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>📜 Extrato de Apostas</button>
+        <button onClick={()=>setBankTab('deposito')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='deposito'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>💰 Depositar (Comprar KC)</button>
+      </div>
+
+      {/* 📜 ABA DE EXTRATO */}
+      {bankTab === 'extrato' && (
+        <div className="bg-blue-900 rounded-3xl border border-blue-800 shadow-xl overflow-hidden animate-in slide-in-from-left-4">
+          <div className="p-5 border-b border-blue-800 bg-blue-950/40">
+            <h3 className="font-bold text-white flex items-center gap-2"><Activity size={18} className="text-blue-400"/> Movimentações na KameBet</h3>
+          </div>
+          <div className="divide-y divide-blue-800/40 max-h-[500px] overflow-y-auto custom-scrollbar">
+            {myPreds.length === 0 ? (
+              <div className="p-8 text-center text-blue-500">Você ainda não fez nenhuma aposta.</div>
+            ) : (
+              myPreds.map(pred => {
+                const match = matches.find(m => m.id === pred.matchId);
+                const tA = getTeam(match?.teamA);
+                const tB = getTeam(match?.teamB);
+                const matchName = tA && tB ? `${tA.name} x ${tB.name}` : 'Partida Encerrada';
+                
+                let statusColor = "text-amber-400";
+                let statusBg = "bg-amber-500/10 border-amber-500/20";
+                let statusText = "Pendente";
+                let valueDisplay = `- ${pred.amount} KC`;
+
+                if (pred.status === 'won') {
+                  statusColor = "text-emerald-400"; statusBg = "bg-emerald-500/10 border-emerald-500/20";
+                  statusText = "Green (Ganhou)";
+                  valueDisplay = `+ ${pred.payout} KC`;
+                } else if (pred.status === 'lost') {
+                  statusColor = "text-red-400"; statusBg = "bg-red-500/10 border-red-500/20";
+                  statusText = "Red (Perdeu)";
+                  valueDisplay = `- ${pred.amount} KC`;
+                }
+
+                return (
+                  <div key={pred.id} className="p-4 hover:bg-blue-800/30 transition-colors flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${statusBg} ${statusColor}`}>{statusText}</span>
+                        <span className="text-[10px] text-blue-400">{new Date(pred.timestamp).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-sm font-bold text-white">{matchName}</p>
+                      <p className="text-xs text-blue-300 mt-0.5">Palpite: <b className="text-blue-100">{pred.option === 'A' ? tA?.name : pred.option === 'B' ? tB?.name : 'Empate'}</b></p>
+                    </div>
+                    <div className="text-right w-full sm:w-auto bg-blue-950 sm:bg-transparent p-3 sm:p-0 rounded-lg sm:rounded-none border sm:border-0 border-blue-800">
+                      <p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">Movimentação</p>
+                      <p className={`text-lg font-black ${pred.status === 'won' ? 'text-emerald-400' : pred.status === 'lost' ? 'text-red-400' : 'text-amber-400'}`}>{valueDisplay}</p>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 💰 ABA DE DEPÓSITOS (LOJA) */}
+      {bankTab === 'deposito' && (
+        <div className="space-y-6 animate-in slide-in-from-right-4">
+          <div className="bg-blue-900 p-6 rounded-2xl border border-blue-800 text-center">
+            <h3 className="text-xl font-bold text-white mb-2">Comprar Kame Coins</h3>
+            <p className="text-sm text-blue-300 max-w-lg mx-auto">Adquira moedas para participar de torneios premium, fazer apostas maiores na KameBet e comprar itens na futura loja do clã.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {KC_PACKAGES.map(pkg => (
+              <div key={pkg.id} className={`bg-gradient-to-b ${pkg.color} rounded-3xl p-1 shadow-xl hover:scale-105 transition-transform cursor-pointer relative overflow-hidden group`} onClick={() => setSelectedPackage(pkg)}>
+                {pkg.bonus > 0 && (
+                  <div className="absolute top-4 -right-8 bg-red-500 text-white text-[10px] font-black uppercase tracking-wider py-1 px-10 transform rotate-45 shadow-lg z-10">
+                    Bônus +{pkg.bonus}
+                  </div>
+                )}
+                <div className="bg-blue-950 rounded-[22px] p-6 h-full flex flex-col items-center justify-between border border-transparent group-hover:border-white/20 transition-colors">
+                  <div className="text-center w-full">
+                    <p className="text-xs text-blue-300 font-bold uppercase tracking-widest mb-4">{pkg.name}</p>
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <Star className="text-amber-400 fill-amber-400" size={28}/>
+                    </div>
+                    <h4 className="text-4xl font-black text-white mb-1">{pkg.coins}</h4>
+                    <p className="text-amber-500 font-bold text-sm">Kame Coins</p>
+                  </div>
+                  <button className={`w-full mt-6 py-3 rounded-xl font-black text-blue-950 uppercase tracking-wide bg-gradient-to-r ${pkg.color} shadow-lg`}>
+                    R$ {pkg.price.toFixed(2)}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE PAGAMENTO PIX */}
+      {selectedPackage && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setSelectedPackage(null)}>
+          <div className="bg-blue-900 border border-blue-700 rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setSelectedPackage(null)} className="absolute top-4 right-4 text-blue-400 hover:text-white bg-blue-800 p-2 rounded-full"><X size={16}/></button>
+            
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Wallet className="text-emerald-400" size={32}/>
+              </div>
+              <h3 className="text-2xl font-black text-white">Finalizar Compra</h3>
+              <p className="text-blue-300 text-sm mt-1">Você está comprando <b className="text-amber-400">{selectedPackage.coins} KC</b></p>
+            </div>
+
+            <div className="bg-blue-950 p-5 rounded-2xl border border-blue-800 mb-6 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-blue-400 text-sm">Valor do Pacote:</span>
+                <span className="text-xl font-black text-emerald-400">R$ {selectedPackage.price.toFixed(2)}</span>
+              </div>
+              <div className="pt-4 border-t border-blue-800/50">
+                <p className="text-xs text-blue-400 font-bold uppercase mb-2">1. Copie a chave PIX do Clã</p>
+                <div className="bg-blue-900 p-3 rounded-lg flex justify-between items-center border border-blue-700">
+                  <span className="font-mono text-white text-sm">celular: 91998270658</span>
+                  <button onClick={() => {navigator.clipboard.writeText("91998270658"); showToast("Chave PIX copiada!", "success");}} className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded font-bold transition-colors">Copiar</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-amber-400 text-center font-bold">2. Envie o comprovante para receber as moedas</p>
+              <Button onClick={handleSendReceipt} className="w-full py-4 text-sm font-black bg-emerald-600 hover:bg-emerald-500">
+                Enviar Comprovante (WhatsApp)
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => { const saved = localStorage.getItem('claKame_user'); return saved ? JSON.parse(saved) : null; });
 
@@ -4926,6 +5105,7 @@ export default function App() {
   const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home }, 
     { id: 'profile', label: 'Meu Perfil', icon: User },
+    { id: 'bank', label: 'Kame Bank', icon: Landmark },
     { id: 'teams_list', label: 'Times', icon: Shield }, 
     { id: 'competitions', label: 'Competições', icon: Medal },
     { id: 'ranking', label: 'Ranking Xclã', icon: Crown },
@@ -5085,6 +5265,8 @@ export default function App() {
           setCurrentUser(prev => ({...prev, ...updates})); 
           showToast("Foto atualizada!" + rewardMsg, "success"); 
         }} />;
+
+        case 'bank': return <KameBank currentUser={currentUser} predictions={predictions} matches={matches} teams={teams} showToast={showToast} />;
 
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onDeleteTeam={async (id) => { await deleteDoc(getPublicDocPath('teams', id)); showToast("Time excluído com sucesso!", "success"); }} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
