@@ -4929,7 +4929,7 @@ export default function App() {
     { id: 'teams_list', label: 'Times', icon: Shield }, 
     { id: 'competitions', label: 'Competições', icon: Medal },
     { id: 'ranking', label: 'Ranking Xclã', icon: Crown },
-    { id: 'predictions', label: 'Bolão', icon: Target },
+    { id: 'predictions', label: 'Kame Bet', icon: Target },
     { id: 'feed', label: 'Feed da Resenha', icon: MessageCircle },
     { id: 'records', label: 'Mural de Recordes', icon: Trophy },
     { id: 'rules', label: 'Regras do Clã', icon: BookOpen },
