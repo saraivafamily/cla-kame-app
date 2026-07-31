@@ -58,20 +58,38 @@ const getChampionId = (comp, matches, teams) => {
     const knockoutRounds = comp.rounds.filter(r => r.id.includes('ko') || comp.format === 'cup');
     if (knockoutRounds.length === 0) return null;
     const lastRound = knockoutRounds[knockoutRounds.length - 1];
-    const finalMatch = lastRound.matches[0];
-    if (finalMatch) {
-      const sUI = matches.find(m => m.matchId === finalMatch.id && m.compId === comp.id && m.status === 'approved');
-      if (sUI) {
-        const scoreA = Number(sUI.scoreA || 0); const scoreB = Number(sUI.scoreB || 0);
-        const penA = sUI.penaltiesA !== null && sUI.penaltiesA !== undefined ? Number(sUI.penaltiesA) : null;
-        const penB = sUI.penaltiesB !== null && sUI.penaltiesB !== undefined ? Number(sUI.penaltiesB) : null;
-        if (scoreA > scoreB) return finalMatch.teamA;
-        if (scoreB > scoreA) return finalMatch.teamB;
-        if (penA !== null && penB !== null) {
-          if (penA > penB) return finalMatch.teamA;
-          if (penB > penA) return finalMatch.teamB;
-        }
-      }
+    
+    // Ignora a disputa de 3º lugar para calcular o campeão
+    const finalMatches = lastRound.matches.filter(m => !m.id.includes('_3rd'));
+    if (finalMatches.length === 0) return null;
+
+    let allApproved = true;
+    let totalScoreA = 0; let totalScoreB = 0;
+    let lastPenA = null; let lastPenB = null;
+    let tA = finalMatches[0].teamA; let tB = finalMatches[0].teamB;
+
+    if(!tA || !tB) return null;
+
+    for (let fm of finalMatches) {
+       const sUI = matches.find(m => m.matchId === fm.id && m.compId === comp.id && m.status === 'approved');
+       if (!sUI) { allApproved = false; break; }
+       
+       if (fm.teamA === tA) {
+          totalScoreA += Number(sUI.scoreA || 0); totalScoreB += Number(sUI.scoreB || 0);
+          if (sUI.penaltiesA !== null && sUI.penaltiesA !== undefined) { lastPenA = Number(sUI.penaltiesA); lastPenB = Number(sUI.penaltiesB); }
+       } else {
+          totalScoreA += Number(sUI.scoreB || 0); totalScoreB += Number(sUI.scoreA || 0);
+          if (sUI.penaltiesB !== null && sUI.penaltiesB !== undefined) { lastPenA = Number(sUI.penaltiesB); lastPenB = Number(sUI.penaltiesA); }
+       }
+    }
+
+    if (allApproved) {
+       if (totalScoreA > totalScoreB) return tA;
+       if (totalScoreB > totalScoreA) return tB;
+       if (lastPenA !== null && lastPenB !== null) {
+          if (lastPenA > lastPenB) return tA;
+          if (lastPenB > lastPenA) return tB;
+       }
     }
   } else if (comp.format === 'league') {
     const groupOrNormalRounds = comp.rounds.filter(r => !r.id.includes('ko'));
@@ -86,43 +104,92 @@ const getChampionId = (comp, matches, teams) => {
   return null;
 };
 
-const generateRoundRobin = (teamIds, compId, isDoubleRound = false) => {
-  let teams = [...teamIds]; if (teams.length % 2 !== 0) teams.push(null);
-  const n = teams.length; const h = n / 2; const rounds = []; let c = 1;
+const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2, isDoubleRound = false, isFinalDouble = false) => {
+  const sh = [...teamIds].sort(() => 0.5 - Math.random()); const groups = {}; const gn = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  for(let i=0; i<numGroups; i++) groups[gn[i]] = []; sh.forEach((t, i) => groups[gn[i % numGroups]].push(t));
   
-  // TURNO (IDA)
-  for (let r = 0; r < n - 1; r++) {
-    const rm = []; 
-    for (let i = 0; i < h; i++) { 
-      const tA = teams[i]; const tB = teams[n - 1 - i]; 
-      if (tA !== null && tB !== null) { 
-        rm.push({ id: `${compId}_m${c}_r${r+1}`, teamA: tA, teamB: tB, status: 'pending_play' }); 
-        c++; 
-      } 
-    }
-    rounds.push({ id: `r${r+1}`, number: r + 1, status: r === 0 ? 'released' : 'locked', matches: rm }); 
-    teams.splice(1, 0, teams.pop());
-  } 
+  let mr = 0; const agr = {}; 
+  Object.keys(groups).forEach(g => { 
+    const rrs = generateRoundRobin(groups[g], compId, isDoubleRound); 
+    mr = Math.max(mr, rrs.length); agr[g] = rrs; 
+  });
   
-  // RETURNO (VOLTA) - Clona o turno invertendo os mandantes
-  if (isDoubleRound) {
-    const turnRoundsCount = rounds.length;
-    for (let r = 0; r < turnRoundsCount; r++) {
-      const rm = [];
-      const turnMatches = rounds[r].matches;
-      for (let i = 0; i < turnMatches.length; i++) {
-         const m = turnMatches[i];
-         // Inverte teamA e teamB
-         rm.push({ id: `${compId}_m${c}_r${r + 1 + turnRoundsCount}`, teamA: m.teamB, teamB: m.teamA, status: 'pending_play' });
-         c++;
-      }
-      rounds.push({ id: `r${r + 1 + turnRoundsCount}`, number: r + 1 + turnRoundsCount, status: 'locked', matches: rm });
-    }
+  const rounds = []; let mc = 1;
+  for(let r=0; r<mr; r++) {
+    const rm = []; Object.keys(groups).forEach(g => { if(agr[g][r]) { agr[g][r].matches.forEach(m => { rm.push({...m, id: `${compId}_m${mc}_r${r+1}`, groupId: g}); mc++; }); } });
+    rounds.push({ id: `r${r+1}`, number: r+1, status: r===0?'released':'locked', matches: rm });
   }
   
-  return rounds;
+  let kt = numGroups * qualifiers; let p2 = 1; while (p2 < kt) p2 *= 2; const tkr = Math.log2(p2);
+  for (let kr=0; kr<tkr; kr++) {
+    const rm = []; const nm = p2 / Math.pow(2, kr + 1); const fmc = mc;
+    let rl = 'Mata-Mata'; if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas';
+    
+    for (let i=0; i<nm; i++) {
+      let pA = 'A Definir', pB = 'A Definir'; 
+      if (kr === 0) { 
+         if (qualifiers === 2 && numGroups % 2 === 0 && numGroups * 2 === p2) { 
+            const h = numGroups / 2; 
+            if (i < h) { pA = `1º Gr.${gn[i * 2]}`; pB = `2º Gr.${gn[i * 2 + 1]}`; } 
+            else { const off = i - h; pA = `1º Gr.${gn[off * 2 + 1]}`; pB = `2º Gr.${gn[off * 2]}`; } 
+         } else { pA = 'Vaga Aberta'; pB = 'Vaga Aberta'; } 
+      } else { 
+         pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`; 
+      }
+
+      if (nm === 1) { 
+          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f1`, teamA: '', teamB: '', placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
+          if (isFinalDouble) {
+             rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f2`, teamA: '', teamB: '', placeholderA: pB, placeholderB: pA, status: 'pending_play' }); mc++;
+          }
+          if (kr > 0) { 
+             let p3A = `Perd. Jogo ${fmc - (nm * 2) + (i * 2)}`; let p3B = `Perd. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
+             rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_3rd`, teamA: '', teamB: '', placeholderA: `🥉 ${p3A}`, placeholderB: `🥉 ${p3B}`, status: 'pending_play' }); mc++;
+          }
+      } else {
+          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}`, teamA: '', teamB: '', placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
+      }
+    }
+    rounds.push({ id: `ko_${kr}`, number: rl, status: 'locked', matches: rm });
+  } 
+  return { groups, rounds };
 };
 
+const generateCupBracket = (teamIds, compId, isFinalDouble = false) => {
+  const sh = [...teamIds].sort(() => 0.5 - Math.random());
+  let p2 = 1; while (p2 < sh.length) p2 *= 2; const tkr = Math.log2(p2);
+  const rounds = []; let mc = 1;
+
+  for (let kr = 0; kr < tkr; kr++) {
+    const rm = []; const nm = p2 / Math.pow(2, kr + 1); const fmc = mc;
+    let rl = 'Mata-Mata'; if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas'; else if (nm === 8) rl = 'Oitavas';
+
+    for (let i = 0; i < nm; i++) {
+      let tA = ''; let tB = ''; let pA = 'A Definir'; let pB = 'A Definir';
+      if (kr === 0) {
+        tA = sh[i * 2] || ''; tB = sh[i * 2 + 1] || '';
+        pA = tA ? 'Sorteado' : 'Vaga Aberta'; pB = tB ? 'Sorteado' : 'Vaga Aberta';
+      } else {
+        pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
+      }
+
+      if (nm === 1) { 
+          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f1`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
+          if (isFinalDouble) {
+             rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f2`, teamA: tB, teamB: tA, placeholderA: pB, placeholderB: pA, status: 'pending_play' }); mc++;
+          }
+          if (kr > 0) {
+             let p3A = `Perd. Jogo ${fmc - (nm * 2) + (i * 2)}`; let p3B = `Perd. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
+             rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_3rd`, teamA: '', teamB: '', placeholderA: `🥉 ${p3A}`, placeholderB: `🥉 ${p3B}`, status: 'pending_play' }); mc++;
+          }
+      } else {
+          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
+      }
+    }
+    rounds.push({ id: `ko_${kr}`, number: rl, status: kr === 0 ? 'released' : 'locked', matches: rm });
+  }
+  return rounds;
+};
 const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2, isDoubleRound = false) => {
   const sh = [...teamIds].sort(() => 0.5 - Math.random()); const groups = {}; const gn = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   for(let i=0; i<numGroups; i++) groups[gn[i]] = []; sh.forEach((t, i) => groups[gn[i % numGroups]].push(t));
@@ -554,7 +621,7 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
       const ptsVice = isFlash ? 10 : 25; const ptsChamp = isFlash ? 20 : 50;
 
       const koRounds = c.rounds.filter(r => r.id.includes('ko') || c.format === 'cup');
-      let semiTeams = new Set(); let finalTeams = new Set();
+      let semiTeams = new Set(); 
 
       koRounds.forEach(r => {
         r.matches.forEach(m => {
@@ -562,25 +629,44 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
           if (r.number === 'Oitavas') { if(tA) tA.points += ptsOitavas; if(tB) tB.points += ptsOitavas; }
           if (r.number === 'Quartas') { if(tA) tA.points += ptsQuartas; if(tB) tB.points += ptsQuartas; }
           if (r.number === 'Semifinal') { if(tA) { tA.points += ptsSemi; semiTeams.add(m.teamA); } if(tB) { tB.points += ptsSemi; semiTeams.add(m.teamB); } }
-          if (r.number === 'Final') {
-            if(tA) finalTeams.add(m.teamA); if(tB) finalTeams.add(m.teamB);
-            const sUI = matches.find(x => x.matchId === m.id && x.compId === c.id && x.status === 'approved');
-            if (sUI) {
-              let scoreA = Number(sUI.scoreA||0); let scoreB = Number(sUI.scoreB||0);
-              let penA = sUI.penaltiesA !== null && sUI.penaltiesA !== undefined ? Number(sUI.penaltiesA) : null;
-              let penB = sUI.penaltiesB !== null && sUI.penaltiesB !== undefined ? Number(sUI.penaltiesB) : null;
-              let winnerId = null; let loserId = null;
-              if (scoreA > scoreB) { winnerId = m.teamA; loserId = m.teamB; }
-              else if (scoreB > scoreA) { winnerId = m.teamB; loserId = m.teamA; }
-              else if (penA !== null && penB !== null) { if (penA > penB) { winnerId = m.teamA; loserId = m.teamB; } else if (penB > penA) { winnerId = m.teamB; loserId = m.teamA; } }
-
-              if (winnerId && stats[winnerId]) stats[winnerId].points += ptsChamp; 
-              if (loserId && stats[loserId]) stats[loserId].points += ptsVice; 
-            }
+          
+          // Pontua a vitória na disputa do 3º Lugar
+          if (r.number === 'Final' && m.id.includes('_3rd')) {
+             const sUI = matches.find(x => x.matchId === m.id && x.compId === c.id && x.status === 'approved');
+             if (sUI) {
+                const scoreA = Number(sUI.scoreA||0); const scoreB = Number(sUI.scoreB||0);
+                const penA = sUI.penaltiesA !== null && sUI.penaltiesA !== undefined ? Number(sUI.penaltiesA) : null;
+                const penB = sUI.penaltiesB !== null && sUI.penaltiesB !== undefined ? Number(sUI.penaltiesB) : null;
+                let winnerId = null;
+                if (scoreA > scoreB) winnerId = m.teamA;
+                else if (scoreB > scoreA) winnerId = m.teamB;
+                else if (penA !== null && penB !== null) { if (penA > penB) winnerId = m.teamA; else if (penB > penA) winnerId = m.teamB; }
+                
+                if (winnerId && stats[winnerId]) stats[winnerId].points += ptsThird;
+             }
           }
         });
       });
-      semiTeams.forEach(tId => { if (!finalTeams.has(tId) && stats[tId]) stats[tId].points += ptsThird; });
+      
+      // Entrega do Título Oficial (Soma de ida e volta automática)
+      const champId = getChampionId(c, matches, teams);
+      if (champId) {
+         if (stats[champId]) { stats[champId].points += ptsChamp; stats[champId].titles += 1; }
+         const finalMatch = koRounds[koRounds.length - 1]?.matches.find(m => !m.id.includes('_3rd'));
+         if (finalMatch) {
+            const viceId = finalMatch.teamA === champId ? finalMatch.teamB : finalMatch.teamA;
+            if (viceId && stats[viceId]) stats[viceId].points += ptsVice;
+         }
+      } else {
+         // Retrocompatibilidade para torneios antigos sem 3º lugar estruturado
+         const hasThirdPlaceMatch = koRounds.length > 0 && koRounds[koRounds.length - 1].matches.some(m => m.id.includes('_3rd'));
+         if (!hasThirdPlaceMatch) {
+            const finalMatch = koRounds[koRounds.length - 1]?.matches[0];
+            let finalTeams = new Set();
+            if (finalMatch) { finalTeams.add(finalMatch.teamA); finalTeams.add(finalMatch.teamB); }
+            semiTeams.forEach(tId => { if (!finalTeams.has(tId) && stats[tId]) stats[tId].points += ptsThird; });
+         }
+      }
     });
 
     return Object.values(stats).filter(t => t.played > 0 || t.points > 0).sort((a,b) => b.points - a.points || b.wins - a.wins);
@@ -1550,10 +1636,10 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
 
   const [showEditPrizes, setShowEditPrizes] = useState(false);
   const [prizeData, setPrizeData] = useState({
-    first: comp.prizes?.first || '',
-    second: comp.prizes?.second || '',
-    third: comp.prizes?.third || '',
-    extra: comp.prizes?.extra || ''
+    first: comp?.prizes?.first || '',
+    second: comp?.prizes?.second || '',
+    third: comp?.prizes?.third || '',
+    extra: comp?.prizes?.extra || ''
   });
 
   const [showEditCategory, setShowEditCategory] = useState(false);
@@ -1619,12 +1705,11 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       element.style.width = 'max-content';
       element.style.overflow = 'visible';
       
-      // MUDANÇA NESTA LINHA: Adicionada a busca por .scrollbar-kame
       const scrollables = element.querySelectorAll('.scrollbar-kame, .overflow-x-auto');
       scrollables.forEach(el => { 
         el.style.overflow = 'visible'; 
         el.style.width = 'max-content'; 
-        el.style.maxHeight = 'none'; // <-- ISSO GARANTE QUE A FOTO SAIA COMPLETA
+        el.style.maxHeight = 'none'; 
       });
 
       window.html2canvas(element, { backgroundColor: '#020617', scale: 2, useCORS: true }).then(canvas => {
@@ -1633,7 +1718,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         scrollables.forEach(el => { 
           el.style.overflow = ''; 
           el.style.width = ''; 
-          el.style.maxHeight = ''; // <-- Restaura o tamanho original
+          el.style.maxHeight = ''; 
         });
 
         const link = document.createElement('a');
@@ -1740,13 +1825,11 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Nova partida em branco adicionada!", "success");
   };
 
-  // 🌟 NOVO: Função para criar um grupo inteiramente novo
   const handleAddNewGroup = (roundId) => {
     const novoG = window.prompt("Qual a letra ou nome do novo grupo? (Ex: E)");
     if (novoG && novoG.trim()) {
       const upperG = novoG.trim().toUpperCase();
       
-      // Atualiza a estrutura geral de grupos da competição, se já não existir
       let updatedGroups = { ...(comp.groups || {}) };
       if (!updatedGroups[upperG]) {
         updatedGroups[upperG] = [];
@@ -1938,9 +2021,10 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     if (comp.teams.length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times confirmados!`, "error"); return; }
     let finalRounds = []; let groupsData = null;
     if (comp.format === 'groups') {
-      const res = generateGroupsAndKnockout(comp.teams, comp.id, comp.numGroups, comp.qualifiersPerGroup, comp.isDoubleRound);
+      const res = generateGroupsAndKnockout(comp.teams, comp.id, comp.numGroups, comp.qualifiersPerGroup, comp.isDoubleRound, comp.isFinalDouble);
       finalRounds = res.rounds; groupsData = res.groups;
-    } else if (comp.format === 'cup') { finalRounds = generateCupBracket(comp.teams, comp.id);
+    } else if (comp.format === 'cup') { 
+      finalRounds = generateCupBracket(comp.teams, comp.id, comp.isFinalDouble);
     } else { finalRounds = generateRoundRobin(comp.teams, comp.id, comp.isDoubleRound); }
     onEditComp({ ...comp, status: 'active', rounds: finalRounds, groups: groupsData || comp.groups || null });
     showToast("Tabela e chaves geradas com sucesso!", "success");
@@ -1956,20 +2040,36 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     if (comp.format === 'cup' || comp.format === 'groups') {
       if (knockoutRounds.length === 0) return null;
       const lastRound = knockoutRounds[knockoutRounds.length - 1];
-      const finalMatch = lastRound.matches[0];
-      if (finalMatch) {
-        const sUI = getMatchStatusDisplay(finalMatch.id);
-        if (sUI.isPlayed && sUI.text === 'Oficial') {
-          const scoreA = Number(sUI.scoreA || 0);
-          const scoreB = Number(sUI.scoreB || 0);
-          if (scoreA > scoreB) return getTeam(finalMatch.teamA);
-          if (scoreB > scoreA) return getTeam(finalMatch.teamB);
-          
-          const penA = Number(sUI.penaltiesA || 0);
-          const penB = Number(sUI.penaltiesB || 0);
-          if (penA > penB) return getTeam(finalMatch.teamA);
-          if (penB > penA) return getTeam(finalMatch.teamB);
-        }
+      const finalMatches = lastRound.matches.filter(m => !m.id.includes('_3rd'));
+      if (finalMatches.length === 0) return null;
+
+      let allApproved = true;
+      let totalScoreA = 0; let totalScoreB = 0;
+      let lastPenA = null; let lastPenB = null;
+      let tA = finalMatches[0].teamA; let tB = finalMatches[0].teamB;
+
+      if(!tA || !tB) return null;
+
+      for (let fm of finalMatches) {
+         const sUI = matches.find(m => m.matchId === fm.id && m.compId === comp.id && m.status === 'approved');
+         if (!sUI) { allApproved = false; break; }
+         
+         if (fm.teamA === tA) {
+            totalScoreA += Number(sUI.scoreA || 0); totalScoreB += Number(sUI.scoreB || 0);
+            if (sUI.penaltiesA !== null && sUI.penaltiesA !== undefined) { lastPenA = Number(sUI.penaltiesA); lastPenB = Number(sUI.penaltiesB); }
+         } else {
+            totalScoreA += Number(sUI.scoreB || 0); totalScoreB += Number(sUI.scoreA || 0);
+            if (sUI.penaltiesB !== null && sUI.penaltiesB !== undefined) { lastPenA = Number(sUI.penaltiesB); lastPenB = Number(sUI.penaltiesA); }
+         }
+      }
+
+      if (allApproved) {
+         if (totalScoreA > totalScoreB) return getTeam(tA);
+         if (totalScoreB > totalScoreA) return getTeam(tB);
+         if (lastPenA !== null && lastPenB !== null) {
+            if (lastPenA > lastPenB) return getTeam(tA);
+            if (lastPenB > lastPenA) return getTeam(tB);
+         }
       }
     } else if (comp.format === 'league') {
       const totalMatches = groupOrNormalRounds.reduce((acc, r) => acc + r.matches.length, 0);
@@ -1980,7 +2080,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       }
     }
     return null;
-  }, [comp, matches, knockoutRounds, groupOrNormalRounds]);
+  }, [comp, matches, knockoutRounds, groupOrNormalRounds, teams]);
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
@@ -2251,7 +2351,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                     <div className="p-4 bg-blue-950/40 border-t border-blue-800">
                                       {comp.format === 'groups' ? (
                                          <div className="space-y-6">
-                                           {/* 🌟 AJUSTE AQUI: Grupos dinâmicos e em ordem alfabética */}
                                            {(() => {
                                              const roundGroupsSet = new Set();
                                              if (comp.groups) Object.keys(comp.groups).forEach(g => roundGroupsSet.add(g.toUpperCase()));
@@ -2335,7 +2434,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                                      </div>
                                                    );
                                                  })}
-
                                                  {isAdmin && !isLocked && (
                                                    <div className="mt-4 pt-4 border-t border-blue-800/50">
                                                      <button type="button" onClick={() => handleAddNewGroup(round.id)} className="text-[10px] bg-blue-800 hover:bg-blue-700 text-blue-300 font-bold px-3 py-2 rounded shadow transition-colors w-full border border-blue-700 border-dashed">
@@ -2471,8 +2569,14 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                     <div key={m.id} className="relative group">
                                       <div onClick={() => { if(sUI.isPlayed && onSelectMatch){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} cursor-pointer relative overflow-hidden`}>
                                         
+                                        {/* 🌟 AJUSTE: O RÓTULO DINÂMICO PARA FINAIS E 3º LUGAR */}
                                         <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
-                                          <span className="text-blue-500">Confronto</span>
+                                          <span className="text-blue-500">
+                                            {m.id.includes('_f1') && round.matches.length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' 
+                                            : m.id.includes('_f2') ? '🏆 Final (Volta)' 
+                                            : m.id.includes('_3rd') ? '🥉 Disputa 3º Lugar' 
+                                            : 'Confronto'}
+                                          </span>
                                           <span className={sUI.color}>{sUI.text}</span>
                                         </div>
 
@@ -2578,7 +2682,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         onChange={e => setTeamGroupMapping({...teamGroupMapping, [tId]: e.target.value})} 
                         className="bg-blue-900 border border-purple-500/50 rounded-lg p-1.5 text-purple-300 text-xs font-bold outline-none"
                       >
-                        {/* 🌟 AJUSTE: Também coloca os grupos em ordem alfabética no dropdown */}
                         {Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (
                           <option key={gName} value={gName}>Grupo {gName}</option>
                         ))}
@@ -2621,7 +2724,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         }} 
                         className="w-full bg-blue-900 border border-purple-500/40 rounded p-2 text-purple-300 text-xs font-bold outline-none"
                       >
-                        {/* 🌟 AJUSTE: Também ordena os grupos de edição de partida */}
                         {Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (
                           <option key={gName} value={gName}>Grupo {gName}</option>
                         ))}
@@ -2730,7 +2832,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     </div>
   );
 };
-
 const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onBack, showToast }) => {
   const [receipt, setReceipt] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -2867,11 +2968,12 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
 const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const [name, setName] = useState('');
   const [format, setFormat] = useState('league');
-  const [category, setCategory] = useState('liga_a'); // 🌟 Padrão agora é Liga A
+  const [category, setCategory] = useState('liga_a');
   const [teamCount, setTeamCount] = useState('');
   const [numGroups, setNumGroups] = useState('2');
   const [qualifiers, setQualifiers] = useState('2');
   const [isDoubleRound, setIsDoubleRound] = useState(false);
+  const [isFinalDouble, setIsFinalDouble] = useState(false);
   const [deadline, setDeadline] = useState('');
   
   const [isAutoJoin, setIsAutoJoin] = useState(true);
@@ -2914,11 +3016,11 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
 
     if (!isAutoJoin) {
       if (format === 'groups') {
-        const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound);
+        const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound, isFinalDouble);
         finalRounds = res.rounds;
         groupsData = res.groups;
       } else if (format === 'cup') {
-        finalRounds = generateCupBracket(selectedTeams, compId);
+        finalRounds = generateCupBracket(selectedTeams, compId, isFinalDouble);
       } else {
         finalRounds = generateRoundRobin(selectedTeams, compId, isDoubleRound);
       }
@@ -2933,6 +3035,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
       rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido',
       isDoubleRound,
+      isFinalDouble,
       numGroups: parseInt(numGroups),
       qualifiersPerGroup: parseInt(qualifiers),
       ...(groupsData && { groups: groupsData }),
@@ -2965,7 +3068,6 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Nome do Campeonato</label><input type="text" placeholder="Ex: Liga Kame 2026" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             
-            {/* 🌟 NOVO: MENU DE CATEGORIAS EXPANDIDO */}
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Categoria (Divisão)</label>
               <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full bg-blue-950 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner">
                 <option value="liga_a">🥇 Liga Kame A (Série A)</option>
@@ -2986,23 +3088,29 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Qtd. Total de Vagas (Times)</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-emerald-400 font-black text-lg focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Prazo das Inscrições/Jogos</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             
-            {format !== 'cup' && (
-              <div className="space-y-2 flex items-center gap-2 mt-2 col-span-1 md:col-span-2">
-                <input type="checkbox" id="isDoubleRound" checked={isDoubleRound} onChange={e=>setIsDoubleRound(e.target.checked)} className="w-5 h-5 accent-emerald-500 cursor-pointer" />
-                <label htmlFor="isDoubleRound" className="text-sm font-bold text-blue-300 cursor-pointer">Jogos com Turno e Returno (Ida e Volta)</label>
-              </div>
-            )}
+            <div className="flex flex-col md:flex-row gap-4 mt-2 col-span-1 md:col-span-2">
+              {format !== 'cup' && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={isDoubleRound} onChange={e=>setIsDoubleRound(e.target.checked)} className="w-5 h-5 accent-emerald-500 cursor-pointer" />
+                  <span className="text-sm font-bold text-blue-300">Fases de Grupo em Ida e Volta</span>
+                </label>
+              )}
+              {format !== 'league' && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={isFinalDouble} onChange={e=>setIsFinalDouble(e.target.checked)} className="w-5 h-5 accent-amber-500 cursor-pointer" />
+                  <span className="text-sm font-bold text-amber-400">Final em Ida e Volta (2 Jogos)</span>
+                </label>
+              )}
+            </div>
 
             {format === 'groups' && (
               <>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-blue-300">Quantidade de Grupos</label>
-                  {/* 🌟 MUDANÇA AQUI: De Select para Input Livre */}
                   <input type="number" min="2" placeholder="Ex: 2, 3, 4..." value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-blue-300">Classificados por Grupo</label>
-                  {/* 🌟 MUDANÇA AQUI: Input Livre para classificados também */}
                   <input type="number" min="1" placeholder="Ex: 2" value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required />
                 </div>
               </>
@@ -3040,9 +3148,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
         <div className="bg-blue-900 p-6 md:p-8 rounded-3xl border border-blue-800 shadow-xl animate-in fade-in">
           <div className="flex flex-col mb-4">
             <label className="text-sm font-bold text-blue-300">
-              {isAutoJoin 
-                ? `Equipes Pré-Confirmadas (Opcional: ${selectedTeams.length}/${teamCount || '0'})` 
-                : `Marcar as Equipes Manualmente (Obrigatório: ${selectedTeams.length}/${teamCount || '0'})`}
+              {isAutoJoin ? `Equipes Pré-Confirmadas (Opcional: ${selectedTeams.length}/${teamCount || '0'})` : `Marcar as Equipes Manualmente (Obrigatório: ${selectedTeams.length}/${teamCount || '0'})`}
             </label>
           </div>
           
