@@ -23,7 +23,7 @@ const appId = 'cla-kame-oficial';
 const getPublicPath = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 const getPublicDocPath = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-const ROLE_NAMES = { leader: 'Líder Supremo', kaioh: 'Senhor Kaioh', member: 'Membro Oficial' };
+const ROLE_NAMES = { leader: 'Líder Supremo', kaioh: 'Senhor Kaioh', organizer: 'Organizador', member: 'Membro Oficial' };
 const inputClass = "w-full bg-blue-950 border border-blue-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none transition-colors text-sm";
 
 const processImage = (file, cb) => { if(!file) return; const r = new FileReader(); r.onload = e => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const MAX = 128; let w = img.width, h = img.height; if (w > h) { if (w > MAX) { h *= MAX / w; w = MAX; } } else { if (h > MAX) { w *= MAX / h; h = MAX; } } canvas.width = w; canvas.height = h; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h); cb(canvas.toDataURL('image/png')); }; img.src = e.target.result; }; r.readAsDataURL(file); };
@@ -793,7 +793,7 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
 };
 
 const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch, onJoinOpenComp, onChangeTab }) => {
-  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh' || currentUser?.role === 'organizer';
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
   const visibleCompIds = (competitions || []).filter(c => c && c.teams?.some(t => userTeamIds.includes(t))).map(c => c.id);
   const recentMatches = (matches || []).filter(m => m && (isAdmin || visibleCompIds.includes(m.compId)) && m.status !== 'rejected').sort((a, b) => parseInt(String(b?.id || '').split('_')[1] || '0') - parseInt(String(a?.id || '').split('_')[1] || '0')).slice(0, 8);
@@ -3083,7 +3083,10 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
 };
 
 const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp }) => {
-  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  // Organizador vê as opções de admin, mas só Leader e Kaioh podem excluir
+  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh' || currentUser?.role === 'organizer';
+  const canDelete = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
   const visible = (competitions || []).filter(c => c && (isAdmin || c.teams?.some(t => userTeamIds.includes(t))));
   return (
@@ -3093,7 +3096,8 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDe
         {visible.map(c => (
           <div key={c.id} onClick={()=>onSelectComp(c.id)} className="bg-blue-900 p-5 rounded-2xl border border-blue-800 hover:border-emerald-500/40 transition-all cursor-pointer flex justify-between items-center group">
             <div><h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors">{String(c.name)}</h3><p className="text-xs text-blue-500 mt-1">{c.teams?.length || 0} Clubes inscritos</p></div>
-            {isAdmin && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-blue-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>}
+            {/* 🔒 Trava aplicada aqui: Apenas Líder e Kaioh veem a lixeira do torneio */}
+            {canDelete && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-blue-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>}
           </div>
         ))}
       </div>
@@ -3979,7 +3983,14 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
               return(
                 <tr key={u.id} className="hover:bg-blue-950/40">
                   <td className="p-3 font-bold text-blue-200">{u.name}</td><td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-blue-400">{u.whatsapp}</td>
-                  <td className="p-3"><select disabled={!isSupremeLeader && currentUser?.id !== u.id} value={u.role} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-blue-900 text-blue-300 border border-blue-700 rounded p-1 outline-none disabled:opacity-50"><option value="member">Membro</option><option value="kaioh">Kaioh</option><option value="leader">Líder</option></select></td>
+                  <td className="p-3">
+                    <select disabled={!isSupremeLeader && currentUser?.id !== u.id} value={u.role || 'member'} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-blue-900 text-blue-300 border border-blue-700 rounded p-1 outline-none disabled:opacity-50">
+                      <option value="member">Membro</option>
+                      <option value="organizer">Organizador</option>
+                      <option value="kaioh">Kaioh</option>
+                      <option value="leader">Líder</option>
+                    </select>
+                  </td>
                   <td className="p-3 flex justify-center gap-3 items-center">
                     {isSupremeLeader && <button onClick={()=>startEdit(u)} className="text-blue-500 hover:text-emerald-400 transition-colors p-1" title="Editar Técnico"><Edit size={16}/></button>}
                     {isLeader && <button onClick={()=>{if(window.confirm('Expulsar membro?')) onExpelUser(u.id)}} className="text-blue-500 hover:text-red-400 transition-colors p-1" title="Expulsar"><XCircle size={16}/></button>}
@@ -4583,27 +4594,34 @@ export default function App() {
   }
 
   const isLeaderOrKaioh = currentUser.role === 'leader' || currentUser.role === 'kaioh';
+  const isOrganizer = currentUser.role === 'organizer';
+  const hasEventAccess = isLeaderOrKaioh || isOrganizer; // Permissão para gerenciar jogos
   
-  // 🛠️ CORREÇÃO AQUI: Aba de regras liberada para todos verem!
   const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home }, 
     { id: 'profile', label: 'Meu Perfil', icon: User },
     { id: 'teams_list', label: 'Times', icon: Shield }, 
     { id: 'competitions', label: 'Competições', icon: Medal },
     { id: 'ranking', label: 'Ranking Xclã', icon: Crown },
+    { id: 'predictions', label: 'Bolão', icon: Target },
     { id: 'feed', label: 'Feed da Resenha', icon: MessageCircle },
     { id: 'records', label: 'Mural de Recordes', icon: Trophy },
     { id: 'rules', label: 'Regras do Clã', icon: BookOpen },
-    ...(isLeaderOrKaioh ? [
+    
+    // 🟢 ACESSO DO ORGANIZADOR E DOS LÍDERES
+    ...(hasEventAccess ? [
       { id: 'submit', label: 'Registrar', icon: Camera }, 
       { id: 'validation', label: 'Validação', icon: CheckSquare }, 
+      { id: 'create_comp', label: 'Nova Comp', icon: PlusCircle }
+    ] : []),
+
+    // 🔴 ACESSO RESTRITO APENAS PARA LÍDERES
+    ...(isLeaderOrKaioh ? [
       { id: 'members_list', label: 'Técnicos', icon: Award },
-      { id: 'create_comp', label: 'Nova Comp', icon: PlusCircle }, 
       { id: 'create_team', label: 'Convidar Técnico', icon: Users },
       { id: 'create_team_manual', label: 'Time Simples', icon: UserPlus } 
     ] : []),
   ];
-
   const handleUpdateMatchStatus = async (id, st, updatedData = null) => {
     const updatePayload = { status: st };
     if (updatedData) {
