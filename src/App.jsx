@@ -155,6 +155,68 @@ const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2, i
   return { groups, rounds };
 };
 
+const generateCupBracket = (teamIds, compId) => {
+  // Sorteia os times aleatoriamente para montar as chaves
+  const sh = [...teamIds].sort(() => 0.5 - Math.random());
+  
+  // Acha a potência de 2 mais próxima para criar as chaves corretamente (2, 4, 8, 16...)
+  let p2 = 1; 
+  while (p2 < sh.length) p2 *= 2; 
+  const tkr = Math.log2(p2);
+  
+  const rounds = []; 
+  let mc = 1;
+
+  for (let kr = 0; kr < tkr; kr++) {
+    const rm = []; 
+    const nm = p2 / Math.pow(2, kr + 1); 
+    const fmc = mc;
+
+    for (let i = 0; i < nm; i++) {
+      let tA = '';
+      let tB = '';
+      let pA = 'A Definir';
+      let pB = 'A Definir';
+
+      if (kr === 0) {
+        // Primeira rodada: Coloca os times sorteados
+        tA = sh[i * 2] || '';
+        tB = sh[i * 2 + 1] || '';
+        pA = tA ? 'Sorteado' : 'Vaga Aberta';
+        pB = tB ? 'Sorteado' : 'Vaga Aberta';
+      } else {
+        // Rodadas seguintes: Puxa o vencedor do jogo correspondente
+        pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`;
+        pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
+      }
+
+      rm.push({
+        id: `${compId}_ko_m${mc}_kr${kr}`,
+        teamA: tA,
+        teamB: tB,
+        placeholderA: pA,
+        placeholderB: pB,
+        status: 'pending_play'
+      });
+      mc++;
+    }
+
+    let rl = 'Mata-Mata';
+    if (nm === 1) rl = 'Final';
+    else if (nm === 2) rl = 'Semifinal';
+    else if (nm === 4) rl = 'Quartas';
+    else if (nm === 8) rl = 'Oitavas';
+
+    rounds.push({
+      id: `ko_${kr}`,
+      number: rl,
+      status: kr === 0 ? 'released' : 'locked', // Só a 1ª fase nasce liberada
+      matches: rm
+    });
+  }
+  return rounds;
+};
+
 const LoginScreen = ({ onLogin, onRegister }) => {
   const [view, setView] = useState('login'); 
   const [loginData, setLoginData] = useState({ identifier: '', password: '' });
