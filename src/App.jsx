@@ -1919,6 +1919,14 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Time inserido manualmente com sucesso!", "success");
   };
 
+  const handleRemoveTeamFromComp = (teamIdToRemove) => {
+    if(window.confirm("Tem certeza que deseja remover este time da competição?")) {
+      const newTeams = (comp.teams || []).filter(id => id !== teamIdToRemove);
+      onEditComp({ ...comp, teams: newTeams });
+      showToast("Time removido da competição com sucesso!", "success");
+    }
+  };
+
   const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}?join=${comp.id}`); showToast("Link copiado!", "success"); };
   
   const handleApproveTeam = (req) => {
@@ -2214,9 +2222,22 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 {(comp.teams || []).map(tId => {
                   const t = getTeam(tId);
                   return (
-                    <div key={tId} className="bg-blue-950 p-3 rounded-xl border border-emerald-500/20 flex items-center gap-2">
-                      <ShieldDisplay shield={t?.shield} size="small" />
-                      <span className="font-bold text-xs text-blue-100 truncate">{t?.name}</span>
+                    <div key={tId} className="bg-blue-950 p-2.5 rounded-xl border border-emerald-500/20 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ShieldDisplay shield={t?.shield} size="small" />
+                        <span className="font-bold text-xs text-blue-100 truncate">{t?.name}</span>
+                      </div>
+                      
+                      {/* 🗑️ BOTÃO DE REMOVER (Apenas para Admins) */}
+                      {isAdmin && (
+                        <button 
+                          onClick={() => handleRemoveTeamFromComp(tId)} 
+                          className="text-blue-500 hover:text-red-400 bg-blue-900/50 hover:bg-red-500/10 p-1.5 rounded-lg transition-colors shrink-0" 
+                          title="Remover da Competição"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
