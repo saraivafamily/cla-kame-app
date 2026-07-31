@@ -267,7 +267,10 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskCompleted }) =
   const [commentText, setCommentText] = useState({});
   const [postImage, setPostImage] = useState(null);
   const [isPosting, setIsPosting] = useState(false);
-  const [activeMenu, setActiveMenu] = useState(null); // Controla os 3 pontinhos
+  const [activeMenu, setActiveMenu] = useState(null); 
+  
+  // 🌟 NOVO: Controle de quais comentários estão expandidos
+  const [expandedComments, setExpandedComments] = useState({}); 
 
   // 1. FUNÇÃO PARA LER E COMPRIMIR A FOTO
   const handleImageUpload = (e) => {
@@ -300,7 +303,6 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskCompleted }) =
       setPostImage(null);
       showToast("Publicado para todo o Clã!", "success");
       
-      // 🪙 NOVO: Chama a missão de postagem (+20 KC)
       if (onTaskCompleted) onTaskCompleted('post', 20);
       
     } catch (err) {
@@ -312,24 +314,40 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskCompleted }) =
   const toggleLike = async (postId) => {
     const post = posts.find(p => p.id === postId);
     if(!post) return;
-    const hasLiked = post.likes.includes(currentUser?.id);
-    const newLikes = hasLiked ? post.likes.filter(id => id !== currentUser?.id) : [...post.likes, currentUser?.id];
+    
+    const currentLikes = post.likes || [];
+    const hasLiked = currentLikes.includes(currentUser?.id);
+    const newLikes = hasLiked ? currentLikes.filter(id => id !== currentUser?.id) : [...currentLikes, currentUser?.id];
+    
     await updateDoc(getPublicDocPath('feed', postId), { likes: newLikes });
     
-    // 🪙 NOVO: Chama a missão de Like (+5 KC, e apenas se ele estiver DANDO o like, não tirando)
     if (!hasLiked && onTaskCompleted) {
        onTaskCompleted('like', 5);
     }
   };
 
+  // 🛠️ CORREÇÃO: Blindagem para evitar inatividade nos comentários
   const handleComment = async (postId) => {
     const text = commentText[postId];
     if (!text?.trim()) return;
+    
     const post = posts.find(p => p.id === postId);
     if(!post) return;
+    
     const newComment = { id: `c_${Date.now()}`, authorId: currentUser?.id || 'anon', authorName: currentUser?.name || 'Membro', text, timestamp: Date.now() };
-    await updateDoc(getPublicDocPath('feed', postId), { comments: [...post.comments, newComment] });
+    
+    // Garante que é um array, mesmo em posts antigos
+    const currentComments = post.comments || []; 
+    
+    await updateDoc(getPublicDocPath('feed', postId), { comments: [...currentComments, newComment] });
     setCommentText({ ...commentText, [postId]: '' });
+    
+    // Expande os comentários automaticamente ao comentar
+    setExpandedComments(prev => ({...prev, [postId]: true}));
+  };
+
+  const toggleCommentsExpansion = (postId) => {
+    setExpandedComments(prev => ({...prev, [postId]: !prev[postId]}));
   };
 
   const handleDelete = async (postId) => {
@@ -352,7 +370,6 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskCompleted }) =
         <h2 className="text-2xl font-black text-white tracking-wide">Feed da Resenha</h2>
       </div>
 
-      {/* 🚀 NOVA CAIXA DE PUBLICAÇÃO (Estilo Twitter/X) */}
       <div className="bg-blue-900/60 p-4 sm:p-5 rounded-3xl border border-blue-800/80 mb-8 shadow-xl">
         <div className="flex gap-3 sm:gap-4">
           <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-800 rounded-full flex items-center justify-center overflow-hidden border-2 border-emerald-500/30 shrink-0 shadow-inner">
@@ -386,13 +403,19 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskCompleted }) =
         </div>
       </div>
 
-      {/* 📰 LISTA DE POSTS */}
       <div className="space-y-5">
         {posts.length === 0 && <p className="text-center text-blue-500 p-8 bg-blue-900/30 rounded-3xl border border-blue-800/50 border-dashed">Nenhuma resenha ainda. Seja o primeiro!</p>}
         {posts.map(post => {
-          const isLiked = post.likes.includes(currentUser?.id);
+          const currentLikes = post.likes || [];
+          const postComments = post.comments || [];
+          
+          const isLiked = currentLikes.includes(currentUser?.id);
           const isAuthorOrAdmin = post.authorId === currentUser?.id || currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
           const teamName = getUserTeamName(post.authorId);
+          
+          // Lógica de Visibilidade dos Comentários
+          const isExpanded = expandedComments[post.id];
+          const visibleComments = isExpanded ? postComments : postComments.slice(0, 3);
           
           return (
             <div key={post.id} className="bg-blue-950/40 rounded-3xl border border-blue-800/60 p-4 sm:p-5 shadow-md hover:border-blue-700 transition-colors">
@@ -445,23 +468,25 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskCompleted }) =
                   <div className={`p-1.5 rounded-full group-hover:bg-red-500/10 transition-colors ${isLiked ? 'bg-red-500/10' : ''}`}>
                     <Heart size={18} className={isLiked ? 'fill-current' : ''} />
                   </div>
-                  <span>{post.likes.length > 0 && post.likes.length}</span>
+                  <span>{currentLikes.length > 0 && currentLikes.length}</span>
                 </button>
                 <div className="flex items-center gap-1.5 text-sm font-bold text-blue-400 group cursor-default">
                   <div className="p-1.5 rounded-full group-hover:bg-blue-500/10 transition-colors">
                     <MessageCircle size={18} />
                   </div>
-                  <span>{post.comments.length > 0 && post.comments.length}</span>
+                  <span>{postComments.length > 0 && postComments.length}</span>
                 </div>
               </div>
 
               {/* Área de Comentários */}
-              {(post.comments.length > 0 || commentText[post.id] !== undefined) && (
+              {(postComments.length > 0 || commentText[post.id] !== undefined) && (
                 <div className="mt-4 pt-4 border-t border-blue-800/40 space-y-3">
-                  {post.comments.map(c => {
+                  
+                  {/* Lista de Comentários Visíveis */}
+                  {visibleComments.map(c => {
                     const cTeamName = getUserTeamName(c.authorId);
                     return (
-                      <div key={c.id} className="flex gap-2">
+                      <div key={c.id} className="flex gap-2 animate-in fade-in">
                         <div className="w-6 h-6 bg-blue-800 rounded-full flex items-center justify-center shrink-0 mt-0.5"><User size={12} className="text-blue-400"/></div>
                         <div className="bg-blue-900/50 px-3 py-2 rounded-2xl rounded-tl-none border border-blue-800/50">
                           <p className="text-xs font-bold text-emerald-400">
@@ -473,10 +498,34 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskCompleted }) =
                     )
                   })}
                   
+                  {/* Botão de Ver Mais Comentários */}
+                  {postComments.length > 3 && (
+                    <button 
+                      onClick={() => toggleCommentsExpansion(post.id)}
+                      className="text-xs font-bold text-blue-400 hover:text-emerald-400 flex items-center gap-1 justify-center w-full py-1.5 transition-colors"
+                    >
+                      {isExpanded ? '▲ Ocultar comentários' : `▼ Ver mais ${postComments.length - 3} comentários`}
+                    </button>
+                  )}
+                  
+                  {/* Input de Novo Comentário */}
                   <div className="flex gap-2 mt-2 items-center">
                     <div className="w-6 h-6 bg-blue-800 rounded-full flex items-center justify-center shrink-0"><User size={12} className="text-blue-400"/></div>
-                    <input type="text" placeholder="Adicione um comentário..." value={commentText[post.id] || ''} onChange={e => setCommentText({...commentText, [post.id]: e.target.value})} onKeyDown={e => e.key === 'Enter' && handleComment(post.id)} className="flex-1 bg-blue-900/50 border border-blue-800 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:border-emerald-500 transition-colors" />
-                    <button onClick={() => handleComment(post.id)} disabled={!commentText[post.id]?.trim()} className="text-emerald-500 disabled:text-blue-700 p-1.5 hover:bg-emerald-500/10 rounded-full transition-colors"><Send size={16}/></button>
+                    <input 
+                      type="text" 
+                      placeholder="Adicione um comentário..." 
+                      value={commentText[post.id] || ''} 
+                      onChange={e => setCommentText({...commentText, [post.id]: e.target.value})} 
+                      onKeyDown={e => e.key === 'Enter' && handleComment(post.id)} 
+                      className="flex-1 bg-blue-900/50 border border-blue-800 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:border-emerald-500 transition-colors" 
+                    />
+                    <button 
+                      onClick={() => handleComment(post.id)} 
+                      disabled={!commentText[post.id]?.trim()} 
+                      className="text-emerald-500 disabled:text-blue-700 p-1.5 hover:bg-emerald-500/10 rounded-full transition-colors"
+                    >
+                      <Send size={16}/>
+                    </button>
                   </div>
                 </div>
               )}
