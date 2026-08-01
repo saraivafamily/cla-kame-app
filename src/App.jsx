@@ -1795,6 +1795,38 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Nova partida em branco adicionada!", "success");
   };
 
+  const handleAddNewRound = () => {
+    // Encontra o número da próxima rodada (ex: se vai até a 5, cria a 6)
+    const nextRoundNum = (comp.rounds && comp.rounds.length > 0)
+      ? Math.max(...comp.rounds.map(r => r.number || 0)) + 1
+      : 1;
+
+    // Cria a partida em branco
+    const newMatch = {
+      id: `m_manual_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      teamA: '',
+      teamB: '',
+      group: null, // Sem grupo para pontos corridos
+      placeholderA: 'A Definir',
+      placeholderB: 'A Definir'
+    };
+
+    // Cria a rodada já com a partida dentro
+    const newRound = {
+      id: `r_manual_${Date.now()}`,
+      number: nextRoundNum,
+      status: 'released', // Já nasce liberada para edições de placar
+      matches: [newMatch]
+    };
+    
+    // Atualiza a competição
+    onEditComp({ ...comp, rounds: [...(comp.rounds || []), newRound] });
+    
+    showToast(`Rodada Extra (Nº ${nextRoundNum}) adicionada com sucesso!`, "success");
+    setExpandedRoundId(newRound.id); // Expande a nova rodada automaticamente no calendário
+    setShowCalendar(true); // Garante que o calendário abrirá
+  };
+  
   const handleAddNewGroup = (roundId) => {
     const novoG = window.prompt("Qual a letra ou nome do novo grupo? (Ex: E)");
     if (novoG && novoG.trim()) {
