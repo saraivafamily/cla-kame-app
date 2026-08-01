@@ -2360,11 +2360,21 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                       <Standings matches={matches} teams={compTeams} comp={comp} />
                     </div>
 
-                    {groupOrNormalRounds.length > 0 && (
+                    {(groupOrNormalRounds.length > 0 || (isAdmin && comp.format === 'league')) && (
                       <div className="space-y-3 pt-4 border-t border-blue-800/50">
-                        <Button onClick={() => setShowCalendar(!showCalendar)} className="w-full mt-4 py-4 bg-blue-900 border border-blue-700 hover:bg-blue-800 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-md">
-                          {showCalendar ? 'Esconder Calendário' : '📅 Ver Calendário de Partidas'}
-                        </Button>
+                        
+                        {/* NOVO BOTÃO PARA PONTOS CORRIDOS */}
+                        {isAdmin && comp.format === 'league' && (
+                          <Button onClick={handleAddNewRound} className="w-full mt-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg border border-emerald-500">
+                            ➕ Adicionar Nova Rodada / Partida Extra
+                          </Button>
+                        )}
+
+                        {groupOrNormalRounds.length > 0 && (
+                          <Button onClick={() => setShowCalendar(!showCalendar)} className="w-full mt-2 py-4 bg-blue-900 border border-blue-700 hover:bg-blue-800 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-md">
+                            {showCalendar ? 'Esconder Calendário' : '📅 Ver Calendário de Partidas'}
+                          </Button>
+                        )}
 
                         {showCalendar && (
                           <div className="mt-6 space-y-4 animate-in slide-in-from-top-4">
