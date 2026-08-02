@@ -105,6 +105,50 @@ const getChampionId = (comp, matches, teams) => {
   return null;
 };
 
+const generateRoundRobin = (teams, compId, isDoubleRound = false) => {
+  if (!teams || teams.length === 0) return [];
+  const t = [...teams];
+  if (t.length % 2 !== 0) t.push(null);
+  const numRounds = t.length - 1;
+  const half = t.length / 2;
+  const rounds = [];
+  let matchCounter = 1;
+
+  for (let r = 0; r < numRounds; r++) {
+    const matches = [];
+    for (let i = 0; i < half; i++) {
+      const teamA = t[i];
+      const teamB = t[t.length - 1 - i];
+      if (teamA !== null && teamB !== null) {
+        matches.push({
+          id: `${compId}_m${matchCounter}_r${r + 1}`,
+          teamA: teamA,
+          teamB: teamB,
+          placeholderA: 'A Definir',
+          placeholderB: 'A Definir',
+          status: 'pending_play'
+        });
+        matchCounter++;
+      }
+    }
+    rounds.push({ id: `r${r + 1}`, number: r + 1, status: r === 0 ? 'released' : 'locked', matches });
+    t.splice(1, 0, t.pop());
+  }
+
+  if (isDoubleRound) {
+    const extraRounds = [];
+    for (let r = 0; r < numRounds; r++) {
+      const matches = rounds[r].matches.map(m => {
+        const newMatch = { ...m, id: `${compId}_m${matchCounter}_r${r + 1 + numRounds}`, teamA: m.teamB, teamB: m.teamA };
+        matchCounter++; return newMatch;
+      });
+      extraRounds.push({ id: `r${r + 1 + numRounds}`, number: r + 1 + numRounds, status: 'locked', matches });
+    }
+    return [...rounds, ...extraRounds];
+  }
+  return rounds;
+};
+
 const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2, isDoubleRound = false, isFinalDouble = false) => {
   const sh = [...teamIds].sort(() => 0.5 - Math.random()); const groups = {}; const gn = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   for(let i=0; i<numGroups; i++) groups[gn[i]] = []; sh.forEach((t, i) => groups[gn[i % numGroups]].push(t));
