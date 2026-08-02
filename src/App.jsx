@@ -2637,11 +2637,19 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                               <div className="bg-blue-900 border border-blue-800 rounded-xl px-4 py-2.5 text-center shadow-md relative overflow-hidden">
                                 <div className="absolute top-0 left-0 w-full h-[3px] bg-amber-500"></div>
                                 <span className="text-xs font-black text-amber-400 uppercase tracking-widest">Fase: {round.number}</span>
+                                
                                 {isAdmin && round.status === 'locked' && (
-                                  <button type="button" onClick={() => onReleaseRound(comp.id, round.id)} className="block w-full mt-1.5 bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[9px] py-0.5 rounded uppercase tracking-wider transition-colors">🔓 Liberar Jogos</button>
+                                  <button type="button" onClick={() => onReleaseRound(comp.id, round.id)} className="block w-full mt-1.5 bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[9px] py-1 rounded uppercase tracking-wider transition-colors">🔓 Liberar Jogos</button>
                                 )}
+                                
                                 {isAdmin && round.status === 'released' && (
-                                  <button type="button" onClick={() => onLockRound(comp.id, round.id)} className="block w-full mt-1.5 bg-amber-600 hover:bg-amber-500 text-blue-950 font-black text-[9px] py-0.5 rounded uppercase tracking-wider transition-colors">🔒 Travar Jogos</button>
+                                  <>
+                                    <button type="button" onClick={() => onLockRound(comp.id, round.id)} className="block w-full mt-1.5 bg-amber-600 hover:bg-amber-500 text-blue-950 font-black text-[9px] py-1 rounded uppercase tracking-wider transition-colors mb-1">🔒 Travar Jogos</button>
+                                    
+                                    <button type="button" onClick={() => handleAddMatchToGroup(round.id, null)} className="block w-full bg-blue-800 hover:bg-blue-700 text-emerald-400 font-bold text-[9px] py-1.5 rounded uppercase tracking-wider transition-colors border border-blue-600 border-dashed">
+                                      + Adicionar Confronto
+                                    </button>
+                                  </>
                                 )}
                               </div>
 
