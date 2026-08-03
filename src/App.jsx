@@ -2182,7 +2182,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </button>
           )}
 
-          {isAdmin && !isRegistration && (
+         {isAdmin && comp.status !== 'finished' && (
             <>
               {showAddTeam ? (
                 <div className="flex gap-2 w-full sm:w-auto animate-in fade-in">
