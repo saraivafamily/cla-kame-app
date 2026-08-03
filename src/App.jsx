@@ -4948,9 +4948,10 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
   const [pixPayload, setPixPayload] = useState('');
 
   const getTeam = (id) => (teams || []).find(t => t.id === id);
+  // Futuramente, se você criar uma tabela unificada de 'transactions', pode mapear ela aqui.
   const myPreds = (predictions || []).filter(p => p.userId === currentUser?.id).sort((a,b) => b.timestamp - a.timestamp);
 
-  const KC_PACKAGES = [
+  const BK_PACKAGES = [
     { id: 'p1', name: 'Pacote Iniciante', coins: 300, price: 5.00, bonus: 0, color: 'from-blue-600 to-blue-900', border: 'border-blue-500' },
     { id: 'p2', name: 'Pacote Profissional', coins: 700, price: 10.00, bonus: 100, color: 'from-emerald-600 to-emerald-900', border: 'border-emerald-500' },
     { id: 'p3', name: 'Pacote Magnata', coins: 1600, price: 20.00, bonus: 400, color: 'from-amber-500 to-amber-800', border: 'border-amber-400' },
@@ -4989,11 +4990,11 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
       const totalCoins = selectedPackage.coins + selectedPackage.bonus;
       const newBalance = (currentUser.kameCoins || 0) + totalCoins;
       
-      // Atualiza no Firebase
+      // Atualiza o saldo no Firebase
       await updateDoc(getPublicDocPath('users', currentUser.id), { kameCoins: newBalance });
       
       setCheckoutStep('success');
-      showToast("Pagamento Aprovado! Moedas adicionadas.", "success");
+      showToast("Pagamento Aprovado! BitKames adicionados.", "success");
     }, 2000);
   };
 
@@ -5012,25 +5013,25 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
         </div>
         <div className="bg-blue-950/80 p-4 rounded-2xl border border-amber-500/40 min-w-[200px] text-center shadow-inner">
           <p className="text-xs text-amber-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5"><Wallet size={14}/> Saldo Disponível</p>
-          <p className="text-4xl font-black text-white">{currentUser?.kameCoins || 0} <span className="text-xl text-amber-500">KC</span></p>
+          <p className="text-4xl font-black text-white">{currentUser?.kameCoins || 0} <span className="text-xl text-amber-500">BK</span></p>
         </div>
       </div>
 
       {/* 🧭 NAVEGAÇÃO DO BANCO */}
       <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800">
-        <button onClick={()=>setBankTab('extrato')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='extrato'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>📜 Extrato de Apostas</button>
-        <button onClick={()=>setBankTab('deposito')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='deposito'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>💰 Depositar (Comprar KC)</button>
+        <button onClick={()=>setBankTab('extrato')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='extrato'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>📜 Extrato da Conta</button>
+        <button onClick={()=>setBankTab('deposito')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='deposito'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>💰 Depositar (Comprar BK)</button>
       </div>
 
-      {/* 📜 ABA DE EXTRATO */}
+      {/* 📜 ABA DE EXTRATO GERAL */}
       {bankTab === 'extrato' && (
         <div className="bg-blue-900 rounded-3xl border border-blue-800 shadow-xl overflow-hidden animate-in slide-in-from-left-4">
           <div className="p-5 border-b border-blue-800 bg-blue-950/40">
-            <h3 className="font-bold text-white flex items-center gap-2"><Activity size={18} className="text-blue-400"/> Movimentações na KameBet</h3>
+            <h3 className="font-bold text-white flex items-center gap-2"><Activity size={18} className="text-blue-400"/> Movimentações da Conta</h3>
           </div>
           <div className="divide-y divide-blue-800/40 max-h-[500px] overflow-y-auto custom-scrollbar">
             {myPreds.length === 0 ? (
-              <div className="p-8 text-center text-blue-500">Você ainda não fez nenhuma aposta.</div>
+              <div className="p-8 text-center text-blue-500">Nenhuma movimentação encontrada na sua conta.</div>
             ) : (
               myPreds.map(pred => {
                 const match = matches.find(m => m.id === pred.matchId);
@@ -5038,19 +5039,25 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                 const tB = getTeam(match?.teamB);
                 const matchName = tA && tB ? `${tA.name} x ${tB.name}` : 'Partida Encerrada';
                 
+                const isDeposit = pred.type === 'deposit'; // Layout preparado para recargas futuras!
+                
                 let statusColor = "text-amber-400";
                 let statusBg = "bg-amber-500/10 border-amber-500/20";
                 let statusText = "Pendente";
-                let valueDisplay = `- ${pred.amount} KC`;
+                let valueDisplay = `- ${pred.amount} BK`;
 
-                if (pred.status === 'won') {
+                if (isDeposit) {
+                  statusColor = "text-emerald-400"; statusBg = "bg-emerald-500/10 border-emerald-500/20";
+                  statusText = "Depósito";
+                  valueDisplay = `+ ${pred.amount} BK`;
+                } else if (pred.status === 'won') {
                   statusColor = "text-emerald-400"; statusBg = "bg-emerald-500/10 border-emerald-500/20";
                   statusText = "Green (Ganhou)";
-                  valueDisplay = `+ ${pred.payout} KC`;
+                  valueDisplay = `+ ${pred.payout} BK`;
                 } else if (pred.status === 'lost') {
                   statusColor = "text-red-400"; statusBg = "bg-red-500/10 border-red-500/20";
                   statusText = "Red (Perdeu)";
-                  valueDisplay = `- ${pred.amount} KC`;
+                  valueDisplay = `- ${pred.amount} BK`;
                 }
 
                 return (
@@ -5060,12 +5067,14 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                         <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${statusBg} ${statusColor}`}>{statusText}</span>
                         <span className="text-[10px] text-blue-400">{new Date(pred.timestamp).toLocaleDateString()}</span>
                       </div>
-                      <p className="text-sm font-bold text-white">{matchName}</p>
-                      <p className="text-xs text-blue-300 mt-0.5">Palpite: <b className="text-blue-100">{pred.option === 'A' ? tA?.name : pred.option === 'B' ? tB?.name : 'Empate'}</b></p>
+                      <p className="text-sm font-bold text-white">{isDeposit ? 'Compra de BitKame via PIX' : matchName}</p>
+                      {!isDeposit && (
+                        <p className="text-xs text-blue-300 mt-0.5">Palpite: <b className="text-blue-100">{pred.option === 'A' ? tA?.name : pred.option === 'B' ? tB?.name : 'Empate'}</b></p>
+                      )}
                     </div>
                     <div className="text-right w-full sm:w-auto bg-blue-950 sm:bg-transparent p-3 sm:p-0 rounded-lg sm:rounded-none border sm:border-0 border-blue-800">
                       <p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">Movimentação</p>
-                      <p className={`text-lg font-black ${pred.status === 'won' ? 'text-emerald-400' : pred.status === 'lost' ? 'text-red-400' : 'text-amber-400'}`}>{valueDisplay}</p>
+                      <p className={`text-lg font-black ${pred.status === 'won' || isDeposit ? 'text-emerald-400' : pred.status === 'lost' ? 'text-red-400' : 'text-amber-400'}`}>{valueDisplay}</p>
                     </div>
                   </div>
                 )
@@ -5079,12 +5088,12 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
       {bankTab === 'deposito' && (
         <div className="space-y-6 animate-in slide-in-from-right-4">
           <div className="bg-blue-900 p-6 rounded-2xl border border-blue-800 text-center">
-            <h3 className="text-xl font-bold text-white mb-2">Comprar Kame Coins</h3>
+            <h3 className="text-xl font-bold text-white mb-2">Comprar BitKame</h3>
             <p className="text-sm text-blue-300 max-w-lg mx-auto">Pagamento automático via PIX. As moedas caem na sua conta em até 10 segundos após a confirmação do pagamento!</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {KC_PACKAGES.map(pkg => (
+            {BK_PACKAGES.map(pkg => (
               <div key={pkg.id} onClick={() => handleStartCheckout(pkg)} className={`bg-gradient-to-b ${pkg.color} rounded-3xl p-1 shadow-xl hover:scale-105 transition-transform cursor-pointer relative overflow-hidden group`}>
                 {pkg.bonus > 0 && (
                   <div className="absolute top-4 -right-8 bg-red-500 text-white text-[10px] font-black uppercase tracking-wider py-1 px-10 transform rotate-45 shadow-lg z-10">
@@ -5098,7 +5107,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                       <Star className="text-amber-400 fill-amber-400" size={28}/>
                     </div>
                     <h4 className="text-4xl font-black text-white mb-1">{pkg.coins}</h4>
-                    <p className="text-amber-500 font-bold text-sm">Kame Coins</p>
+                    <p className="text-amber-500 font-bold text-sm">BitKame</p>
                   </div>
                   <button className={`w-full mt-6 py-3 rounded-xl font-black text-blue-950 uppercase tracking-wide bg-gradient-to-r ${pkg.color} shadow-lg flex items-center justify-center gap-2`}>
                     R$ {pkg.price.toFixed(2)}
@@ -5135,7 +5144,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
               <div className="space-y-6 animate-in zoom-in-95 duration-300">
                 <div className="text-center">
                   <h3 className="text-2xl font-black text-white">Pagamento PIX</h3>
-                  <p className="text-blue-300 text-sm mt-1">Pacote: <b className="text-amber-400">{selectedPackage.coins} KC</b> (+{selectedPackage.bonus} Bônus)</p>
+                  <p className="text-blue-300 text-sm mt-1">Pacote: <b className="text-amber-400">{selectedPackage.coins} BK</b> (+{selectedPackage.bonus} Bônus)</p>
                 </div>
 
                 <div className="bg-blue-950 p-5 rounded-2xl border border-blue-800 text-center shadow-inner">
@@ -5184,7 +5193,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                 </div>
                 <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 inline-block mx-auto min-w-[200px]">
                   <p className="text-xs text-blue-400 font-bold uppercase mb-1">Moedas Adicionadas</p>
-                  <p className="text-2xl font-black text-amber-400">+{selectedPackage.coins + selectedPackage.bonus} KC</p>
+                  <p className="text-2xl font-black text-amber-400">+{selectedPackage.coins + selectedPackage.bonus} BK</p>
                 </div>
                 <Button onClick={closeCheckout} className="w-full py-4 text-sm font-black bg-emerald-600 hover:bg-emerald-500 mt-4">
                   Voltar para o Banco
@@ -5492,6 +5501,7 @@ export default function App() {
             await updateDoc(getPublicDocPath('predictions', pred.id), { status: isWin ? 'won' : 'lost', payout, profit });
          });
       }
+      
          const ptsA = getTeamLast5Pts(match.teamA); const ptsB = getTeamLast5Pts(match.teamB);
          const weightA = ptsA + 5; const weightB = ptsB + 5; const weightD = (weightA + weightB) / 3;
          const totalWeight = weightA + weightB + weightD;
