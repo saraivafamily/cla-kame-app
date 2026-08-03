@@ -4940,20 +4940,20 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                 let statusColor = "text-amber-400";
                 let statusBg = "bg-amber-500/10 border-amber-500/20";
                 let statusText = "Pendente";
-                let valueDisplay = `- ${pred.amount} kc`;
+                let valueDisplay = `- ${pred.amount} bk`;
 
                 if (isDeposit) {
                   statusColor = "text-emerald-400"; statusBg = "bg-emerald-500/10 border-emerald-500/20";
                   statusText = "Depósito";
-                  valueDisplay = `+ ${pred.amount} kc`;
+                  valueDisplay = `+ ${pred.amount} bk`;
                 } else if (pred.status === 'won') {
                   statusColor = "text-emerald-400"; statusBg = "bg-emerald-500/10 border-emerald-500/20";
                   statusText = "Green (Ganhou)";
-                  valueDisplay = `+ ${pred.payout} kc`;
+                  valueDisplay = `+ ${pred.payout} bk`;
                 } else if (pred.status === 'lost') {
                   statusColor = "text-red-400"; statusBg = "bg-red-500/10 border-red-500/20";
                   statusText = "Red (Perdeu)";
-                  valueDisplay = `- ${pred.amount} kc`;
+                  valueDisplay = `- ${pred.amount} bk`;
                 }
 
                 return (
