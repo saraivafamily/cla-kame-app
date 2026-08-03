@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where } from 'firebase/firestore';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet } from 'lucide-react';
 import { collection, doc, setDoc, updateDoc, onSnapshot, deleteDoc, query, orderBy, limit, where } from 'firebase/firestore';
 
@@ -5200,8 +5200,7 @@ export default function App() {
     const unsubC = onSnapshot(getPublicPath('competitions'), snap => setCompetitions(snap.docs.map(d=>d.data())));
     const unsubM = onSnapshot(getPublicPath('matches'), snap => setMatches(snap.docs.map(d=>d.data())));
     
-    const feedQuery = query(getPublicPath('feed'), orderBy('timestamp', 'desc'), limit(20));
-// 🛑 LIMITE DE LEITURAS: Puxa só os 10 últimos posts para economizar a cota do Firebase
+    // 🛑 LIMITE DE LEITURAS: Puxa só os 10 últimos posts para economizar a cota do Firebase
     const feedQuery = query(getPublicPath('feed'), orderBy('timestamp', 'desc'), limit(10));
     const unsubF = onSnapshot(feedQuery, snap => {
       const fetched = snap.docs.map(d => d.data());
