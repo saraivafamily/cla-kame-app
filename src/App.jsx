@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
-import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet } from 'lucide-react';
+import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, Checkcircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet } from 'lucide-react';
 
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
@@ -306,7 +306,7 @@ const LoginScreen = ({ onLogin, onRegister }) => {
   );
 };
 
-const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskCompleted }) => {
+const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskcompleted }) => {
   const [newPost, setNewPost] = useState('');
   const [commentText, setCommentText] = useState({});
   const [postImage, setPostImage] = useState(null);
@@ -347,7 +347,7 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskCompleted }) =
       setPostImage(null);
       showToast("Publicado para todo o Clã!", "success");
       
-      if (onTaskCompleted) onTaskCompleted('post', 20);
+      if (onTaskcompleted) onTaskcompleted('post', 20);
       
     } catch (err) {
       showToast("Erro ao publicar. A imagem pode estar muito pesada.", "error");
@@ -365,8 +365,8 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskCompleted }) =
     
     await updateDoc(getPublicDocPath('feed', postId), { likes: newLikes });
     
-    if (!hasLiked && onTaskCompleted) {
-       onTaskCompleted('like', 5);
+    if (!hasLiked && onTaskcompleted) {
+       onTaskcompleted('like', 5);
     }
   };
 
@@ -1001,7 +1001,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                   
                   <div className="mt-5 pt-4 border-t border-blue-800">
                     {alreadyJoined ? (
-                       <div className="text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20"><CheckCircle size={16}/> Você já está dentro!</div>
+                       <div className="text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20"><Checkcircle size={16}/> Você já está dentro!</div>
                     ) : isPending ? (
                        <div className="text-amber-400 text-xs font-bold flex items-center justify-center gap-1 bg-amber-500/10 py-2 rounded-lg border border-amber-500/20"><Activity size={16}/> Inscrição em Análise</div>
                     ) : isFull ? (
@@ -1493,10 +1493,10 @@ const Standings = ({ matches, teams, comp }) => {
     <div className="animate-in fade-in duration-500 w-full">
       {/* 🌟 ESTILIZAÇÃO DA BARRA DE ROLAGEM TEMÁTICA (APENAS PARA ESTA TABELA) */}
       <style>{`
-        .scrollbar-kame::-webkit-scrollbar { width: 8px; height: 8px; }
-        .scrollbar-kame::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); border-radius: 10px; }
-        .scrollbar-kame::-webkit-scrollbar-thumb { background: #059669; border-radius: 10px; border: 2px solid rgba(15, 23, 42, 0.6); }
-        .scrollbar-kame::-webkit-scrollbar-thumb:hover { background: #10b981; }
+        .scrollbar-kame::-wekcit-scrollbar { width: 8px; height: 8px; }
+        .scrollbar-kame::-wekcit-scrollbar-track { background: rgba(15, 23, 42, 0.6); border-radius: 10px; }
+        .scrollbar-kame::-wekcit-scrollbar-thumb { background: #059669; border-radius: 10px; border: 2px solid rgba(15, 23, 42, 0.6); }
+        .scrollbar-kame::-wekcit-scrollbar-thumb:hover { background: #10b981; }
       `}</style>
 
       <div className="bg-sky-900/30 rounded-2xl border border-sky-800/50 overflow-hidden shadow-2xl">
@@ -2344,7 +2344,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </div>
 
             <div>
-              <h3 className="text-sm font-bold text-emerald-400 uppercase mb-4 flex items-center gap-2"><CheckCircle size={16}/> Times Confirmados</h3>
+              <h3 className="text-sm font-bold text-emerald-400 uppercase mb-4 flex items-center gap-2"><Checkcircle size={16}/> Times Confirmados</h3>
               <div className="grid grid-cols-2 gap-2">
                 {(!comp.teams || comp.teams.length === 0) && <p className="text-xs text-blue-500 p-4 bg-blue-950 rounded-xl border border-blue-800 border-dashed text-center col-span-2">Nenhum time aprovado ainda.</p>}
                 {(comp.teams || []).map(tId => {
@@ -3047,7 +3047,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
           )}
 
           {alreadyJoined ? (
-             <div className="text-center p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl"><CheckCircle className="text-emerald-500 mx-auto mb-2" size={32}/><p className="font-bold text-emerald-400">Você já está confirmado neste torneio!</p></div>
+             <div className="text-center p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl"><Checkcircle className="text-emerald-500 mx-auto mb-2" size={32}/><p className="font-bold text-emerald-400">Você já está confirmado neste torneio!</p></div>
           ) : isPending ? (
              <div className="text-center p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl"><Activity className="text-amber-500 mx-auto mb-2" size={32}/><p className="font-bold text-amber-400">Inscrição em Análise!</p><p className="text-xs text-amber-200 mt-1">Aguarde a validação dos líderes.</p></div>
           ) : isFull ? (
@@ -3064,7 +3064,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
                   <label className="text-xs font-bold text-blue-400 uppercase block mb-2">Anexar Comprovante PIX</label>
                   <label className={`block border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${receipt ? 'border-emerald-500 bg-emerald-500/10' : 'border-blue-700 hover:border-blue-500 bg-blue-950'}`}>
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], setReceipt)} />
-                    {receipt ? <span className="text-emerald-400 font-bold flex items-center justify-center gap-2"><CheckCircle size={16}/> Comprovante Anexado</span> : <span className="text-blue-300 font-bold flex items-center justify-center gap-2"><UploadCloud size={16}/> Escolher Imagem</span>}
+                    {receipt ? <span className="text-emerald-400 font-bold flex items-center justify-center gap-2"><Checkcircle size={16}/> Comprovante Anexado</span> : <span className="text-blue-300 font-bold flex items-center justify-center gap-2"><UploadCloud size={16}/> Escolher Imagem</span>}
                   </label>
                 </div>
               )}
@@ -3972,7 +3972,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                   </div>
                 ) : imageUploaded ? (
                   <div className="flex flex-col items-center space-y-2">
-                    <CheckCircle className="text-emerald-500" size={40} />
+                    <Checkcircle className="text-emerald-500" size={40} />
                     <p className="text-emerald-400 font-medium">Dados extraídos com sucesso!</p>
                   </div>
                 ) : (
@@ -4202,7 +4202,7 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
     <div className="space-y-6 animate-in fade-in">
       {isLeader && pendingUsers.length > 0 && (
         <div className="bg-blue-900 border border-amber-500/50 rounded-2xl overflow-hidden shadow-xl">
-          <div className="p-4 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2"><CheckCircle className="text-amber-500"/><h2 className="font-bold text-amber-500 text-base">Aguardando Aprovação ({pendingUsers.length})</h2></div>
+          <div className="p-4 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2"><Checkcircle className="text-amber-500"/><h2 className="font-bold text-amber-500 text-base">Aguardando Aprovação ({pendingUsers.length})</h2></div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs whitespace-nowrap"><thead className="text-blue-400 font-bold border-b border-blue-800"><tr><th className="p-3">Técnico</th><th className="p-3">Clube</th><th className="p-3">WhatsApp</th><th className="p-3 text-center">Ação</th></tr></thead>
             <tbody className="divide-y divide-blue-800/40">
@@ -4644,12 +4644,12 @@ const GlobalRanking = ({ teams, matches, competitions }) => {
                 rankingData.map((t, index) => {
                   const badge = getBadge(t.points);
                   const isTop3 = index < 3;
-                  const rankColors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
+                  const rankcolors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
                   
                   return (
                     <tr key={t.id} className={`hover:bg-blue-900/50 transition-colors ${index === 0 ? 'bg-amber-500/5' : ''}`}>
                       <td className="p-4 text-center">
-                        <span className={`text-xl font-black ${isTop3 ? rankColors[index] : 'text-blue-500'}`}>
+                        <span className={`text-xl font-black ${isTop3 ? rankcolors[index] : 'text-blue-500'}`}>
                           {index + 1}º
                         </span>
                       </td>
@@ -4774,7 +4774,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
      const costDiff = amountNum - oldAmount;
 
      if (Number(currentUser.kameCoins || 0) < costDiff) {
-       showToast(`Saldo insuficiente! Faltam ${costDiff - Number(currentUser.kameCoins || 0)} KC.`, "error");
+       showToast(`Saldo insuficiente! Faltam ${costDiff - Number(currentUser.kameCoins || 0)} kc.`, "error");
        return;
      }
 
@@ -4809,7 +4809,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
           </div>
           <div className="bg-blue-950 p-3 rounded-xl border border-amber-500/30 text-center shadow-inner">
             <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Sua Carteira</p>
-            <p className="text-xl font-black text-white">{currentUser.kameCoins || 0} KC</p>
+            <p className="text-xl font-black text-white">{currentUser.kameCoins || 0} kc</p>
           </div>
         </div>
       </div>
@@ -4868,7 +4868,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
 
                     <div className="flex gap-2 items-end">
                       <div className="flex-1">
-                        <label className="text-[10px] text-blue-400 uppercase font-bold block mb-1">Valor do Bilhete (KC)</label>
+                        <label className="text-[10px] text-blue-400 uppercase font-bold block mb-1">Valor do Bilhete (kc)</label>
                         <input 
                           type="number" inputMode="numeric" placeholder="Ex: 50"
                           value={currentData.amount} 
@@ -4883,7 +4883,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                     {currentData.option && currentData.amount && (
                       <p className="text-center text-[10px] text-emerald-400 mt-2 font-medium">
                         Retorno Estimado: <b className="text-amber-400">
-                           {Math.floor(Number(currentData.amount) * (myPred?.option === currentData.option ? myPred.lockedOdd : Number(odds[currentData.option])))} KC
+                           {Math.floor(Number(currentData.amount) * (myPred?.option === currentData.option ? myPred.lockedOdd : Number(odds[currentData.option])))} kc
                         </b>
                       </p>
                     )}
@@ -4905,7 +4905,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                   <th className="p-4">Apostador</th>
                   <th className="p-4 text-center">Apostas Feitas</th>
                   <th className="p-4 text-center">Green (Acertos)</th>
-                  <th className="p-4 text-center">Lucro Líquido (KC)</th>
+                  <th className="p-4 text-center">Lucro Líquido (kc)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-blue-800/40">
@@ -4914,10 +4914,10 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                 ) : (
                   ranking.map((u, idx) => {
                     const isTop3 = idx < 3;
-                    const rankColors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
+                    const rankcolors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
                     return (
                       <tr key={u.id} className="hover:bg-blue-900/50 transition-colors">
-                        <td className="p-4 text-center"><span className={`text-xl font-black ${isTop3 ? rankColors[idx] : 'text-blue-500'}`}>{idx + 1}º</span></td>
+                        <td className="p-4 text-center"><span className={`text-xl font-black ${isTop3 ? rankcolors[idx] : 'text-blue-500'}`}>{idx + 1}º</span></td>
                         <td className="p-4 font-bold text-white">{u.name}</td>
                         <td className="p-4 text-center text-blue-300 font-medium">{u.bets}</td>
                         <td className="p-4 text-center text-emerald-400 font-bold">{u.wins}</td>
@@ -4943,28 +4943,22 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
   const [bankTab, setBankTab] = useState('extrato');
   const [selectedPackage, setSelectedPackage] = useState(null);
   
-  // 💳 ESTADOS DO CHECKOUT AUTOMÁTICO
-  const [checkoutStep, setCheckoutStep] = useState('idle'); // 'idle', 'generating', 'waiting', 'success'
+  const [checkoutStep, setCheckoutStep] = useState('idle');
   const [pixPayload, setPixPayload] = useState('');
 
   const getTeam = (id) => (teams || []).find(t => t.id === id);
-  // Futuramente, se você criar uma tabela unificada de 'transactions', pode mapear ela aqui.
   const myPreds = (predictions || []).filter(p => p.userId === currentUser?.id).sort((a,b) => b.timestamp - a.timestamp);
 
-  const BK_PACKAGES = [
+  const kc_PACKAGES = [
     { id: 'p1', name: 'Pacote Iniciante', coins: 300, price: 5.00, bonus: 0, color: 'from-blue-600 to-blue-900', border: 'border-blue-500' },
     { id: 'p2', name: 'Pacote Profissional', coins: 700, price: 10.00, bonus: 100, color: 'from-emerald-600 to-emerald-900', border: 'border-emerald-500' },
     { id: 'p3', name: 'Pacote Magnata', coins: 1600, price: 20.00, bonus: 400, color: 'from-amber-500 to-amber-800', border: 'border-amber-400' },
   ];
 
-  // 1. INICIA O PAGAMENTO
   const handleStartCheckout = (pkg) => {
     setSelectedPackage(pkg);
     setCheckoutStep('generating');
-
-    // Aqui, no futuro, chamaremos a API do MercadoPago. Por enquanto, simulamos a geração da chave.
     setTimeout(() => {
-      // Exemplo de um PIX Copia e Cola falso para o visual
       setPixPayload(`00020126580014br.gov.bcb.pix0136${pkg.id}-kame-bank-api-mercado-pago-5204000053039865802BR5902BR600${pkg.price}6207SAOPAULO6304KAME64041234`);
       setCheckoutStep('waiting');
     }, 1500);
@@ -4981,18 +4975,26 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
     setPixPayload('');
   };
 
-  // 🤖 SIMULADOR DE WEBHOOK (Substituiremos isso pela resposta real do Mercado Pago)
   const simulateAutomaticWebhook = async () => {
     showToast("Processando pagamento no banco...", "info");
     
     setTimeout(async () => {
-      // Adiciona as moedas do pacote + bônus
       const totalCoins = selectedPackage.coins + selectedPackage.bonus;
       const newBalance = (currentUser.kameCoins || 0) + totalCoins;
       
-      // Atualiza o saldo no Firebase
       await updateDoc(getPublicDocPath('users', currentUser.id), { kameCoins: newBalance });
       
+      // Salva o depósito no extrato global!
+      const depositRecord = {
+        id: `dep_${Date.now()}`,
+        userId: currentUser.id,
+        type: 'deposit',
+        amount: totalCoins,
+        timestamp: Date.now(),
+        status: 'approved'
+      };
+      await setDoc(getPublicDocPath('predictions', depositRecord.id), depositRecord);
+
       setCheckoutStep('success');
       showToast("Pagamento Aprovado! BitKames adicionados.", "success");
     }, 2000);
@@ -5000,7 +5002,6 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in pb-12">
-      {/* 🏦 HEADER DO BANCO */}
       <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex flex-col sm:flex-row justify-between items-center gap-6">
         <div className="flex items-center gap-4">
           <div className="bg-blue-950 p-4 rounded-full border border-emerald-500/50 shadow-inner">
@@ -5013,17 +5014,15 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
         </div>
         <div className="bg-blue-950/80 p-4 rounded-2xl border border-amber-500/40 min-w-[200px] text-center shadow-inner">
           <p className="text-xs text-amber-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5"><Wallet size={14}/> Saldo Disponível</p>
-          <p className="text-4xl font-black text-white">{currentUser?.kameCoins || 0} <span className="text-xl text-amber-500">BK</span></p>
+          <p className="text-4xl font-black text-white">{currentUser?.kameCoins || 0} <span className="text-xl text-amber-500">kc</span></p>
         </div>
       </div>
 
-      {/* 🧭 NAVEGAÇÃO DO BANCO */}
       <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800">
         <button onClick={()=>setBankTab('extrato')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='extrato'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>📜 Extrato da Conta</button>
-        <button onClick={()=>setBankTab('deposito')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='deposito'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>💰 Depositar (Comprar BK)</button>
+        <button onClick={()=>setBankTab('deposito')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='deposito'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>💰 Depositar (Comprar kc)</button>
       </div>
 
-      {/* 📜 ABA DE EXTRATO GERAL */}
       {bankTab === 'extrato' && (
         <div className="bg-blue-900 rounded-3xl border border-blue-800 shadow-xl overflow-hidden animate-in slide-in-from-left-4">
           <div className="p-5 border-b border-blue-800 bg-blue-950/40">
@@ -5034,30 +5033,29 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
               <div className="p-8 text-center text-blue-500">Nenhuma movimentação encontrada na sua conta.</div>
             ) : (
               myPreds.map(pred => {
-                const match = matches.find(m => m.id === pred.matchId);
+                const isDeposit = pred.type === 'deposit';
+                const match = !isDeposit ? matches.find(m => m.id === pred.matchId) : null;
                 const tA = getTeam(match?.teamA);
                 const tB = getTeam(match?.teamB);
                 const matchName = tA && tB ? `${tA.name} x ${tB.name}` : 'Partida Encerrada';
                 
-                const isDeposit = pred.type === 'deposit'; // Layout preparado para recargas futuras!
-                
                 let statusColor = "text-amber-400";
                 let statusBg = "bg-amber-500/10 border-amber-500/20";
                 let statusText = "Pendente";
-                let valueDisplay = `- ${pred.amount} BK`;
+                let valueDisplay = `- ${pred.amount} kc`;
 
                 if (isDeposit) {
                   statusColor = "text-emerald-400"; statusBg = "bg-emerald-500/10 border-emerald-500/20";
                   statusText = "Depósito";
-                  valueDisplay = `+ ${pred.amount} BK`;
+                  valueDisplay = `+ ${pred.amount} kc`;
                 } else if (pred.status === 'won') {
                   statusColor = "text-emerald-400"; statusBg = "bg-emerald-500/10 border-emerald-500/20";
                   statusText = "Green (Ganhou)";
-                  valueDisplay = `+ ${pred.payout} BK`;
+                  valueDisplay = `+ ${pred.payout} kc`;
                 } else if (pred.status === 'lost') {
                   statusColor = "text-red-400"; statusBg = "bg-red-500/10 border-red-500/20";
                   statusText = "Red (Perdeu)";
-                  valueDisplay = `- ${pred.amount} BK`;
+                  valueDisplay = `- ${pred.amount} kc`;
                 }
 
                 return (
@@ -5067,7 +5065,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                         <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${statusBg} ${statusColor}`}>{statusText}</span>
                         <span className="text-[10px] text-blue-400">{new Date(pred.timestamp).toLocaleDateString()}</span>
                       </div>
-                      <p className="text-sm font-bold text-white">{isDeposit ? 'Compra de BitKame via PIX' : matchName}</p>
+                      <p className="text-sm font-bold text-white">{isDeposit ? 'Compra de BitKames' : matchName}</p>
                       {!isDeposit && (
                         <p className="text-xs text-blue-300 mt-0.5">Palpite: <b className="text-blue-100">{pred.option === 'A' ? tA?.name : pred.option === 'B' ? tB?.name : 'Empate'}</b></p>
                       )}
@@ -5084,16 +5082,15 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
         </div>
       )}
 
-      {/* 💰 ABA DE DEPÓSITOS (LOJA) */}
       {bankTab === 'deposito' && (
         <div className="space-y-6 animate-in slide-in-from-right-4">
           <div className="bg-blue-900 p-6 rounded-2xl border border-blue-800 text-center">
-            <h3 className="text-xl font-bold text-white mb-2">Comprar BitKame</h3>
-            <p className="text-sm text-blue-300 max-w-lg mx-auto">Pagamento automático via PIX. As moedas caem na sua conta em até 10 segundos após a confirmação do pagamento!</p>
+            <h3 className="text-xl font-bold text-white mb-2">Comprar BitKames</h3>
+            <p className="text-sm text-blue-300 max-w-lg mx-auto">Pagamento automático via PIX. As moedas caem na sua conta em até 10 segundos após a confirmação!</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {BK_PACKAGES.map(pkg => (
+            {kc_PACKAGES.map(pkg => (
               <div key={pkg.id} onClick={() => handleStartCheckout(pkg)} className={`bg-gradient-to-b ${pkg.color} rounded-3xl p-1 shadow-xl hover:scale-105 transition-transform cursor-pointer relative overflow-hidden group`}>
                 {pkg.bonus > 0 && (
                   <div className="absolute top-4 -right-8 bg-red-500 text-white text-[10px] font-black uppercase tracking-wider py-1 px-10 transform rotate-45 shadow-lg z-10">
@@ -5107,7 +5104,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                       <Star className="text-amber-400 fill-amber-400" size={28}/>
                     </div>
                     <h4 className="text-4xl font-black text-white mb-1">{pkg.coins}</h4>
-                    <p className="text-amber-500 font-bold text-sm">BitKame</p>
+                    <p className="text-amber-500 font-bold text-sm">BitKames</p>
                   </div>
                   <button className={`w-full mt-6 py-3 rounded-xl font-black text-blue-950 uppercase tracking-wide bg-gradient-to-r ${pkg.color} shadow-lg flex items-center justify-center gap-2`}>
                     R$ {pkg.price.toFixed(2)}
@@ -5119,7 +5116,6 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
         </div>
       )}
 
-      {/* 💳 MODAL DE CHECKOUT (PIX AUTOMÁTICO) */}
       {selectedPackage && (
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={checkoutStep === 'success' ? closeCheckout : null}>
           <div className="bg-blue-900 border border-blue-700 rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
@@ -5128,7 +5124,6 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
               <button onClick={closeCheckout} className="absolute top-4 right-4 text-blue-400 hover:text-white bg-blue-800 p-2 rounded-full"><X size={16}/></button>
             )}
 
-            {/* PASSO 1: GERANDO O PIX */}
             {checkoutStep === 'generating' && (
               <div className="text-center py-8 space-y-6">
                 <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
@@ -5139,12 +5134,11 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
               </div>
             )}
 
-            {/* PASSO 2: AGUARDANDO PAGAMENTO (PIX COPIA E COLA) */}
             {checkoutStep === 'waiting' && (
               <div className="space-y-6 animate-in zoom-in-95 duration-300">
                 <div className="text-center">
                   <h3 className="text-2xl font-black text-white">Pagamento PIX</h3>
-                  <p className="text-blue-300 text-sm mt-1">Pacote: <b className="text-amber-400">{selectedPackage.coins} BK</b> (+{selectedPackage.bonus} Bônus)</p>
+                  <p className="text-blue-300 text-sm mt-1">Pacote: <b className="text-amber-400">{selectedPackage.coins} kc</b> (+{selectedPackage.bonus} Bônus)</p>
                 </div>
 
                 <div className="bg-blue-950 p-5 rounded-2xl border border-blue-800 text-center shadow-inner">
@@ -5170,7 +5164,6 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                   </p>
                 </div>
 
-                {/* BOTÃO SECRETO APENAS PARA O LÍDER TESTAR A ENGENHARIA */}
                 {(currentUser?.role === 'leader' || currentUser?.role === 'kaioh') && (
                   <div className="pt-4 border-t border-blue-800/50 mt-4">
                     <button onClick={simulateAutomaticWebhook} className="w-full bg-blue-800 hover:bg-blue-700 text-blue-300 border border-blue-700 border-dashed text-xs py-2 rounded-lg transition-colors">
@@ -5181,11 +5174,10 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
               </div>
             )}
 
-            {/* PASSO 3: PAGAMENTO CONFIRMADO (SUCESSO!) */}
             {checkoutStep === 'success' && (
               <div className="text-center py-6 space-y-6 animate-in zoom-in-95 duration-500">
                 <div className="w-24 h-24 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(16,185,129,0.4)]">
-                  <CheckCircle className="text-emerald-400" size={48}/>
+                  <Checkcircle className="text-emerald-400" size={48}/>
                 </div>
                 <div>
                   <h3 className="text-3xl font-black text-white uppercase tracking-wider">Aprovado!</h3>
@@ -5193,7 +5185,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                 </div>
                 <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 inline-block mx-auto min-w-[200px]">
                   <p className="text-xs text-blue-400 font-bold uppercase mb-1">Moedas Adicionadas</p>
-                  <p className="text-2xl font-black text-amber-400">+{selectedPackage.coins + selectedPackage.bonus} BK</p>
+                  <p className="text-2xl font-black text-amber-400">+{selectedPackage.coins + selectedPackage.bonus} kc</p>
                 </div>
                 <Button onClick={closeCheckout} className="w-full py-4 text-sm font-black bg-emerald-600 hover:bg-emerald-500 mt-4">
                   Voltar para o Banco
@@ -5232,7 +5224,7 @@ export default function App() {
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
 
   // 🪙 1. O MOTOR DE MISSÕES DO FEED (Post e Like)
-  const handleTaskCompleted = async (taskName, reward) => {
+  const handleTaskcompleted = async (taskName, reward) => {
     const today = new Date().toLocaleDateString('pt-BR');
     const taskKey = taskName === 'post' ? 'lastPostDate' : 'lastLikeDate';
     
@@ -5242,7 +5234,7 @@ export default function App() {
        const updates = { kameCoins: newCoins, [taskKey]: today };
        await updateDoc(getPublicDocPath('users', currentUser.id), updates);
        setCurrentUser(prev => ({...prev, ...updates}));
-       showToast(`🎯 Missão Concluída! +${reward} KC`, "success");
+       showToast(`🎯 Missão Concluída! +${reward} kc`, "success");
     }
   };
 
@@ -5270,7 +5262,7 @@ export default function App() {
           updates.kameCoins = currentCoins + 5;
           updates.lastCheckInDate = today;
           hasChanges = true;
-          msg += "📅 +5 KC de Check-in Diário!";
+          msg += "📅 +5 kc de Check-in Diário!";
        }
 
        // Salva tudo no Firebase de forma invisível
@@ -5376,7 +5368,7 @@ export default function App() {
     const userCredential = await createUserWithEmailAndPassword(auth, email, data.password);
     const uid = userCredential.user.uid;
     
-    // 🪙 KAME COINS AQUI: 100 KC de Boas-Vindas
+    // 🪙 KAME COINS AQUI: 100 kc de Boas-Vindas
     const newUser = { id: uid, name: fullName, email: email, whatsapp: cleanPhone, role: 'member', status: 'pending', kameCoins: 100, receivedProfileBonus: false };
     const newTeam = { id: `t_${uid}`, name: data.teamName, coach: fullName, whatsapp: cleanPhone, ownerId: uid, shield: '🛡️' };
     
@@ -5501,37 +5493,6 @@ export default function App() {
             await updateDoc(getPublicDocPath('predictions', pred.id), { status: isWin ? 'won' : 'lost', payout, profit });
          });
       }
-      
-         const ptsA = getTeamLast5Pts(match.teamA); const ptsB = getTeamLast5Pts(match.teamB);
-         const weightA = ptsA + 5; const weightB = ptsB + 5; const weightD = (weightA + weightB) / 3;
-         const totalWeight = weightA + weightB + weightD;
-         
-         let winningProb = 0;
-         if (realOutcome === 'A') winningProb = weightA / totalWeight;
-         else if (realOutcome === 'B') winningProb = weightB / totalWeight;
-         else winningProb = weightD / totalWeight;
-
-         const virtualPool = 100;
-         const winningVirtualPool = winningProb * virtualPool;
-         const totalMixedPool = realPool + virtualPool;
-
-         // A ODD Final da casa!
-         const finalOdd = (winningRealPool + winningVirtualPool) > 0 ? (totalMixedPool * 0.95) / (winningRealPool + winningVirtualPool) : 0;
-
-         // Paga a galera
-         matchPreds.forEach(async (pred) => {
-            const isWin = pred.option === realOutcome;
-            const betAmount = Number(pred.amount);
-            const payout = isWin ? Math.floor(betAmount * finalOdd) : 0;
-            const profit = isWin ? (payout - betAmount) : -betAmount;
-
-            if (payout > 0) {
-               const u = users.find(x => x.id === pred.userId);
-               if (u) await updateDoc(getPublicDocPath('users', u.id), { kameCoins: Number(u.kameCoins || 0) + payout });
-            }
-            await updateDoc(getPublicDocPath('predictions', pred.id), { status: isWin ? 'won' : 'lost', payout, profit });
-         });
-      }
 
       if (comp && (comp.format === 'cup' || comp.format === 'groups')) {
         let winnerId = null; 
@@ -5575,6 +5536,7 @@ export default function App() {
       }
     }
   };
+  
   const handleEditUser = async (userId, updatedData) => {
     await updateDoc(getPublicDocPath('users', userId), { name: updatedData.name, whatsapp: updatedData.whatsapp });
     const userTeam = teams.find(t => t.ownerId === userId);
@@ -5588,11 +5550,11 @@ export default function App() {
       
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onUpdateUserPhoto={async (url) => { 
           const updates = { photoURL: url }; let rewardMsg = "";
-          // 🪙 KAME COINS: Dá 50 KC se for a primeira vez atualizando foto!
+          // 🪙 KAME COINS: Dá 50 kc se for a primeira vez atualizando foto!
           if (!currentUser.receivedProfileBonus) {
             updates.kameCoins = (currentUser.kameCoins || 0) + 50;
             updates.receivedProfileBonus = true;
-            rewardMsg = " 🎁 +50 KC de Bônus ganho!";
+            rewardMsg = " 🎁 +50 kc de Bônus ganho!";
           }
           await updateDoc(getPublicDocPath('users', currentUser.id), updates); 
           setCurrentUser(prev => ({...prev, ...updates})); 
@@ -5623,7 +5585,7 @@ export default function App() {
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
       case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
       case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
-      case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} posts={feedPosts} onTaskCompleted={handleTaskCompleted} />;
+      case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} posts={feedPosts} onTaskcompleted={handleTaskcompleted} />;
       case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} />;
       case 'records': return <RecordsWall showToast={showToast} currentUser={currentUser} />;
       case 'rules': return <RulesPage />;
@@ -5636,7 +5598,7 @@ export default function App() {
     <div className="min-h-screen bg-blue-950 text-blue-200 font-sans flex flex-col md:flex-row relative">
       {toastMessage && (
         <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4 ${toastMessage.type === 'error' ? 'bg-red-950 border border-red-500 text-red-100' : 'bg-blue-800 border border-emerald-500 text-white'}`}>
-          {toastMessage.type === 'error' ? <AlertCircle className="text-red-500" size={20} /> : <CheckCircle className="text-emerald-500" size={20} />}
+          {toastMessage.type === 'error' ? <AlertCircle className="text-red-500" size={20} /> : <Checkcircle className="text-emerald-500" size={20} />}
           <span className="font-medium text-sm">{String(toastMessage.text)}</span>
         </div>
       )}
@@ -5686,7 +5648,7 @@ export default function App() {
             {/* 🪙 A CARTEIRA KAME COINS */}
             <div className="bg-blue-900/50 border border-amber-500/30 rounded-lg p-2.5 mb-3 flex items-center justify-between shadow-inner">
                <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1.5"><Star size={12}/> Saldo</span>
-               <span className="text-sm font-black text-white">{currentUser?.kameCoins || 0} <span className="text-amber-500 text-xs">KC</span></span>
+               <span className="text-sm font-black text-white">{currentUser?.kameCoins || 0} <span className="text-amber-500 text-xs">kc</span></span>
             </div>
 
             <button onClick={() => { setCurrentUser(null); signOut(auth); }} className="w-full text-xs text-blue-400 hover:text-white py-1.5 rounded bg-blue-900 border border-blue-700/60 transition-colors hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30">
