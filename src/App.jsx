@@ -1001,7 +1001,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                   
                   <div className="mt-5 pt-4 border-t border-blue-800">
                     {alreadyJoined ? (
-                       <div className="text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20"><Checkcircle size={16}/> Você já está dentro!</div>
+                       <div className="text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20"><CheckCircle size={16}/> Você já está dentro!</div>
                     ) : isPending ? (
                        <div className="text-amber-400 text-xs font-bold flex items-center justify-center gap-1 bg-amber-500/10 py-2 rounded-lg border border-amber-500/20"><Activity size={16}/> Inscrição em Análise</div>
                     ) : isFull ? (
@@ -2344,7 +2344,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             </div>
 
             <div>
-              <h3 className="text-sm font-bold text-emerald-400 uppercase mb-4 flex items-center gap-2"><Checkcircle size={16}/> Times Confirmados</h3>
+              <h3 className="text-sm font-bold text-emerald-400 uppercase mb-4 flex items-center gap-2"><CheckCircle size={16}/> Times Confirmados</h3>
               <div className="grid grid-cols-2 gap-2">
                 {(!comp.teams || comp.teams.length === 0) && <p className="text-xs text-blue-500 p-4 bg-blue-950 rounded-xl border border-blue-800 border-dashed text-center col-span-2">Nenhum time aprovado ainda.</p>}
                 {(comp.teams || []).map(tId => {
@@ -3047,7 +3047,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
           )}
 
           {alreadyJoined ? (
-             <div className="text-center p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl"><Checkcircle className="text-emerald-500 mx-auto mb-2" size={32}/><p className="font-bold text-emerald-400">Você já está confirmado neste torneio!</p></div>
+             <div className="text-center p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl"><CheckCircle className="text-emerald-500 mx-auto mb-2" size={32}/><p className="font-bold text-emerald-400">Você já está confirmado neste torneio!</p></div>
           ) : isPending ? (
              <div className="text-center p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl"><Activity className="text-amber-500 mx-auto mb-2" size={32}/><p className="font-bold text-amber-400">Inscrição em Análise!</p><p className="text-xs text-amber-200 mt-1">Aguarde a validação dos líderes.</p></div>
           ) : isFull ? (
@@ -3064,7 +3064,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
                   <label className="text-xs font-bold text-blue-400 uppercase block mb-2">Anexar Comprovante PIX</label>
                   <label className={`block border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${receipt ? 'border-emerald-500 bg-emerald-500/10' : 'border-blue-700 hover:border-blue-500 bg-blue-950'}`}>
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], setReceipt)} />
-                    {receipt ? <span className="text-emerald-400 font-bold flex items-center justify-center gap-2"><Checkcircle size={16}/> Comprovante Anexado</span> : <span className="text-blue-300 font-bold flex items-center justify-center gap-2"><UploadCloud size={16}/> Escolher Imagem</span>}
+                    {receipt ? <span className="text-emerald-400 font-bold flex items-center justify-center gap-2"><CheckCircle size={16}/> Comprovante Anexado</span> : <span className="text-blue-300 font-bold flex items-center justify-center gap-2"><UploadCloud size={16}/> Escolher Imagem</span>}
                   </label>
                 </div>
               )}
@@ -3972,7 +3972,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                   </div>
                 ) : imageUploaded ? (
                   <div className="flex flex-col items-center space-y-2">
-                    <Checkcircle className="text-emerald-500" size={40} />
+                    <CheckCircle className="text-emerald-500" size={40} />
                     <p className="text-emerald-400 font-medium">Dados extraídos com sucesso!</p>
                   </div>
                 ) : (
@@ -4202,7 +4202,7 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
     <div className="space-y-6 animate-in fade-in">
       {isLeader && pendingUsers.length > 0 && (
         <div className="bg-blue-900 border border-amber-500/50 rounded-2xl overflow-hidden shadow-xl">
-          <div className="p-4 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2"><Checkcircle className="text-amber-500"/><h2 className="font-bold text-amber-500 text-base">Aguardando Aprovação ({pendingUsers.length})</h2></div>
+          <div className="p-4 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2"><CheckCircle className="text-amber-500"/><h2 className="font-bold text-amber-500 text-base">Aguardando Aprovação ({pendingUsers.length})</h2></div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs whitespace-nowrap"><thead className="text-blue-400 font-bold border-b border-blue-800"><tr><th className="p-3">Técnico</th><th className="p-3">Clube</th><th className="p-3">WhatsApp</th><th className="p-3 text-center">Ação</th></tr></thead>
             <tbody className="divide-y divide-blue-800/40">
@@ -5075,7 +5075,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
             {checkoutStep === 'success' && (
               <div className="text-center py-6 space-y-6 animate-in zoom-in-95 duration-500">
                 <div className="w-24 h-24 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(16,185,129,0.4)]">
-                  <Checkcircle className="text-emerald-400" size={48}/>
+                  <CheckCircle className="text-emerald-400" size={48}/>
                 </div>
                 <div>
                   <h3 className="text-3xl font-black text-white uppercase tracking-wider">Aprovado!</h3>
@@ -5555,7 +5555,7 @@ export default function App() {
     <div className="min-h-screen bg-blue-950 text-blue-200 font-sans flex flex-col md:flex-row relative">
       {toastMessage && (
         <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4 ${toastMessage.type === 'error' ? 'bg-red-950 border border-red-500 text-red-100' : 'bg-blue-800 border border-emerald-500 text-white'}`}>
-          {toastMessage.type === 'error' ? <AlertCircle className="text-red-500" size={20} /> : <Checkcircle className="text-emerald-500" size={20} />}
+          {toastMessage.type === 'error' ? <AlertCircle className="text-red-500" size={20} /> : <CheckCircle className="text-emerald-500" size={20} />}
           <span className="font-medium text-sm">{String(toastMessage.text)}</span>
         </div>
       )}
