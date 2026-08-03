@@ -5009,7 +5009,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
         </div>
         <div className="bg-blue-950/80 p-4 rounded-2xl border border-amber-500/40 min-w-[200px] text-center shadow-inner">
           <p className="text-xs text-amber-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5"><Wallet size={14}/> Saldo Disponível</p>
-          <p className="text-4xl font-black text-white">{currentUser?.kameCoins || 0} <span className="text-xl text-amber-500">kc</span></p>
+          <p className="text-4xl font-black text-white">{currentUser?.kameCoins || 0} <span className="text-xl text-amber-500">bk</span></p>
         </div>
       </div>
 
@@ -5037,20 +5037,20 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                 let statusColor = "text-amber-400";
                 let statusBg = "bg-amber-500/10 border-amber-500/20";
                 let statusText = "Pendente";
-                let valueDisplay = `- ${pred.amount} kc`;
+                let valueDisplay = `- ${pred.amount} bk`;
 
                 if (isDeposit) {
                   statusColor = "text-emerald-400"; statusBg = "bg-emerald-500/10 border-emerald-500/20";
                   statusText = "Depósito";
-                  valueDisplay = `+ ${pred.amount} kc`;
+                  valueDisplay = `+ ${pred.amount} bk`;
                 } else if (pred.status === 'won') {
                   statusColor = "text-emerald-400"; statusBg = "bg-emerald-500/10 border-emerald-500/20";
                   statusText = "Green (Ganhou)";
-                  valueDisplay = `+ ${pred.payout} kc`;
+                  valueDisplay = `+ ${pred.payout} bk`;
                 } else if (pred.status === 'lost') {
                   statusColor = "text-red-400"; statusBg = "bg-red-500/10 border-red-500/20";
                   statusText = "Red (Perdeu)";
-                  valueDisplay = `- ${pred.amount} kc`;
+                  valueDisplay = `- ${pred.amount} bk`;
                 }
 
                 return (
