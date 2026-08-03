@@ -4713,62 +4713,35 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
     return open;
   }, [competitions, matches]);
 
-  // 🧠 MOTOR DE RETROSPECTO (Últimos 5 jogos)
-  const getTeamLast5Pts = (teamId) => {
-     const teamMatches = (matches || []).filter(x => x.status === 'approved' && (x.teamA === teamId || x.teamB === teamId))
-        .sort((a,b) => {
-           const tA = parseInt(String(a.id).split('_')[1] || '0');
-           const tB = parseInt(String(b.id).split('_')[1] || '0');
-           return tB - tA;
-        })
-        .slice(0, 5);
-     
-     let pts = 0;
-     teamMatches.forEach(x => {
-        const isA = x.teamA === teamId;
-        const sFor = isA ? Number(x.scoreA) : Number(x.scoreB);
-        const sAgn = isA ? Number(x.scoreB) : Number(x.scoreA);
-        if (sFor > sAgn) pts += 3;
-        else if (sFor === sAgn) pts += 1;
-     });
-     return pts;
-  };
+  // 🎲 NOVO MOTOR DE ODDS (Fixo por Tabela da Competição)
+  const getOdds = (compId, tA_id, tB_id) => {
+     // Calcula a tabela de classificação atual desta competição específica
+     const table = calculateStandings(matches, teams, compId);
 
-  // 🎲 MOTOR DE ODDS (Liquidez Virtual + Dinheiro Real)
-  const getOdds = (matchId, tA_id, tB_id) => {
-     const preds = (predictions || []).filter(p => p.matchId === matchId);
-     const realPool = preds.reduce((sum, p) => sum + Number(p.amount), 0);
-     const realPoolA = preds.reduce((sum, p) => sum + (p.option === 'A' ? Number(p.amount) : 0), 0);
-     const realPoolB = preds.reduce((sum, p) => sum + (p.option === 'B' ? Number(p.amount) : 0), 0);
-     const realPoolD = preds.reduce((sum, p) => sum + (p.option === 'D' ? Number(p.amount) : 0), 0);
+     const statsA = table.find(t => t.id === tA_id);
+     const statsB = table.find(t => t.id === tB_id);
 
-     // Pega os pontos dos últimos 5 jogos (0 a 15)
-     const ptsA = getTeamLast5Pts(tA_id);
-     const ptsB = getTeamLast5Pts(tB_id);
+     // Peso Base = 5. Adiciona os pontos que o time já tem no torneio.
+     const ptsA = statsA ? statsA.pts : 0;
+     const ptsB = statsB ? statsB.pts : 0;
      
-     // Adiciona um peso base (+5) para nunca dar erro de divisão por zero
-     const weightA = ptsA + 5;
-     const weightB = ptsB + 5;
-     const weightD = (weightA + weightB) / 3; // O peso do empate é a média dividido por algo
+     const weightA = 5 + ptsA;
+     const weightB = 5 + ptsB;
+
+     // O empate é mais provável se os times tiverem pontos parecidos
+     const weightD = 5 + (Math.max(weightA, weightB) - Math.abs(weightA - weightB)) * 0.5;
+
      const totalWeight = weightA + weightB + weightD;
 
-     // Transforma em probabilidade (0.0 a 1.0)
-     const probA = weightA / totalWeight;
-     const probB = weightB / totalWeight;
-     const probD = weightD / totalWeight;
+     // Odd = (1 / Probabilidade) * 0.90 (Margem da Casa de 10%)
+     let oddA = (1 / (weightA / totalWeight)) * 0.90;
+     let oddB = (1 / (weightB / totalWeight)) * 0.90;
+     let oddD = (1 / (weightD / totalWeight)) * 0.90;
 
-     // O Clã injeta 100 KC virtuais em cada partida para dar o pontapé inicial nas odds
-     const virtualPool = 100;
-     const vPoolA = probA * virtualPool;
-     const vPoolB = probB * virtualPool;
-     const vPoolD = probD * virtualPool;
+     // Cap mínimo de 1.1x e máximo de 15.0x para não quebrar a banca
+     const clamp = (val) => Math.min(Math.max(val, 1.10), 15.00).toFixed(2);
 
-     const totalMixedPool = realPool + virtualPool;
-     
-     // 0.95 é a taxa de 5% da casa de apostas (queima as moedas pra controlar a inflação)
-     const calc = (realSide, virtualSide) => ((totalMixedPool * 0.95) / (realSide + virtualSide)).toFixed(2);
-
-     return { A: calc(realPoolA, vPoolA), B: calc(realPoolB, vPoolB), D: calc(realPoolD, vPoolD), total: realPool };
+     return { A: clamp(oddA), B: clamp(oddB), D: clamp(oddD) };
   };
 
   const ranking = useMemo(() => {
@@ -4805,6 +4778,10 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
        return;
      }
 
+     // 🔒 TRAVA A ODD NESTE EXATO MILISSEGUNDO PARA O USUÁRIO
+     const currentOdds = getOdds(m.compId, m.teamA, m.teamB);
+     const lockedOdd = Number(currentOdds[data.option]);
+
      onSavePrediction({
         id: myPred ? myPred.id : `pred_${currentUser.id}_${m.id}`,
         userId: currentUser.id,
@@ -4812,10 +4789,11 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
         compId: m.compId,
         option: data.option, 
         amount: amountNum,
+        lockedOdd: lockedOdd, // <- A MÁGICA: Salvamos a Odd no bilhete!
         timestamp: Date.now()
      }, oldAmount);
      
-     showToast("Bilhete registrado com sucesso na KameBet! 🍀", "success");
+     showToast(`Bilhete Fechado! Odd cravada em ${lockedOdd}x 🍀`, "success");
   };
 
   return (
@@ -4827,7 +4805,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
         <div className="flex-1 flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-black text-white uppercase tracking-wider">KameBet</h2>
-            <p className="text-sm text-blue-400 mt-1">Odds Dinâmicas (1x2) com base no Retrospecto!</p>
+            <p className="text-sm text-blue-400 mt-1">Odds Dinâmicas (1x2) com base na Tabela do Campeonato!</p>
           </div>
           <div className="bg-blue-950 p-3 rounded-xl border border-amber-500/30 text-center shadow-inner">
             <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Sua Carteira</p>
@@ -4853,13 +4831,18 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                 const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
                 const myPred = getMyPred(m.id);
                 const currentData = betData[m.id] || { option: myPred?.option || null, amount: myPred?.amount || '' };
-                const odds = getOdds(m.id, m.teamA, m.teamB);
+                const odds = getOdds(m.compId, m.teamA, m.teamB);
+
+                // Se o cara já apostou, mostra a odd que ele comprou no bilhete, senão mostra a atual
+                const displayOddA = (myPred && myPred.option === 'A') ? myPred.lockedOdd.toFixed(2) : odds.A;
+                const displayOddD = (myPred && myPred.option === 'D') ? myPred.lockedOdd.toFixed(2) : odds.D;
+                const displayOddB = (myPred && myPred.option === 'B') ? myPred.lockedOdd.toFixed(2) : odds.B;
 
                 return (
                   <div key={m.id} className="bg-blue-900 p-5 rounded-2xl border border-blue-800 shadow-lg hover:border-amber-500/30 transition-all group">
                     <div className="flex justify-between items-center mb-3">
                       <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-widest">{m.compName} • Rodada {m.roundName}</span>
-                      <span className="text-[10px] text-blue-400 font-bold uppercase">Volume: <span className="text-emerald-400 font-black">{odds.total} KC</span></span>
+                      {myPred && <span className="text-[10px] text-emerald-400 font-black uppercase flex items-center gap-1">✅ Bilhete Comprado</span>}
                     </div>
                     
                     {/* Botões de Seleção da Aposta */}
@@ -4867,19 +4850,19 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                       <button onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'A'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'A' ? 'bg-emerald-600 border-emerald-500 shadow-inner scale-105' : 'bg-blue-950 border-blue-800 hover:border-emerald-500/50'}`}>
                          <ShieldDisplay shield={tA?.shield} size="small" />
                          <span className="text-[10px] text-white font-bold truncate w-full text-center">{tA?.name}</span>
-                         <span className={`text-xs font-black ${currentData.option === 'A' ? 'text-blue-950' : 'text-amber-400'}`}>{odds.A}x</span>
+                         <span className={`text-xs font-black ${currentData.option === 'A' ? 'text-blue-950' : 'text-amber-400'}`}>{displayOddA}x</span>
                       </button>
 
                       <button onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'D'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'D' ? 'bg-slate-500 border-slate-400 shadow-inner scale-105' : 'bg-blue-950 border-blue-800 hover:border-slate-400/50'}`}>
                          <div className="w-10 h-10 flex items-center justify-center font-black text-slate-400">EMP</div>
                          <span className="text-[10px] text-slate-300 font-bold truncate w-full text-center">Empate</span>
-                         <span className={`text-xs font-black mt-1 ${currentData.option === 'D' ? 'text-blue-950' : 'text-amber-400'}`}>{odds.D}x</span>
+                         <span className={`text-xs font-black mt-1 ${currentData.option === 'D' ? 'text-blue-950' : 'text-amber-400'}`}>{displayOddD}x</span>
                       </button>
 
                       <button onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'B'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'B' ? 'bg-emerald-600 border-emerald-500 shadow-inner scale-105' : 'bg-blue-950 border-blue-800 hover:border-emerald-500/50'}`}>
                          <ShieldDisplay shield={tB?.shield} size="small" />
                          <span className="text-[10px] text-white font-bold truncate w-full text-center">{tB?.name}</span>
-                         <span className={`text-xs font-black ${currentData.option === 'B' ? 'text-blue-950' : 'text-amber-400'}`}>{odds.B}x</span>
+                         <span className={`text-xs font-black ${currentData.option === 'B' ? 'text-blue-950' : 'text-amber-400'}`}>{displayOddB}x</span>
                       </button>
                     </div>
 
@@ -4898,7 +4881,11 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                       </Button>
                     </div>
                     {currentData.option && currentData.amount && (
-                      <p className="text-center text-[10px] text-emerald-400 mt-2 font-medium">Retorno Estimado: <b className="text-amber-400">{Math.floor(Number(currentData.amount) * Number(odds[currentData.option]))} KC</b></p>
+                      <p className="text-center text-[10px] text-emerald-400 mt-2 font-medium">
+                        Retorno Estimado: <b className="text-amber-400">
+                           {Math.floor(Number(currentData.amount) * (myPred?.option === currentData.option ? myPred.lockedOdd : Number(odds[currentData.option])))} KC
+                        </b>
+                      </p>
                     )}
                   </div>
                 );
@@ -5475,8 +5462,8 @@ export default function App() {
       const finalPenaltiesA = updatedData && updatedData.penaltiesA !== undefined ? parseInt(updatedData.penaltiesA) : match.penaltiesA; 
       const finalPenaltiesB = updatedData && updatedData.penaltiesB !== undefined ? parseInt(updatedData.penaltiesB) : match.penaltiesB;
       
-      // 🎲 LIQUIDAÇÃO KAMEBET: PAGA OS VENCEDORES DA APOSTA
-      const matchPreds = predictions.filter(p => p.matchId === id);
+      // 🎲 LIQUIDAÇÃO KAMEBET: PAGA OS VENCEDORES DA APOSTA (NOVO SISTEMA FIXO)
+      const matchPreds = predictions.filter(p => p.matchId === id && !p.status); // Só pega as que ainda não foram pagas
       if (matchPreds.length > 0) {
          let realOutcome = 'D'; // Empate padrão
          if (finalScoreA > finalScoreB) realOutcome = 'A';
@@ -5486,21 +5473,25 @@ export default function App() {
             else if (finalPenaltiesB > finalPenaltiesA) realOutcome = 'B';
          }
 
-         // Reconstrói a ODD do momento exato
-         const realPool = matchPreds.reduce((sum, p) => sum + Number(p.amount), 0);
-         const winningRealPool = matchPreds.reduce((sum, p) => sum + (p.option === realOutcome ? Number(p.amount) : 0), 0);
+         // Distribui os lucros com base na Odd Travada no bilhete do jogador
+         matchPreds.forEach(async (pred) => {
+            const isWin = pred.option === realOutcome;
+            const betAmount = Number(pred.amount);
+            
+            // Pega a Odd que travamos (se for uma aposta velha, cai no 1.1x de fallback)
+            const oddToUse = pred.lockedOdd || 1.1; 
 
-         // Helper para calcular retrospecto dos times
-         const getTeamLast5Pts = (teamId) => {
-            const teamMatches = (matches || []).filter(x => x.status === 'approved' && (x.teamA === teamId || x.teamB === teamId)).sort((a,b) => parseInt(String(b.id).split('_')[1]||'0') - parseInt(String(a.id).split('_')[1]||'0')).slice(0, 5);
-            let pts = 0;
-            teamMatches.forEach(x => {
-               const isA = x.teamA === teamId; const sFor = isA ? Number(x.scoreA) : Number(x.scoreB); const sAgn = isA ? Number(x.scoreB) : Number(x.scoreA);
-               if (sFor > sAgn) pts += 3; else if (sFor === sAgn) pts += 1;
-            });
-            return pts;
-         };
+            // Payout: Se ele ganhou, valor apostado x Odd. Se perdeu, 0.
+            const payout = isWin ? Math.floor(betAmount * oddToUse) : 0;
+            const profit = isWin ? (payout - betAmount) : -betAmount;
 
+            if (payout > 0) {
+               const u = users.find(x => x.id === pred.userId);
+               if (u) await updateDoc(getPublicDocPath('users', u.id), { kameCoins: Number(u.kameCoins || 0) + payout });
+            }
+            await updateDoc(getPublicDocPath('predictions', pred.id), { status: isWin ? 'won' : 'lost', payout, profit });
+         });
+      }
          const ptsA = getTeamLast5Pts(match.teamA); const ptsB = getTeamLast5Pts(match.teamB);
          const weightA = ptsA + 5; const weightB = ptsB + 5; const weightD = (weightA + weightB) / 3;
          const totalWeight = weightA + weightB + weightD;
