@@ -1426,7 +1426,8 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
                     <div className="shrink-0"><ShieldDisplay shield={team.shield} size="normal" /></div>
                     <div className="flex-1 min-w-0 pr-10 sm:pr-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate group-hover:text-emerald-400 transition-colors">{String(team.name || 'Time')}</h3>
+                        {/* Removido o 'truncate' e adicionado 'whitespace-normal break-words' */}
+                        <h3 className="text-sm md:text-base font-bold text-white leading-tight whitespace-normal break-words group-hover:text-emerald-400 transition-colors">{String(team.name || 'Time')}</h3>
                         {team.ownerId === 'manual' && <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 rounded uppercase font-bold shrink-0">Sem Acesso</span>}
                       </div>
                       <p className="text-[10px] md:text-xs text-blue-400 mt-0.5 truncate"><span className="text-blue-300 font-medium">{String(team.coach || 'Sem técnico')}</span> • {String(team.whatsapp || 'Sem WhatsApp')}</p>
@@ -1447,7 +1448,8 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
             }
 
             return (
-              <div key={safeTeamId} onClick={() => setViewingTeam(team)} className="relative bg-blue-900 p-3 md:p-4 rounded-xl border border-blue-800 hover:border-emerald-500/50 hover:shadow-lg transition-all flex flex-col justify-between gap-3 group cursor-pointer">
+              // Adicionado 'h-full' para garantir que os cards no modo grade estiquem e fiquem do mesmo tamanho
+              <div key={safeTeamId} onClick={() => setViewingTeam(team)} className="relative h-full bg-blue-900 p-3 md:p-4 rounded-xl border border-blue-800 hover:border-emerald-500/50 hover:shadow-lg transition-all flex flex-col justify-between gap-3 group cursor-pointer">
                 {isAdmin && ( 
                     <div className="absolute top-3 sm:top-auto sm:relative right-3 sm:right-auto flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 shrink-0 z-10">
                       <button onClick={(e) => { e.stopPropagation(); startEdit(team); }} className="text-blue-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-blue-800 transition-colors" title="Editar"><Edit size={16} /></button>
@@ -1460,7 +1462,8 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
                     {team.ownerId === 'manual' && <span className="absolute -top-2 -right-2 text-[8px] bg-amber-500/20 text-amber-400 px-1 rounded shadow" title="Conta Manual">👤</span>}
                   </div>
                   <div className="w-full">
-                    <h3 className="text-sm md:text-base font-bold text-white leading-tight truncate px-2 group-hover:text-emerald-400 transition-colors">{String(team.name || 'Time')}</h3>
+                    {/* Removido o 'truncate' e adicionado 'whitespace-normal break-words' */}
+                    <h3 className="text-sm md:text-base font-bold text-white leading-tight whitespace-normal break-words px-2 group-hover:text-emerald-400 transition-colors">{String(team.name || 'Time')}</h3>
                     <p className="text-[9px] md:text-[10px] text-blue-400 mt-1 truncate px-1"><span className="text-blue-300 font-medium">{String(team.coach || 'Sem técnico')}</span></p>
                   </div>
                 </div>
@@ -1486,7 +1489,6 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
     </div>
   );
 };
-
 const Standings = ({ matches, teams, comp }) => {
   const isGroupsFormat = comp?.format === 'groups' && comp?.groups;
   return (
