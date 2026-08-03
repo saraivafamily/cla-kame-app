@@ -4501,109 +4501,13 @@ const RecordsWall = ({ showToast, currentUser, globalRecords, onSaveRecords }) =
   );
 };
 
-const GlobalRanking = ({ teams, matches, competitions }) => {
+const GlobalRanking = ({ teams }) => {
+  // ⚡ MODO TURBO: O app não calcula mais nada. Ele só pega a lista e ordena do maior pro menor!
   const rankingData = useMemo(() => {
-    let stats = {};
-    (teams || []).forEach(t => {
-      if(t && t.ownerId && t.ownerId !== 'manual') {
-        stats[t.id] = { ...t, points: 0, played: 0, wins: 0, draws: 0, titles: 0, comps: 0 };
-      }
-    });
-
-    // 1. Participações (+10 pt Principal, +2 pt Flash)
-    (competitions || []).forEach(c => {
-      const ptsJoin = c.category === 'copa_flash' ? 2 : 10;
-      if (c && c.teams) {
-        c.teams.forEach(tId => {
-          if(stats[tId]) { stats[tId].points += ptsJoin; stats[tId].comps += 1; }
-        });
-      }
-    });
-
-    // 2. Partidas Jogadas, Vitórias e Empates
-    (matches || []).forEach(m => {
-      if (m.status === 'approved') {
-        const c = (competitions || []).find(comp => comp.id === m.compId);
-        const isFlash = c?.category === 'copa_flash';
-        
-        const ptsPlay = isFlash ? 1 : 2;
-        const ptsWin = isFlash ? 1 : 3;
-        const ptsDraw = isFlash ? 0 : 1;
-
-        const tA = stats[m.teamA]; const tB = stats[m.teamB];
-        if(tA) { tA.played += 1; tA.points += ptsPlay; }
-        if(tB) { tB.played += 1; tB.points += ptsPlay; }
-
-        let scoreA = Number(m.scoreA||0); let scoreB = Number(m.scoreB||0);
-        let penA = m.penaltiesA !== null && m.penaltiesA !== undefined ? Number(m.penaltiesA) : null;
-        let penB = m.penaltiesB !== null && m.penaltiesB !== undefined ? Number(m.penaltiesB) : null;
-
-        let winner = null;
-        if (scoreA > scoreB) winner = 'A';
-        else if (scoreB > scoreA) winner = 'B';
-        else if (penA !== null && penB !== null) {
-            if (tA) { tA.draws += 1; tA.points += ptsDraw; }
-            if (tB) { tB.draws += 1; tB.points += ptsDraw; }
-            if (penA > penB) winner = 'A'; else if (penB > penA) winner = 'B';
-        } else {
-            if (tA) { tA.draws += 1; tA.points += ptsDraw; }
-            if (tB) { tB.draws += 1; tB.points += ptsDraw; }
-        }
-
-        if (winner === 'A' && tA) { tA.wins += 1; tA.points += ptsWin; } 
-        else if (winner === 'B' && tB) { tB.wins += 1; tB.points += ptsWin; }
-      }
-    });
-
-    // 3. Fases de Mata-Mata e Pódio
-    (competitions || []).forEach(c => {
-      if (!c.rounds) return;
-      const isFlash = c.category === 'copa_flash';
-      const ptsOitavas = isFlash ? 0 : 5;
-      const ptsQuartas = isFlash ? 2 : 10;
-      const ptsSemi = isFlash ? 5 : 15;
-      const ptsThird = isFlash ? 5 : 15;
-      const ptsVice = isFlash ? 10 : 25;
-      const ptsChamp = isFlash ? 20 : 50;
-
-      const koRounds = c.rounds.filter(r => r.id.includes('ko') || c.format === 'cup');
-      let semiTeams = new Set(); let finalTeams = new Set();
-
-      koRounds.forEach(r => {
-        r.matches.forEach(m => {
-          const tA = stats[m.teamA]; const tB = stats[m.teamB];
-
-          if (r.number === 'Oitavas') { if(tA) tA.points += ptsOitavas; if(tB) tB.points += ptsOitavas; }
-          if (r.number === 'Quartas') { if(tA) tA.points += ptsQuartas; if(tB) tB.points += ptsQuartas; }
-          if (r.number === 'Semifinal') { if(tA) { tA.points += ptsSemi; semiTeams.add(m.teamA); } if(tB) { tB.points += ptsSemi; semiTeams.add(m.teamB); } }
-          
-          if (r.number === 'Final') {
-            if(tA) finalTeams.add(m.teamA); if(tB) finalTeams.add(m.teamB);
-            const sUI = matches.find(x => x.matchId === m.id && x.compId === c.id && x.status === 'approved');
-            if (sUI) {
-              let scoreA = Number(sUI.scoreA||0); let scoreB = Number(sUI.scoreB||0);
-              let penA = sUI.penaltiesA !== null && sUI.penaltiesA !== undefined ? Number(sUI.penaltiesA) : null;
-              let penB = sUI.penaltiesB !== null && sUI.penaltiesB !== undefined ? Number(sUI.penaltiesB) : null;
-              
-              let winnerId = null; let loserId = null;
-              if (scoreA > scoreB) { winnerId = m.teamA; loserId = m.teamB; }
-              else if (scoreB > scoreA) { winnerId = m.teamB; loserId = m.teamA; }
-              else if (penA !== null && penB !== null) {
-                  if (penA > penB) { winnerId = m.teamA; loserId = m.teamB; }
-                  else if (penB > penA) { winnerId = m.teamB; loserId = m.teamA; }
-              }
-
-              if (winnerId && stats[winnerId]) { stats[winnerId].points += ptsChamp; stats[winnerId].titles += 1; }
-              if (loserId && stats[loserId]) { stats[loserId].points += ptsVice; }
-            }
-          }
-        });
-      });
-      semiTeams.forEach(tId => { if (!finalTeams.has(tId) && stats[tId]) stats[tId].points += ptsThird; });
-    });
-
-    return Object.values(stats).filter(t => t.played > 0 || t.comps > 0).sort((a,b) => b.points - a.points || b.wins - a.wins);
-  }, [teams, matches, competitions]);
+    return (teams || [])
+      .filter(t => t.ownerId && t.ownerId !== 'manual' && ((t.globalPoints || 0) > 0 || (t.playedMatches || 0) > 0))
+      .sort((a, b) => (b.globalPoints || 0) - (a.globalPoints || 0) || (b.totalWins || 0) - (a.totalWins || 0));
+  }, [teams]);
 
   const getBadge = (pts) => {
     if (pts >= 1000) return { label: 'Lenda Suprema', icon: '👑', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' };
@@ -4633,24 +4537,24 @@ const GlobalRanking = ({ teams, matches, competitions }) => {
                 <th className="p-4">Técnico / Clube</th>
                 <th className="p-4 text-center">Patente</th>
                 <th className="p-4 text-center">Pts Xclã</th>
-                <th className="p-4 text-center">Títulos</th>
                 <th className="p-4 text-center">Jogos</th>
                 <th className="p-4 text-center">V / E</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-blue-800/40">
               {rankingData.length === 0 ? (
-                <tr><td colSpan="7" className="p-8 text-center text-blue-500">O ranking será gerado assim que houver participações e jogos oficiais.</td></tr>
+                <tr><td colSpan="6" className="p-8 text-center text-blue-500">O ranking será gerado assim que houver participações e jogos oficiais.</td></tr>
               ) : (
                 rankingData.map((t, index) => {
-                  const badge = getBadge(t.points);
+                  const pts = t.globalPoints || 0;
+                  const badge = getBadge(pts);
                   const isTop3 = index < 3;
-                  const rankcolors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
+                  const rankColors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
                   
                   return (
                     <tr key={t.id} className={`hover:bg-blue-900/50 transition-colors ${index === 0 ? 'bg-amber-500/5' : ''}`}>
                       <td className="p-4 text-center">
-                        <span className={`text-xl font-black ${isTop3 ? rankcolors[index] : 'text-blue-500'}`}>
+                        <span className={`text-xl font-black ${isTop3 ? rankColors[index] : 'text-blue-500'}`}>
                           {index + 1}º
                         </span>
                       </td>
@@ -4670,13 +4574,12 @@ const GlobalRanking = ({ teams, matches, competitions }) => {
                       </td>
                       <td className="p-4 text-center">
                         <span className={`text-2xl font-black drop-shadow-md ${index === 0 ? 'text-amber-500' : 'text-emerald-400'}`}>
-                          {t.points}
+                          {pts}
                         </span>
                       </td>
-                      <td className="p-4 text-center text-amber-400 font-bold text-lg">{t.titles > 0 ? `🏆 ${t.titles}` : '-'}</td>
-                      <td className="p-4 text-center text-blue-200 font-medium">{t.played}</td>
+                      <td className="p-4 text-center text-blue-200 font-medium">{t.playedMatches || 0}</td>
                       <td className="p-4 text-center text-blue-300 font-medium">
-                        <span className="text-emerald-400">{t.wins}</span> / <span className="text-blue-400">{t.draws}</span>
+                        <span className="text-emerald-400">{t.totalWins || 0}</span> / <span className="text-blue-400">{t.totalDraws || 0}</span>
                       </td>
                     </tr>
                   );
