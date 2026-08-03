@@ -4500,8 +4500,10 @@ const RecordsWall = ({ showToast, currentUser, globalRecords, onSaveRecords }) =
   );
 };
 
-const GlobalRanking = ({ teams }) => {
-  // ⚡ MODO TURBO: O app não calcula mais nada. Ele só pega a lista e ordena do maior pro menor!
+const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast }) => {
+  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+
+  // ⚡ MODO TURBO: O app não calcula mais nada sozinho. Ele só pega a lista e ordena!
   const rankingData = useMemo(() => {
     return (teams || [])
       .filter(t => t.ownerId && t.ownerId !== 'manual' && ((t.globalPoints || 0) > 0 || (t.playedMatches || 0) > 0))
@@ -4515,15 +4517,148 @@ const GlobalRanking = ({ teams }) => {
     return { label: 'Novato', icon: '🔰', color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' };
   };
 
+  // 🚀 O BOTÃO MÁGICO PARA RESTAURAR PONTOS ANTIGOS
+  const handleSyncHistory = async () => {
+    if (!window.confirm("Atenção: O sistema vai ler todo o histórico antigo e gravar os pontos permanentemente nos times. Deseja continuar?")) return;
+    
+    showToast("Calculando histórico... Por favor, aguarde.", "info");
+
+    try {
+      let stats = {};
+      (teams || []).forEach(t => {
+        if(t && t.id) {
+          stats[t.id] = { globalPoints: 0, playedMatches: 0, totalWins: 0, totalDraws: 0, goalsFor: 0, goalsAgainst: 0, titles: 0 };
+        }
+      });
+
+      // 1. Participações
+      (competitions || []).forEach(c => {
+        const ptsJoin = c.category === 'copa_flash' ? 2 : 10;
+        if (c && c.teams) {
+          c.teams.forEach(tId => { if(stats[tId]) stats[tId].globalPoints += ptsJoin; });
+        }
+      });
+
+      // 2. Partidas Jogadas
+      (matches || []).forEach(m => {
+        if (m.status === 'approved') {
+          const c = (competitions || []).find(comp => comp.id === m.compId);
+          const isFlash = c?.category === 'copa_flash';
+          const ptsPlay = isFlash ? 1 : 2; const ptsWin = isFlash ? 1 : 3; const ptsDraw = isFlash ? 0 : 1;
+
+          const tA = stats[m.teamA]; const tB = stats[m.teamB];
+          if(tA) { tA.playedMatches += 1; tA.globalPoints += ptsPlay; tA.goalsFor += Number(m.scoreA||0); tA.goalsAgainst += Number(m.scoreB||0); }
+          if(tB) { tB.playedMatches += 1; tB.globalPoints += ptsPlay; tB.goalsFor += Number(m.scoreB||0); tB.goalsAgainst += Number(m.scoreA||0); }
+
+          let scoreA = Number(m.scoreA||0); let scoreB = Number(m.scoreB||0);
+          let penA = m.penaltiesA !== null && m.penaltiesA !== undefined ? Number(m.penaltiesA) : null;
+          let penB = m.penaltiesB !== null && m.penaltiesB !== undefined ? Number(m.penaltiesB) : null;
+
+          let winner = null;
+          if (scoreA > scoreB) winner = 'A';
+          else if (scoreB > scoreA) winner = 'B';
+          else if (penA !== null && penB !== null) {
+              if (tA) { tA.totalDraws += 1; tA.globalPoints += ptsDraw; }
+              if (tB) { tB.totalDraws += 1; tB.globalPoints += ptsDraw; }
+              if (penA > penB) winner = 'A'; else if (penB > penA) winner = 'B';
+          } else {
+              if (tA) { tA.totalDraws += 1; tA.globalPoints += ptsDraw; }
+              if (tB) { tB.totalDraws += 1; tB.globalPoints += ptsDraw; }
+          }
+
+          if (winner === 'A' && tA) { tA.totalWins += 1; tA.globalPoints += ptsWin; } 
+          else if (winner === 'B' && tB) { tB.totalWins += 1; tB.globalPoints += ptsWin; }
+        }
+      });
+
+      // 3. Mata-Mata e Pódio
+      (competitions || []).forEach(c => {
+        if (!c.rounds) return;
+        const isFlash = c.category === 'copa_flash';
+        const ptsOitavas = isFlash ? 0 : 5; const ptsQuartas = isFlash ? 2 : 10;
+        const ptsSemi = isFlash ? 5 : 15; const ptsThird = isFlash ? 5 : 15;
+        const ptsVice = isFlash ? 10 : 25; const ptsChamp = isFlash ? 20 : 50;
+
+        const koRounds = c.rounds.filter(r => r.id.includes('ko') || c.format === 'cup');
+        let semiTeams = new Set(); let finalTeams = new Set();
+
+        koRounds.forEach(r => {
+          r.matches.forEach(m => {
+            const tA = stats[m.teamA]; const tB = stats[m.teamB];
+
+            if (r.number === 'Oitavas') { if(tA) tA.globalPoints += ptsOitavas; if(tB) tB.globalPoints += ptsOitavas; }
+            if (r.number === 'Quartas') { if(tA) tA.globalPoints += ptsQuartas; if(tB) tB.globalPoints += ptsQuartas; }
+            if (r.number === 'Semifinal') { if(tA) { tA.globalPoints += ptsSemi; semiTeams.add(m.teamA); } if(tB) { tB.globalPoints += ptsSemi; semiTeams.add(m.teamB); } }
+            
+            if (r.number === 'Final') {
+              if(tA) finalTeams.add(m.teamA); if(tB) finalTeams.add(m.teamB);
+              const sUI = matches.find(x => x.matchId === m.id && x.compId === c.id && x.status === 'approved');
+              if (sUI) {
+                let scoreA = Number(sUI.scoreA||0); let scoreB = Number(sUI.scoreB||0);
+                let penA = sUI.penaltiesA !== null && sUI.penaltiesA !== undefined ? Number(sUI.penaltiesA) : null;
+                let penB = sUI.penaltiesB !== null && sUI.penaltiesB !== undefined ? Number(sUI.penaltiesB) : null;
+                
+                let winnerId = null; let loserId = null;
+                if (scoreA > scoreB) { winnerId = m.teamA; loserId = m.teamB; }
+                else if (scoreB > scoreA) { winnerId = m.teamB; loserId = m.teamA; }
+                else if (penA !== null && penB !== null) {
+                    if (penA > penB) { winnerId = m.teamA; loserId = m.teamB; }
+                    else if (penB > penA) { winnerId = m.teamB; loserId = m.teamA; }
+                }
+
+                if (winnerId && stats[winnerId]) { stats[winnerId].globalPoints += ptsChamp; stats[winnerId].titles += 1; }
+                if (loserId && stats[loserId]) { stats[loserId].globalPoints += ptsVice; }
+              }
+            }
+          });
+        });
+        semiTeams.forEach(tId => { if (!finalTeams.has(tId) && stats[tId]) stats[tId].globalPoints += ptsThird; });
+      });
+
+      // 4. Salvar tudo no Firebase simultaneamente
+      const updatePromises = Object.keys(stats).map(teamId => {
+        const tStats = stats[teamId];
+        if (tStats.playedMatches > 0 || tStats.globalPoints > 0) {
+          return updateDoc(getPublicDocPath('teams', teamId), {
+            globalPoints: tStats.globalPoints,
+            playedMatches: tStats.playedMatches,
+            totalWins: tStats.totalWins,
+            totalDraws: tStats.totalDraws,
+            goalsFor: tStats.goalsFor,
+            goalsAgainst: tStats.goalsAgainst,
+            titles: tStats.titles
+          });
+        }
+        return Promise.resolve();
+      });
+
+      await Promise.all(updatePromises);
+      showToast("Histórico sincronizado com sucesso! Todos os pontos foram restaurados.", "success");
+
+    } catch (error) {
+      console.error("Erro na sincronização:", error);
+      showToast("Ocorreu um erro ao sincronizar.", "error");
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex flex-col md:flex-row items-center gap-4">
+      <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex flex-col md:flex-row items-center gap-4 w-full">
         <div className="bg-blue-950 p-4 rounded-full border-2 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.3)]">
           <Crown size={32} className="text-amber-500 animate-pulse" />
         </div>
-        <div className="text-center md:text-left">
-          <h2 className="text-2xl font-black text-white uppercase tracking-wider">Ranking Global Xclã</h2>
-          <p className="text-sm text-blue-400 mt-1">A meritocracia do Clã Kame. Jogue, avance e conquiste seu lugar no topo.</p>
+        <div className="text-center md:text-left flex-1 w-full">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+             <div>
+               <h2 className="text-2xl font-black text-white uppercase tracking-wider">Ranking Global Xclã</h2>
+               <p className="text-sm text-blue-400 mt-1">A meritocracia do Clã Kame. Jogue, avance e conquiste seu lugar no topo.</p>
+             </div>
+             {isAdmin && (
+               <button onClick={handleSyncHistory} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-2 transition-colors shadow-lg shrink-0">
+                 🔄 Restaurar Pontos Antigos
+               </button>
+             )}
+          </div>
         </div>
       </div>
 
@@ -5522,8 +5657,7 @@ export default function App() {
 
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onDeleteTeam={async (id) => { await deleteDoc(getPublicDocPath('teams', id)); showToast("Time excluído com sucesso!", "success"); }} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
-      case 'ranking': return <GlobalRanking teams={teams} matches={matches} competitions={competitions} />;
-      
+      case 'ranking': return <GlobalRanking teams={teams} matches={matches} competitions={competitions} currentUser={currentUser} showToast={showToast} />;
       case 'predictions': return <PredictionsPanel competitions={competitions} matches={matches} teams={teams} users={users} currentUser={currentUser} predictions={predictions} showToast={showToast} onSavePrediction={async (p, oldAmount) => { 
           const currentCoins = Number(currentUser.kameCoins) || 0;
           const betCost = Number(p.amount) - Number(oldAmount);
