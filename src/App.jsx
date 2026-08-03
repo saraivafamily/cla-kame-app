@@ -2632,115 +2632,130 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         <p className="text-center p-8 text-blue-500 text-sm">O chaveamento do Mata-Mata estará disponível assim que a fase classificatória terminar.</p>
                       ) : (
                         <div className="flex gap-12 items-stretch pb-8 min-w-max px-6 pt-4">
-                          {knockoutRounds.map((round, roundIndex) => (
-                            <div key={round.id} className="w-64 flex flex-col shrink-0 animate-in fade-in min-h-[400px]">
-                              <div className="bg-blue-900 border border-blue-800 rounded-xl px-4 py-2.5 text-center shadow-md relative overflow-hidden mb-6">
-                                <div className="absolute top-0 left-0 w-full h-[3px] bg-amber-500"></div>
-                                <span className="text-xs font-black text-amber-400 uppercase tracking-widest">Fase: {round.number}</span>
-                                
-                                {isAdmin && round.status === 'locked' && (
-                                  <button type="button" onClick={() => onReleaseRound(comp.id, round.id)} className="block w-full mt-1.5 bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[9px] py-1 rounded uppercase tracking-wider transition-colors">🔓 Liberar Jogos</button>
-                                )}
-                                
-                                {isAdmin && round.status === 'released' && (
-                                  <>
-                                    <button type="button" onClick={() => onLockRound(comp.id, round.id)} className="block w-full mt-1.5 bg-amber-600 hover:bg-amber-500 text-blue-950 font-black text-[9px] py-1 rounded uppercase tracking-wider transition-colors mb-1">🔒 Travar Jogos</button>
-                                    
-                                    <button type="button" onClick={() => handleAddMatchToGroup(round.id, null)} className="block w-full bg-blue-800 hover:bg-blue-700 text-emerald-400 font-bold text-[9px] py-1.5 rounded uppercase tracking-wider transition-colors border border-blue-600 border-dashed">
-                                      + Adicionar Confronto
-                                    </button>
-                                  </>
-                                )}
-                              </div>
+                          {knockoutRounds.map((round, roundIndex) => {
+                            // 🧠 CÁLCULO INTELIGENTE DAS FASES DE TRÁS PRA FRENTE
+                            const distanceToFinal = knockoutRounds.length - roundIndex;
+                            let phaseName = round.number; // Puxa o original do banco como backup
+                            
+                            if (distanceToFinal === 1) phaseName = "FINAL";
+                            else if (distanceToFinal === 2) phaseName = "SEMIFINAL";
+                            else if (distanceToFinal === 3) phaseName = "QUARTAS";
+                            else if (distanceToFinal === 4) phaseName = "OITAVAS";
+                            else if (distanceToFinal === 5) phaseName = "16 AVOS";
+                            else if (distanceToFinal === 6) phaseName = "32 AVOS";
 
-                              <div className="flex flex-col flex-1 h-full py-2">
-                                {round.matches.map((m, matchIndex) => {
-                                  const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
-                                  const isLocked = round.status === 'locked';
+                            return (
+                              <div key={round.id} className="w-64 flex flex-col shrink-0 animate-in fade-in min-h-[400px]">
+                                <div className="bg-blue-900 border border-blue-800 rounded-xl px-4 py-2.5 text-center shadow-md relative overflow-hidden mb-6">
+                                  <div className="absolute top-0 left-0 w-full h-[3px] bg-amber-500"></div>
+                                  <span className="text-xs font-black text-amber-400 uppercase tracking-widest">
+                                    Fase: {phaseName}
+                                  </span>
                                   
-                                  const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
-                                  let teamALost = false;
-                                  let teamBLost = false;
-
-                                  if (isPlayed) {
-                                    const scoreA = Number(sUI.scoreA || 0);
-                                    const scoreB = Number(sUI.scoreB || 0);
-                                    if (scoreA < scoreB) {
-                                      teamALost = true;
-                                    } else if (scoreB < scoreA) {
-                                      teamBLost = true;
-                                    } else {
-                                      const penA = Number(sUI.penaltiesA || 0);
-                                      const penB = Number(sUI.penaltiesB || 0);
-                                      if (penA < penB) teamALost = true;
-                                      if (penB < penA) teamBLost = true;
-                                    }
-                                  }
-
-                                  const isFirstRound = roundIndex === 0;
-                                  const isLastRound = roundIndex === knockoutRounds.length - 1;
-                                  const isTop = matchIndex % 2 === 0;
-
-                                  return (
-                                    <div key={m.id} className="relative flex-1 flex flex-col justify-center py-3 group">
+                                  {isAdmin && round.status === 'locked' && (
+                                    <button type="button" onClick={() => onReleaseRound(comp.id, round.id)} className="block w-full mt-1.5 bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[9px] py-1 rounded uppercase tracking-wider transition-colors">🔓 Liberar Jogos</button>
+                                  )}
+                                  
+                                  {isAdmin && round.status === 'released' && (
+                                    <>
+                                      <button type="button" onClick={() => onLockRound(comp.id, round.id)} className="block w-full mt-1.5 bg-amber-600 hover:bg-amber-500 text-blue-950 font-black text-[9px] py-1 rounded uppercase tracking-wider transition-colors mb-1">🔒 Travar Jogos</button>
                                       
-                                      {/* LINHA ESQUERDA - CONEXÃO COM JOGO ANTERIOR */}
-                                      {!isFirstRound && (
-                                        <div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>
-                                      )}
+                                      <button type="button" onClick={() => handleAddMatchToGroup(round.id, null)} className="block w-full bg-blue-800 hover:bg-blue-700 text-emerald-400 font-bold text-[9px] py-1.5 rounded uppercase tracking-wider transition-colors border border-blue-600 border-dashed">
+                                        + Adicionar Confronto
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
 
-                                      <div className="relative z-10 w-full">
-                                        <div onClick={() => { if(sUI.isPlayed && onSelectMatch){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} cursor-pointer relative overflow-hidden`}>
-                                          
-                                          <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
-                                            <span className="text-blue-500">
-                                              {m.id.includes('_f1') && round.matches.length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' 
-                                              : m.id.includes('_f2') ? '🏆 Final (Volta)' 
-                                              : m.id.includes('_3rd') ? '🥉 Disputa 3º Lugar' 
-                                              : 'Confronto'}
-                                            </span>
-                                            <span className={sUI.color}>{sUI.text}</span>
-                                          </div>
+                                <div className="flex flex-col flex-1 h-full py-2">
+                                  {round.matches.map((m, matchIndex) => {
+                                    const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                                    const isLocked = round.status === 'locked';
+                                    
+                                    const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
+                                    let teamALost = false;
+                                    let teamBLost = false;
 
-                                          <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}>
-                                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                              <ShieldDisplay shield={tA?.shield} size="small" />
-                                              <span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1 shrink-0">
-                                              {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}
-                                              <span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreA : '-'}</span>
-                                            </div>
-                                          </div>
+                                    if (isPlayed) {
+                                      const scoreA = Number(sUI.scoreA || 0);
+                                      const scoreB = Number(sUI.scoreB || 0);
+                                      if (scoreA < scoreB) {
+                                        teamALost = true;
+                                      } else if (scoreB < scoreA) {
+                                        teamBLost = true;
+                                      } else {
+                                        const penA = Number(sUI.penaltiesA || 0);
+                                        const penB = Number(sUI.penaltiesB || 0);
+                                        if (penA < penB) teamALost = true;
+                                        if (penB < penA) teamBLost = true;
+                                      }
+                                    }
 
-                                          <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}>
-                                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                              <ShieldDisplay shield={tB?.shield} size="small" />
-                                              <span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1 shrink-0">
-                                              {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}
-                                              <span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreB : '-'}</span>
-                                            </div>
-                                          </div>
+                                    const isFirstRound = roundIndex === 0;
+                                    const isLastRound = roundIndex === knockoutRounds.length - 1;
+                                    const isTop = matchIndex % 2 === 0;
 
-                                        </div>
+                                    return (
+                                      <div key={m.id} className="relative flex-1 flex flex-col justify-center py-3 group">
                                         
-                                        {isAdmin && (
-                                          <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto / Placar"><Edit size={12} /></button>
+                                        {/* LINHA ESQUERDA - CONEXÃO COM JOGO ANTERIOR */}
+                                        {!isFirstRound && (
+                                          <div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>
+                                        )}
+
+                                        <div className="relative z-10 w-full">
+                                          <div onClick={() => { if(sUI.isPlayed && onSelectMatch){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} cursor-pointer relative overflow-hidden`}>
+                                            
+                                            <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
+                                              <span className="text-blue-500">
+                                                {m.id.includes('_f1') && round.matches.length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' 
+                                                : m.id.includes('_f2') ? '🏆 Final (Volta)' 
+                                                : m.id.includes('_3rd') ? '🥉 Disputa 3º Lugar' 
+                                                : 'Confronto'}
+                                              </span>
+                                              <span className={sUI.color}>{sUI.text}</span>
+                                            </div>
+
+                                            <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}>
+                                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                                <ShieldDisplay shield={tA?.shield} size="small" />
+                                                <span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span>
+                                              </div>
+                                              <div className="flex items-center gap-1 shrink-0">
+                                                {sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}
+                                                <span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreA : '-'}</span>
+                                              </div>
+                                            </div>
+
+                                            <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}>
+                                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                                <ShieldDisplay shield={tB?.shield} size="small" />
+                                                <span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span>
+                                              </div>
+                                              <div className="flex items-center gap-1 shrink-0">
+                                                {sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}
+                                                <span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreB : '-'}</span>
+                                              </div>
+                                            </div>
+
+                                          </div>
+                                          
+                                          {isAdmin && (
+                                            <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10" title="Editar Confronto / Placar"><Edit size={12} /></button>
+                                          )}
+                                        </div>
+
+                                        {/* LINHA DIREITA - CONEXÃO COM PRÓXIMO JOGO (O COTOVELO) */}
+                                        {!isLastRound && (
+                                          <div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>
                                         )}
                                       </div>
-
-                                      {/* LINHA DIREITA - CONEXÃO COM PRÓXIMO JOGO (O COTOVELO) */}
-                                      {!isLastRound && (
-                                        <div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
+                                    );
+                                  })}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
