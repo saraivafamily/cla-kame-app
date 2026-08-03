@@ -4715,30 +4715,25 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
 
   // 🎲 NOVO MOTOR DE ODDS (Fixo por Tabela da Competição)
   const getOdds = (compId, tA_id, tB_id) => {
-     // Calcula a tabela de classificação atual desta competição específica
      const table = calculateStandings(matches, teams, compId);
 
      const statsA = table.find(t => t.id === tA_id);
      const statsB = table.find(t => t.id === tB_id);
 
-     // Peso Base = 5. Adiciona os pontos que o time já tem no torneio.
      const ptsA = statsA ? statsA.pts : 0;
      const ptsB = statsB ? statsB.pts : 0;
      
      const weightA = 5 + ptsA;
      const weightB = 5 + ptsB;
 
-     // O empate é mais provável se os times tiverem pontos parecidos
      const weightD = 5 + (Math.max(weightA, weightB) - Math.abs(weightA - weightB)) * 0.5;
 
      const totalWeight = weightA + weightB + weightD;
 
-     // Odd = (1 / Probabilidade) * 0.90 (Margem da Casa de 10%)
      let oddA = (1 / (weightA / totalWeight)) * 0.90;
      let oddB = (1 / (weightB / totalWeight)) * 0.90;
      let oddD = (1 / (weightD / totalWeight)) * 0.90;
 
-     // Cap mínimo de 1.1x e máximo de 15.0x para não quebrar a banca
      const clamp = (val) => Math.min(Math.max(val, 1.10), 15.00).toFixed(2);
 
      return { A: clamp(oddA), B: clamp(oddB), D: clamp(oddD) };
@@ -4749,7 +4744,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
      (users || []).forEach(u => userPoints[u.id] = { ...u, bets: 0, wins: 0, profit: 0 });
 
      (predictions || []).forEach(p => {
-        if (p.status) { // Se a aposta já foi resolvida pelo Líder
+        if (p.status) { 
            if (userPoints[p.userId]) {
               userPoints[p.userId].bets += 1;
               if (p.status === 'won') userPoints[p.userId].wins += 1;
@@ -4774,11 +4769,10 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
      const costDiff = amountNum - oldAmount;
 
      if (Number(currentUser.kameCoins || 0) < costDiff) {
-       showToast(`Saldo insuficiente! Faltam ${costDiff - Number(currentUser.kameCoins || 0)} kc.`, "error");
+       showToast(`Saldo insuficiente! Faltam ${costDiff - Number(currentUser.kameCoins || 0)} BK.`, "error");
        return;
      }
 
-     // 🔒 TRAVA A ODD NESTE EXATO MILISSEGUNDO PARA O USUÁRIO
      const currentOdds = getOdds(m.compId, m.teamA, m.teamB);
      const lockedOdd = Number(currentOdds[data.option]);
 
@@ -4789,7 +4783,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
         compId: m.compId,
         option: data.option, 
         amount: amountNum,
-        lockedOdd: lockedOdd, // <- A MÁGICA: Salvamos a Odd no bilhete!
+        lockedOdd: lockedOdd,
         timestamp: Date.now()
      }, oldAmount);
      
@@ -4809,7 +4803,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
           </div>
           <div className="bg-blue-950 p-3 rounded-xl border border-amber-500/30 text-center shadow-inner">
             <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Sua Carteira</p>
-            <p className="text-xl font-black text-white">{currentUser.kameCoins || 0} kc</p>
+            <p className="text-xl font-black text-white">{currentUser.kameCoins || 0} BK</p>
           </div>
         </div>
       </div>
@@ -4833,10 +4827,10 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                 const currentData = betData[m.id] || { option: myPred?.option || null, amount: myPred?.amount || '' };
                 const odds = getOdds(m.compId, m.teamA, m.teamB);
 
-                // Se o cara já apostou, mostra a odd que ele comprou no bilhete, senão mostra a atual
-                const displayOddA = (myPred && myPred.option === 'A') ? myPred.lockedOdd.toFixed(2) : odds.A;
-                const displayOddD = (myPred && myPred.option === 'D') ? myPred.lockedOdd.toFixed(2) : odds.D;
-                const displayOddB = (myPred && myPred.option === 'B') ? myPred.lockedOdd.toFixed(2) : odds.B;
+                // 🛡️ SISTEMA DE SEGURANÇA APLICADO AQUI (Evita o crash de dados antigos)
+                const displayOddA = (myPred && myPred.option === 'A') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : odds.A;
+                const displayOddD = (myPred && myPred.option === 'D') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : odds.D;
+                const displayOddB = (myPred && myPred.option === 'B') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : odds.B;
 
                 return (
                   <div key={m.id} className="bg-blue-900 p-5 rounded-2xl border border-blue-800 shadow-lg hover:border-amber-500/30 transition-all group">
@@ -4868,7 +4862,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
 
                     <div className="flex gap-2 items-end">
                       <div className="flex-1">
-                        <label className="text-[10px] text-blue-400 uppercase font-bold block mb-1">Valor do Bilhete (kc)</label>
+                        <label className="text-[10px] text-blue-400 uppercase font-bold block mb-1">Valor do Bilhete (BK)</label>
                         <input 
                           type="number" inputMode="numeric" placeholder="Ex: 50"
                           value={currentData.amount} 
@@ -4883,7 +4877,8 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                     {currentData.option && currentData.amount && (
                       <p className="text-center text-[10px] text-emerald-400 mt-2 font-medium">
                         Retorno Estimado: <b className="text-amber-400">
-                           {Math.floor(Number(currentData.amount) * (myPred?.option === currentData.option ? myPred.lockedOdd : Number(odds[currentData.option])))} kc
+                           {/* 🛡️ SISTEMA DE SEGURANÇA DA ODD AQUI TAMBÉM */}
+                           {Math.floor(Number(currentData.amount) * (myPred?.option === currentData.option ? Number(myPred.lockedOdd || 1.1) : Number(odds[currentData.option])))} BK
                         </b>
                       </p>
                     )}
@@ -4905,7 +4900,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                   <th className="p-4">Apostador</th>
                   <th className="p-4 text-center">Apostas Feitas</th>
                   <th className="p-4 text-center">Green (Acertos)</th>
-                  <th className="p-4 text-center">Lucro Líquido (kc)</th>
+                  <th className="p-4 text-center">Lucro Líquido (BK)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-blue-800/40">
@@ -4914,10 +4909,10 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                 ) : (
                   ranking.map((u, idx) => {
                     const isTop3 = idx < 3;
-                    const rankcolors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
+                    const rankColors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
                     return (
                       <tr key={u.id} className="hover:bg-blue-900/50 transition-colors">
-                        <td className="p-4 text-center"><span className={`text-xl font-black ${isTop3 ? rankcolors[idx] : 'text-blue-500'}`}>{idx + 1}º</span></td>
+                        <td className="p-4 text-center"><span className={`text-xl font-black ${isTop3 ? rankColors[idx] : 'text-blue-500'}`}>{idx + 1}º</span></td>
                         <td className="p-4 font-bold text-white">{u.name}</td>
                         <td className="p-4 text-center text-blue-300 font-medium">{u.bets}</td>
                         <td className="p-4 text-center text-emerald-400 font-bold">{u.wins}</td>
