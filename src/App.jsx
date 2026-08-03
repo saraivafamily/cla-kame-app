@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where } from 'firebase/firestore';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet } from 'lucide-react';
-import { collection, doc, setDoc, updateDoc, onSnapshot, deleteDoc, query, orderBy, limit, where } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, deleteDoc, query, orderBy, limit, where } from 'firebase/firestore';
 
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
