@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit } from 'firebase/firestore';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet } from 'lucide-react';
+import { collection, doc, setDoc, updateDoc, onSnapshot, deleteDoc, query, orderBy, limit, where } from 'firebase/firestore';
 
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
@@ -5296,8 +5297,11 @@ export default function App() {
     const unsubC = onSnapshot(getPublicPath('competitions'), snap => setCompetitions(snap.docs.map(d=>d.data())));
     const unsubM = onSnapshot(getPublicPath('matches'), snap => setMatches(snap.docs.map(d=>d.data())));
     
-    const unsubF = onSnapshot(getPublicPath('feed'), snap => {
-      const fetched = snap.docs.map(d => d.data()).sort((a, b) => b.timestamp - a.timestamp);
+    const feedQuery = query(getPublicPath('feed'), orderBy('timestamp', 'desc'), limit(20));
+// 🛑 LIMITE DE LEITURAS: Puxa só os 10 últimos posts para economizar a cota do Firebase
+    const feedQuery = query(getPublicPath('feed'), orderBy('timestamp', 'desc'), limit(10));
+    const unsubF = onSnapshot(feedQuery, snap => {
+      const fetched = snap.docs.map(d => d.data());
       setFeedPosts(fetched);
     });
 
@@ -5458,10 +5462,10 @@ export default function App() {
       const finalPenaltiesA = updatedData && updatedData.penaltiesA !== undefined ? parseInt(updatedData.penaltiesA) : match.penaltiesA; 
       const finalPenaltiesB = updatedData && updatedData.penaltiesB !== undefined ? parseInt(updatedData.penaltiesB) : match.penaltiesB;
       
-      // 🎲 LIQUIDAÇÃO KAMEBET: PAGA OS VENCEDORES DA APOSTA (NOVO SISTEMA FIXO)
-      const matchPreds = predictions.filter(p => p.matchId === id && !p.status); // Só pega as que ainda não foram pagas
+      // 🎲 LIQUIDAÇÃO KAMEBET
+      const matchPreds = predictions.filter(p => p.matchId === id && !p.status); 
       if (matchPreds.length > 0) {
-         let realOutcome = 'D'; // Empate padrão
+         let realOutcome = 'D'; 
          if (finalScoreA > finalScoreB) realOutcome = 'A';
          else if (finalScoreB > finalScoreA) realOutcome = 'B';
          else if (finalPenaltiesA !== null && finalPenaltiesB !== null) {
@@ -5469,15 +5473,10 @@ export default function App() {
             else if (finalPenaltiesB > finalPenaltiesA) realOutcome = 'B';
          }
 
-         // Distribui os lucros com base na Odd Travada no bilhete do jogador
          matchPreds.forEach(async (pred) => {
             const isWin = pred.option === realOutcome;
             const betAmount = Number(pred.amount);
-            
-            // Pega a Odd que travamos (se for uma aposta velha, cai no 1.1x de fallback)
             const oddToUse = pred.lockedOdd || 1.1; 
-
-            // Payout: Se ele ganhou, valor apostado x Odd. Se perdeu, 0.
             const payout = isWin ? Math.floor(betAmount * oddToUse) : 0;
             const profit = isWin ? (payout - betAmount) : -betAmount;
 
@@ -5489,6 +5488,68 @@ export default function App() {
          });
       }
 
+      // 🏆 NOVO: AGREGAÇÃO DE ESTATÍSTICAS DIRETAMENTE NO TIME
+      const tA = teams.find(t => t.id === match.teamA);
+      const tB = teams.find(t => t.id === match.teamB);
+
+      if (tA && tB) {
+        const isFlash = comp?.category === 'copa_flash';
+        const ptsPlay = isFlash ? 1 : 2;
+        const ptsWin = isFlash ? 1 : 3;
+        const ptsDraw = isFlash ? 0 : 1;
+
+        let winner = null;
+        if (finalScoreA > finalScoreB) winner = 'A';
+        else if (finalScoreB > finalScoreA) winner = 'B';
+        else if (finalPenaltiesA !== null && finalPenaltiesB !== null) {
+          if (finalPenaltiesA > finalPenaltiesB) winner = 'A';
+          else if (finalPenaltiesB > finalPenaltiesA) winner = 'B';
+        }
+
+        let addPtsA = ptsPlay; let addPtsB = ptsPlay;
+        let winsA = 0; let winsB = 0;
+        let drawsA = 0; let drawsB = 0;
+
+        if (winner === 'A') { addPtsA += ptsWin; winsA = 1; }
+        else if (winner === 'B') { addPtsB += ptsWin; winsB = 1; }
+        else { addPtsA += ptsDraw; addPtsB += ptsDraw; drawsA = 1; drawsB = 1; }
+
+        // Pontos de Fases de Mata-Mata
+        const isKnockoutMatch = match.matchId.includes('_ko_') || comp?.format === 'cup';
+        const roundDetails = comp?.rounds?.find(r => r.id === match.roundId);
+        
+        if (isKnockoutMatch && roundDetails) {
+          const rName = roundDetails.number;
+          if (rName === 'Oitavas') { addPtsA += (isFlash ? 0 : 5); addPtsB += (isFlash ? 0 : 5); }
+          if (rName === 'Quartas') { addPtsA += (isFlash ? 2 : 10); addPtsB += (isFlash ? 2 : 10); }
+          if (rName === 'Semifinal') { addPtsA += (isFlash ? 5 : 15); addPtsB += (isFlash ? 5 : 15); }
+          if (rName === 'Final' && match.matchId.includes('_3rd')) {
+            if (winner === 'A') addPtsA += (isFlash ? 5 : 15);
+            else if (winner === 'B') addPtsB += (isFlash ? 5 : 15);
+          }
+        }
+
+        // Envia as métricas definitivas para os times na nuvem
+        await updateDoc(getPublicDocPath('teams', tA.id), {
+          globalPoints: (tA.globalPoints || 0) + addPtsA,
+          playedMatches: (tA.playedMatches || 0) + 1,
+          totalWins: (tA.totalWins || 0) + winsA,
+          totalDraws: (tA.totalDraws || 0) + drawsA,
+          goalsFor: (tA.goalsFor || 0) + finalScoreA,
+          goalsAgainst: (tA.goalsAgainst || 0) + finalScoreB
+        });
+
+        await updateDoc(getPublicDocPath('teams', tB.id), {
+          globalPoints: (tB.globalPoints || 0) + addPtsB,
+          playedMatches: (tB.playedMatches || 0) + 1,
+          totalWins: (tB.totalWins || 0) + winsB,
+          totalDraws: (tB.totalDraws || 0) + drawsB,
+          goalsFor: (tB.goalsFor || 0) + finalScoreB,
+          goalsAgainst: (tB.goalsAgainst || 0) + finalScoreA
+        });
+      }
+
+      // 🔄 AVANÇO AUTOMÁTICO DE CHAVES NO MATA-MATA
       if (comp && (comp.format === 'cup' || comp.format === 'groups')) {
         let winnerId = null; 
         if (finalScoreA > finalScoreB) winnerId = match.teamA; else if (finalScoreB > finalScoreA) winnerId = match.teamB; else if (finalPenaltiesA !== null && finalPenaltiesA !== undefined) { if (finalPenaltiesA > finalPenaltiesB) winnerId = match.teamA; else if (finalPenaltiesB > finalPenaltiesA) winnerId = match.teamB; }
