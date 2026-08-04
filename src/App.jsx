@@ -1489,16 +1489,22 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
     </div>
   );
 };
+
 const Standings = ({ matches, teams, comp }) => {
   const isGroupsFormat = comp?.format === 'groups' && comp?.groups;
+  
+  // 1. Lemos os valores salvos nas configurações (se não houver, padrão é 0)
+  const promotionsCount = comp?.promotions || 0;
+  const relegationsCount = comp?.relegations || 0;
+
   return (
     <div className="animate-in fade-in duration-500 w-full">
       {/* 🌟 ESTILIZAÇÃO DA BARRA DE ROLAGEM TEMÁTICA (APENAS PARA ESTA TABELA) */}
       <style>{`
-        .scrollbar-kame::-wekcit-scrollbar { width: 8px; height: 8px; }
-        .scrollbar-kame::-wekcit-scrollbar-track { background: rgba(15, 23, 42, 0.6); border-radius: 10px; }
-        .scrollbar-kame::-wekcit-scrollbar-thumb { background: #059669; border-radius: 10px; border: 2px solid rgba(15, 23, 42, 0.6); }
-        .scrollbar-kame::-wekcit-scrollbar-thumb:hover { background: #10b981; }
+        .scrollbar-kame::-webkit-scrollbar { width: 8px; height: 8px; }
+        .scrollbar-kame::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); border-radius: 10px; }
+        .scrollbar-kame::-webkit-scrollbar-thumb { background: #059669; border-radius: 10px; border: 2px solid rgba(15, 23, 42, 0.6); }
+        .scrollbar-kame::-webkit-scrollbar-thumb:hover { background: #10b981; }
       `}</style>
 
       <div className="bg-sky-900/30 rounded-2xl border border-sky-800/50 overflow-hidden shadow-2xl">
@@ -1531,8 +1537,9 @@ const Standings = ({ matches, teams, comp }) => {
                       </thead>
                       <tbody className="divide-y divide-sky-800/30">
                         {gTable.map((row, index) => {
-                          const isQualified = index < (comp.qualifiersPerGroup || 2);
-                          const isBottom = index >= gTable.length - (gTable.length >= 4 ? 2 : 1);
+                          // 2. Lógica dinâmica para Fase de Grupos
+                          const isQualified = promotionsCount > 0 && index < promotionsCount;
+                          const isBottom = relegationsCount > 0 && index >= gTable.length - relegationsCount;
                           
                           const borderClass = isQualified ? 'border-l-4 border-green-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
                           const bgClass = isQualified ? 'bg-green-500/20' : (isBottom ? 'bg-red-500/20' : 'bg-blue-900/40');
@@ -1542,7 +1549,6 @@ const Standings = ({ matches, teams, comp }) => {
                             <tr key={row.id} className={`hover:bg-sky-800/60 transition-colors ${borderClass} ${bgClass}`}>
                               <td className={`px-3 py-2 text-center text-base ${textNumberClass}`}>{index + 1}</td>
                               
-                              {/* Elementos menores para caber mais na tela */}
                               <td className="px-3 py-2 font-bold text-white uppercase tracking-wide">
                                 <div className="flex items-center gap-2 min-w-max py-0.5">
                                   <div className="shrink-0"><ShieldDisplay shield={row.shield} size="small" /></div>
@@ -1592,12 +1598,11 @@ const Standings = ({ matches, teams, comp }) => {
                   const table = calculateStandings(matches, teams, comp?.id);
                   const displayTable = table.filter(t => t.p > 0 || table.length > 0);
                   const totalTeams = displayTable.length;
-                  const bottomCount = comp?.bottomRelegated !== undefined ? comp.bottomRelegated : (totalTeams > 10 ? 4 : 2); 
-                  const topCount = comp?.topQualifiers || 4; 
 
                   return displayTable.map((row, index) => {
-                    const isTop = index < topCount; 
-                    const isBottom = index >= totalTeams - bottomCount;
+                    // 3. Lógica dinâmica para Pontos Corridos
+                    const isTop = promotionsCount > 0 && index < promotionsCount; 
+                    const isBottom = relegationsCount > 0 && index >= totalTeams - relegationsCount;
                     
                     const borderClass = isTop ? 'border-l-4 border-green-500' : (isBottom ? 'border-l-4 border-red-500' : 'border-l-4 border-transparent');
                     const bgClass = isTop ? 'bg-green-500/20' : (isBottom ? 'bg-red-500/20' : 'bg-blue-900/40');
@@ -1607,7 +1612,6 @@ const Standings = ({ matches, teams, comp }) => {
                       <tr key={row.id} className={`hover:bg-sky-800/60 transition-colors ${borderClass} ${bgClass}`}>
                         <td className={`px-3 py-2 text-center text-base ${textNumberClass}`}>{index + 1}</td>
                         
-                        {/* Elementos menores para caber mais na tela */}
                         <td className="px-3 py-2 font-bold text-white uppercase tracking-wide">
                           <div className="flex items-center gap-2 min-w-max py-0.5">
                             <div className="shrink-0"><ShieldDisplay shield={row.shield} size="small" /></div>
