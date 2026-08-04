@@ -3662,6 +3662,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   }, [selectedCompId, competitions, matches]);
 
   // 1. Atualiza a lista de partidas silenciosamente (sem resetar a tela à toa)
+  // 1. Atualiza a lista de partidas ativas silenciosamente
   useEffect(() => {
     if (!selectedCompId) {
       setAvailableMatches([]);
@@ -3682,14 +3683,13 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     }
   }, [selectedCompId, competitions, matches]);
 
-  // 2. Reseta a tela APENAS se você trocar de Torneio 
-  // (Ignora o recarregamento causado pelo aviso verde)
+  // 2. Reseta a tela APENAS se você trocar de Campeonato
   useEffect(() => {
     setSelectedMatchId('');
     resetAI();
   }, [selectedCompId]);
 
-  // 3. Reseta a IA e puxa os escudos APENAS ao trocar a Partida na caixa de seleção
+  // 3. Reseta a IA e puxa os escudos APENAS ao trocar de Partida
   useEffect(() => {
     resetAI();
     if (selectedMatchId) {
@@ -3703,19 +3703,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMatchId]);
-
-  useEffect(() => {
-    resetAI();
-    if (selectedMatchId) {
-      const match = availableMatches.find(m => m.id === selectedMatchId);
-      if (match) {
-        setTeamA((teams || []).find(t => t.id === match.teamA));
-        setTeamB((teams || []).find(t => t.id === match.teamB));
-      }
-    } else {
-      setTeamA(null); setTeamB(null);
-    }
-  }, [selectedMatchId, availableMatches, teams]);
 
   // 🌟 EFEITO DO PISCA-PISCA DO SORTEIO
   useEffect(() => {
