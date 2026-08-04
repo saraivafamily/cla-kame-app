@@ -252,7 +252,7 @@ const LoginScreen = ({ onLogin, onRegister }) => {
   };
 
   const handleRegisterSubmit = async (e) => {
-    e.prevent(); setError(''); setIsProcessing(true);
+    e.preventDefault(); setError(''); setIsProcessing(true);
     try { 
       await onRegister(regData); 
       setView('login');
@@ -326,7 +326,7 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskcompleted }) =
 
   // 2. ENVIAR PARA O FIREBASE
   const handlePost = async (e) => {
-    e.prevent();
+    e.preventDefault();
     if (!newPost.trim() && !postImage) return;
     setIsPosting(true);
     
@@ -3043,7 +3043,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
 
   const handleSubmit = async (e) => {
-    e.prevent();
+    e.preventDefault();
     if (comp.isPaid && !receipt) { showToast("Anexe o comprovante de pagamento!", "error"); return; }
     
     setIsSubmitting(true);
@@ -3196,7 +3196,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   };
 
   const handleSubmit = (e) => {
-    e.prevent();
+    e.preventDefault();
     if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
     
     if (!isAutoJoin && selectedTeams.length !== parseInt(teamCount)) { 
@@ -3878,7 +3878,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
   };
 
   const handleSubmitInit = (e) => {
-    e.prevent();
+    e.preventDefault(); // <--- AQUI ESTAVA O ERRO (Corrigido!)
     if(!selectedCompId || !selectedMatchId || scoreA === '' || scoreB === '') return;
 
     if (scoreA === '?' || scoreB === '?' || scoreA === '' || scoreB === '') {
@@ -4226,7 +4226,7 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
 const CreateTeamManual = ({ onCreate, showToast }) => {
   const [name, setName] = useState(''); const [coach, setCoach] = useState(''); const [shield, setShield] = useState(null);
   return (
-    <form onSubmit={async (e)=>{e.prevent(); if(!name)return; await onCreate({id:`t${Date.now()}`,name,coach:coach||'Técnico',whatsapp:'',ownerId:'manual',shield:shield||'🛡️'}); showToast("Time salvo!"); setName(''); setCoach(''); setShield(null); }} className="max-w-xl mx-auto bg-blue-900 border border-blue-800 p-6 rounded-2xl space-y-4 animate-in fade-in">
+    <form onSubmit={async (e)=>{e.preventDefault(); if(!name)return; await onCreate({id:`t${Date.now()}`,name,coach:coach||'Técnico',whatsapp:'',ownerId:'manual',shield:shield||'🛡️'}); showToast("Time salvo!"); setName(''); setCoach(''); setShield(null); }} className="max-w-xl mx-auto bg-blue-900 border border-blue-800 p-6 rounded-2xl space-y-4 animate-in fade-in">
       <h2 className="text-lg font-bold text-white flex items-center gap-2"><UserPlus size={18}/> Novo Time Simples</h2>
       <div><label className="text-xs text-blue-400 block mb-1">Nome do Clube</label><input required value={name} onChange={e=>setName(e.target.value)} className={inputClass}/></div>
       <div><label className="text-xs text-blue-400 block mb-1">Nome do Técnico</label><input value={coach} onChange={e=>setCoach(e.target.value)} className={inputClass}/></div>
@@ -4240,7 +4240,7 @@ const CreateTeamManual = ({ onCreate, showToast }) => {
 const CreateTeamFull = ({ onCreate, showToast }) => {
   const [fn, setFn] = useState(''); const [ln, setFnL] = useState(''); const [tn, setTn] = useState(''); const [wa, setWa] = useState(''); const [em, setEm] = useState(''); const [role, setRole] = useState('member');
   return (
-    <form onSubmit={async (e)=>{e.prevent(); const cl=wa.replace(/\D/g,''); const name=`${fn} ${ln}`; await onCreate({user:{id:`pending_${cl}`,name,email:em.trim().toLowerCase(),role,whatsapp:cl},team:{id:`t${Date.now()}`,name:tn,coach:name,whatsapp:cl,ownerId:`pending_${cl}`,shield:'🛡️'}}); window.open(`https://wa.me/${cl}?text=${encodeURIComponent(`Fala ${fn}! Acesso liberado no Clã Kame DLS:\nLink: ${window.location.origin}\nAtive sua conta em "Primeiro Acesso" com seu E-mail: ${em}`)}`,'_blank'); setFn(''); setFnL(''); setTn(''); setWa(''); setEm(''); }} className="max-w-xl mx-auto bg-blue-900 border border-blue-800 p-6 rounded-2xl space-y-4 animate-in fade-in">
+    <form onSubmit={async (e)=>{e.preventDefault(); const cl=wa.replace(/\D/g,''); const name=`${fn} ${ln}`; await onCreate({user:{id:`pending_${cl}`,name,email:em.trim().toLowerCase(),role,whatsapp:cl},team:{id:`t${Date.now()}`,name:tn,coach:name,whatsapp:cl,ownerId:`pending_${cl}`,shield:'🛡️'}}); window.open(`https://wa.me/${cl}?text=${encodeURIComponent(`Fala ${fn}! Acesso liberado no Clã Kame DLS:\nLink: ${window.location.origin}\nAtive sua conta em "Primeiro Acesso" com seu E-mail: ${em}`)}`,'_blank'); setFn(''); setFnL(''); setTn(''); setWa(''); setEm(''); }} className="max-w-xl mx-auto bg-blue-900 border border-blue-800 p-6 rounded-2xl space-y-4 animate-in fade-in">
       <h2 className="text-lg font-bold text-white flex items-center gap-2"><Users size={18}/> Convidar Técnico Oficial</h2>
       <div className="grid grid-cols-2 gap-4"><div><input required placeholder="Nome" value={fn} onChange={e=>setFn(e.target.value)} className={inputClass}/></div><div><input required placeholder="Sobrenome" value={ln} onChange={e=>setFnL(e.target.value)} className={inputClass}/></div></div>
       <div><input required placeholder="Nome do Clube" value={tn} onChange={e=>setTn(e.target.value)} className={inputClass}/></div>
