@@ -3640,9 +3640,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const isCup = selectedComp?.format === 'cup' || (selectedComp?.format === 'groups' && selectedMatchId.includes('_ko_'));
   const isTie = scoreA !== '' && scoreB !== '' && scoreA === scoreB;
 
+  // 1. Atualiza a lista de partidas (sem resetar a tela atoa)
   useEffect(() => {
-    setSelectedMatchId('');
-    resetAI();
     if (!selectedCompId) {
       setAvailableMatches([]);
       return;
@@ -3661,6 +3660,30 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       setAvailableMatches(toPlay);
     }
   }, [selectedCompId, competitions, matches]);
+
+  // 2. Reseta tudo SÓ quando você trocar de Competição
+  useEffect(() => {
+    setSelectedMatchId('');
+    resetAI();
+  }, [selectedCompId]);
+
+  // 3. Reseta a IA SÓ quando você trocar de Partida
+  useEffect(() => {
+    resetAI();
+  }, [selectedMatchId]);
+
+  // 4. Identifica os Escudos e Times da partida selecionada
+  useEffect(() => {
+    if (selectedMatchId) {
+      const match = availableMatches.find(m => m.id === selectedMatchId);
+      if (match) {
+        setTeamA((teams || []).find(t => t.id === match.teamA));
+        setTeamB((teams || []).find(t => t.id === match.teamB));
+      }
+    } else {
+      setTeamA(null); setTeamB(null);
+    }
+  }, [selectedMatchId, availableMatches, teams]);
 
   useEffect(() => {
     resetAI();
