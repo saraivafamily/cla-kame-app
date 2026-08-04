@@ -5306,7 +5306,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
   );
 };
 
-export  function App() {
+export default function App() {
   const [currentUser, setCurrentUser] = useState(() => { const saved = localStorage.getItem('claKame_user'); return saved ? JSON.parse(saved) : null; });
 
   const [feedPosts, setFeedPosts] = useState([]);
