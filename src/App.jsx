@@ -1658,7 +1658,9 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const [settingsData, setSettingsData] = useState({
     category: comp?.category || 'liga_a',
     playStyle: comp?.playStyle || 'Livre',
-    rules: comp?.rules || ''
+    rules: comp?.rules || '',
+    promotions: comp?.promotions || 0, // NOVO: Vagas de acesso
+    relegations: comp?.relegations || 0 // NOVO: Vagas de rebaixamento
   });
 
   const [showEditGroups, setShowEditGroups] = useState(false);
@@ -2226,6 +2228,15 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 <option value="Personalizado">Regras Personalizadas</option>
               </select>
             </div>
+            {/* NOVO: Campos de Acesso e Rebaixamento */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-blue-400">Vagas de Acesso (Classificados)</label>
+              <input type="number" min="0" value={settingsData.promotions} onChange={e => setSettingsData({...settingsData, promotions: parseInt(e.target.value) || 0})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" placeholder="Ex: 4" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-blue-400">Vagas de Rebaixamento</label>
+              <input type="number" min="0" value={settingsData.relegations} onChange={e => setSettingsData({...settingsData, relegations: parseInt(e.target.value) || 0})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" placeholder="Ex: 4" />
+            </div>
             <div className="space-y-1 md:col-span-2">
               <label className="text-xs font-bold text-blue-400">Regras da Competição</label>
               <textarea value={settingsData.rules} onChange={e => setSettingsData({...settingsData, rules: e.target.value})} placeholder="Descreva as regras de times, overral e proibições..." className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500 min-h-[80px] resize-y" />
@@ -2234,7 +2245,15 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setShowEditSettings(false)} className="px-4 py-2 bg-blue-900 border border-blue-700 rounded-lg text-xs text-blue-300 hover:text-white">Cancelar</button>
             <button onClick={() => {
-              onEditComp({ ...comp, category: settingsData.category, playStyle: settingsData.playStyle, rules: settingsData.rules });
+              // NOVO: Adicionado as propriedades promotions e relegations no objeto salvo
+              onEditComp({ 
+                ...comp, 
+                category: settingsData.category, 
+                playStyle: settingsData.playStyle, 
+                rules: settingsData.rules,
+                promotions: settingsData.promotions,
+                relegations: settingsData.relegations
+              });
               setShowEditSettings(false);
               showToast("Configurações atualizadas!", "success");
             }} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs shadow-md">Salvar</button>
@@ -2633,9 +2652,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                       ) : (
                         <div className="flex gap-12 items-stretch pb-8 min-w-max px-6 pt-4">
                           {knockoutRounds.map((round, roundIndex) => {
-                            // 🧠 CÁLCULO INTELIGENTE DAS FASES DE TRÁS PRA FRENTE
                             const distanceToFinal = knockoutRounds.length - roundIndex;
-                            let phaseName = round.number; // Puxa o original do banco como backup
+                            let phaseName = round.number; 
                             
                             if (distanceToFinal === 1) phaseName = "FINAL";
                             else if (distanceToFinal === 2) phaseName = "SEMIFINAL";
@@ -2698,7 +2716,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                     return (
                                       <div key={m.id} className="relative flex-1 flex flex-col justify-center py-3 group">
                                         
-                                        {/* LINHA ESQUERDA - CONEXÃO COM JOGO ANTERIOR */}
                                         {!isFirstRound && (
                                           <div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>
                                         )}
@@ -2745,7 +2762,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                                           )}
                                         </div>
 
-                                        {/* LINHA DIREITA - CONEXÃO COM PRÓXIMO JOGO (O COTOVELO) */}
                                         {!isLastRound && (
                                           <div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>
                                         )}
@@ -2975,7 +2991,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     </div>
   );
 };
-
 const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onBack, showToast }) => {
   const [receipt, setReceipt] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
