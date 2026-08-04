@@ -2808,17 +2808,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         </div>
                       ))}
                     </div>
-                    {subTab === 'submit' && isAdmin && (
-              <div className="animate-in slide-in-from-right-4">
-                <SubmitMatch teams={teams} competitions={[comp]} matches={matches} currentUser={currentUser} showToast={showToast} preSelectedCompId={comp.id} onSubmit={(m) => { onSubmitMatch(m); setSubTab('validation'); }} />
-              </div>
-            )}
-            
-            {subTab === 'validation' && isAdmin && (
-              <div className="animate-in slide-in-from-right-4">
-                <ValidationPanel matches={matches.filter(m => m.compId === comp.id)} teams={teams} competitions={[comp]} onUpdateStatus={onUpdateMatchStatus} showToast={showToast} />
-              </div>
-            )}
                   </div>
                 </div>
 
@@ -2838,9 +2827,25 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 </div>
               </div>
             )}
+
+            {/* 🔥 AS ABAS NOVAS ENTRAM AQUI, SEPARADAS DAS ESTATÍSTICAS! */}
+            {subTab === 'submit' && isAdmin && (
+              <div className="animate-in slide-in-from-right-4">
+                <SubmitMatch teams={teams} competitions={[comp]} matches={matches} currentUser={currentUser} showToast={showToast} preSelectedCompId={comp.id} onSubmit={(m) => { onSubmitMatch(m); setSubTab('validation'); }} />
+              </div>
+            )}
+            
+            {subTab === 'validation' && isAdmin && (
+              <div className="animate-in slide-in-from-right-4">
+                <ValidationPanel matches={matches.filter(m => m.compId === comp.id)} teams={teams} competitions={[comp]} onUpdateStatus={onUpdateMatchStatus} showToast={showToast} />
+              </div>
+            )}
+
           </div>
         </>
       )}
+
+      
 
       {showEditGroups && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setShowEditGroups(false)}>
