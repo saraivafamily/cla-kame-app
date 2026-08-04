@@ -3661,19 +3661,37 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     }
   }, [selectedCompId, competitions, matches]);
 
-  // 2. Reseta tudo SÓ quando você trocar de Competição
+  // 1. Atualiza a lista de partidas silenciosamente (sem resetar a tela à toa)
+  useEffect(() => {
+    if (!selectedCompId) {
+      setAvailableMatches([]);
+      return;
+    }
+    const comp = competitions.find(c => c.id === selectedCompId);
+    if (comp && comp.rounds) {
+      let toPlay = [];
+      comp.rounds.filter(r => r.status === 'released').forEach(round => {
+        round.matches.forEach(rm => {
+          const alreadySubmitted = matches.some(m => m.matchId === rm.id && m.compId === comp.id && (m.status === 'pending' || m.status === 'approved'));
+          if (!alreadySubmitted && rm.teamA && rm.teamB && (isAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
+            toPlay.push({ ...rm, roundId: round.id });
+          }
+        });
+      });
+      setAvailableMatches(toPlay);
+    }
+  }, [selectedCompId, competitions, matches]);
+
+  // 2. Reseta a tela APENAS se você trocar de Torneio 
+  // (Ignora o recarregamento causado pelo aviso verde)
   useEffect(() => {
     setSelectedMatchId('');
     resetAI();
   }, [selectedCompId]);
 
-  // 3. Reseta a IA SÓ quando você trocar de Partida
+  // 3. Reseta a IA e puxa os escudos APENAS ao trocar a Partida na caixa de seleção
   useEffect(() => {
     resetAI();
-  }, [selectedMatchId]);
-
-  // 4. Identifica os Escudos e Times da partida selecionada
-  useEffect(() => {
     if (selectedMatchId) {
       const match = availableMatches.find(m => m.id === selectedMatchId);
       if (match) {
@@ -3683,7 +3701,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     } else {
       setTeamA(null); setTeamB(null);
     }
-  }, [selectedMatchId, availableMatches, teams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMatchId]);
 
   useEffect(() => {
     resetAI();
