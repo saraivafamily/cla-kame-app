@@ -244,14 +244,15 @@ const LoginScreen = ({ onLogin, onRegister }) => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleLoginSubmit = async (e) => {
-    e.preventDefault(); setError(''); setIsProcessing(true);
+  e.preventDefault(); setError(''); setIsProcessing(true); // <-- Certo!
+  // ...
     try { await onLogin(loginData.identifier, loginData.password); } 
     catch (err) { setError(err.message || 'Erro nas credenciais.'); }
     setIsProcessing(false);
   };
 
   const handleRegisterSubmit = async (e) => {
-    e.preventDefault(); setError(''); setIsProcessing(true);
+    e.prevent(); setError(''); setIsProcessing(true);
     try { 
       await onRegister(regData); 
       setView('login');
@@ -325,7 +326,7 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskcompleted }) =
 
   // 2. ENVIAR PARA O FIREBASE
   const handlePost = async (e) => {
-    e.preventDefault();
+    e.prevent();
     if (!newPost.trim() && !postImage) return;
     setIsPosting(true);
     
@@ -514,7 +515,7 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskcompleted }) =
                   </div>
                   <span>{currentLikes.length > 0 && currentLikes.length}</span>
                 </button>
-                <div className="flex items-center gap-1.5 text-sm font-bold text-blue-400 group cursor-default">
+                <div className="flex items-center gap-1.5 text-sm font-bold text-blue-400 group cursor-">
                   <div className="p-1.5 rounded-full group-hover:bg-blue-500/10 transition-colors">
                     <MessageCircle size={18} />
                   </div>
@@ -923,11 +924,11 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
       {/* 2. AÇÕES RÁPIDAS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {isAdmin && (
-          <button onClick={() => onChangeTab('submit')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
+          <button onClick={() => onChangeTab('competitions')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
             <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
-              <PlusCircle size={20} className="text-emerald-400" />
+              <Camera size={20} className="text-emerald-400" />
             </div>
-            <span className="text-xs font-bold text-blue-200">Novo Resultado</span>
+            <span className="text-xs font-bold text-blue-200">Registrar/Validar</span>
           </button>
         )}
         <button onClick={() => onChangeTab('profile')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
@@ -1640,7 +1641,7 @@ const Standings = ({ matches, teams, comp }) => {
   );
 };
 
-const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onLockRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch }) => {
+const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onLockRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch, onSubmitMatch, onUpdateMatchStatus }) => {
   const [subTab, setSubTab] = useState('overview'); 
   const [expandedRoundId, setExpandedRoundId] = useState(null);
   const [editMatchData, setEditMatchData] = useState(null);
@@ -2391,9 +2392,17 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         </div>
       ) : (
         <>
-          <div className="flex gap-1 p-1 bg-blue-950 rounded-xl border border-blue-800">
-            <button onClick={()=>setSubTab('overview')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Tabela & Jogos</button>
-            <button onClick={()=>setSubTab('stats')} className={`flex-1 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Estatísticas</button>
+          <div className="flex gap-1 p-1 bg-blue-950 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar">
+            <button onClick={()=>setSubTab('overview')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Tabela & Jogos</button>
+            <button onClick={()=>setSubTab('stats')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Estatísticas</button>
+            {isAdmin && (
+              <>
+                <button onClick={()=>setSubTab('submit')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='submit'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Registrar</button>
+                <button onClick={()=>setSubTab('validation')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all flex justify-center items-center gap-1 ${subTab==='validation'?'bg-amber-600 text-white':'text-amber-500/70 hover:text-amber-400'}`}>
+                  Validação {matches.filter(m => m.compId === comp.id && m.status === 'pending').length > 0 && <span className="bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[9px] shadow-sm">{matches.filter(m => m.compId === comp.id && m.status === 'pending').length}</span>}
+                </button>
+              </>
+            )}
           </div>
           
           <div className="space-y-8 mt-4">
@@ -2799,6 +2808,17 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                         </div>
                       ))}
                     </div>
+                    {subTab === 'submit' && isAdmin && (
+              <div className="animate-in slide-in-from-right-4">
+                <SubmitMatch teams={teams} competitions={[comp]} matches={matches} currentUser={currentUser} showToast={showToast} preSelectedCompId={comp.id} onSubmit={(m) => { onSubmitMatch(m); setSubTab('validation'); }} />
+              </div>
+            )}
+            
+            {subTab === 'validation' && isAdmin && (
+              <div className="animate-in slide-in-from-right-4">
+                <ValidationPanel matches={matches.filter(m => m.compId === comp.id)} teams={teams} competitions={[comp]} onUpdateStatus={onUpdateMatchStatus} showToast={showToast} />
+              </div>
+            )}
                   </div>
                 </div>
 
@@ -2995,6 +3015,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     </div>
   );
 };
+
 const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onBack, showToast }) => {
   const [receipt, setReceipt] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -3017,7 +3038,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e.prevent();
     if (comp.isPaid && !receipt) { showToast("Anexe o comprovante de pagamento!", "error"); return; }
     
     setIsSubmitting(true);
@@ -3170,7 +3191,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    e.prevent();
     if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
     
     if (!isAutoJoin && selectedTeams.length !== parseInt(teamCount)) { 
@@ -3550,8 +3571,8 @@ const MatchDetails = ({ match, teams, competitions, onBack }) => {
   );
 };
 
-const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, showToast }) => {
-  const [selectedCompId, setSelectedCompId] = useState('');
+const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, showToast, preSelectedCompId }) => {
+  const [selectedCompId, setSelectedCompId] = useState(preSelectedCompId || '');
   const [selectedMatchId, setSelectedMatchId] = useState('');
   const [availableMatches, setAvailableMatches] = useState([]);
   
@@ -3852,7 +3873,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
   };
 
   const handleSubmitInit = (e) => {
-    e.preventDefault();
+    e.prevent();
     if(!selectedCompId || !selectedMatchId || scoreA === '' || scoreB === '') return;
 
     if (scoreA === '?' || scoreB === '?' || scoreA === '' || scoreB === '') {
@@ -3983,16 +4004,18 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           </div>
         )}
 
-        <div>
-          <label className="block text-sm font-medium text-blue-400 mb-2">1. Competição</label>
-          <select value={selectedCompId} onChange={e => setSelectedCompId(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
-            <option value="">Escolha um campeonato...</option>
-            {visibleCompetitions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          {visibleCompetitions.length === 0 && (
-            <p className="text-xs text-blue-500 mt-2">Nenhuma competição pendente disponível para você no momento.</p>
-          )}
-        </div>
+        {!preSelectedCompId && (
+          <div>
+            <label className="block text-sm font-medium text-blue-400 mb-2">1. Competição</label>
+            <select value={selectedCompId} onChange={e => setSelectedCompId(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
+              <option value="">Escolha um campeonato...</option>
+              {visibleCompetitions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            {visibleCompetitions.length === 0 && (
+              <p className="text-xs text-blue-500 mt-2">Nenhuma competição pendente disponível para você no momento.</p>
+            )}
+          </div>
+        )}
 
         {selectedCompId && (
           <div className="animate-in fade-in">
@@ -4198,7 +4221,7 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
 const CreateTeamManual = ({ onCreate, showToast }) => {
   const [name, setName] = useState(''); const [coach, setCoach] = useState(''); const [shield, setShield] = useState(null);
   return (
-    <form onSubmit={async (e)=>{e.preventDefault(); if(!name)return; await onCreate({id:`t${Date.now()}`,name,coach:coach||'Técnico',whatsapp:'',ownerId:'manual',shield:shield||'🛡️'}); showToast("Time salvo!"); setName(''); setCoach(''); setShield(null); }} className="max-w-xl mx-auto bg-blue-900 border border-blue-800 p-6 rounded-2xl space-y-4 animate-in fade-in">
+    <form onSubmit={async (e)=>{e.prevent(); if(!name)return; await onCreate({id:`t${Date.now()}`,name,coach:coach||'Técnico',whatsapp:'',ownerId:'manual',shield:shield||'🛡️'}); showToast("Time salvo!"); setName(''); setCoach(''); setShield(null); }} className="max-w-xl mx-auto bg-blue-900 border border-blue-800 p-6 rounded-2xl space-y-4 animate-in fade-in">
       <h2 className="text-lg font-bold text-white flex items-center gap-2"><UserPlus size={18}/> Novo Time Simples</h2>
       <div><label className="text-xs text-blue-400 block mb-1">Nome do Clube</label><input required value={name} onChange={e=>setName(e.target.value)} className={inputClass}/></div>
       <div><label className="text-xs text-blue-400 block mb-1">Nome do Técnico</label><input value={coach} onChange={e=>setCoach(e.target.value)} className={inputClass}/></div>
@@ -4212,7 +4235,7 @@ const CreateTeamManual = ({ onCreate, showToast }) => {
 const CreateTeamFull = ({ onCreate, showToast }) => {
   const [fn, setFn] = useState(''); const [ln, setFnL] = useState(''); const [tn, setTn] = useState(''); const [wa, setWa] = useState(''); const [em, setEm] = useState(''); const [role, setRole] = useState('member');
   return (
-    <form onSubmit={async (e)=>{e.preventDefault(); const cl=wa.replace(/\D/g,''); const name=`${fn} ${ln}`; await onCreate({user:{id:`pending_${cl}`,name,email:em.trim().toLowerCase(),role,whatsapp:cl},team:{id:`t${Date.now()}`,name:tn,coach:name,whatsapp:cl,ownerId:`pending_${cl}`,shield:'🛡️'}}); window.open(`https://wa.me/${cl}?text=${encodeURIComponent(`Fala ${fn}! Acesso liberado no Clã Kame DLS:\nLink: ${window.location.origin}\nAtive sua conta em "Primeiro Acesso" com seu E-mail: ${em}`)}`,'_blank'); setFn(''); setFnL(''); setTn(''); setWa(''); setEm(''); }} className="max-w-xl mx-auto bg-blue-900 border border-blue-800 p-6 rounded-2xl space-y-4 animate-in fade-in">
+    <form onSubmit={async (e)=>{e.prevent(); const cl=wa.replace(/\D/g,''); const name=`${fn} ${ln}`; await onCreate({user:{id:`pending_${cl}`,name,email:em.trim().toLowerCase(),role,whatsapp:cl},team:{id:`t${Date.now()}`,name:tn,coach:name,whatsapp:cl,ownerId:`pending_${cl}`,shield:'🛡️'}}); window.open(`https://wa.me/${cl}?text=${encodeURIComponent(`Fala ${fn}! Acesso liberado no Clã Kame DLS:\nLink: ${window.location.origin}\nAtive sua conta em "Primeiro Acesso" com seu E-mail: ${em}`)}`,'_blank'); setFn(''); setFnL(''); setTn(''); setWa(''); setEm(''); }} className="max-w-xl mx-auto bg-blue-900 border border-blue-800 p-6 rounded-2xl space-y-4 animate-in fade-in">
       <h2 className="text-lg font-bold text-white flex items-center gap-2"><Users size={18}/> Convidar Técnico Oficial</h2>
       <div className="grid grid-cols-2 gap-4"><div><input required placeholder="Nome" value={fn} onChange={e=>setFn(e.target.value)} className={inputClass}/></div><div><input required placeholder="Sobrenome" value={ln} onChange={e=>setFnL(e.target.value)} className={inputClass}/></div></div>
       <div><input required placeholder="Nome do Clube" value={tn} onChange={e=>setTn(e.target.value)} className={inputClass}/></div>
@@ -4327,7 +4350,7 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
 const RecordsWall = ({ showToast, currentUser, globalRecords, onSaveRecords }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
 
-  const defaultRecords = [
+  const Records = [
     {
       title: "🔥 Melhor Campanha (Divisão Lendária)",
       description: "Desempenho perfeito na liga mais difícil",
@@ -4408,7 +4431,7 @@ const RecordsWall = ({ showToast, currentUser, globalRecords, onSaveRecords }) =
       if (globalRecords && globalRecords.length > 0) return globalRecords;
       if (savedLocal) return JSON.parse(savedLocal);
     } catch(e) {}
-    return defaultRecords;
+    return Records;
   });
 
   useEffect(() => {
@@ -5283,7 +5306,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
   );
 };
 
-export default function App() {
+export  function App() {
   const [currentUser, setCurrentUser] = useState(() => { const saved = localStorage.getItem('claKame_user'); return saved ? JSON.parse(saved) : null; });
 
   const [feedPosts, setFeedPosts] = useState([]);
@@ -5521,8 +5544,6 @@ export default function App() {
     { id: 'rules', label: 'Regras do Clã', icon: BookOpen },
     
     ...(hasEventAccess ? [
-      { id: 'submit', label: 'Registrar', icon: Camera }, 
-      { id: 'validation', label: 'Validação', icon: CheckSquare }, 
       { id: 'create_comp', label: 'Nova Comp', icon: PlusCircle }
     ] : []),
 
@@ -5697,7 +5718,7 @@ export default function App() {
           if (!currentUser.receivedProfileBonus) {
             updates.kameCoins = (currentUser.kameCoins || 0) + 50;
             updates.receivedProfileBonus = true;
-            rewardMsg = " 🎁 +50 kc de Bônus ganho!";
+            rewardMsg = " 🎁 +50 bc de Bônus ganho!";
           }
           await updateDoc(getPublicDocPath('users', currentUser.id), updates); 
           setCurrentUser(prev => ({...prev, ...updates})); 
@@ -5719,10 +5740,8 @@ export default function App() {
           await setDoc(getPublicDocPath('predictions', p.id), p); 
       }} />;
         
-      case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} />;
+      case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); })} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
-      case 'submit': return <SubmitMatch teams={teams} competitions={competitions} matches={matches} currentUser={currentUser} showToast={showToast} onSubmit={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); setCurrentTab(hasEventAccess ? 'validation' : 'dashboard'); })} />;
-      case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} showToast={showToast} />;
       case 'create_comp': return <CreateCompetition teams={teams} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
       case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
@@ -5775,7 +5794,7 @@ export default function App() {
                   <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse"></span>
                 )}
 
-                {(tab.id === 'validation' && matches.filter(m=>m?.status==='pending').length > 0) && <span className="ml-auto bg-amber-500 text-blue-950 text-xs font-bold px-2 py-0.5 rounded-full">{matches.filter(m=>m?.status==='pending').length}</span>}
+                {(tab.id === 'competitions' && hasEventAccess && matches.filter(m=>m?.status==='pending').length > 0) && <span className="ml-auto bg-amber-500 text-blue-950 text-xs font-bold px-2 py-0.5 rounded-full shadow-md">{matches.filter(m=>m?.status==='pending').length}</span>}
               </button> 
             );
           })}
