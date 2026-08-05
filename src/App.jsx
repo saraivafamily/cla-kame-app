@@ -3865,7 +3865,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   }, [selectedCompId, competitions, matches]);
 
   // 1. Atualiza a lista de partidas silenciosamente (sem resetar a tela à toa)
-  // 1. Atualiza a lista de partidas ativas silenciosamente
+ // 1. Atualiza a lista de partidas ativas silenciosamente
   useEffect(() => {
     if (!selectedCompId) {
       setAvailableMatches([]);
@@ -3874,10 +3874,13 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     const comp = competitions.find(c => c.id === selectedCompId);
     if (comp && comp.rounds) {
       let toPlay = [];
+      const amIAdmin = isCompAdmin(comp); // <--- Aqui definimos a regra corretamente
+      
       comp.rounds.filter(r => r.status === 'released').forEach(round => {
         round.matches.forEach(rm => {
           const alreadySubmitted = matches.some(m => m.matchId === rm.id && m.compId === comp.id && (m.status === 'pending' || m.status === 'approved'));
-          if (!alreadySubmitted && rm.teamA && rm.teamB && (isAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
+          // 👇 E aqui usamos a variável certa (amIAdmin) para liberar as partidas 👇
+          if (!alreadySubmitted && rm.teamA && rm.teamB && (amIAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
             toPlay.push({ ...rm, roundId: round.id });
           }
         });
