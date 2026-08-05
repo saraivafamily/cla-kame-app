@@ -1642,6 +1642,166 @@ const Standings = ({ matches, teams, comp }) => {
   );
 };
 
+const DrawPanel = ({ comp, teams, matches, showToast }) => {
+  const [prizeName, setPrizeName] = useState('Passe de Temporada');
+  const [prizeQty, setPrizeQty] = useState(1);
+  const [excludeTop, setExcludeTop] = useState(3); // Exclui Top 1, 2 e 3 por padrão
+  const [excludeWO, setExcludeWO] = useState(true);
+  
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [winners, setWinners] = useState([]);
+
+  // 1. Pega a Classificação Atual
+  const standings = useMemo(() => calculateStandings(matches, teams, comp.id), [matches, teams, comp.id]);
+
+  // 2. Identifica os perdedores por W.O.
+  const woLosers = useMemo(() => {
+    const losers = new Set();
+    matches.filter(m => m.compId === comp.id && m.status === 'approved').forEach(m => {
+      const obs = (m.observacoes || '').toLowerCase();
+      const isWO = obs.includes('w.o') || obs.includes('wo');
+      if (isWO) {
+        // Quem tem 0 gols no W.O. foi quem tomou o W.O. Se for duplo, penaliza os dois.
+        if (m.scoreA === 0 && m.scoreB === 3) losers.add(m.teamA);
+        if (m.scoreB === 0 && m.scoreA === 3) losers.add(m.teamB);
+        if (obs.includes('duplo')) { losers.add(m.teamA); losers.add(m.teamB); }
+      }
+    });
+    return losers;
+  }, [matches, comp.id]);
+
+  // 3. Aplica o Funil de Regras
+  const { eligible, excluded } = useMemo(() => {
+    const el = []; const ex = [];
+    standings.forEach((teamStats, index) => {
+      let isExcluded = false;
+      let reason = '';
+
+      if (index < excludeTop) {
+        isExcluded = true;
+        reason = `Ficou no Top ${excludeTop}`;
+      } else if (excludeWO && woLosers.has(teamStats.id)) {
+        isExcluded = true;
+        reason = 'Tomou W.O. no torneio';
+      }
+
+      if (isExcluded) {
+        ex.push({ ...teamStats, reason });
+      } else {
+        el.push(teamStats);
+      }
+    });
+    return { eligible: el, excluded: ex };
+  }, [standings, excludeTop, excludeWO, woLosers]);
+
+  const handleDraw = () => {
+    if (eligible.length === 0) {
+      showToast("Não há times elegíveis suficientes para o sorteio!", "error");
+      return;
+    }
+    if (prizeQty > eligible.length) {
+      showToast(`Há apenas ${eligible.length} times elegíveis. Diminua a quantidade de prêmios.`, "error");
+      return;
+    }
+
+    setIsDrawing(true);
+    setWinners([]);
+
+    setTimeout(() => {
+      // Algoritmo de Embaralhamento (Fisher-Yates)
+      let pool = [...eligible];
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      
+      setWinners(pool.slice(0, prizeQty));
+      setIsDrawing(false);
+      showToast("Sorteio realizado com sucesso!", "success");
+    }, 2000); // 2 segundos de suspense
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in">
+      <div className="bg-purple-900/40 p-5 rounded-2xl border border-purple-500/50 flex flex-col md:flex-row gap-6 shadow-xl">
+        {/* Formulário de Configuração */}
+        <div className="flex-1 space-y-4">
+          <h3 className="text-lg font-black text-purple-400 flex items-center gap-2 uppercase tracking-wider"><Dices size={20}/> Configurar Sorteio</h3>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="text-xs text-blue-300 font-bold mb-1 block">Prêmio Sorteado</label><input type="text" value={prizeName} onChange={e=>setPrizeName(e.target.value)} className="w-full bg-blue-950 border border-purple-500/50 rounded-lg p-2 text-white outline-none focus:border-purple-400 text-sm" /></div>
+            <div><label className="text-xs text-blue-300 font-bold mb-1 block">Qtd. de Ganhadores</label><input type="number" min="1" value={prizeQty} onChange={e=>setPrizeQty(parseInt(e.target.value)||1)} className="w-full bg-blue-950 border border-purple-500/50 rounded-lg p-2 text-white outline-none focus:border-purple-400 text-sm" /></div>
+          </div>
+
+          <div className="pt-2 space-y-2 border-t border-purple-800/50">
+            <label className="text-xs font-bold text-amber-400 uppercase tracking-widest block">Regras de Exclusão</label>
+            <div className="flex items-center gap-3 bg-blue-950 p-2 rounded-lg border border-blue-800">
+              <span className="text-sm text-blue-200 flex-1">Não sortear os Top:</span>
+              <select value={excludeTop} onChange={e=>setExcludeTop(Number(e.target.value))} className="bg-blue-900 border border-blue-700 text-white rounded p-1 text-sm outline-none">
+                <option value={0}>Nenhum (Todos participam)</option>
+                <option value={1}>Top 1 (Campeão)</option>
+                <option value={2}>Top 1 e 2</option>
+                <option value={3}>Top 1, 2 e 3</option>
+                <option value={4}>Top 4</option>
+              </select>
+            </div>
+            
+            <label className="flex items-center justify-between cursor-pointer bg-blue-950 p-2 rounded-lg border border-blue-800">
+              <span className="text-sm text-blue-200">Excluir quem tomou W.O.</span>
+              <input type="checkbox" checked={excludeWO} onChange={e=>setExcludeWO(e.target.checked)} className="w-4 h-4 accent-purple-500" />
+            </label>
+          </div>
+
+          <Button onClick={handleDraw} disabled={isDrawing} className="w-full py-3 mt-4 bg-purple-600 hover:bg-purple-500 text-white font-black text-lg border-0 shadow-lg shadow-purple-900/50">
+            {isDrawing ? '🎲 Girando a Roleta...' : '🎲 Realizar Sorteio'}
+          </Button>
+        </div>
+
+        {/* Status do Funil */}
+        <div className="flex-1 flex flex-col gap-3">
+          <div className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex-1 overflow-y-auto max-h-[150px] custom-scrollbar">
+            <p className="text-xs font-bold text-emerald-400 mb-2 sticky top-0 bg-blue-950">✅ Participantes Elegíveis ({eligible.length})</p>
+            <div className="flex flex-wrap gap-1.5">
+              {eligible.length === 0 ? <span className="text-xs text-blue-500">Nenhum</span> : eligible.map(t => <span key={t.id} className="text-[10px] bg-blue-900 text-blue-200 px-2 py-1 rounded">{t.name}</span>)}
+            </div>
+          </div>
+          <div className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex-1 overflow-y-auto max-h-[150px] custom-scrollbar">
+            <p className="text-xs font-bold text-red-400 mb-2 sticky top-0 bg-blue-950">🚫 Participantes Excluídos ({excluded.length})</p>
+            <div className="flex flex-col gap-1">
+              {excluded.length === 0 ? <span className="text-xs text-blue-500">Nenhum</span> : excluded.map(t => (
+                <div key={t.id} className="text-[10px] flex justify-between bg-red-500/10 text-red-300 px-2 py-1 rounded border border-red-500/20">
+                  <span className="font-bold">{t.name}</span><span>{t.reason}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Resultado do Sorteio */}
+      {winners.length > 0 && (
+        <div className="bg-gradient-to-br from-amber-500 to-yellow-600 p-1 rounded-3xl animate-in zoom-in-95 duration-500 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
+          <div className="bg-blue-950 rounded-[22px] p-6 text-center h-full">
+            <span className="text-4xl block mb-2">🎉</span>
+            <h2 className="text-2xl font-black text-amber-400 uppercase tracking-widest mb-4">Ganhadores do Sorteio</h2>
+            <p className="text-sm text-blue-300 mb-6">Prêmio: <b className="text-white">{prizeName}</b></p>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 justify-center">
+              {winners.map((w, idx) => (
+                <div key={w.id} className="bg-blue-900 p-4 rounded-xl border border-amber-500/40 shadow-inner flex flex-col items-center gap-2 transform hover:scale-105 transition-transform">
+                  <ShieldDisplay shield={w.shield} size="normal" />
+                  <span className="font-bold text-white text-base mt-2 truncate w-full text-center">{w.name}</span>
+                  <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-black">Bilhete #{Math.floor(Math.random() * 9000) + 1000}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onLockRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch, onSubmitMatch, onUpdateMatchStatus }) => {
   const [subTab, setSubTab] = useState('overview'); 
   const [expandedRoundId, setExpandedRoundId] = useState(null);
@@ -2416,17 +2576,20 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       ) : (
         <>
           <div className="flex gap-1 p-1 bg-blue-950 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar">
-            <button onClick={()=>setSubTab('overview')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Tabela & Jogos</button>
-            <button onClick={()=>setSubTab('stats')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Estatísticas</button>
-            {isAdmin && (
-              <>
-                <button onClick={()=>setSubTab('submit')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='submit'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Registrar</button>
-                <button onClick={()=>setSubTab('validation')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all flex justify-center items-center gap-1 ${subTab==='validation'?'bg-amber-600 text-white':'text-amber-500/70 hover:text-amber-400'}`}>
-                  Validação {matches.filter(m => m.compId === comp.id && m.status === 'pending').length > 0 && <span className="bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[9px] shadow-sm">{matches.filter(m => m.compId === comp.id && m.status === 'pending').length}</span>}
-                </button>
-              </>
-            )}
-          </div>
+  <button onClick={()=>setSubTab('overview')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='overview'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Tabela & Jogos</button>
+  <button onClick={()=>setSubTab('stats')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='stats'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Estatísticas</button>
+  {isAdmin && (
+    <>
+      <button onClick={()=>setSubTab('submit')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='submit'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Registrar</button>
+      <button onClick={()=>setSubTab('validation')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all flex justify-center items-center gap-1 ${subTab==='validation'?'bg-amber-600 text-white':'text-amber-500/70 hover:text-amber-400'}`}>
+        Validação {matches.filter(m => m.compId === comp.id && m.status === 'pending').length > 0 && <span className="bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[9px] shadow-sm">{matches.filter(m => m.compId === comp.id && m.status === 'pending').length}</span>}
+      </button>
+      <button onClick={()=>setSubTab('draw')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all flex justify-center items-center gap-1 ${subTab==='draw'?'bg-purple-600 text-white':'text-purple-400 hover:text-purple-300'}`}>
+        🎁 Sorteio
+      </button>
+    </>
+  )}
+</div>
           
           <div className="space-y-8 mt-4">
             {subTab === 'overview' && (
@@ -2859,10 +3022,17 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
             )}
             
             {subTab === 'validation' && isAdmin && (
-              <div className="animate-in slide-in-from-right-4">
-                <ValidationPanel matches={matches.filter(m => m.compId === comp.id)} teams={teams} competitions={[comp]} onUpdateStatus={onUpdateMatchStatus} showToast={showToast} />
-              </div>
-            )}
+  <div className="animate-in slide-in-from-right-4">
+    <ValidationPanel matches={matches.filter(m => m.compId === comp.id)} teams={teams} competitions={[comp]} onUpdateStatus={onUpdateMatchStatus} showToast={showToast} currentUser={currentUser} />
+  </div>
+)}
+
+{/* 👇 ADICIONE ESTE BLOCO AQUI 👇 */}
+{subTab === 'draw' && isAdmin && (
+  <div className="animate-in slide-in-from-right-4">
+    <DrawPanel comp={comp} teams={teams} matches={matches} showToast={showToast} />
+  </div>
+)}
 
           </div>
         </>
