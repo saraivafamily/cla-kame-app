@@ -1666,7 +1666,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     playStyle: comp?.playStyle || 'Livre',
     rules: comp?.rules || '',
     promotions: comp?.promotions || 0, // NOVO: Vagas de acesso
-    relegations: comp?.relegations || 0 // NOVO: Vagas de rebaixamento
+    relegations: comp?.relegations || 0, // NOVO: Vagas de rebaixamento
     admins: comp?.admins || [] // 👑 NOVO
   });
 
