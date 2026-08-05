@@ -897,33 +897,38 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
 };
 
 const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch, onJoinOpenComp, onChangeTab }) => {
-  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh' || currentUser?.role === 'organizer';
+  const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const isCompAdmin = (c) => isLeader || c?.creatorId === currentUser?.id || (c?.admins || []).includes(currentUser?.id);
+
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
-  const visibleCompIds = (competitions || []).filter(c => c && c.teams?.some(t => userTeamIds.includes(t))).map(c => c.id);
-  const recentMatches = (matches || []).filter(m => m && (isAdmin || visibleCompIds.includes(m.compId)) && m.status !== 'rejected').sort((a, b) => parseInt(String(b?.id || '').split('_')[1] || '0') - parseInt(String(a?.id || '').split('_')[1] || '0')).slice(0, 8);
+  const visibleCompIds = (competitions || []).filter(c => c && (isCompAdmin(c) || c.teams?.some(t => userTeamIds.includes(t)))).map(c => c.id);
+  
+  const recentMatches = (matches || []).filter(m => {
+    if (!m || m.status === 'rejected') return false;
+    const comp = (competitions || []).find(c => c.id === m.compId);
+    return isCompAdmin(comp) || visibleCompIds.includes(m.compId);
+  }).sort((a, b) => parseInt(String(b?.id || '').split('_')[1] || '0') - parseInt(String(a?.id || '').split('_')[1] || '0')).slice(0, 8);
+
   const getTeam = (id) => (teams || []).find(t => t && t.id === id);
 
-  // 🏆 FILTRA OS CAMPEONATOS QUE ESTÃO COM INSCRIÇÕES ABERTAS
   const openCompetitions = (competitions || []).filter(c => c && c.status === 'registration');
 
-  // ⚔️ NOVO: FILTRA OS JOGOS PENDENTES DO USUÁRIO ATUAL
   const myPendingMatches = (matches || []).filter(m => 
     (userTeamIds.includes(m.teamA) || userTeamIds.includes(m.teamB)) &&
     m.status !== 'approved' && m.status !== 'rejected'
   );
 
+  const hasAdminAccess = isLeader || (competitions || []).some(c => c.status !== 'finished' && isCompAdmin(c));
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-      
-      {/* 1. BANNER PRINCIPAL (Restaurado) */}
       <div className="bg-gradient-to-r from-emerald-900/50 to-blue-900 p-6 rounded-2xl border border-emerald-900/50 shadow-xl">
         <h2 className="text-2xl font-bold text-white mb-2">QG Clã Kame</h2>
         <p className="text-blue-400">Gerencie e acompanhe seus resultados do DLS.</p>
       </div>
 
-      {/* 2. AÇÕES RÁPIDAS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {isAdmin && (
+        {hasAdminAccess && (
           <button onClick={() => onChangeTab('competitions')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
             <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
               <Camera size={20} className="text-emerald-400" />
@@ -951,7 +956,6 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
         </button>
       </div>
 
-      {/* 3. MEUS JOGOS PENDENTES */}
       {myPendingMatches.length > 0 && (
         <div className="bg-blue-950/80 p-5 rounded-2xl border border-amber-500/40 shadow-lg relative overflow-hidden animate-in slide-in-from-bottom-4">
           <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
@@ -974,7 +978,6 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
         </div>
       )}
 
-      {/* 4. VITRINE DE INSCRIÇÕES ABERTAS */}
       {openCompetitions.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2"><Trophy size={20} /> Inscrições Abertas</h3>
@@ -983,7 +986,6 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
               const compPending = Array.isArray(comp.pendingTeams) ? comp.pendingTeams : [];
               const teamCount = parseInt(comp.teamCount) || 0;
-
               const isFull = compTeams.length >= teamCount;
               const alreadyJoined = compTeams.some(tId => userTeamIds.includes(tId));
               const isPending = compPending.some(p => p && userTeamIds.includes(p.teamId));
@@ -1020,7 +1022,6 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
         </div>
       )}
 
-      {/* 5. ÚLTIMOS RESULTADOS */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados Enviados</h3>
         <div className="space-y-3">
@@ -1666,6 +1667,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     rules: comp?.rules || '',
     promotions: comp?.promotions || 0, // NOVO: Vagas de acesso
     relegations: comp?.relegations || 0 // NOVO: Vagas de rebaixamento
+    admins: comp?.admins || [] // 👑 NOVO
   });
 
   const [showEditGroups, setShowEditGroups] = useState(false);
@@ -1675,7 +1677,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   
   const isRegistration = comp.status === 'registration';
   const getTeam = (id) => (teams || []).find(t => t && t.id === id);
-  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh' || currentUser?.role === 'organizer';
+  const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const isAdmin = isLeader || comp?.creatorId === currentUser?.id || (comp?.admins || []).includes(currentUser?.id);
   
   const CATEGORY_NAMES = {
     liga_a: '🥇 Liga Kame A',
@@ -2246,6 +2249,25 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
               <label className="text-xs font-bold text-blue-400">Regras da Competição</label>
               <textarea value={settingsData.rules} onChange={e => setSettingsData({...settingsData, rules: e.target.value})} placeholder="Descreva as regras de times, overral e proibições..." className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500 min-h-[80px] resize-y" />
             </div>
+            
+            {/* 👑 NOVO: PAINEL PARA LÍDERES ADICIONAREM ORGANIZADORES */}
+            {isLeader && (
+              <div className="space-y-2 md:col-span-2 pt-2 border-t border-blue-800">
+                <label className="text-xs font-bold text-emerald-400">Adicionar Organizadores Adicionais</label>
+                <div className="flex flex-wrap gap-2">
+                  {users.filter(u => u.role === 'organizer').length === 0 && <span className="text-xs text-blue-500 italic">Nenhum organizador cadastrado no clã.</span>}
+                  {users.filter(u => u.role === 'organizer').map(u => (
+                    <label key={u.id} className="flex items-center gap-2 text-xs text-blue-200 bg-blue-950 px-3 py-2 rounded-lg border border-blue-800 cursor-pointer hover:border-emerald-500/50 transition-colors">
+                      <input type="checkbox" checked={settingsData.admins.includes(u.id)} onChange={e => {
+                        const newAdmins = e.target.checked ? [...settingsData.admins, u.id] : settingsData.admins.filter(id => id !== u.id);
+                        setSettingsData({...settingsData, admins: newAdmins});
+                      }} className="accent-emerald-500 w-3 h-3" /> {u.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setShowEditSettings(false)} className="px-4 py-2 bg-blue-900 border border-blue-700 rounded-lg text-xs text-blue-300 hover:text-white">Cancelar</button>
@@ -2257,7 +2279,8 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 playStyle: settingsData.playStyle, 
                 rules: settingsData.rules,
                 promotions: settingsData.promotions,
-                relegations: settingsData.relegations
+                relegations: settingsData.relegations,
+                admins: settingsData.admins // 👑 Salva a lista
               });
               setShowEditSettings(false);
               showToast("Configurações atualizadas!", "success");
@@ -3235,6 +3258,8 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
       pendingTeams: [],
       rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido',
+      creatorId: currentUser?.id, // 👑 NOVO: Dono da competição
+      admins: [currentUser?.id],  // 👑 NOVO: Array de administradores
       isDoubleRound,
       isFinalDouble,
       numGroups: parseInt(numGroups),
@@ -3395,7 +3420,7 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDe
   const canDelete = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
-  const visible = (competitions || []).filter(c => c && (isAdmin || c.teams?.some(t => userTeamIds.includes(t))));
+  const visible = (competitions || []).filter(c => c && (isCompAdmin(c) || c.teams?.some(t => userTeamIds.includes(t))));
 
   // Filtra as ativas e as finalizadas
   const activeComps = visible.filter(c => c.status !== 'finished');
@@ -3613,20 +3638,24 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [tempKey, setTempKey] = useState('');
 
-  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const isCompAdmin = (c) => isLeader || c?.creatorId === currentUser?.id || (c?.admins || []).includes(currentUser?.id);
   const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
 
   const visibleCompetitions = useMemo(() => {
     return (competitions || []).filter(c => {
       if (!c || c.status !== 'active') return false;
-      const isParticipantOrAdmin = isAdmin || (c.teams || []).some(tId => userTeamIds.includes(tId));
-      if (!isParticipantOrAdmin) return false;
+      const amIAdmin = isCompAdmin(c);
+      const isParticipant = (c.teams || []).some(tId => userTeamIds.includes(tId));
+      
+      if (!amIAdmin && !isParticipant) return false;
+      
       let hasAvailableMatch = false;
       if (c.rounds) {
         c.rounds.filter(r => r.status === 'released').forEach(round => {
           round.matches.forEach(rm => {
             const alreadySubmitted = matches.some(m => m.matchId === rm.id && m.compId === c.id && (m.status === 'pending' || m.status === 'approved'));
-            if (!alreadySubmitted && rm.teamA && rm.teamB && (isAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
+            if (!alreadySubmitted && rm.teamA && rm.teamB && (amIAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
               hasAvailableMatch = true;
             }
           });
@@ -3634,8 +3663,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
       }
       return hasAvailableMatch;
     });
-  }, [competitions, matches, isAdmin, userTeamIds]);
-
+  }, [competitions, matches, isLeader, userTeamIds]);
+  
   const selectedComp = useMemo(() => (competitions || []).find(c => c.id === selectedCompId), [selectedCompId, competitions]);
   const isCup = selectedComp?.format === 'cup' || (selectedComp?.format === 'groups' && selectedMatchId.includes('_ko_'));
   const isTie = scoreA !== '' && scoreB !== '' && scoreA === scoreB;
@@ -3649,6 +3678,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     const comp = competitions.find(c => c.id === selectedCompId);
     if (comp && comp.rounds) {
       let toPlay = [];
+      const amIAdmin = isCompAdmin(comp);
       comp.rounds.filter(r => r.status === 'released').forEach(round => {
         round.matches.forEach(rm => {
           const alreadySubmitted = matches.some(m => m.matchId === rm.id && m.compId === comp.id && (m.status === 'pending' || m.status === 'approved'));
@@ -4220,10 +4250,20 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
   );
 };
 
-const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToast }) => {
-  const pending = (matches || []).filter(m => m && m.status === 'pending');
+const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToast, currentUser }) => {
+  const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const isCompAdmin = (c) => isLeader || c?.creatorId === currentUser?.id || (c?.admins || []).includes(currentUser?.id);
+
+  // Filtra só os pendentes das competições que o usuário atual administra
+  const pending = (matches || []).filter(m => {
+     if (!m || m.status !== 'pending') return false;
+     const comp = competitions.find(c => c.id === m.compId);
+     return isCompAdmin(comp);
+  });
+
   const getTeam = (id) => (teams || []).find(t => t && t.id === id);
   const getCompName = (id) => (competitions || []).find(c => c && c.id === id)?.name || 'Torneio';
+  
   return (
     <div className="space-y-4 animate-in fade-in">
       <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-white flex items-center gap-2"><CheckSquare className="text-amber-500"/> Validação Cloud</h2><span className="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-0.5 rounded-full font-bold">{pending.length} Pendentes</span></div>
@@ -5774,7 +5814,7 @@ export default function App() {
           await setDoc(getPublicDocPath('predictions', p.id), p); 
       }} />;
         
-      case 'comp_details': return <CompetitionDetails comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); })} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} />;
+      case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); })} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'create_comp': return <CreateCompetition teams={teams} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
@@ -5784,6 +5824,7 @@ export default function App() {
       case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} />;
       case 'records': return <RecordsWall showToast={showToast} currentUser={currentUser} />;
       case 'rules': return <RulesPage />;
+      case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} showToast={showToast} currentUser={currentUser} />;
         
       default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} onChangeTab={setCurrentTab} onJoinOpenComp={(id) => { setSelectedCompId(id); setCurrentTab('join_comp'); }} />;
     }
