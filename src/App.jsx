@@ -3021,18 +3021,18 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
               </div>
             )}
             
-            {subTab === 'validation' && isAdmin && (
-  <div className="animate-in slide-in-from-right-4">
-    <ValidationPanel matches={matches.filter(m => m.compId === comp.id)} teams={teams} competitions={[comp]} onUpdateStatus={onUpdateMatchStatus} showToast={showToast} currentUser={currentUser} />
-  </div>
-)}
+           {subTab === 'validation' && isAdmin && (
+              <div className="animate-in slide-in-from-right-4">
+                <ValidationPanel matches={matches.filter(m => m.compId === comp.id)} teams={teams} competitions={[comp]} onUpdateStatus={onUpdateMatchStatus} showToast={showToast} currentUser={currentUser} />
+              </div>
+            )}
 
-{/* 👇 ADICIONE ESTE BLOCO AQUI 👇 */}
-{subTab === 'draw' && isAdmin && (
-  <div className="animate-in slide-in-from-right-4">
-    <DrawPanel comp={comp} teams={teams} matches={matches} showToast={showToast} />
-  </div>
-)}
+            {/* 👇 ADICIONE ESTE BLOCO AQUI 👇 */}
+            {subTab === 'draw' && isAdmin && (
+              <div className="animate-in slide-in-from-right-4">
+                <DrawPanel comp={comp} teams={teams} matches={matches} showToast={showToast} />
+              </div>
+            )}
 
           </div>
         </>
@@ -3588,6 +3588,9 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
 const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDeleteComp }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh' || currentUser?.role === 'organizer';
   const canDelete = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+
+  const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const isCompAdmin = (c) => isLeader || c?.creatorId === currentUser?.id || (c?.admins || []).includes(currentUser?.id);
   
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
   const visible = (competitions || []).filter(c => c && (isCompAdmin(c) || c.teams?.some(t => userTeamIds.includes(t))));
