@@ -3813,6 +3813,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
   const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const isCompAdmin = (c) => isLeader || c?.creatorId === currentUser?.id || (c?.admins || []).includes(currentUser?.id);
+  const isAdmin = isLeader;
   const userTeamIds = (teams || []).filter(t => t.ownerId === currentUser?.id).map(t => t.id);
 
   const visibleCompetitions = useMemo(() => {
