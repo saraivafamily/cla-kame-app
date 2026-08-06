@@ -5383,6 +5383,9 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
   const [checkoutStep, setCheckoutStep] = useState('idle');
   const [pixPayload, setPixPayload] = useState('');
 
+  // 👇 ADICIONE ESTA LINHA 👇 (Salva o saldo antigo)
+  const [initialCoins, setInitialCoins] = useState(0);
+
   const getTeam = (id) => (teams || []).find(t => t.id === id);
   const myPreds = (predictions || []).filter(p => p.userId === currentUser?.id).sort((a,b) => b.timestamp - a.timestamp);
 
@@ -5392,15 +5395,48 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
     { id: 'p3', name: 'Pacote Magnata', coins: 1600, price: 20.00, bonus: 400, color: 'from-amber-500 to-amber-800', border: 'border-amber-400' },
   ];
 
-  const handleStartCheckout = (pkg) => {
+// 👇 SUBSTITUA TODA A FUNÇÃO AQUI 👇
+  const handleStartCheckout = async (pkg) => {
     setSelectedPackage(pkg);
     setCheckoutStep('generating');
-    setTimeout(() => {
-      setPixPayload(`00020126580014br.gov.bcb.pix0136${pkg.id}-kame-bank-api-mercado-pago-5204000053039865802BR5902BR600${pkg.price}6207SAOPAULO6304KAME64041234`);
-      setCheckoutStep('waiting');
-    }, 1500);
-  };
+    setInitialCoins(currentUser?.kameCoins || 0); // Guarda o saldo atual
 
+    try {
+      // Chama a nossa nova API da Vercel!
+      const response = await fetch('/api/create-pix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transaction_amount: pkg.price,
+          description: `KameBank - ${pkg.name}`,
+          email: currentUser.email || 'jogador@clakame.com',
+          userId: currentUser.id
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.qr_code) {
+        setPixPayload(data.qr_code); // Exibe o PIX oficial do Mercado Pago na tela
+        setCheckoutStep('waiting');
+      } else {
+        throw new Error("Erro na geração do PIX");
+      }
+    } catch (error) {
+      console.error(error);
+      showToast("Não foi possível conectar ao banco. Tente novamente.", "error");
+      closeCheckout();
+    }
+
+// 👇 ADICIONE ESTE BLOCO LOGO ABAIXO DA FUNÇÃO 👇
+  // Esse efeito "espiona" seu saldo. Se ele subir enquanto você espera, a tela comemora!
+  useEffect(() => {
+    if (checkoutStep === 'waiting' && (currentUser?.kameCoins || 0) > initialCoins) {
+      setCheckoutStep('success');
+      showToast("Pagamento Confirmado pelo Banco!", "success");
+    }
+  }, [currentUser?.kameCoins, checkoutStep, initialCoins]);
+    
   const handleCopyPix = () => {
     navigator.clipboard.writeText(pixPayload);
     showToast("PIX Copia e Cola copiado! Abra o app do seu banco.", "success");
