@@ -5056,27 +5056,65 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
   const [activeTab, setActiveTab] = useState('open');
   const [betData, setBetData] = useState({});
 
+  // 👇 NOVOS ESTADOS DOS FILTROS (Dropdowns)
+  const [selectedCompId, setSelectedCompId] = useState('');
+  const [selectedRoundId, setSelectedRoundId] = useState('');
+
   const getTeam = (id) => (teams || []).find(t => t.id === id);
   const getMyPred = (matchId) => (predictions || []).find(p => p.matchId === matchId && p.userId === currentUser.id);
+  const myTeam = (teams || []).find(t => t.ownerId === currentUser.id);
 
-  const openMatches = useMemo(() => {
-    const open = [];
+  // 👇 NOVA LÓGICA: Agrupa dados numa hierarquia (Torneios -> Rodadas -> Jogos)
+  const bettingData = useMemo(() => {
+    const comps = [];
     (competitions || []).forEach(c => {
       if (c.status !== 'active') return;
+      
+      const validRounds = [];
       c.rounds?.forEach(r => {
-        if (r.status !== 'released') return;
+        if (r.status !== 'locked') return; 
+        
+        const validMatches = [];
         r.matches.forEach(m => {
+          // Bloqueia auto-aposta
+          if (myTeam && (m.teamA === myTeam.id || m.teamB === myTeam.id)) return;
+
           const hasResult = matches.some(x => x.matchId === m.id && x.compId === c.id && x.status !== 'rejected');
-          if (!hasResult && m.teamA && m.teamB) {
-            open.push({ ...m, compName: c.name, compId: c.id, roundName: r.number });
+          
+          if (!hasResult && m.teamA && m.teamB && !m.teamA.includes('Definir') && !m.teamB.includes('Definir')) {
+            validMatches.push({ ...m, compName: c.name, compId: c.id, roundName: r.number });
           }
         });
-      });
-    });
-    return open;
-  }, [competitions, matches]);
 
-  // 🎲 NOVO MOTOR DE ODDS (Fixo por Tabela da Competição)
+        // Só adiciona a rodada se ela tiver pelo menos 1 jogo disponível
+        if (validMatches.length > 0) {
+          validRounds.push({ id: r.id, number: r.number, matches: validMatches });
+        }
+      });
+
+      // Só adiciona o campeonato se ele tiver pelo menos 1 rodada com jogos
+      if (validRounds.length > 0) {
+        comps.push({ id: c.id, name: c.name, rounds: validRounds });
+      }
+    });
+    return comps;
+  }, [competitions, matches, myTeam]);
+
+  // Se trocar de torneio, zera a rodada selecionada
+  useEffect(() => {
+    setSelectedRoundId('');
+  }, [selectedCompId]);
+
+  // Partidas finais que vão aparecer na tela após o usuário filtrar
+  const displayedMatches = useMemo(() => {
+    if (!selectedCompId || !selectedRoundId) return [];
+    const comp = bettingData.find(c => c.id === selectedCompId);
+    if (!comp) return [];
+    const round = comp.rounds.find(r => r.id === selectedRoundId);
+    return round ? round.matches : [];
+  }, [bettingData, selectedCompId, selectedRoundId]);
+
+  // 🎲 MOTOR DE ODDS
   const getOdds = (compId, tA_id, tB_id) => {
      const table = calculateStandings(matches, teams, compId);
 
@@ -5088,9 +5126,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
      
      const weightA = 5 + ptsA;
      const weightB = 5 + ptsB;
-
      const weightD = 5 + (Math.max(weightA, weightB) - Math.abs(weightA - weightB)) * 0.5;
-
      const totalWeight = weightA + weightB + weightD;
 
      let oddA = (1 / (weightA / totalWeight)) * 0.90;
@@ -5098,7 +5134,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
      let oddD = (1 / (weightD / totalWeight)) * 0.90;
 
      const clamp = (val) => Math.min(Math.max(val, 1.10), 15.00).toFixed(2);
-
      return { A: clamp(oddA), B: clamp(oddB), D: clamp(oddD) };
   };
 
@@ -5178,19 +5213,54 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
 
       {activeTab === 'open' && (
         <div className="space-y-4 animate-in slide-in-from-left-4">
-          {openMatches.length === 0 ? (
+          
+          {bettingData.length === 0 ? (
             <div className="bg-blue-900 p-8 rounded-2xl border border-blue-800 text-center text-blue-400 border-dashed">
-              A casa de apostas está fechada. Aguarde novos jogos!
+              <p className="font-bold text-lg mb-2">A casa de apostas está fechada.</p>
+              <p className="text-sm">Lembre-se das regras da banca:<br/>
+              1. Você só pode apostar em rodadas que ainda <b>não foram liberadas</b> (Travadas).<br/>
+              2. Você <b>não pode</b> apostar em jogos do seu próprio time.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {openMatches.map(m => {
+            <div className="bg-blue-900 p-4 rounded-xl border border-blue-800 shadow-md">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <label className="text-xs font-bold text-blue-400 uppercase tracking-widest block mb-2">Selecione a Competição</label>
+                  <select value={selectedCompId} onChange={e => setSelectedCompId(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-3 text-white focus:border-amber-500 outline-none transition-colors">
+                    <option value="">Escolha um torneio...</option>
+                    {bettingData.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                
+                {selectedCompId && (
+                  <div className="flex-1 animate-in fade-in">
+                    <label className="text-xs font-bold text-blue-400 uppercase tracking-widest block mb-2">Selecione a Rodada/Fase</label>
+                    <select value={selectedRoundId} onChange={e => setSelectedRoundId(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-3 text-white focus:border-amber-500 outline-none transition-colors">
+                      <option value="">Escolha a rodada...</option>
+                      {bettingData.find(c => c.id === selectedCompId)?.rounds.map(r => (
+                        <option key={r.id} value={r.id}>Rodada / Fase {r.number}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {displayedMatches.length === 0 && selectedCompId && selectedRoundId && (
+             <div className="text-center p-6 text-blue-500 bg-blue-950 rounded-xl border border-blue-800">
+               Nenhuma partida disponível para você nesta rodada.
+             </div>
+          )}
+
+          {displayedMatches.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+              {displayedMatches.map(m => {
                 const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
                 const myPred = getMyPred(m.id);
                 const currentData = betData[m.id] || { option: myPred?.option || null, amount: myPred?.amount || '' };
                 const odds = getOdds(m.compId, m.teamA, m.teamB);
 
-                // 🛡️ SISTEMA DE SEGURANÇA APLICADO AQUI (Evita o crash de dados antigos)
                 const displayOddA = (myPred && myPred.option === 'A') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : odds.A;
                 const displayOddD = (myPred && myPred.option === 'D') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : odds.D;
                 const displayOddB = (myPred && myPred.option === 'B') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : odds.B;
@@ -5202,7 +5272,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                       {myPred && <span className="text-[10px] text-emerald-400 font-black uppercase flex items-center gap-1">✅ Bilhete Comprado</span>}
                     </div>
                     
-                    {/* Botões de Seleção da Aposta */}
                     <div className="grid grid-cols-3 gap-2 mb-4">
                       <button onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'A'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'A' ? 'bg-emerald-600 border-emerald-500 shadow-inner scale-105' : 'bg-blue-950 border-blue-800 hover:border-emerald-500/50'}`}>
                          <ShieldDisplay shield={tA?.shield} size="small" />
@@ -5240,7 +5309,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                     {currentData.option && currentData.amount && (
                       <p className="text-center text-[10px] text-emerald-400 mt-2 font-medium">
                         Retorno Estimado: <b className="text-amber-400">
-                           {/* 🛡️ SISTEMA DE SEGURANÇA DA ODD AQUI TAMBÉM */}
                            {Math.floor(Number(currentData.amount) * (myPred?.option === currentData.option ? Number(myPred.lockedOdd || 1.1) : Number(odds[currentData.option])))} BK
                         </b>
                       </p>
@@ -5821,8 +5889,8 @@ export default function App() {
       const finalPenaltiesA = updatedData && updatedData.penaltiesA !== undefined ? parseInt(updatedData.penaltiesA) : match.penaltiesA; 
       const finalPenaltiesB = updatedData && updatedData.penaltiesB !== undefined ? parseInt(updatedData.penaltiesB) : match.penaltiesB;
       
-      // 🎲 LIQUIDAÇÃO KAMEBET
-      const matchPreds = predictions.filter(p => p.matchId === id && !p.status); 
+     // 🎲 LIQUIDAÇÃO KAMEBET (Corrigida)
+      const matchPreds = predictions.filter(p => p.matchId === match.matchId && !p.status); 
       if (matchPreds.length > 0) {
          let realOutcome = 'D'; 
          if (finalScoreA > finalScoreB) realOutcome = 'A';
@@ -5832,7 +5900,10 @@ export default function App() {
             else if (finalPenaltiesB > finalPenaltiesA) realOutcome = 'B';
          }
 
-         matchPreds.forEach(async (pred) => {
+         // Agrupa os pagamentos para não sobreescrever o saldo se o usuário ganhar múltiplas apostas
+         const userPayouts = {};
+
+         for (const pred of matchPreds) {
             const isWin = pred.option === realOutcome;
             const betAmount = Number(pred.amount);
             const oddToUse = pred.lockedOdd || 1.1; 
@@ -5840,11 +5911,22 @@ export default function App() {
             const profit = isWin ? (payout - betAmount) : -betAmount;
 
             if (payout > 0) {
-               const u = users.find(x => x.id === pred.userId);
-               if (u) await updateDoc(getPublicDocPath('users', u.id), { kameCoins: Number(u.kameCoins || 0) + payout });
+               if (!userPayouts[pred.userId]) userPayouts[pred.userId] = 0;
+               userPayouts[pred.userId] += payout;
             }
+            
             await updateDoc(getPublicDocPath('predictions', pred.id), { status: isWin ? 'won' : 'lost', payout, profit });
-         });
+         }
+
+         // Atualiza o saldo final dos vencedores
+         for (const userId of Object.keys(userPayouts)) {
+            const u = users.find(x => x.id === userId);
+            if (u) {
+               await updateDoc(getPublicDocPath('users', u.id), { 
+                 kameCoins: Number(u.kameCoins || 0) + userPayouts[userId] 
+               });
+            }
+         }
       }
 
       // 🏆 NOVO: AGREGAÇÃO DE ESTATÍSTICAS DIRETAMENTE NO TIME
