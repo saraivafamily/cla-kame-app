@@ -5382,8 +5382,6 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
   
   const [checkoutStep, setCheckoutStep] = useState('idle');
   const [pixPayload, setPixPayload] = useState('');
-
-  // 👇 ADICIONE ESTA LINHA 👇 (Salva o saldo antigo)
   const [initialCoins, setInitialCoins] = useState(0);
 
   const getTeam = (id) => (teams || []).find(t => t.id === id);
@@ -5395,14 +5393,12 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
     { id: 'p3', name: 'Pacote Magnata', coins: 1600, price: 20.00, bonus: 400, color: 'from-amber-500 to-amber-800', border: 'border-amber-400' },
   ];
 
-// 👇 SUBSTITUA TODA A FUNÇÃO AQUI 👇
   const handleStartCheckout = async (pkg) => {
     setSelectedPackage(pkg);
     setCheckoutStep('generating');
-    setInitialCoins(currentUser?.kameCoins || 0); // Guarda o saldo atual
+    setInitialCoins(currentUser?.kameCoins || 0);
 
     try {
-      // Chama a nossa nova API da Vercel!
       const response = await fetch('/api/create-pix', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5417,7 +5413,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
       const data = await response.json();
 
       if (data.qr_code) {
-        setPixPayload(data.qr_code); // Exibe o PIX oficial do Mercado Pago na tela
+        setPixPayload(data.qr_code);
         setCheckoutStep('waiting');
       } else {
         throw new Error("Erro na geração do PIX");
@@ -5427,16 +5423,15 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
       showToast("Não foi possível conectar ao banco. Tente novamente.", "error");
       closeCheckout();
     }
+  };
 
-// 👇 ADICIONE ESTE BLOCO LOGO ABAIXO DA FUNÇÃO 👇
-  // Esse efeito "espiona" seu saldo. Se ele subir enquanto você espera, a tela comemora!
   useEffect(() => {
     if (checkoutStep === 'waiting' && (currentUser?.kameCoins || 0) > initialCoins) {
       setCheckoutStep('success');
       showToast("Pagamento Confirmado pelo Banco!", "success");
     }
   }, [currentUser?.kameCoins, checkoutStep, initialCoins]);
-    
+
   const handleCopyPix = () => {
     navigator.clipboard.writeText(pixPayload);
     showToast("PIX Copia e Cola copiado! Abra o app do seu banco.", "success");
@@ -5457,7 +5452,6 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
       
       await updateDoc(getPublicDocPath('users', currentUser.id), { kameCoins: newBalance });
       
-      // Salva o depósito no extrato global!
       const depositRecord = {
         id: `dep_${Date.now()}`,
         userId: currentUser.id,
