@@ -1,7 +1,7 @@
-// Trocamos o 'import' pelo 'require' para evitar conflitos no Node.js da Vercel
+// Arquivo: api/create-pix.js
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // 1. Segurança: Só aceita requisições do tipo POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
@@ -13,7 +13,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'ERRO: A chave secreta (Token) não foi encontrada na Vercel.' });
     }
 
-    // 2. Recebe os dados do App (valor, email do usuário, etc)
+    // 2. Recebe os dados do App
     const { transaction_amount, description, email, userId } = req.body;
 
     // 3. Configura o Mercado Pago com a sua chave secreta da Vercel
@@ -46,7 +46,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error("Erro interno ao gerar PIX:", error);
-    // Agora ele devolve o erro real do Mercado Pago (se houver) de forma estruturada
     return res.status(500).json({ error: error.message || 'Falha ao gerar o pagamento PIX no Mercado Pago' });
   }
-}
+};
