@@ -5188,6 +5188,12 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
      showToast(`Bilhete Fechado! Odd cravada em ${lockedOdd}x 🍀`, "success");
   };
 
+  const totalOpenMatches = useMemo(() => {
+    return bettingData.reduce((total, comp) => {
+      return total + comp.rounds.reduce((rTotal, r) => rTotal + r.matches.length, 0);
+    }, 0);
+  }, [bettingData]);
+  
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in pb-12">
       <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex items-center gap-4">
@@ -5207,8 +5213,13 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
       </div>
 
       <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800">
-        <button onClick={()=>setActiveTab('open')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab==='open'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>🎯 Apostar ({openMatches.length})</button>
-        <button onClick={()=>setActiveTab('ranking')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab==='ranking'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>🏆 Top Apostadores</button>
+        {/* 👇 2. ALTERE AQUI DENTRO DOS PARÊNTESES 👇 */}
+        <button onClick={()=>setActiveTab('open')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab==='open'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>
+          🎯 Apostar ({totalOpenMatches})
+        </button>
+        <button onClick={()=>setActiveTab('ranking')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab==='ranking'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>
+          🏆 Top Apostadores
+        </button>
       </div>
 
       {activeTab === 'open' && (
