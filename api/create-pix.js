@@ -1,4 +1,4 @@
-// Arquivo: api/create-pix.js
+// Trocamos o 'import' pelo 'require' para evitar conflitos no Node.js da Vercel
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 export default async function handler(req, res) {
@@ -8,6 +8,11 @@ export default async function handler(req, res) {
   }
 
   try {
+    // 🛡️ BLINDAGEM: Verifica se a chave secreta realmente está lá!
+    if (!process.env.MP_ACCESS_TOKEN) {
+      return res.status(500).json({ error: 'ERRO: A chave secreta (Token) não foi encontrada na Vercel.' });
+    }
+
     // 2. Recebe os dados do App (valor, email do usuário, etc)
     const { transaction_amount, description, email, userId } = req.body;
 
@@ -23,10 +28,10 @@ export default async function handler(req, res) {
       payer: {
         email: email || 'cliente@clakame.com',
       },
-      // Aqui é onde o MP vai avisar que foi pago (O Webhook que faremos depois)
+      // O Webhook que avisa quando foi pago
       notification_url: `https://cla-kame.vercel.app/api/webhook`, 
       metadata: {
-        user_id: userId // Guarda o ID do usuário para sabermos quem pagou
+        user_id: userId 
       }
     };
 
@@ -40,7 +45,8 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error("Erro ao gerar PIX:", error);
-    return res.status(500).json({ error: 'Falha ao gerar o pagamento PIX' });
+    console.error("Erro interno ao gerar PIX:", error);
+    // Agora ele devolve o erro real do Mercado Pago (se houver) de forma estruturada
+    return res.status(500).json({ error: error.message || 'Falha ao gerar o pagamento PIX no Mercado Pago' });
   }
 }
