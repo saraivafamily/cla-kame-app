@@ -1,5 +1,5 @@
 // Arquivo: api/create-pix.js
-import { MercadoPagoConfig, Payment } from 'mercadopago';
+const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 export default async function handler(req, res) {
   // 1. Segurança: Só aceita requisições do tipo POST
