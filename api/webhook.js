@@ -1,8 +1,8 @@
 // Arquivo: api/webhook.js
-import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 
+// Suas credenciais do Firebase
 const firebaseConfig = { 
   apiKey: "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA", 
   authDomain: "cla-kame.firebaseapp.com", 
@@ -22,16 +22,22 @@ export default async function handler(req, res) {
   try {
     if (!process.env.MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sem token' });
 
-    const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
-    const payment = new Payment(client);
-    
+    // Pega o ID enviado pelo Mercado Pago
     const paymentId = req.query.id || req.query['data.id'] || req.body?.data?.id;
     if (!paymentId) return res.status(400).json({ error: 'Sem ID' });
 
-    const payInfo = await payment.get({ id: paymentId });
+    // 🚀 Consulta direto na API do Mercado Pago sem a biblioteca
+    const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.MP_ACCESS_TOKEN}`
+      }
+    });
     
+    const payInfo = await mpResponse.json();
+    
+    // Se o status for aprovado, adiciona as moedas!
     if (payInfo.status === 'approved') {
-       const userId = payInfo.metadata.user_id;
+       const userId = payInfo.metadata?.user_id;
        const amountPaid = Number(payInfo.transaction_amount);
        
        let coinsToAdd = 0;
