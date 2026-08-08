@@ -3540,7 +3540,7 @@ const CreateCompetition = ({ teams, competitions, currentUser, onCreate }) => {
                 <option value="liga_acesso">⬆️</option>
                 <option value="copa_main">🏆 Copas Oficiais (Ex: Copa do Clã)</option>
                 <option value="copa_do_rei">👑 Copa do Rei</option>
-                <opition value="copa_amazonia">🌳Copa da Amaxônia</option>
+                <option value="copa_amazonia">🌳Copa da Amaxônia</option>
                 <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
               </select>
             </div>
