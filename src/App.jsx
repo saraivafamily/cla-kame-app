@@ -5128,6 +5128,13 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
   const [manualAddTitular, setManualAddTitular] = useState('');
   const [manualAddReserva, setManualAddReserva] = useState('');
 
+  // Painel de Competição Ativa
+  const [selectedActiveXclaId, setSelectedActiveXclaId] = useState(null);
+  const [newOpponentName, setNewOpponentName] = useState('');
+  const [newMatchKameId, setNewMatchKameId] = useState('');
+  const [newMatchOppName, setNewMatchOppName] = useState('');
+  const [newNewsText, setNewNewsText] = useState('');
+
   useEffect(() => {
     localStorage.setItem('kame_xclas_db', JSON.stringify(xclas));
   }, [xclas]);
@@ -5155,7 +5162,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     return rounds;
   };
 
-  // 🛡️ VERIFICADOR DE DUPLICIDADE GLOBAL
   const isTeamInOtherSquad = (teamId, tournamentName, currentXclaId) => {
     return xclas.some(x => 
       x.name.trim().toLowerCase() === tournamentName.trim().toLowerCase() && 
@@ -5180,7 +5186,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     let pool = [...rankingData];
     let startingTitulares = [];
 
-    // Lógica das Vagas Garantidas (Apenas Time A)
     if (newXclaSquad === 'A') {
       if (guaranteedMembroSuperior) {
          const t = teams.find(x => x.id === guaranteedMembroSuperior);
@@ -5198,7 +5203,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       }
     }
 
-    // 🛡️ EXCLUI TIMES QUE JÁ FORAM CONVOCADOS PARA ESTE MESMO CAMPEONATO (Ex: Já estão no Time A)
     const alreadyRosteredIds = new Set();
     xclas.forEach(x => {
        if (x.name.trim().toLowerCase() === newXclaName.trim().toLowerCase()) {
@@ -5212,7 +5216,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     if (newXclaSquad === 'A') {
       draftedTeams = pool.slice(0, selSize);
     } else {
-      // Time B pula a nata que seria convocada pro A e pega os próximos
       draftedTeams = pool.slice(selSize, selSize * 2);
     }
 
@@ -5231,7 +5234,13 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       reservas: [],
       bracket: createMiniBracket(draftedTeams),
       date: Date.now(),
-      status: 'open' // 🔒 Inicia aberta
+      status: 'open',
+      oppClanName: 'Clã Adversário',
+      pointsKame: 0,
+      pointsOpp: 0,
+      opponentsList: [],
+      xclaMatches: [],
+      news: []
     };
 
     setXclas([newXcla, ...xclas]);
@@ -5246,15 +5255,30 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     }
   };
 
+  // 🔒 FECHAR ESCALAÇÃO E MOVER PARA ABA ATIVA
   const handleLockRoster = (xclaId) => {
-    if(window.confirm('Deseja FECHAR a escalação final? Você não poderá mais adicionar ou remover times deste elenco.')) {
-      const newXclas = xclas.map(x => x.id === xclaId ? { ...x, status: 'locked' } : x);
+    const xcla = xclas.find(x => x.id === xclaId);
+    if(xcla.titulares.length === 0) {
+      showToast("Você precisa ter pelo menos 1 titular para fechar o time!", "error");
+      return;
+    }
+
+    if(window.confirm('Deseja FECHAR a escalação final? O time será trancado e a competição movida para a aba "Competições Ativas".')) {
+      const newXclas = xclas.map(x => x.id === xclaId ? { 
+        ...x, 
+        status: 'locked',
+        oppClanName: x.oppClanName || 'Clã Adversário',
+        pointsKame: x.pointsKame || 0,
+        pointsOpp: x.pointsOpp || 0,
+        opponentsList: x.opponentsList || [],
+        xclaMatches: x.xclaMatches || [],
+        news: x.news || []
+      } : x);
       setXclas(newXclas);
-      showToast("A Escalação foi trancada com sucesso!", "success");
+      showToast("A Escalação foi trancada e movida para Competições Ativas!", "success");
     }
   };
 
-  // Atualiza placares e define o vencedor automaticamente (ou manualmente via clique no escudo)
   const updateBracketMatch = (xclaId, roundIdx, matchIdx, field, value) => {
     const newXclas = [...xclas];
     const xcla = newXclas.find(x => x.id === xclaId);
@@ -5291,7 +5315,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     }
   };
 
-  // Força o avanço ao clicar no escudo (em caso de pênaltis)
   const forceAdvanceTeam = (xclaId, roundIdx, matchIdx, winnerTeam) => {
     if (!winnerTeam || !isAdmin) return;
     const newXclas = [...xclas];
@@ -5303,7 +5326,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     setXclas(newXclas);
   };
 
-  // 🤖 MOTOR DE PREENCHIMENTO AUTOMÁTICO
   const handleAutoFillRoster = (xclaId) => {
     const xcla = xclas.find(x => x.id === xclaId);
     if(!xcla || xcla.status === 'locked') return;
@@ -5368,13 +5390,11 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     const xcla = newXclas.find(x => x.id === xclaId);
     if (xcla.status === 'locked') return;
     
-    // 🛡️ TRAVA 1: Já está neste esquadrão?
     if (xcla.titulares.some(t => t.id === teamId) || xcla.reservas.some(t => t.id === teamId)) {
       showToast("Este time já está convocado nesta escalação!", "warning");
       return;
     }
 
-    // 🛡️ TRAVA 2: Já está em OUTRO esquadrão do mesmo campeonato?
     if (isTeamInOtherSquad(teamId, xcla.name, xcla.id)) {
       showToast("Este time já foi escalado em outro Esquadrão para este campeonato!", "error");
       return;
@@ -5404,6 +5424,46 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     setXclas(newXclas);
   };
 
+  // ⚔️ FUNÇÕES DA COMPETIÇÃO ATIVA
+  const updateActiveXcla = (id, payload) => {
+    setXclas(prev => prev.map(x => x.id === id ? { ...x, ...payload } : x));
+  };
+
+  const handleAddOpponentPlayer = (xclaId) => {
+    if(!newOpponentName) return;
+    const xcla = xclas.find(x => x.id === xclaId);
+    const updatedOpps = [...(xcla.opponentsList || []), newOpponentName];
+    updateActiveXcla(xclaId, { opponentsList: updatedOpps });
+    setNewOpponentName('');
+  };
+
+  const handleAddXclaMatch = (xclaId) => {
+    if(!newMatchKameId || !newMatchOppName) { showToast("Selecione os dois jogadores!", "error"); return; }
+    const xcla = xclas.find(x => x.id === xclaId);
+    const newMatch = { id: `xm_${Date.now()}`, kameId: newMatchKameId, oppName: newMatchOppName, scoreKame: '', scoreOpp: '' };
+    updateActiveXcla(xclaId, { xclaMatches: [...(xcla.xclaMatches || []), newMatch] });
+    setNewMatchKameId(''); setNewMatchOppName('');
+  };
+
+  const handleUpdateXclaMatchScore = (xclaId, matchId, field, value) => {
+    const xcla = xclas.find(x => x.id === xclaId);
+    const updatedMatches = (xcla.xclaMatches || []).map(m => m.id === matchId ? { ...m, [field]: value } : m);
+    updateActiveXcla(xclaId, { xclaMatches: updatedMatches });
+  };
+
+  const handleAddXclaNews = (xclaId) => {
+    if(!newNewsText) return;
+    const xcla = xclas.find(x => x.id === xclaId);
+    const newNews = { id: `n_${Date.now()}`, text: newNewsText, timestamp: Date.now() };
+    updateActiveXcla(xclaId, { news: [newNews, ...(xcla.news || [])] });
+    setNewNewsText('');
+  };
+
+  // Listas divididas para as abas
+  const openSeletivas = xclas.filter(x => x.status !== 'locked');
+  const activeCompetitions = xclas.filter(x => x.status === 'locked');
+  const selectedActiveXcla = selectedActiveXclaId ? xclas.find(x => x.id === selectedActiveXclaId) : null;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex flex-col md:flex-row items-center gap-4 w-full">
@@ -5426,12 +5486,15 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       </div>
 
       {/* 🌟 NAVEGAÇÃO DE ABAS DO RANKING */}
-      <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800">
-        <button onClick={() => setActiveTab('ranking')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab === 'ranking' ? 'bg-amber-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
-          🏆 Ranking Principal
+      <div className="flex gap-1.5 p-1.5 bg-blue-950 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar">
+        <button onClick={() => {setActiveTab('ranking'); setSelectedActiveXclaId(null);}} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'ranking' ? 'bg-amber-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
+          🏆 Ranking
         </button>
-        <button onClick={() => setActiveTab('xcla')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab === 'xcla' ? 'bg-purple-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
-          ⚔️ Seletivas / Xclã
+        <button onClick={() => {setActiveTab('xcla'); setSelectedActiveXclaId(null);}} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'xcla' ? 'bg-purple-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
+          ⚔️ Seletivas ({openSeletivas.length})
+        </button>
+        <button onClick={() => setActiveTab('active_xclas')} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'active_xclas' ? 'bg-emerald-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
+          🔥 Competições Ativas ({activeCompetitions.length})
         </button>
       </div>
 
@@ -5573,28 +5636,25 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
           )}
 
           <div className="space-y-8">
-            {xclas.length === 0 ? (
+            {openSeletivas.length === 0 ? (
               <div className="bg-blue-950 p-8 rounded-2xl border border-blue-800 text-center border-dashed">
-                <p className="text-blue-500">Nenhuma seletiva de Xclã registrada no momento.</p>
+                <p className="text-blue-500">Nenhuma seletiva de Xclã aberta no momento.</p>
               </div>
             ) : (
-              xclas.map((xcla) => {
+              openSeletivas.map((xcla) => {
                 const isSquadA = xcla.squad === 'A';
                 const colorClass = isSquadA ? 'emerald' : 'amber';
                 const teamCount = (xcla.titulares?.length || 0) + (xcla.reservas?.length || 0);
-                const isLocked = xcla.status === 'locked';
 
                 return (
-                  <div key={xcla.id} className={`bg-blue-900 border rounded-3xl overflow-hidden shadow-2xl relative flex flex-col xl:flex-row ${isLocked ? 'border-blue-800' : 'border-blue-700'}`}>
+                  <div key={xcla.id} className="bg-blue-900 border border-blue-700 rounded-3xl overflow-hidden shadow-2xl relative flex flex-col xl:flex-row">
                     
                     {/* Botoes de Ação Admin */}
                     {isAdmin && (
                       <div className="absolute top-4 right-4 flex gap-2 z-20">
-                        {!isLocked && (
-                          <button onClick={() => handleLockRoster(xcla.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-md text-xs flex items-center gap-1">
-                            🔒 Fechar Time
-                          </button>
-                        )}
+                        <button onClick={() => handleLockRoster(xcla.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-md text-xs flex items-center gap-1">
+                          🔒 Fechar Time
+                        </button>
                         <button onClick={() => handleDeleteXcla(xcla.id)} className="bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white p-1.5 rounded-lg transition-colors" title="Apagar Convocação">
                           <Trash2 size={16} />
                         </button>
@@ -5603,28 +5663,21 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                     
                     {/* 🎮 LADO ESQUERDO: MINICOMPETIÇÃO COM PLACARES */}
                     <div className="flex-1 p-5 md:p-6 bg-gradient-to-br from-blue-900/50 to-blue-950/80 border-b xl:border-b-0 xl:border-r border-blue-800">
-                      <div className="mb-6 border-b border-blue-800/50 pb-4">
-                        <div className="flex items-center gap-2 mb-2">
-                           <span className={`text-[10px] bg-${colorClass}-500/20 text-${colorClass}-400 px-2.5 py-0.5 rounded-full font-black tracking-widest uppercase inline-block border border-${colorClass}-500/30`}>
-                             Seletiva para o Time {xcla.squad}
-                           </span>
-                           {isLocked && <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-black uppercase">🔒 Escalação Fechada</span>}
-                        </div>
-                        
+                      <div className="mb-6 border-b border-blue-800/50 pb-4 pr-32">
+                        <span className={`text-[10px] bg-${colorClass}-500/20 text-${colorClass}-400 px-2.5 py-0.5 rounded-full font-black tracking-widest uppercase inline-block border border-${colorClass}-500/30 mb-2`}>
+                          Seletiva para o Time {xcla.squad}
+                        </span>
                         <h3 className="text-xl font-black text-white uppercase tracking-wider flex items-center gap-2"><Target size={20}/> {xcla.name}</h3>
-                        <p className="text-xs text-blue-400 mt-1">
-                          {isLocked ? "O time para esta competição já foi fechado e as disputas encerradas." : "Coloque os placares. Em caso de empate, clique no escudo do time vencedor para avançar de fase!"}
-                        </p>
+                        <p className="text-xs text-blue-400 mt-1">Coloque os placares. Em caso de empate, clique no escudo do time vencedor para avançar de fase!</p>
                       </div>
 
                       {/* Renderização do Mata-Mata */}
-                      <div className={`flex gap-6 overflow-x-auto custom-scrollbar pb-4 ${isLocked ? 'opacity-60 pointer-events-none grayscale-[30%]' : ''}`}>
+                      <div className="flex gap-6 overflow-x-auto custom-scrollbar pb-4">
                         {xcla.bracket.map((round, rIdx) => (
                           <div key={rIdx} className="flex flex-col justify-around gap-3 min-w-[200px]">
                             {round.map((m, mIdx) => (
                               <div key={m.id} className="bg-blue-950 border border-blue-800 rounded-xl p-2 flex flex-col gap-1.5 shadow-inner">
                                 
-                                {/* Time A e Placar */}
                                 <div className={`flex items-center justify-between p-1.5 rounded-lg transition-colors ${m.winner?.id === m.tA?.id ? `bg-${colorClass}-500/20 border border-${colorClass}-500/50` : 'border border-transparent'}`}>
                                   <div onClick={() => forceAdvanceTeam(xcla.id, rIdx, mIdx, m.tA)} className="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0" title="Forçar Vitória">
                                     <ShieldDisplay shield={m.tA?.shield} size="small" /> 
@@ -5635,7 +5688,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                                 
                                 <div className="h-px w-full bg-blue-800/50 mx-auto w-[90%]"></div>
                                 
-                                {/* Time B e Placar */}
                                 <div className={`flex items-center justify-between p-1.5 rounded-lg transition-colors ${m.winner?.id === m.tB?.id ? `bg-${colorClass}-500/20 border border-${colorClass}-500/50` : 'border border-transparent'}`}>
                                   <div onClick={() => forceAdvanceTeam(xcla.id, rIdx, mIdx, m.tB)} className="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0" title="Forçar Vitória">
                                     <ShieldDisplay shield={m.tB?.shield} size="small" /> 
@@ -5658,7 +5710,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                         <p className="text-[10px] text-blue-400">Total Convocado: {teamCount} Técnicos</p>
                       </div>
 
-                      {isAdmin && !isLocked && (
+                      {isAdmin && (
                         <button onClick={() => handleAutoFillRoster(xcla.id)} className="w-full py-2.5 text-[11px] font-black uppercase tracking-wider bg-purple-600 hover:bg-purple-500 text-white rounded-lg shadow-md border-0 transition-colors flex items-center justify-center gap-2">
                           ⚡ Puxar Resultados da Seletiva
                         </button>
@@ -5681,12 +5733,12 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                                     {t.isAuto && <span className="text-[8px] text-emerald-400 uppercase">🏆 Via Seletiva</span>}
                                   </div>
                                 </div>
-                                {isAdmin && !isLocked && <button onClick={() => removeTeamFromRoster(xcla.id, 'titulares', t.id)} className="text-blue-500 hover:text-red-400 p-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><X size={14}/></button>}
+                                {isAdmin && <button onClick={() => removeTeamFromRoster(xcla.id, 'titulares', t.id)} className="text-blue-500 hover:text-red-400 p-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><X size={14}/></button>}
                               </div>
                             ))
                           )}
                         </div>
-                        {isAdmin && !isLocked && xcla.titulares?.length < xcla.titularesMax && (
+                        {isAdmin && xcla.titulares?.length < xcla.titularesMax && (
                           <div className="flex gap-2 mt-2">
                             <select value={manualAddTitular} onChange={e=>setManualAddTitular(e.target.value)} className="flex-1 bg-blue-950 border border-blue-700 text-blue-300 text-xs rounded p-1.5 outline-none">
                               <option value="">Selecionar manualmente...</option>
@@ -5713,12 +5765,12 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                                     {t.isAuto && <span className="text-[8px] text-emerald-400 uppercase">🏆 Via Seletiva</span>}
                                   </div>
                                 </div>
-                                {isAdmin && !isLocked && <button onClick={() => removeTeamFromRoster(xcla.id, 'reservas', t.id)} className="text-blue-500 hover:text-red-400 p-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><X size={14}/></button>}
+                                {isAdmin && <button onClick={() => removeTeamFromRoster(xcla.id, 'reservas', t.id)} className="text-blue-500 hover:text-red-400 p-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><X size={14}/></button>}
                               </div>
                             ))
                           )}
                         </div>
-                        {isAdmin && !isLocked && xcla.reservas?.length < xcla.reservasMax && (
+                        {isAdmin && xcla.reservas?.length < xcla.reservasMax && (
                           <div className="flex gap-2 mt-2">
                             <select value={manualAddReserva} onChange={e=>setManualAddReserva(e.target.value)} className="flex-1 bg-blue-950 border border-blue-700 text-blue-300 text-xs rounded p-1.5 outline-none">
                               <option value="">Selecionar manualmente...</option>
@@ -5735,6 +5787,235 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
               })
             )}
           </div>
+        </div>
+      )}
+
+      {/* 🔥 CONTEÚDO: COMPETIÇÕES ATIVAS (XCLÃ FECHADO) */}
+      {activeTab === 'active_xclas' && (
+        <div className="space-y-6 animate-in slide-in-from-right-4">
+          
+          {selectedActiveXcla ? (
+            <div className="bg-blue-900 border border-blue-700 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+              
+              {/* Header do Xclã Ativo */}
+              <div className="bg-gradient-to-br from-blue-950 to-blue-900 p-6 border-b border-blue-800 relative">
+                 <button onClick={() => setSelectedActiveXclaId(null)} className="absolute top-6 left-6 text-blue-400 hover:text-white flex items-center gap-1 text-xs">
+                   <ArrowLeft size={14}/> Voltar
+                 </button>
+                 
+                 <div className="text-center mt-6 mb-4">
+                   <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full font-black tracking-widest uppercase border border-emerald-500/30">
+                     Time {selectedActiveXcla.squad} • Xclã em Andamento
+                   </span>
+                   <h2 className="text-3xl font-black text-white uppercase tracking-wider mt-3">{selectedActiveXcla.name}</h2>
+                 </div>
+
+                 {/* PLACAR GERAL */}
+                 <div className="flex items-center justify-center gap-4 sm:gap-8 mt-6">
+                    <div className="flex flex-col items-center flex-1">
+                      <ShieldDisplay shield="🛡️" size="large" />
+                      <span className="font-black text-white text-lg mt-2 uppercase tracking-wide">Clã Kame</span>
+                      {isAdmin && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <button onClick={() => updateActiveXcla(selectedActiveXcla.id, {pointsKame: Math.max(0, selectedActiveXcla.pointsKame - 1)})} className="bg-blue-800 w-6 h-6 rounded text-white font-bold">-</button>
+                          <span className="text-xs text-blue-300">Pts</span>
+                          <button onClick={() => updateActiveXcla(selectedActiveXcla.id, {pointsKame: selectedActiveXcla.pointsKame + 1})} className="bg-blue-800 w-6 h-6 rounded text-white font-bold">+</button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                       <span className="text-5xl font-black text-emerald-400 drop-shadow-lg">{selectedActiveXcla.pointsKame}</span>
+                       <span className="text-2xl font-black text-blue-600">X</span>
+                       <span className="text-5xl font-black text-red-400 drop-shadow-lg">{selectedActiveXcla.pointsOpp}</span>
+                    </div>
+
+                    <div className="flex flex-col items-center flex-1">
+                      <ShieldDisplay shield="⚔️" size="large" />
+                      {isAdmin ? (
+                        <input 
+                          type="text" 
+                          value={selectedActiveXcla.oppClanName} 
+                          onChange={e => updateActiveXcla(selectedActiveXcla.id, {oppClanName: e.target.value})}
+                          className="font-black text-white text-lg mt-2 uppercase tracking-wide bg-blue-950 border border-blue-700 rounded text-center w-full max-w-[150px] outline-none focus:border-red-500"
+                        />
+                      ) : (
+                        <span className="font-black text-white text-lg mt-2 uppercase tracking-wide truncate max-w-[150px]">{selectedActiveXcla.oppClanName}</span>
+                      )}
+                      
+                      {isAdmin && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <button onClick={() => updateActiveXcla(selectedActiveXcla.id, {pointsOpp: Math.max(0, selectedActiveXcla.pointsOpp - 1)})} className="bg-blue-800 w-6 h-6 rounded text-white font-bold">-</button>
+                          <span className="text-xs text-blue-300">Pts</span>
+                          <button onClick={() => updateActiveXcla(selectedActiveXcla.id, {pointsOpp: selectedActiveXcla.pointsOpp + 1})} className="bg-blue-800 w-6 h-6 rounded text-white font-bold">+</button>
+                        </div>
+                      )}
+                    </div>
+                 </div>
+              </div>
+
+              {/* Corpo da Competição Ativa */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-1 divide-y lg:divide-y-0 lg:divide-x divide-blue-800">
+                 
+                 {/* COLUNA 1: ADVERSÁRIOS E ELENCO */}
+                 <div className="p-6 bg-blue-900/50 space-y-6">
+                    <div>
+                      <h4 className="text-sm font-black text-blue-300 uppercase tracking-widest mb-3 flex items-center gap-2"><Shield size={16}/> Elenco Convocado</h4>
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] text-emerald-400 font-bold uppercase border-b border-blue-800 pb-1 mb-1">Titulares</p>
+                        {selectedActiveXcla.titulares.map(t => (
+                          <div key={t.id} className="text-xs text-white bg-blue-950 p-2 rounded border border-blue-800 flex items-center gap-2"><ShieldDisplay shield={t.shield} size="small"/> {t.name}</div>
+                        ))}
+                        {selectedActiveXcla.reservas.length > 0 && (
+                          <>
+                            <p className="text-[10px] text-amber-400 font-bold uppercase border-b border-blue-800 pb-1 mb-1 mt-3">Reservas</p>
+                            {selectedActiveXcla.reservas.map(t => (
+                              <div key={t.id} className="text-xs text-white bg-blue-950 p-2 rounded border border-blue-800 flex items-center gap-2"><ShieldDisplay shield={t.shield} size="small"/> {t.name}</div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-black text-red-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Users size={16}/> Lista de Adversários</h4>
+                      {isAdmin && (
+                        <div className="flex gap-2 mb-3">
+                          <input type="text" placeholder="Nome do adversário..." value={newOpponentName} onChange={e=>setNewOpponentName(e.target.value)} className="flex-1 bg-blue-950 border border-blue-700 rounded p-1.5 text-xs text-white outline-none" />
+                          <button onClick={() => handleAddOpponentPlayer(selectedActiveXcla.id)} className="bg-red-600 hover:bg-red-500 text-white px-2 rounded text-xs font-bold">+</button>
+                        </div>
+                      )}
+                      <div className="space-y-1.5 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
+                         {selectedActiveXcla.opponentsList?.length === 0 ? <p className="text-xs text-blue-500 italic">Nenhum adversário mapeado.</p> : (
+                           selectedActiveXcla.opponentsList.map((opp, idx) => (
+                             <div key={idx} className="text-xs text-red-200 bg-red-950/30 p-2 rounded border border-red-900/50 flex items-center gap-2">
+                               <span className="w-4 h-4 bg-red-900 flex justify-center items-center rounded text-[8px]">⚔️</span> {opp}
+                             </div>
+                           ))
+                         )}
+                      </div>
+                    </div>
+                 </div>
+
+                 {/* COLUNA 2: CONFRONTOS (JOGOS) */}
+                 <div className="p-6 bg-blue-950/30 lg:col-span-1 space-y-6">
+                    <div className="flex justify-between items-center mb-2">
+                       <h4 className="text-sm font-black text-amber-400 uppercase tracking-widest flex items-center gap-2"><Trophy size={16}/> Confrontos Oficiais</h4>
+                    </div>
+
+                    {isAdmin && (
+                      <div className="bg-blue-900 border border-blue-700 p-3 rounded-xl space-y-2 mb-4">
+                        <p className="text-[10px] text-blue-300 font-bold uppercase">Criar Novo Confronto</p>
+                        <select value={newMatchKameId} onChange={e=>setNewMatchKameId(e.target.value)} className="w-full bg-blue-950 border border-blue-800 rounded p-1.5 text-xs text-emerald-400 outline-none">
+                          <option value="">Selecione o jogador Kame...</option>
+                          {selectedActiveXcla.titulares.map(t => <option key={t.id} value={t.id}>{t.name} (Titular)</option>)}
+                          {selectedActiveXcla.reservas.map(t => <option key={t.id} value={t.id}>{t.name} (Reserva)</option>)}
+                        </select>
+                        <div className="text-center text-[10px] text-blue-500 font-black">VERSUS</div>
+                        <select value={newMatchOppName} onChange={e=>setNewMatchOppName(e.target.value)} className="w-full bg-blue-950 border border-blue-800 rounded p-1.5 text-xs text-red-400 outline-none">
+                          <option value="">Selecione o adversário...</option>
+                          {selectedActiveXcla.opponentsList.map((o,i) => <option key={i} value={o}>{o}</option>)}
+                        </select>
+                        <button onClick={() => handleAddXclaMatch(selectedActiveXcla.id)} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 rounded text-xs mt-1 shadow-md">Adicionar Jogo</button>
+                      </div>
+                    )}
+
+                    <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                      {selectedActiveXcla.xclaMatches?.length === 0 ? <p className="text-xs text-blue-500 italic text-center">Nenhum confronto registrado.</p> : (
+                        selectedActiveXcla.xclaMatches.map(m => {
+                          const kameT = [...selectedActiveXcla.titulares, ...selectedActiveXcla.reservas].find(t => t.id === m.kameId);
+                          return (
+                            <div key={m.id} className="bg-blue-900 border border-blue-800 rounded-xl p-3 shadow-sm relative">
+                               {isAdmin && (
+                                 <button onClick={() => {
+                                   if(window.confirm('Apagar confronto?')) {
+                                     updateActiveXcla(selectedActiveXcla.id, { xclaMatches: selectedActiveXcla.xclaMatches.filter(x => x.id !== m.id) })
+                                   }
+                                 }} className="absolute top-2 right-2 text-blue-500 hover:text-red-400"><X size={12}/></button>
+                               )}
+                               
+                               <div className="flex items-center justify-between mb-2 px-2">
+                                 <div className="flex flex-col items-center w-1/3">
+                                   <ShieldDisplay shield={kameT?.shield} size="small"/>
+                                   <span className="text-[10px] font-bold text-emerald-400 mt-1 truncate w-full text-center">{kameT?.name}</span>
+                                 </div>
+                                 <div className="flex gap-1 items-center bg-blue-950 px-2 py-1 rounded border border-blue-800">
+                                    <input type="number" min="0" disabled={!isAdmin} value={m.scoreKame} onChange={e=>handleUpdateXclaMatchScore(selectedActiveXcla.id, m.id, 'scoreKame', e.target.value)} className="w-6 h-6 bg-transparent text-center text-sm font-black text-emerald-400 outline-none" placeholder="-" />
+                                    <span className="text-blue-500 font-black text-xs">x</span>
+                                    <input type="number" min="0" disabled={!isAdmin} value={m.scoreOpp} onChange={e=>handleUpdateXclaMatchScore(selectedActiveXcla.id, m.id, 'scoreOpp', e.target.value)} className="w-6 h-6 bg-transparent text-center text-sm font-black text-red-400 outline-none" placeholder="-" />
+                                 </div>
+                                 <div className="flex flex-col items-center w-1/3">
+                                   <span className="text-2xl">⚔️</span>
+                                   <span className="text-[10px] font-bold text-red-300 mt-1 truncate w-full text-center">{m.oppName}</span>
+                                 </div>
+                               </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                 </div>
+
+                 {/* COLUNA 3: MURAL DE NOTÍCIAS */}
+                 <div className="p-6 bg-blue-900/50 space-y-4">
+                    <h4 className="text-sm font-black text-sky-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Newspaper size={16}/> Resenha / Atualizações</h4>
+                    
+                    {isAdmin && (
+                      <div className="flex gap-2">
+                        <textarea value={newNewsText} onChange={e=>setNewNewsText(e.target.value)} placeholder="Narrar o que está acontecendo..." className="flex-1 bg-blue-950 border border-blue-700 rounded-lg p-2 text-xs text-white outline-none resize-none h-12 custom-scrollbar focus:border-sky-500" />
+                        <button onClick={() => handleAddXclaNews(selectedActiveXcla.id)} className="bg-sky-600 hover:bg-sky-500 text-white px-3 rounded-lg text-xs font-bold">Postar</button>
+                      </div>
+                    )}
+
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2 mt-4">
+                       {selectedActiveXcla.news?.length === 0 ? <p className="text-xs text-blue-500 italic text-center">Nenhuma notícia publicada ainda.</p> : (
+                         selectedActiveXcla.news.map(n => (
+                           <div key={n.id} className="bg-blue-950 border-l-2 border-sky-500 p-3 rounded-r-lg shadow-sm">
+                             <p className="text-[9px] text-blue-400 mb-1">{new Date(n.timestamp).toLocaleDateString()} às {new Date(n.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                             <p className="text-xs text-blue-100 whitespace-pre-wrap leading-relaxed">{n.text}</p>
+                             {isAdmin && <button onClick={() => {
+                               if(window.confirm('Apagar notícia?')) updateActiveXcla(selectedActiveXcla.id, {news: selectedActiveXcla.news.filter(x => x.id !== n.id)});
+                             }} className="text-[9px] text-red-400/50 hover:text-red-400 mt-2">Excluir</button>}
+                           </div>
+                         ))
+                       )}
+                    </div>
+                 </div>
+
+              </div>
+            </div>
+          ) : (
+            <>
+              {activeCompetitions.length === 0 ? (
+                <div className="bg-blue-950 p-8 rounded-2xl border border-blue-800 text-center border-dashed">
+                  <p className="text-blue-500">Nenhum Xclã em andamento. Feche uma seletiva para ela aparecer aqui.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {activeCompetitions.map(xcla => (
+                    <div key={xcla.id} onClick={() => setSelectedActiveXclaId(xcla.id)} className="bg-blue-900 border border-emerald-500/30 hover:border-emerald-400 rounded-2xl p-5 cursor-pointer shadow-lg transition-all group relative overflow-hidden">
+                       <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl shadow-md">
+                         Time {xcla.squad}
+                       </div>
+                       <h3 className="text-xl font-black text-white uppercase tracking-wider mb-2 group-hover:text-emerald-400 transition-colors">{xcla.name}</h3>
+                       
+                       <div className="flex items-center gap-4 mt-4">
+                          <div className="flex flex-col items-center">
+                            <span className="text-[10px] text-blue-400 font-bold uppercase">Kame</span>
+                            <span className="text-2xl font-black text-emerald-400">{xcla.pointsKame || 0}</span>
+                          </div>
+                          <span className="text-blue-600 font-black">X</span>
+                          <div className="flex flex-col items-center">
+                            <span className="text-[10px] text-blue-400 font-bold uppercase truncate max-w-[80px]">{xcla.oppClanName || 'Adversário'}</span>
+                            <span className="text-2xl font-black text-red-400">{xcla.pointsOpp || 0}</span>
+                          </div>
+                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
