@@ -1846,8 +1846,11 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
     liga_b: '🥈 Liga Kame B',
     liga_c: '🥉 Liga Kame C',
     liga_d: '🎖️ Liga Kame D',
+    liga_acesso: ' ⬆️ Liga de acesso',
     copa_main: '🏆 Copa Oficial',
-    copa_flash: '⚡ Copa Flash'
+    copa_flash: '⚡ Copa Flash',
+    copa_do_rei: '👑 Copa do Rei',
+    copa_amazonia: '🌳 Copa da Amazônia'
   };
 
   const getMatchStatusDisplay = (matchId) => {
@@ -2432,9 +2435,13 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setShowEditSettings(false)} className="px-4 py-2 bg-blue-900 border border-blue-700 rounded-lg text-xs text-blue-300 hover:text-white">Cancelar</button>
             <button onClick={() => {
+              // Dicionário rápido para puxar o nome correto na hora de salvar
+              const CAT_NAMES = { liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D', copa_main: 'Copa Oficial', copa_flash: 'Copa Flash' };
+              const cleanCatName = CAT_NAMES[settingsData.category] || 'Competição';
+
               onEditComp({ 
                 ...comp, 
-                name: settingsData.edition ? `Edição ${settingsData.edition}` : comp.name, // 🌟 Salva a Edição
+                name: settingsData.edition ? `${cleanCatName} - Edição ${settingsData.edition}` : comp.name, // 🌟 Salva o nome completo
                 category: settingsData.category, 
                 playStyle: settingsData.playStyle, 
                 rules: settingsData.rules,
@@ -3371,20 +3378,31 @@ const CreateCompetition = ({ teams, competitions, currentUser, onCreate }) => {
   const [selectedTeams, setSelectedTeams] = useState([]);
   const [error, setError] = useState('');
 
-  // 🌟 AUTOMAÇÃO DO NOME (Edição) E COPA FLASH
+  // 🌟 AUTOMAÇÃO DO NOME E COPA FLASH
   useEffect(() => {
-    // 1. Regra da Copa Flash
+    // Dicionário com os nomes limpos das categorias
+    const CAT_NAMES = {
+      liga_a: 'Liga Kame A',
+      liga_b: 'Liga Kame B',
+      liga_c: 'Liga Kame C',
+      liga_d: 'Liga Kame D',
+      liga_acesso: 'Liga de acesso',
+      copa_main: 'Copa Oficial',
+      copa_flash: 'Copa Flash',
+      copa_do_rei: 'Copa do Rei',
+      copa_amazonia: 'Copa da Amazônia'
+    };
+
     if (category === 'copa_flash') {
       setFormat('cup');
     }
 
-    // 2. Regra do Nome Automático (Edição X)
-    // Filtra todas as competições que têm a mesma categoria da selecionada
     const compsOfCategory = (competitions || []).filter(c => c.category === category);
-    
-    // O número da edição será a quantidade atual + 1
     const nextEditionNumber = compsOfCategory.length + 1;
-    setName(`Edição ${nextEditionNumber}`);
+    const catName = CAT_NAMES[category] || 'Competição';
+    
+    // Agora ele salva o nome completo!
+    setName(`${catName} - Edição ${nextEditionNumber}`);
 
   }, [category, competitions]);
 
