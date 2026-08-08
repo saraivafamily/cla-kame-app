@@ -1802,7 +1802,7 @@ const DrawPanel = ({ comp, teams, matches, showToast }) => {
   );
 };
 
-const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onReleaseRound, onLockRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch, onSubmitMatch, onUpdateMatchStatus }) => {
+const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentUser, onReleaseRound, onLockRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch, onSubmitMatch, onUpdateMatchStatus }) => {
   const [subTab, setSubTab] = useState('overview'); 
   const [expandedRoundId, setExpandedRoundId] = useState(null);
   const [editMatchData, setEditMatchData] = useState(null);
@@ -1823,11 +1823,12 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
   const [showEditSettings, setShowEditSettings] = useState(false);
   const [settingsData, setSettingsData] = useState({
     category: comp?.category || 'liga_a',
+    edition: comp?.name ? comp.name.replace(/\D/g, '') : '', // 🌟 Extrai apenas o número do nome
     playStyle: comp?.playStyle || 'Livre',
     rules: comp?.rules || '',
-    promotions: comp?.promotions || 0, // NOVO: Vagas de acesso
-    relegations: comp?.relegations || 0, // NOVO: Vagas de rebaixamento
-    admins: comp?.admins || [] // 👑 NOVO
+    promotions: comp?.promotions || 0,
+    relegations: comp?.relegations || 0,
+    admins: comp?.admins || [] 
   });
 
   const [showEditGroups, setShowEditGroups] = useState(false);
@@ -2190,15 +2191,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
     showToast("Quadro de premiações atualizado!", "success");
   };
 
-  const handleSaveCategory = () => {
-    onEditComp({
-      ...comp,
-      category: categoryData
-    });
-    setShowEditCategory(false);
-    showToast("Categoria do torneio atualizada com sucesso!", "success");
-  };
-
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
   const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id));
 
@@ -2302,8 +2294,9 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
       
       <div className="bg-blue-900 p-5 rounded-3xl border border-blue-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl">
         <div>
-          <h2 className="text-xl font-bold text-white">
-             {comp.category === 'copa_flash' ? `COPA FLASH KAME - ${comp.name}` : String(comp.name)}
+          {/* 🌟 TÍTULO DINÂMICO CATEGORIA + EDIÇÃO */}
+          <h2 className="text-xl font-bold text-white uppercase tracking-wider">
+             {comp.category ? CATEGORY_NAMES[comp.category] : 'Campeonato'} - {comp.name}
           </h2>
           <div className="flex items-center flex-wrap gap-2 mt-2">
             <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">
@@ -2377,6 +2370,13 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
         <div className="bg-blue-950/80 border border-blue-700 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
           <h3 className="text-sm font-bold text-blue-300 uppercase tracking-wider flex items-center gap-2">⚙️ Configurações Gerais</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* 🌟 NOVO CAMPO: Edição */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-blue-400">Edição (Apenas Número)</label>
+              <input type="number" min="1" value={settingsData.edition} onChange={e => setSettingsData({...settingsData, edition: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" placeholder="Ex: 1, 2, 3..." />
+            </div>
+
             <div className="space-y-1">
               <label className="text-xs font-bold text-blue-400">Categoria (Ranking)</label>
               <select value={settingsData.category} onChange={e => setSettingsData({...settingsData, category: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500">
@@ -2388,6 +2388,7 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
               </select>
             </div>
+            
             <div className="space-y-1">
               <label className="text-xs font-bold text-blue-400">Estilo de Jogo</label>
               <select value={settingsData.playStyle} onChange={e => setSettingsData({...settingsData, playStyle: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500">
@@ -2396,9 +2397,9 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                 <option value="Personalizado">Regras Personalizadas</option>
               </select>
             </div>
-            {/* NOVO: Campos de Acesso e Rebaixamento */}
+
             <div className="space-y-1">
-              <label className="text-xs font-bold text-blue-400">Vagas de Acesso (Classificados)</label>
+              <label className="text-xs font-bold text-blue-400">Vagas de Acesso</label>
               <input type="number" min="0" value={settingsData.promotions} onChange={e => setSettingsData({...settingsData, promotions: parseInt(e.target.value) || 0})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" placeholder="Ex: 4" />
             </div>
             <div className="space-y-1">
@@ -2410,7 +2411,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
               <textarea value={settingsData.rules} onChange={e => setSettingsData({...settingsData, rules: e.target.value})} placeholder="Descreva as regras de times, overral e proibições..." className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500 min-h-[80px] resize-y" />
             </div>
             
-            {/* 👑 NOVO: PAINEL PARA LÍDERES ADICIONAREM ORGANIZADORES */}
             {isLeader && (
               <div className="space-y-2 md:col-span-2 pt-2 border-t border-blue-800">
                 <label className="text-xs font-bold text-emerald-400">Adicionar Organizadores Adicionais</label>
@@ -2432,15 +2432,15 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setShowEditSettings(false)} className="px-4 py-2 bg-blue-900 border border-blue-700 rounded-lg text-xs text-blue-300 hover:text-white">Cancelar</button>
             <button onClick={() => {
-              // NOVO: Adicionado as propriedades promotions e relegations no objeto salvo
               onEditComp({ 
                 ...comp, 
+                name: settingsData.edition ? `Edição ${settingsData.edition}` : comp.name, // 🌟 Salva a Edição
                 category: settingsData.category, 
                 playStyle: settingsData.playStyle, 
                 rules: settingsData.rules,
                 promotions: settingsData.promotions,
                 relegations: settingsData.relegations,
-                admins: settingsData.admins // 👑 Salva a lista
+                admins: settingsData.admins 
               });
               setShowEditSettings(false);
               showToast("Configurações atualizadas!", "success");
@@ -2623,7 +2623,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
                     {(groupOrNormalRounds.length > 0 || (isAdmin && comp.format === 'league')) && (
                       <div className="space-y-3 pt-4 border-t border-blue-800/50">
                         
-                        {/* NOVO BOTÃO PARA PONTOS CORRIDOS */}
                         {isAdmin && comp.format === 'league' && (
                           <Button onClick={handleAddNewRound} className="w-full mt-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg border border-emerald-500">
                             ➕ Adicionar Nova Rodada / Partida Extra
@@ -3014,7 +3013,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
               </div>
             )}
 
-            {/* 🔥 AS ABAS NOVAS ENTRAM AQUI, SEPARADAS DAS ESTATÍSTICAS! */}
             {subTab === 'submit' && isAdmin && (
               <div className="animate-in slide-in-from-right-4">
                 <SubmitMatch teams={teams} competitions={[comp]} matches={matches} currentUser={currentUser} showToast={showToast} preSelectedCompId={comp.id} onSubmit={(m) => { onSubmitMatch(m); setSubTab('validation'); }} />
@@ -3027,7 +3025,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
               </div>
             )}
 
-            {/* 👇 ADICIONE ESTE BLOCO AQUI 👇 */}
             {subTab === 'draw' && isAdmin && (
               <div className="animate-in slide-in-from-right-4">
                 <DrawPanel comp={comp} teams={teams} matches={matches} showToast={showToast} />
@@ -3037,8 +3034,6 @@ const CompetitionDetails = ({ comp, teams, matches, onBack, currentUser, onRelea
           </div>
         </>
       )}
-
-      
 
       {showEditGroups && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setShowEditGroups(false)}>
@@ -3347,7 +3342,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   );
 };
 
-const CreateCompetition = ({ teams, currentUser, onCreate }) => {
+const CreateCompetition = ({ teams, competitions, currentUser, onCreate }) => {
   const [name, setName] = useState('');
   const [format, setFormat] = useState('league');
   const [category, setCategory] = useState('liga_a');
@@ -3376,12 +3371,22 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
   const [selectedTeams, setSelectedTeams] = useState([]);
   const [error, setError] = useState('');
 
-  // 🌟 AUTOMAÇÃO DA COPA FLASH
+  // 🌟 AUTOMAÇÃO DO NOME (Edição) E COPA FLASH
   useEffect(() => {
+    // 1. Regra da Copa Flash
     if (category === 'copa_flash') {
       setFormat('cup');
     }
-  }, [category]);
+
+    // 2. Regra do Nome Automático (Edição X)
+    // Filtra todas as competições que têm a mesma categoria da selecionada
+    const compsOfCategory = (competitions || []).filter(c => c.category === category);
+    
+    // O número da edição será a quantidade atual + 1
+    const nextEditionNumber = compsOfCategory.length + 1;
+    setName(`Edição ${nextEditionNumber}`);
+
+  }, [category, competitions]);
 
   const toggleTeam = (teamId) => {
     if (selectedTeams.includes(teamId)) setSelectedTeams(selectedTeams.filter(id => id !== teamId));
@@ -3390,58 +3395,88 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
     
-    if (!isAutoJoin && selectedTeams.length !== parseInt(teamCount)) { 
-      setError(`Atenção: Para gerar a tabela agora, você precisa marcar exatamente ${teamCount} times. Você selecionou ${selectedTeams.length}.`); 
+    // Validações Básicas
+    if (!name || !format || !teamCount || !deadline) { 
+      setError('Preencha os dados básicos do torneio.'); 
       return; 
     }
-    if (isAutoJoin && selectedTeams.length > parseInt(teamCount)) {
-      setError(`Atenção: Você pré-confirmou mais times (${selectedTeams.length}) do que o limite total de vagas (${teamCount}).`);
+    
+    const parsedTeamCount = parseInt(teamCount, 10);
+
+    if (!isAutoJoin && selectedTeams.length !== parsedTeamCount) { 
+      setError(`Atenção: Para gerar a tabela agora, você precisa marcar exatamente ${parsedTeamCount} times. Você selecionou ${selectedTeams.length}.`); 
+      return; 
+    }
+    if (isAutoJoin && selectedTeams.length > parsedTeamCount) {
+      setError(`Atenção: Você pré-confirmou mais times (${selectedTeams.length}) do que o limite total de vagas (${parsedTeamCount}).`);
       return;
     }
 
-    if (isPaid && (!entryFee || !pixKey || !prize1st || !prize2nd)) { setError('Em torneios pagos, preencha a taxa, a chave PIX e os prêmios do 1º e 2º lugar.'); return; }
+    if (isPaid && (!entryFee || !pixKey || !prize1st || !prize2nd)) { 
+      setError('Em torneios pagos, preencha a taxa, a chave PIX e os prêmios do 1º e 2º lugar.'); 
+      return; 
+    }
 
     setError('');
     const compId = `c${Date.now()}`;
     let finalRounds = [];
     let groupsData = null;
 
+    // Gera a tabela apenas se as inscrições já estiverem fechadas (!isAutoJoin)
     if (!isAutoJoin) {
-      if (format === 'groups') {
-        const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound, isFinalDouble);
-        finalRounds = res.rounds;
-        groupsData = res.groups;
-      } else if (format === 'cup') {
-        finalRounds = generateCupBracket(selectedTeams, compId, isFinalDouble);
-      } else {
-        finalRounds = generateRoundRobin(selectedTeams, compId, isDoubleRound);
+      try {
+        if (format === 'groups') {
+          const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound, isFinalDouble);
+          finalRounds = res.rounds;
+          groupsData = res.groups;
+        } else if (format === 'cup') {
+          finalRounds = generateCupBracket(selectedTeams, compId, isFinalDouble);
+        } else {
+          finalRounds = generateRoundRobin(selectedTeams, compId, isDoubleRound);
+        }
+      } catch (err) {
+        console.error("Erro ao gerar tabela:", err);
+        setError('Ocorreu um erro ao gerar o chaveamento. Verifique a quantidade de times.');
+        return;
       }
     }
 
     const newComp = { 
-      id: compId, name, format, deadline, category, playStyle, rules,
-      teamCount: parseInt(teamCount),
+      id: compId, 
+      name, 
+      format, 
+      deadline, 
+      category, 
+      playStyle, 
+      rules,
+      teamCount: parsedTeamCount,
       status: isAutoJoin ? 'registration' : 'active', 
       teams: selectedTeams, 
       pendingTeams: [],
       rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido',
-      creatorId: currentUser?.id, // 👑 NOVO: Dono da competição
-      admins: [currentUser?.id],  // 👑 NOVO: Array de administradores
+      creatorId: currentUser?.id, 
+      admins: [currentUser?.id],  
       isDoubleRound,
       isFinalDouble,
-      numGroups: parseInt(numGroups),
-      qualifiersPerGroup: parseInt(qualifiers),
+      numGroups: parseInt(numGroups || '0', 10),
+      qualifiersPerGroup: parseInt(qualifiers || '0', 10),
       ...(groupsData && { groups: groupsData }),
       isPaid: isPaid,
       ...(isPaid && {
-        entryFee: parseFloat(entryFee), pixKey: pixKey,
-        prizes: { first: parseFloat(prize1st), second: parseFloat(prize2nd), third: prize3rd ? parseFloat(prize3rd) : 0, passesCount: passesToRaffle ? parseInt(passesToRaffle) : 0 }
+        entryFee: parseFloat(entryFee), 
+        pixKey: pixKey,
+        prizes: { 
+          first: parseFloat(prize1st), 
+          second: parseFloat(prize2nd), 
+          third: prize3rd ? parseFloat(prize3rd) : 0, 
+          passesCount: passesToRaffle ? parseInt(passesToRaffle, 10) : 0 
+        }
       })
     };
 
+    // Aciona a função do pai para salvar
     onCreate(newComp);
   };
 
@@ -3450,7 +3485,7 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><PlusCircle className="text-emerald-500"/> Nova Competição</h2>
       
       <form onSubmit={handleSubmit} className="space-y-6">
-        {error && <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3"><AlertCircle size={20} /><p className="text-sm font-medium">{error}</p></div>}
+        {error && <div className="bg-amber-500/10 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-3"><AlertCircle size={20} className="shrink-0" /><p className="text-sm font-medium">{error}</p></div>}
         
         <div className="bg-blue-900 pt-6 md:pt-8 rounded-3xl border border-blue-800 shadow-xl overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 px-6 md:px-8">
@@ -3462,7 +3497,11 @@ const CreateCompetition = ({ teams, currentUser, onCreate }) => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 md:px-8">
-            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Nome do Campeonato</label><input type="text" placeholder={category === 'copa_flash' ? "Ex: Edição #4" : "Ex: Liga Kame 2026"} value={name} onChange={e=>setName(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-blue-300">Nome do Campeonato</label>
+              {/* O campo de nome agora é desabilitado e automático */}
+              <input type="text" value={name} readOnly className="w-full bg-blue-950/50 border border-blue-800 rounded-xl p-3 text-blue-400 font-bold outline-none cursor-not-allowed" />
+            </div>
             
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Categoria (Divisão)</label>
               <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full bg-blue-950 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner">
@@ -6116,7 +6155,7 @@ export default function App() {
         
       case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); })} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
-      case 'create_comp': return <CreateCompetition teams={teams} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
+      case 'create_comp': return <CreateCompetition teams={teams} competitions={competitions} currentUser={currentUser} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
       case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
       case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
