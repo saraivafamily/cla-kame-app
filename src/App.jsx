@@ -3390,19 +3390,19 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const [selectedTeams, setSelectedTeams] = useState([]);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const CAT_NAMES = {
-      liga_a: 'Liga Kame A',
-      liga_b: 'Liga Kame B',
-      liga_c: 'Liga Kame C',
-      liga_d: 'Liga Kame D',
-      liga_acesso: 'Liga de Acesso',
-      copa_main: 'Copa Oficial',
-      copa_do_rei: 'Copa do Rei',
-      copa_amazonia: 'Copa da Amazônia',
-      copa_flash: 'Copa Flash'
-    };
+  const CAT_NAMES = {
+    liga_a: 'Liga Kame A',
+    liga_b: 'Liga Kame B',
+    liga_c: 'Liga Kame C',
+    liga_d: 'Liga Kame D',
+    liga_acesso: 'Liga de Acesso',
+    copa_main: 'Copa Oficial',
+    copa_do_rei: 'Copa do Rei',
+    copa_amazonia: 'Copa da Amazônia',
+    copa_flash: 'Copa Flash'
+  };
 
+  useEffect(() => {
     if (category === 'copa_flash') {
       setFormat('cup');
     }
@@ -3413,6 +3413,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
     
     setName(`${catName} - Edição ${nextEditionNumber}`);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, competitions]);
 
   const toggleTeam = (teamId) => {
@@ -3420,32 +3421,26 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
     else setSelectedTeams([...selectedTeams, teamId]);
   };
 
-  // 🌟 NOVO MOTOR: IMPORTAÇÃO INTELIGENTE
+  // 🌟 NOVO MOTOR MÁGICO: BASEADO NO NÚMERO DE VAGAS RESTANTES
   const handleSmartImport = () => {
     const HIERARCHY = ['liga_a', 'liga_b', 'liga_c', 'liga_d', 'liga_acesso'];
     const myIdx = HIERARCHY.indexOf(category);
     
     if (myIdx === -1) {
-      if (showToast) showToast("A importação inteligente só funciona para as Ligas oficiais (A, B, C, D e Acesso).", "error");
+      if (showToast) showToast("A importação inteligente só funciona para as Ligas oficiais.", "error");
+      return;
+    }
+
+    const targetSize = parseInt(teamCount, 10);
+    if (!targetSize || targetSize <= 0) {
+      if (showToast) showToast("ATENÇÃO: Preencha a 'Qtd. Total de Vagas' antes de puxar os times!", "error");
       return;
     }
 
     let importedTeams = new Set();
     let logMsg = [];
 
-    // 1. Puxar quem ficou (Retidos da mesma liga anterior)
-    const lastSameLeague = (competitions || []).filter(c => c.category === category).sort((a,b) => b.id.localeCompare(a.id))[0];
-    if (lastSameLeague) {
-      const table = calculateStandings(matches, teams.filter(t => lastSameLeague.teams?.includes(t.id)), lastSameLeague.id);
-      const promo = lastSameLeague.promotions || 0;
-      const rele = lastSameLeague.relegations || 0;
-      
-      const retained = table.slice(promo, table.length - rele);
-      retained.forEach(t => importedTeams.add(t.id));
-      if (retained.length > 0) logMsg.push(`${retained.length} times mantidos da última edição`);
-    }
-
-    // 2. Puxar quem caiu da liga de cima (Rebaixados)
+    // 1. Puxar quem caiu da liga superior (Rebaixados da liga de cima)
     if (myIdx > 0) {
       const upperCat = HIERARCHY[myIdx - 1];
       const lastUpperLeague = (competitions || []).filter(c => c.category === upperCat).sort((a,b) => b.id.localeCompare(a.id))[0];
@@ -3454,35 +3449,54 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
         const table = calculateStandings(matches, teams.filter(t => lastUpperLeague.teams?.includes(t.id)), lastUpperLeague.id);
         const relegated = table.slice(-lastUpperLeague.relegations);
         relegated.forEach(t => importedTeams.add(t.id));
-        if (relegated.length > 0) logMsg.push(`${relegated.length} times rebaixados da Liga Superior`);
+        if (relegated.length > 0) logMsg.push(`${relegated.length} rebaixados da ${CAT_NAMES[upperCat]}`);
       }
     }
 
-    // 3. Puxar quem subiu da liga de baixo (Promovidos)
-    if (myIdx < HIERARCHY.length - 1) {
+    // 2. Puxar quem ficou (Retidos da mesma liga anterior, exceto rebaixados e promovidos)
+    const lastSameLeague = (competitions || []).filter(c => c.category === category).sort((a,b) => b.id.localeCompare(a.id))[0];
+    if (lastSameLeague) {
+      const table = calculateStandings(matches, teams.filter(t => lastSameLeague.teams?.includes(t.id)), lastSameLeague.id);
+      const promo = lastSameLeague.promotions || 0;
+      const rele = lastSameLeague.relegations || 0;
+      
+      const retained = table.slice(promo, table.length - rele);
+      retained.forEach(t => importedTeams.add(t.id));
+      if (retained.length > 0) logMsg.push(`${retained.length} mantidos`);
+    }
+
+    // 3. Completar as vagas restantes PUXANDO os melhores da liga inferior
+    let missingSlots = targetSize - importedTeams.size;
+    
+    if (missingSlots > 0 && myIdx < HIERARCHY.length - 1) {
       const lowerCat = HIERARCHY[myIdx + 1];
       const lastLowerLeague = (competitions || []).filter(c => c.category === lowerCat).sort((a,b) => b.id.localeCompare(a.id))[0];
       
-      if (lastLowerLeague && lastLowerLeague.promotions > 0) {
+      if (lastLowerLeague) {
         const table = calculateStandings(matches, teams.filter(t => lastLowerLeague.teams?.includes(t.id)), lastLowerLeague.id);
-        const promoted = table.slice(0, lastLowerLeague.promotions);
+        // O PULO DO GATO: Corta a tabela da série B pegando exatamente o que falta (missingSlots)
+        const promoted = table.slice(0, missingSlots); 
         promoted.forEach(t => importedTeams.add(t.id));
-        if (promoted.length > 0) logMsg.push(`${promoted.length} times promovidos da Liga Inferior`);
+        if (promoted.length > 0) logMsg.push(`${promoted.length} promovidos da ${CAT_NAMES[lowerCat]}`);
       }
     }
 
     const finalTeamsList = Array.from(importedTeams);
     
     if (finalTeamsList.length === 0) {
-      if (showToast) showToast("Não encontramos histórico ou times classificados para esta liga.", "info");
+      if (showToast) showToast("Não encontramos histórico anterior para preencher as vagas.", "info");
       return;
     }
 
     setSelectedTeams(finalTeamsList);
-    setTeamCount(finalTeamsList.length.toString()); // Ajusta as vagas pro tamanho exato puxado
-    setIsAutoJoin(false); // Desativa o link de inscrição (já que você puxou a dedo)
+    setIsAutoJoin(false); // Desativa o link automático
     
-    if (showToast) showToast(`Importação concluída! ${finalTeamsList.length} times escalados.`, "success");
+    // Avisos dinâmicos
+    if (finalTeamsList.length < targetSize) {
+      if (showToast) showToast(`Times Puxados: ${logMsg.join(', ')}. Faltaram ${targetSize - finalTeamsList.length} vagas! Preencha manualmente.`, "warning");
+    } else {
+      if (showToast) showToast(`Tabela Completa! ${logMsg.join(' + ')}.`, "success");
+    }
   };
 
   const handleSubmit = (e) => {
@@ -3684,7 +3698,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
               {isAutoJoin ? `Equipes Pré-Confirmadas (Opcional: ${selectedTeams.length}/${teamCount || '0'})` : `Marcar as Equipes Manualmente (Obrigatório: ${selectedTeams.length}/${teamCount || '0'})`}
             </label>
             
-            {/* 🌟 BOTÃO MÁGICO DE IMPORTAÇÃO AQUI */}
+            {/* 🌟 BOTÃO MÁGICO DE IMPORTAÇÃO */}
             {['liga_a', 'liga_b', 'liga_c', 'liga_d', 'liga_acesso'].includes(category) && (
               <button type="button" onClick={handleSmartImport} className="text-xs bg-amber-600 hover:bg-amber-500 text-blue-950 font-black px-4 py-2 rounded-xl shadow-lg border border-amber-400 transition-colors flex items-center gap-2">
                 🔄 Puxar Times Automaticamente
