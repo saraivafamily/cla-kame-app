@@ -2436,7 +2436,17 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
             <button onClick={() => setShowEditSettings(false)} className="px-4 py-2 bg-blue-900 border border-blue-700 rounded-lg text-xs text-blue-300 hover:text-white">Cancelar</button>
             <button onClick={() => {
               // Dicionário rápido para puxar o nome correto na hora de salvar
-              const CAT_NAMES = { liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D', copa_main: 'Copa Oficial', copa_flash: 'Copa Flash' };
+              const CAT_NAMES = {
+                liga_a: 'Liga Kame A',
+                liga_b: 'Liga Kame B',
+                liga_c: 'Liga Kame C',
+                liga_d: 'Liga Kame D',
+                liga_acesso: 'Liga de Acesso',
+                copa_main: 'Copa Oficial',
+                copa_flash: 'Copa Flash',
+                copa_do_rei: 'Copa do Rei',
+                copa_amazonia: 'Copa da Amazônia'
+              };
               const cleanCatName = CAT_NAMES[settingsData.category] || 'Competição';
 
               onEditComp({ 
@@ -3527,7 +3537,10 @@ const CreateCompetition = ({ teams, competitions, currentUser, onCreate }) => {
                 <option value="liga_b">🥈 Liga Kame B (Série B)</option>
                 <option value="liga_c">🥉 Liga Kame C (Série C)</option>
                 <option value="liga_d">🎖️ Liga Kame D (Série D)</option>
+                <option value="liga_acesso">⬆️</option>
                 <option value="copa_main">🏆 Copas Oficiais (Ex: Copa do Clã)</option>
+                <option value="copa_do_rei">👑 Copa do Rei</option>
+                <opition value="copa_amazonia">🌳Copa da Amaxônia</option>
                 <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
               </select>
             </div>
