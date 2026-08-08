@@ -5279,6 +5279,10 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     }
   };
 
+  const updateActiveXcla = (id, payload) => {
+    setXclas(prev => prev.map(x => x.id === id ? { ...x, ...payload } : x));
+  };
+
   const updateBracketMatch = (xclaId, roundIdx, matchIdx, field, value) => {
     const newXclas = [...xclas];
     const xcla = newXclas.find(x => x.id === xclaId);
@@ -5422,11 +5426,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     else xcla.reservas = xcla.reservas.filter(t => t.id !== teamId);
     
     setXclas(newXclas);
-  };
-
-  // ⚔️ FUNÇÕES DA COMPETIÇÃO ATIVA
-  const updateActiveXcla = (id, payload) => {
-    setXclas(prev => prev.map(x => x.id === id ? { ...x, ...payload } : x));
   };
 
   const handleAddOpponentPlayer = (xclaId) => {
@@ -5824,10 +5823,12 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                       )}
                     </div>
 
-                    <div className="flex items-center gap-3 shrink-0">
-                       <span className="text-5xl font-black text-emerald-400 drop-shadow-lg">{selectedActiveXcla.pointsKame}</span>
-                       <span className="text-2xl font-black text-blue-600">X</span>
-                       <span className="text-5xl font-black text-red-400 drop-shadow-lg">{selectedActiveXcla.pointsOpp}</span>
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                       <div className="flex items-center gap-3">
+                         <span className="text-5xl font-black text-emerald-400 drop-shadow-lg">{selectedActiveXcla.pointsKame}</span>
+                         <span className="text-2xl font-black text-blue-600">X</span>
+                         <span className="text-5xl font-black text-red-400 drop-shadow-lg">{selectedActiveXcla.pointsOpp}</span>
+                       </div>
                     </div>
 
                     <div className="flex flex-col items-center flex-1">
@@ -5838,6 +5839,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                           value={selectedActiveXcla.oppClanName} 
                           onChange={e => updateActiveXcla(selectedActiveXcla.id, {oppClanName: e.target.value})}
                           className="font-black text-white text-lg mt-2 uppercase tracking-wide bg-blue-950 border border-blue-700 rounded text-center w-full max-w-[150px] outline-none focus:border-red-500"
+                          placeholder="Adversário"
                         />
                       ) : (
                         <span className="font-black text-white text-lg mt-2 uppercase tracking-wide truncate max-w-[150px]">{selectedActiveXcla.oppClanName}</span>
@@ -5958,7 +5960,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
 
                  {/* COLUNA 3: MURAL DE NOTÍCIAS */}
                  <div className="p-6 bg-blue-900/50 space-y-4">
-                    <h4 className="text-sm font-black text-sky-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Newspaper size={16}/> Resenha / Atualizações</h4>
+                    <h4 className="text-sm font-black text-sky-400 uppercase tracking-widest mb-3 flex items-center gap-2"><MessageCircle size={16}/> Resenha / Atualizações</h4>
                     
                     {isAdmin && (
                       <div className="flex gap-2">
@@ -5993,21 +5995,35 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {activeCompetitions.map(xcla => (
-                    <div key={xcla.id} onClick={() => setSelectedActiveXclaId(xcla.id)} className="bg-blue-900 border border-emerald-500/30 hover:border-emerald-400 rounded-2xl p-5 cursor-pointer shadow-lg transition-all group relative overflow-hidden">
+                    <div key={xcla.id} onClick={() => setSelectedActiveXclaId(xcla.id)} className="bg-blue-900 border border-emerald-500/30 hover:border-emerald-400 rounded-2xl p-5 cursor-pointer shadow-lg transition-all group relative overflow-hidden flex flex-col justify-between">
                        <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl shadow-md">
                          Time {xcla.squad}
                        </div>
+                       
                        <h3 className="text-xl font-black text-white uppercase tracking-wider mb-2 group-hover:text-emerald-400 transition-colors">{xcla.name}</h3>
                        
-                       <div className="flex items-center gap-4 mt-4">
-                          <div className="flex flex-col items-center">
-                            <span className="text-[10px] text-blue-400 font-bold uppercase">Kame</span>
-                            <span className="text-2xl font-black text-emerald-400">{xcla.pointsKame || 0}</span>
+                       <div className="flex items-center gap-4 mt-2 mb-2">
+                          <div className="flex flex-col items-center w-[40%]">
+                            <span className="text-[10px] text-blue-400 font-bold uppercase mb-1">Clã Kame</span>
+                            <span className="text-3xl font-black text-emerald-400 leading-none">{xcla.pointsKame || 0}</span>
                           </div>
-                          <span className="text-blue-600 font-black">X</span>
-                          <div className="flex flex-col items-center">
-                            <span className="text-[10px] text-blue-400 font-bold uppercase truncate max-w-[80px]">{xcla.oppClanName || 'Adversário'}</span>
-                            <span className="text-2xl font-black text-red-400">{xcla.pointsOpp || 0}</span>
+                          
+                          <span className="text-blue-600 font-black text-xl leading-none">X</span>
+                          
+                          <div className="flex flex-col items-center w-[40%]">
+                            {isAdmin ? (
+                              <input 
+                                type="text" 
+                                value={xcla.oppClanName || ''} 
+                                onChange={e => updateActiveXcla(xcla.id, {oppClanName: e.target.value})}
+                                onClick={e => e.stopPropagation()} 
+                                placeholder="Adversário"
+                                className="text-[10px] text-red-300 font-bold uppercase bg-blue-950 border border-blue-700 rounded text-center w-full outline-none focus:border-red-500 mb-1"
+                              />
+                            ) : (
+                              <span className="text-[10px] text-blue-400 font-bold uppercase truncate w-full text-center mb-1">{xcla.oppClanName || 'Adversário'}</span>
+                            )}
+                            <span className="text-3xl font-black text-red-400 leading-none">{xcla.pointsOpp || 0}</span>
                           </div>
                        </div>
                     </div>
