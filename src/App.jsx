@@ -5120,11 +5120,9 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
   const [newXclaTitularesCount, setNewXclaTitularesCount] = useState('5');
   const [newXclaReservasCount, setNewXclaReservasCount] = useState('2');
   
-  // Vagas Garantidas (Apenas para o Time A)
   const [guaranteedMembroSuperior, setGuaranteedMembroSuperior] = useState('');
   const [guaranteedProfessor, setGuaranteedProfessor] = useState('');
 
-  // Seleções Manuais Dropdowns
   const [manualAddTitular, setManualAddTitular] = useState('');
   const [manualAddReserva, setManualAddReserva] = useState('');
 
@@ -5166,7 +5164,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     return xclas.some(x => 
       x.name.trim().toLowerCase() === tournamentName.trim().toLowerCase() && 
       x.id !== currentXclaId && 
-      (x.titulares.some(t => t.id === teamId) || x.reservas.some(t => t.id === teamId))
+      ((x.titulares || []).some(t => t.id === teamId) || (x.reservas || []).some(t => t.id === teamId))
     );
   };
 
@@ -5206,8 +5204,8 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     const alreadyRosteredIds = new Set();
     xclas.forEach(x => {
        if (x.name.trim().toLowerCase() === newXclaName.trim().toLowerCase()) {
-          x.titulares.forEach(t => alreadyRosteredIds.add(t.id));
-          x.reservas.forEach(t => alreadyRosteredIds.add(t.id));
+          (x.titulares || []).forEach(t => alreadyRosteredIds.add(t.id));
+          (x.reservas || []).forEach(t => alreadyRosteredIds.add(t.id));
        }
     });
     pool = pool.filter(t => !alreadyRosteredIds.has(t.id));
@@ -5251,14 +5249,14 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
   const handleDeleteXcla = (id) => {
     if(window.confirm('Excluir esta convocação definitivamente?')) {
       setXclas(xclas.filter(x => x.id !== id));
+      if (selectedActiveXclaId === id) setSelectedActiveXclaId(null);
       showToast("Convocação removida do histórico.", "success");
     }
   };
 
-  // 🔒 FECHAR ESCALAÇÃO E MOVER PARA ABA ATIVA
   const handleLockRoster = (xclaId) => {
     const xcla = xclas.find(x => x.id === xclaId);
-    if(xcla.titulares.length === 0) {
+    if((xcla.titulares || []).length === 0) {
       showToast("Você precisa ter pelo menos 1 titular para fechar o time!", "error");
       return;
     }
@@ -5367,8 +5365,8 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       return b.gf - a.gf;
     });
 
-    const newTitulares = [...xcla.titulares.filter(t => t.isGuaranteed || t.isManual)];
-    const newReservas = [...xcla.reservas.filter(t => t.isManual)];
+    const newTitulares = [...(xcla.titulares || []).filter(t => t.isGuaranteed || t.isManual)];
+    const newReservas = [...(xcla.reservas || []).filter(t => t.isManual)];
 
     sortedTeams.forEach(t => {
       if(!newTitulares.some(x => x.id === t.id) && !newReservas.some(x => x.id === t.id)) {
@@ -5394,7 +5392,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     const xcla = newXclas.find(x => x.id === xclaId);
     if (xcla.status === 'locked') return;
     
-    if (xcla.titulares.some(t => t.id === teamId) || xcla.reservas.some(t => t.id === teamId)) {
+    if ((xcla.titulares || []).some(t => t.id === teamId) || (xcla.reservas || []).some(t => t.id === teamId)) {
       showToast("Este time já está convocado nesta escalação!", "warning");
       return;
     }
@@ -5405,10 +5403,10 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     }
 
     if (listType === 'titulares') {
-      if (xcla.titulares.length >= xcla.titularesMax) { showToast(`Limite de titulares (${xcla.titularesMax}) atingido!`, "error"); return; }
+      if ((xcla.titulares || []).length >= xcla.titularesMax) { showToast(`Limite de titulares (${xcla.titularesMax}) atingido!`, "error"); return; }
       xcla.titulares.push({...teamObj, isManual: true});
     } else {
-      if (xcla.reservas.length >= xcla.reservasMax) { showToast(`Limite de reservas (${xcla.reservasMax}) atingido!`, "error"); return; }
+      if ((xcla.reservas || []).length >= xcla.reservasMax) { showToast(`Limite de reservas (${xcla.reservasMax}) atingido!`, "error"); return; }
       xcla.reservas.push({...teamObj, isManual: true});
     }
     
@@ -5422,8 +5420,8 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     const xcla = newXclas.find(x => x.id === xclaId);
     if (xcla.status === 'locked') return;
     
-    if (listType === 'titulares') xcla.titulares = xcla.titulares.filter(t => t.id !== teamId);
-    else xcla.reservas = xcla.reservas.filter(t => t.id !== teamId);
+    if (listType === 'titulares') xcla.titulares = (xcla.titulares || []).filter(t => t.id !== teamId);
+    else xcla.reservas = (xcla.reservas || []).filter(t => t.id !== teamId);
     
     setXclas(newXclas);
   };
@@ -5718,10 +5716,10 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                       {/* Lista de Titulares */}
                       <div>
                         <div className="flex justify-between items-end mb-2">
-                          <h5 className={`text-sm font-bold text-${colorClass}-400 uppercase`}>Titulares ({xcla.titulares?.length || 0}/{xcla.titularesMax})</h5>
+                          <h5 className={`text-sm font-bold text-${colorClass}-400 uppercase`}>Titulares ({(xcla.titulares || []).length}/{xcla.titularesMax})</h5>
                         </div>
                         <div className="space-y-2 bg-blue-950 p-2 rounded-xl border border-blue-800 min-h-[80px]">
-                          {xcla.titulares?.length === 0 ? <p className="text-xs text-blue-500 text-center py-4">Vazio</p> : (
+                          {(xcla.titulares || []).length === 0 ? <p className="text-xs text-blue-500 text-center py-4">Vazio</p> : (
                             xcla.titulares.map(t => (
                               <div key={t.id} className={`flex items-center justify-between bg-blue-900/50 p-2 rounded-lg border border-${colorClass}-500/20 group`}>
                                 <div className="flex items-center gap-2 min-w-0">
@@ -5737,7 +5735,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                             ))
                           )}
                         </div>
-                        {isAdmin && xcla.titulares?.length < xcla.titularesMax && (
+                        {isAdmin && (xcla.titulares || []).length < xcla.titularesMax && (
                           <div className="flex gap-2 mt-2">
                             <select value={manualAddTitular} onChange={e=>setManualAddTitular(e.target.value)} className="flex-1 bg-blue-950 border border-blue-700 text-blue-300 text-xs rounded p-1.5 outline-none">
                               <option value="">Selecionar manualmente...</option>
@@ -5751,10 +5749,10 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                       {/* Lista de Reservas */}
                       <div>
                         <div className="flex justify-between items-end mb-2">
-                          <h5 className="text-sm font-bold text-blue-300 uppercase">Reservas ({xcla.reservas?.length || 0}/{xcla.reservasMax})</h5>
+                          <h5 className="text-sm font-bold text-blue-300 uppercase">Reservas ({(xcla.reservas || []).length}/{xcla.reservasMax})</h5>
                         </div>
                         <div className="space-y-2 bg-blue-950 p-2 rounded-xl border border-blue-800 min-h-[80px]">
-                          {xcla.reservas?.length === 0 ? <p className="text-xs text-blue-500 text-center py-4">Vazio</p> : (
+                          {(xcla.reservas || []).length === 0 ? <p className="text-xs text-blue-500 text-center py-4">Vazio</p> : (
                             xcla.reservas.map(t => (
                               <div key={t.id} className="flex items-center justify-between bg-blue-900/50 p-2 rounded-lg border border-blue-700/50 group">
                                 <div className="flex items-center gap-2 min-w-0">
@@ -5769,7 +5767,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                             ))
                           )}
                         </div>
-                        {isAdmin && xcla.reservas?.length < xcla.reservasMax && (
+                        {isAdmin && (xcla.reservas || []).length < xcla.reservasMax && (
                           <div className="flex gap-2 mt-2">
                             <select value={manualAddReserva} onChange={e=>setManualAddReserva(e.target.value)} className="flex-1 bg-blue-950 border border-blue-700 text-blue-300 text-xs rounded p-1.5 outline-none">
                               <option value="">Selecionar manualmente...</option>
@@ -5816,19 +5814,17 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                       <span className="font-black text-white text-lg mt-2 uppercase tracking-wide">Clã Kame</span>
                       {isAdmin && (
                         <div className="flex items-center gap-2 mt-2">
-                          <button onClick={() => updateActiveXcla(selectedActiveXcla.id, {pointsKame: Math.max(0, selectedActiveXcla.pointsKame - 1)})} className="bg-blue-800 w-6 h-6 rounded text-white font-bold">-</button>
+                          <button onClick={() => updateActiveXcla(selectedActiveXcla.id, {pointsKame: Math.max(0, selectedActiveXcla.pointsKame - 1)})} className="bg-blue-800 w-6 h-6 rounded text-white font-bold hover:bg-blue-700 transition-colors">-</button>
                           <span className="text-xs text-blue-300">Pts</span>
-                          <button onClick={() => updateActiveXcla(selectedActiveXcla.id, {pointsKame: selectedActiveXcla.pointsKame + 1})} className="bg-blue-800 w-6 h-6 rounded text-white font-bold">+</button>
+                          <button onClick={() => updateActiveXcla(selectedActiveXcla.id, {pointsKame: selectedActiveXcla.pointsKame + 1})} className="bg-blue-800 w-6 h-6 rounded text-white font-bold hover:bg-blue-700 transition-colors">+</button>
                         </div>
                       )}
                     </div>
 
-                    <div className="flex flex-col items-center gap-1 shrink-0">
-                       <div className="flex items-center gap-3">
-                         <span className="text-5xl font-black text-emerald-400 drop-shadow-lg">{selectedActiveXcla.pointsKame}</span>
-                         <span className="text-2xl font-black text-blue-600">X</span>
-                         <span className="text-5xl font-black text-red-400 drop-shadow-lg">{selectedActiveXcla.pointsOpp}</span>
-                       </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                       <span className="text-5xl font-black text-emerald-400 drop-shadow-lg">{selectedActiveXcla.pointsKame}</span>
+                       <span className="text-2xl font-black text-blue-600">X</span>
+                       <span className="text-5xl font-black text-red-400 drop-shadow-lg">{selectedActiveXcla.pointsOpp}</span>
                     </div>
 
                     <div className="flex flex-col items-center flex-1">
@@ -5836,7 +5832,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                       {isAdmin ? (
                         <input 
                           type="text" 
-                          value={selectedActiveXcla.oppClanName} 
+                          value={selectedActiveXcla.oppClanName || ''} 
                           onChange={e => updateActiveXcla(selectedActiveXcla.id, {oppClanName: e.target.value})}
                           className="font-black text-white text-lg mt-2 uppercase tracking-wide bg-blue-950 border border-blue-700 rounded text-center w-full max-w-[150px] outline-none focus:border-red-500"
                           placeholder="Adversário"
@@ -5847,9 +5843,9 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                       
                       {isAdmin && (
                         <div className="flex items-center gap-2 mt-2">
-                          <button onClick={() => updateActiveXcla(selectedActiveXcla.id, {pointsOpp: Math.max(0, selectedActiveXcla.pointsOpp - 1)})} className="bg-blue-800 w-6 h-6 rounded text-white font-bold">-</button>
+                          <button onClick={() => updateActiveXcla(selectedActiveXcla.id, {pointsOpp: Math.max(0, selectedActiveXcla.pointsOpp - 1)})} className="bg-blue-800 w-6 h-6 rounded text-white font-bold hover:bg-blue-700 transition-colors">-</button>
                           <span className="text-xs text-blue-300">Pts</span>
-                          <button onClick={() => updateActiveXcla(selectedActiveXcla.id, {pointsOpp: selectedActiveXcla.pointsOpp + 1})} className="bg-blue-800 w-6 h-6 rounded text-white font-bold">+</button>
+                          <button onClick={() => updateActiveXcla(selectedActiveXcla.id, {pointsOpp: selectedActiveXcla.pointsOpp + 1})} className="bg-blue-800 w-6 h-6 rounded text-white font-bold hover:bg-blue-700 transition-colors">+</button>
                         </div>
                       )}
                     </div>
@@ -5865,13 +5861,13 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                       <h4 className="text-sm font-black text-blue-300 uppercase tracking-widest mb-3 flex items-center gap-2"><Shield size={16}/> Elenco Convocado</h4>
                       <div className="space-y-1.5">
                         <p className="text-[10px] text-emerald-400 font-bold uppercase border-b border-blue-800 pb-1 mb-1">Titulares</p>
-                        {selectedActiveXcla.titulares.map(t => (
+                        {(selectedActiveXcla.titulares || []).map(t => (
                           <div key={t.id} className="text-xs text-white bg-blue-950 p-2 rounded border border-blue-800 flex items-center gap-2"><ShieldDisplay shield={t.shield} size="small"/> {t.name}</div>
                         ))}
-                        {selectedActiveXcla.reservas.length > 0 && (
+                        {(selectedActiveXcla.reservas || []).length > 0 && (
                           <>
                             <p className="text-[10px] text-amber-400 font-bold uppercase border-b border-blue-800 pb-1 mb-1 mt-3">Reservas</p>
-                            {selectedActiveXcla.reservas.map(t => (
+                            {(selectedActiveXcla.reservas || []).map(t => (
                               <div key={t.id} className="text-xs text-white bg-blue-950 p-2 rounded border border-blue-800 flex items-center gap-2"><ShieldDisplay shield={t.shield} size="small"/> {t.name}</div>
                             ))}
                           </>
@@ -5888,7 +5884,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                         </div>
                       )}
                       <div className="space-y-1.5 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
-                         {selectedActiveXcla.opponentsList?.length === 0 ? <p className="text-xs text-blue-500 italic">Nenhum adversário mapeado.</p> : (
+                         {!(selectedActiveXcla.opponentsList?.length > 0) ? <p className="text-xs text-blue-500 italic">Nenhum adversário mapeado.</p> : (
                            selectedActiveXcla.opponentsList.map((opp, idx) => (
                              <div key={idx} className="text-xs text-red-200 bg-red-950/30 p-2 rounded border border-red-900/50 flex items-center gap-2">
                                <span className="w-4 h-4 bg-red-900 flex justify-center items-center rounded text-[8px]">⚔️</span> {opp}
@@ -5910,44 +5906,47 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                         <p className="text-[10px] text-blue-300 font-bold uppercase">Criar Novo Confronto</p>
                         <select value={newMatchKameId} onChange={e=>setNewMatchKameId(e.target.value)} className="w-full bg-blue-950 border border-blue-800 rounded p-1.5 text-xs text-emerald-400 outline-none">
                           <option value="">Selecione o jogador Kame...</option>
-                          {selectedActiveXcla.titulares.map(t => <option key={t.id} value={t.id}>{t.name} (Titular)</option>)}
-                          {selectedActiveXcla.reservas.map(t => <option key={t.id} value={t.id}>{t.name} (Reserva)</option>)}
+                          {(selectedActiveXcla.titulares || []).map(t => <option key={t.id} value={t.id}>{t.name} (Titular)</option>)}
+                          {(selectedActiveXcla.reservas || []).map(t => <option key={t.id} value={t.id}>{t.name} (Reserva)</option>)}
                         </select>
                         <div className="text-center text-[10px] text-blue-500 font-black">VERSUS</div>
                         <select value={newMatchOppName} onChange={e=>setNewMatchOppName(e.target.value)} className="w-full bg-blue-950 border border-blue-800 rounded p-1.5 text-xs text-red-400 outline-none">
                           <option value="">Selecione o adversário...</option>
-                          {selectedActiveXcla.opponentsList.map((o,i) => <option key={i} value={o}>{o}</option>)}
+                          {(selectedActiveXcla.opponentsList || []).map((o,i) => <option key={i} value={o}>{o}</option>)}
                         </select>
                         <button onClick={() => handleAddXclaMatch(selectedActiveXcla.id)} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 rounded text-xs mt-1 shadow-md">Adicionar Jogo</button>
                       </div>
                     )}
 
                     <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
-                      {selectedActiveXcla.xclaMatches?.length === 0 ? <p className="text-xs text-blue-500 italic text-center">Nenhum confronto registrado.</p> : (
+                      {!(selectedActiveXcla.xclaMatches?.length > 0) ? <p className="text-xs text-blue-500 italic text-center">Nenhum confronto registrado.</p> : (
                         selectedActiveXcla.xclaMatches.map(m => {
-                          const kameT = [...selectedActiveXcla.titulares, ...selectedActiveXcla.reservas].find(t => t.id === m.kameId);
+                          const kameT = [...(selectedActiveXcla.titulares || []), ...(selectedActiveXcla.reservas || [])].find(t => t.id === m.kameId);
                           return (
-                            <div key={m.id} className="bg-blue-900 border border-blue-800 rounded-xl p-3 shadow-sm relative">
+                            <div key={m.id} className="bg-blue-900 border border-blue-800 rounded-xl p-3 shadow-sm relative group">
                                {isAdmin && (
                                  <button onClick={() => {
                                    if(window.confirm('Apagar confronto?')) {
                                      updateActiveXcla(selectedActiveXcla.id, { xclaMatches: selectedActiveXcla.xclaMatches.filter(x => x.id !== m.id) })
                                    }
-                                 }} className="absolute top-2 right-2 text-blue-500 hover:text-red-400"><X size={12}/></button>
+                                 }} className="absolute top-2 right-2 text-blue-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
                                )}
                                
-                               <div className="flex items-center justify-between mb-2 px-2">
+                               <div className="flex items-center justify-between px-2">
                                  <div className="flex flex-col items-center w-1/3">
                                    <ShieldDisplay shield={kameT?.shield} size="small"/>
                                    <span className="text-[10px] font-bold text-emerald-400 mt-1 truncate w-full text-center">{kameT?.name}</span>
                                  </div>
-                                 <div className="flex gap-1 items-center bg-blue-950 px-2 py-1 rounded border border-blue-800">
-                                    <input type="number" min="0" disabled={!isAdmin} value={m.scoreKame} onChange={e=>handleUpdateXclaMatchScore(selectedActiveXcla.id, m.id, 'scoreKame', e.target.value)} className="w-6 h-6 bg-transparent text-center text-sm font-black text-emerald-400 outline-none" placeholder="-" />
-                                    <span className="text-blue-500 font-black text-xs">x</span>
-                                    <input type="number" min="0" disabled={!isAdmin} value={m.scoreOpp} onChange={e=>handleUpdateXclaMatchScore(selectedActiveXcla.id, m.id, 'scoreOpp', e.target.value)} className="w-6 h-6 bg-transparent text-center text-sm font-black text-red-400 outline-none" placeholder="-" />
+                                 <div className="flex flex-col items-center justify-center w-1/3">
+                                   <span className="text-[8px] text-blue-400 mb-1">PLACAR</span>
+                                   <div className="flex gap-1 items-center bg-blue-950 px-2 py-1 rounded border border-blue-800">
+                                      <input type="number" min="0" disabled={!isAdmin} value={m.scoreKame} onChange={e=>handleUpdateXclaMatchScore(selectedActiveXcla.id, m.id, 'scoreKame', e.target.value)} className="w-6 h-6 bg-transparent text-center text-sm font-black text-emerald-400 outline-none" placeholder="-" />
+                                      <span className="text-blue-500 font-black text-xs">x</span>
+                                      <input type="number" min="0" disabled={!isAdmin} value={m.scoreOpp} onChange={e=>handleUpdateXclaMatchScore(selectedActiveXcla.id, m.id, 'scoreOpp', e.target.value)} className="w-6 h-6 bg-transparent text-center text-sm font-black text-red-400 outline-none" placeholder="-" />
+                                   </div>
                                  </div>
                                  <div className="flex flex-col items-center w-1/3">
-                                   <span className="text-2xl">⚔️</span>
+                                   <span className="text-2xl drop-shadow-md">⚔️</span>
                                    <span className="text-[10px] font-bold text-red-300 mt-1 truncate w-full text-center">{m.oppName}</span>
                                  </div>
                                </div>
@@ -5970,14 +5969,16 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                     )}
 
                     <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2 mt-4">
-                       {selectedActiveXcla.news?.length === 0 ? <p className="text-xs text-blue-500 italic text-center">Nenhuma notícia publicada ainda.</p> : (
+                       {!(selectedActiveXcla.news?.length > 0) ? <p className="text-xs text-blue-500 italic text-center">Nenhuma notícia publicada ainda.</p> : (
                          selectedActiveXcla.news.map(n => (
                            <div key={n.id} className="bg-blue-950 border-l-2 border-sky-500 p-3 rounded-r-lg shadow-sm">
-                             <p className="text-[9px] text-blue-400 mb-1">{new Date(n.timestamp).toLocaleDateString()} às {new Date(n.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                             <div className="flex justify-between items-start mb-1">
+                               <p className="text-[9px] text-blue-400">{new Date(n.timestamp).toLocaleDateString()} às {new Date(n.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                               {isAdmin && <button onClick={() => {
+                                 if(window.confirm('Apagar notícia?')) updateActiveXcla(selectedActiveXcla.id, {news: selectedActiveXcla.news.filter(x => x.id !== n.id)});
+                               }} className="text-[9px] text-red-400/50 hover:text-red-400">Excluir</button>}
+                             </div>
                              <p className="text-xs text-blue-100 whitespace-pre-wrap leading-relaxed">{n.text}</p>
-                             {isAdmin && <button onClick={() => {
-                               if(window.confirm('Apagar notícia?')) updateActiveXcla(selectedActiveXcla.id, {news: selectedActiveXcla.news.filter(x => x.id !== n.id)});
-                             }} className="text-[9px] text-red-400/50 hover:text-red-400 mt-2">Excluir</button>}
                            </div>
                          ))
                        )}
