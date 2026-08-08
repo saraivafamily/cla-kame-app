@@ -4971,6 +4971,9 @@ const RecordsWall = ({ showToast, currentUser, globalRecords, onSaveRecords }) =
 
 const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  
+  // 🌟 NOVO: Controle de Abas dentro do Ranking
+  const [activeTab, setActiveTab] = useState('ranking');
 
   // ⚡ MODO TURBO: O app não calcula mais nada sozinho. Ele só pega a lista e ordena!
   const rankingData = useMemo(() => {
@@ -5110,6 +5113,61 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     }
   };
 
+  // 🌟 NOVO SISTEMA DE XCLÃ / SELETIVAS
+  const [xclas, setXclas] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('kame_xclas_db')) || []; }
+    catch (e) { return []; }
+  });
+  const [newXclaName, setNewXclaName] = useState('');
+  const [newXclaSpots, setNewXclaSpots] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('kame_xclas_db', JSON.stringify(xclas));
+  }, [xclas]);
+
+  const handleGenerateXcla = (e) => {
+    e.preventDefault();
+    const spots = parseInt(newXclaSpots, 10);
+    
+    if (!newXclaName || !spots || spots <= 0) {
+      showToast("Preencha o nome e um número válido de vagas.", "error");
+      return;
+    }
+    if (rankingData.length === 0) {
+      showToast("Não há times no ranking para convocar.", "error");
+      return;
+    }
+
+    // Puxa os Top N do Ranking Global
+    const draftedTeams = rankingData.slice(0, spots);
+
+    // Divide as vagas: A primeira metade vai pro Time A (Principal), a segunda pro Time B (Aspirante)
+    const half = Math.ceil(draftedTeams.length / 2);
+    const teamA = draftedTeams.slice(0, half);
+    const teamB = draftedTeams.slice(half);
+
+    const newXcla = {
+      id: `xcla_${Date.now()}`,
+      name: newXclaName,
+      spots: spots,
+      teamA,
+      teamB,
+      date: Date.now()
+    };
+
+    setXclas([newXcla, ...xclas]);
+    setNewXclaName('');
+    setNewXclaSpots('');
+    showToast("Convocação Oficial gerada com sucesso!", "success");
+  };
+
+  const handleDeleteXcla = (id) => {
+    if(window.confirm('Excluir esta convocação definitivamente?')) {
+      setXclas(xclas.filter(x => x.id !== id));
+      showToast("Convocação removida do histórico.", "success");
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex flex-col md:flex-row items-center gap-4 w-full">
@@ -5131,67 +5189,190 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
         </div>
       </div>
 
-      <div className="bg-blue-950 rounded-3xl border border-blue-800 shadow-2xl overflow-hidden">
-        <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-blue-900 text-blue-300 font-bold border-b border-blue-800">
-              <tr>
-                <th className="p-4 w-16 text-center">Pos</th>
-                <th className="p-4">Técnico / Clube</th>
-                <th className="p-4 text-center">Patente</th>
-                <th className="p-4 text-center">Pts Xclã</th>
-                <th className="p-4 text-center">Jogos</th>
-                <th className="p-4 text-center">V / E</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-blue-800/40">
-              {rankingData.length === 0 ? (
-                <tr><td colSpan="6" className="p-8 text-center text-blue-500">O ranking será gerado assim que houver participações e jogos oficiais.</td></tr>
-              ) : (
-                rankingData.map((t, index) => {
-                  const pts = t.globalPoints || 0;
-                  const badge = getBadge(pts);
-                  const isTop3 = index < 3;
-                  const rankColors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
-                  
-                  return (
-                    <tr key={t.id} className={`hover:bg-blue-900/50 transition-colors ${index === 0 ? 'bg-amber-500/5' : ''}`}>
-                      <td className="p-4 text-center">
-                        <span className={`text-xl font-black ${isTop3 ? rankColors[index] : 'text-blue-500'}`}>
-                          {index + 1}º
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <ShieldDisplay shield={t.shield} size="small" />
-                          <div className="flex flex-col">
-                            <span className="font-bold text-white text-base leading-tight">{t.coach}</span>
-                            <span className="text-[10px] text-blue-400 uppercase font-medium">{t.name}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4 text-center">
-                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${badge.color}`}>
-                          <span>{badge.icon}</span> {badge.label}
-                        </div>
-                      </td>
-                      <td className="p-4 text-center">
-                        <span className={`text-2xl font-black drop-shadow-md ${index === 0 ? 'text-amber-500' : 'text-emerald-400'}`}>
-                          {pts}
-                        </span>
-                      </td>
-                      <td className="p-4 text-center text-blue-200 font-medium">{t.playedMatches || 0}</td>
-                      <td className="p-4 text-center text-blue-300 font-medium">
-                        <span className="text-emerald-400">{t.totalWins || 0}</span> / <span className="text-blue-400">{t.totalDraws || 0}</span>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+      {/* 🌟 NAVEGAÇÃO DE ABAS */}
+      <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800">
+        <button onClick={() => setActiveTab('ranking')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab === 'ranking' ? 'bg-amber-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
+          🏆 Ranking Principal
+        </button>
+        <button onClick={() => setActiveTab('xcla')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab === 'xcla' ? 'bg-purple-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
+          ⚔️ Seletivas / Xclã
+        </button>
       </div>
+
+      {/* 🏆 CONTEÚDO: RANKING PRINCIPAL */}
+      {activeTab === 'ranking' && (
+        <div className="bg-blue-950 rounded-3xl border border-blue-800 shadow-2xl overflow-hidden animate-in slide-in-from-left-4">
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-blue-900 text-blue-300 font-bold border-b border-blue-800">
+                <tr>
+                  <th className="p-4 w-16 text-center">Pos</th>
+                  <th className="p-4">Técnico / Clube</th>
+                  <th className="p-4 text-center">Patente</th>
+                  <th className="p-4 text-center">Pts Xclã</th>
+                  <th className="p-4 text-center">Jogos</th>
+                  <th className="p-4 text-center">V / E</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-blue-800/40">
+                {rankingData.length === 0 ? (
+                  <tr><td colSpan="6" className="p-8 text-center text-blue-500">O ranking será gerado assim que houver participações e jogos oficiais.</td></tr>
+                ) : (
+                  rankingData.map((t, index) => {
+                    const pts = t.globalPoints || 0;
+                    const badge = getBadge(pts);
+                    const isTop3 = index < 3;
+                    const rankColors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
+                    
+                    return (
+                      <tr key={t.id} className={`hover:bg-blue-900/50 transition-colors ${index === 0 ? 'bg-amber-500/5' : ''}`}>
+                        <td className="p-4 text-center">
+                          <span className={`text-xl font-black ${isTop3 ? rankColors[index] : 'text-blue-500'}`}>
+                            {index + 1}º
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <ShieldDisplay shield={t.shield} size="small" />
+                            <div className="flex flex-col">
+                              <span className="font-bold text-white text-base leading-tight">{t.coach}</span>
+                              <span className="text-[10px] text-blue-400 uppercase font-medium">{t.name}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-4 text-center">
+                          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${badge.color}`}>
+                            <span>{badge.icon}</span> {badge.label}
+                          </div>
+                        </td>
+                        <td className="p-4 text-center">
+                          <span className={`text-2xl font-black drop-shadow-md ${index === 0 ? 'text-amber-500' : 'text-emerald-400'}`}>
+                            {pts}
+                          </span>
+                        </td>
+                        <td className="p-4 text-center text-blue-200 font-medium">{t.playedMatches || 0}</td>
+                        <td className="p-4 text-center text-blue-300 font-medium">
+                          <span className="text-emerald-400">{t.totalWins || 0}</span> / <span className="text-blue-400">{t.totalDraws || 0}</span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ⚔️ CONTEÚDO: SELETIVAS / XCLÃ */}
+      {activeTab === 'xcla' && (
+        <div className="space-y-8 animate-in slide-in-from-right-4">
+          
+          {isAdmin && (
+            <form onSubmit={handleGenerateXcla} className="bg-purple-900/40 border border-purple-500/50 rounded-2xl p-5 md:p-6 shadow-xl space-y-4">
+              <h3 className="font-bold text-purple-400 uppercase tracking-widest flex items-center gap-2 mb-2"><Target size={18}/> Nova Convocação Externa</h3>
+              <p className="text-xs text-blue-300">O sistema lerá os pontos do Ranking Global e puxará automaticamente os melhores classificados para preencher as vagas do Xclã.</p>
+              
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <label className="text-[10px] text-blue-400 font-bold uppercase block mb-1">Nome do Torneio (Xclã)</label>
+                  <input type="text" placeholder="Ex: Copa NFA" value={newXclaName} onChange={e=>setNewXclaName(e.target.value)} className="w-full bg-blue-950 border border-purple-500/40 rounded-lg p-3 text-white text-sm outline-none focus:border-purple-400" required />
+                </div>
+                <div className="md:w-48">
+                  <label className="text-[10px] text-blue-400 font-bold uppercase block mb-1">Total de Vagas</label>
+                  <input type="number" min="2" placeholder="Ex: 10" value={newXclaSpots} onChange={e=>setNewXclaSpots(e.target.value)} className="w-full bg-blue-950 border border-purple-500/40 rounded-lg p-3 text-emerald-400 font-black text-sm outline-none focus:border-purple-400" required />
+                </div>
+                <div className="flex items-end">
+                  <button type="submit" className="w-full md:w-auto bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-colors">
+                    Gerar Equipes
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
+
+          <div className="space-y-6">
+            {xclas.length === 0 ? (
+              <div className="bg-blue-950 p-8 rounded-2xl border border-blue-800 text-center border-dashed">
+                <p className="text-blue-500">Nenhuma convocação registrada. Crie uma nova seletiva acima!</p>
+              </div>
+            ) : (
+              xclas.map((xcla) => (
+                <div key={xcla.id} className="bg-blue-900 border border-blue-800 rounded-3xl overflow-hidden shadow-2xl relative">
+                  {isAdmin && (
+                    <button onClick={() => handleDeleteXcla(xcla.id)} className="absolute top-4 right-4 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white p-2 rounded-full transition-colors z-10" title="Apagar Convocação">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                  
+                  <div className="bg-blue-950/80 p-5 border-b border-blue-800 text-center relative overflow-hidden">
+                    <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2.5 py-0.5 rounded-full font-black tracking-widest uppercase mb-2 inline-block border border-purple-500/30">Convocação Oficial</span>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-wider">{xcla.name}</h3>
+                    <p className="text-xs text-blue-400 mt-1">{new Date(xcla.date).toLocaleDateString('pt-BR')} • {xcla.spots} Participantes</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 md:p-8 bg-gradient-to-b from-blue-900/20 to-blue-950/50">
+                    
+                    {/* TIME A (PRINCIPAL) */}
+                    <div className="bg-amber-500/5 border border-amber-500/30 rounded-2xl p-4 shadow-inner">
+                      <div className="text-center mb-4 border-b border-amber-500/20 pb-3">
+                        <span className="text-3xl block mb-1">⚔️</span>
+                        <h4 className="text-lg font-black text-amber-400 uppercase tracking-widest">Time A (Titular)</h4>
+                        <p className="text-[10px] text-amber-200/50 uppercase">Esquadrão de Elite</p>
+                      </div>
+                      <div className="space-y-2">
+                        {xcla.teamA.map((t, i) => (
+                          <div key={t.id} className="bg-blue-950/80 border border-amber-500/20 p-2.5 rounded-xl flex items-center justify-between group hover:border-amber-500/50 transition-colors">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="text-[10px] text-amber-500 font-black w-3 shrink-0">{i + 1}º</span>
+                              <div className="shrink-0"><ShieldDisplay shield={t.shield} size="small" /></div>
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-bold text-white text-xs truncate group-hover:text-amber-400 transition-colors">{t.coach}</span>
+                                <span className="text-[9px] text-blue-400 truncate">{t.name}</span>
+                              </div>
+                            </div>
+                            <span className="text-[9px] font-mono text-amber-500/70 bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0">{t.globalPoints} pts</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* TIME B (ASPIRANTE) */}
+                    <div className="bg-slate-500/5 border border-slate-500/30 rounded-2xl p-4 shadow-inner">
+                      <div className="text-center mb-4 border-b border-slate-500/20 pb-3">
+                        <span className="text-3xl block mb-1">🛡️</span>
+                        <h4 className="text-lg font-black text-slate-300 uppercase tracking-widest">Time B (Acesso)</h4>
+                        <p className="text-[10px] text-slate-400/50 uppercase">Esquadrão Secundário</p>
+                      </div>
+                      <div className="space-y-2">
+                        {xcla.teamB.length === 0 ? (
+                           <p className="text-center text-xs text-blue-500 italic mt-4">Vagas insuficientes para formar o Time B.</p>
+                        ) : (
+                          xcla.teamB.map((t, i) => (
+                            <div key={t.id} className="bg-blue-950/80 border border-slate-500/20 p-2.5 rounded-xl flex items-center justify-between group hover:border-slate-500/50 transition-colors">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="text-[10px] text-slate-400 font-black w-3 shrink-0">{xcla.teamA.length + i + 1}º</span>
+                                <div className="shrink-0"><ShieldDisplay shield={t.shield} size="small" /></div>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="font-bold text-white text-xs truncate group-hover:text-slate-300 transition-colors">{t.coach}</span>
+                                  <span className="text-[9px] text-blue-400 truncate">{t.name}</span>
+                                </div>
+                              </div>
+                              <span className="text-[9px] font-mono text-slate-400/70 bg-slate-500/10 px-1.5 py-0.5 rounded shrink-0">{t.globalPoints} pts</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
