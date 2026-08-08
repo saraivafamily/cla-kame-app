@@ -5120,7 +5120,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
   const [newXclaTitularesCount, setNewXclaTitularesCount] = useState('5');
   const [newXclaReservasCount, setNewXclaReservasCount] = useState('2');
   
-  // 🌟 Vagas Garantidas (Apenas para o Time A)
+  // Vagas Garantidas (Apenas para o Time A)
   const [guaranteedMembroSuperior, setGuaranteedMembroSuperior] = useState('');
   const [guaranteedProfessor, setGuaranteedProfessor] = useState('');
 
@@ -5155,6 +5155,15 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     return rounds;
   };
 
+  // 🛡️ VERIFICADOR DE DUPLICIDADE GLOBAL
+  const isTeamInOtherSquad = (teamId, tournamentName, currentXclaId) => {
+    return xclas.some(x => 
+      x.name.trim().toLowerCase() === tournamentName.trim().toLowerCase() && 
+      x.id !== currentXclaId && 
+      (x.titulares.some(t => t.id === teamId) || x.reservas.some(t => t.id === teamId))
+    );
+  };
+
   const handleGenerateXcla = (e) => {
     e.preventDefault();
     const selSize = parseInt(newXclaSeletivaSize, 10);
@@ -5177,28 +5186,38 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
          const t = teams.find(x => x.id === guaranteedMembroSuperior);
          if (t) {
             startingTitulares.push({...t, isGuaranteed: 'Membro Superior'});
-            pool = pool.filter(x => x.id !== guaranteedMembroSuperior); // Remove do sorteio
+            pool = pool.filter(x => x.id !== guaranteedMembroSuperior); 
          }
       }
       if (guaranteedProfessor) {
          const t = teams.find(x => x.id === guaranteedProfessor);
          if (t && t.id !== guaranteedMembroSuperior) {
             startingTitulares.push({...t, isGuaranteed: 'Convite Professor'});
-            pool = pool.filter(x => x.id !== guaranteedProfessor); // Remove do sorteio
+            pool = pool.filter(x => x.id !== guaranteedProfessor); 
          }
       }
     }
+
+    // 🛡️ EXCLUI TIMES QUE JÁ FORAM CONVOCADOS PARA ESTE MESMO CAMPEONATO (Ex: Já estão no Time A)
+    const alreadyRosteredIds = new Set();
+    xclas.forEach(x => {
+       if (x.name.trim().toLowerCase() === newXclaName.trim().toLowerCase()) {
+          x.titulares.forEach(t => alreadyRosteredIds.add(t.id));
+          x.reservas.forEach(t => alreadyRosteredIds.add(t.id));
+       }
+    });
+    pool = pool.filter(t => !alreadyRosteredIds.has(t.id));
 
     let draftedTeams = [];
     if (newXclaSquad === 'A') {
       draftedTeams = pool.slice(0, selSize);
     } else {
-      // Time B puxa os times do Ranking a partir de onde o A pararia
+      // Time B pula a nata que seria convocada pro A e pega os próximos
       draftedTeams = pool.slice(selSize, selSize * 2);
     }
 
     if (draftedTeams.length === 0) {
-      showToast("Não existem times suficientes no ranking para gerar esta seletiva.", "error");
+      showToast("Não existem times disponíveis no ranking para gerar esta seletiva. Todos já estão alocados.", "error");
       return;
     }
 
@@ -5211,7 +5230,8 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       titulares: startingTitulares,
       reservas: [],
       bracket: createMiniBracket(draftedTeams),
-      date: Date.now()
+      date: Date.now(),
+      status: 'open' // 🔒 Inicia aberta
     };
 
     setXclas([newXcla, ...xclas]);
@@ -5226,11 +5246,19 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     }
   };
 
+  const handleLockRoster = (xclaId) => {
+    if(window.confirm('Deseja FECHAR a escalação final? Você não poderá mais adicionar ou remover times deste elenco.')) {
+      const newXclas = xclas.map(x => x.id === xclaId ? { ...x, status: 'locked' } : x);
+      setXclas(newXclas);
+      showToast("A Escalação foi trancada com sucesso!", "success");
+    }
+  };
+
   // Atualiza placares e define o vencedor automaticamente (ou manualmente via clique no escudo)
   const updateBracketMatch = (xclaId, roundIdx, matchIdx, field, value) => {
     const newXclas = [...xclas];
     const xcla = newXclas.find(x => x.id === xclaId);
-    if (!xcla) return;
+    if (!xcla || xcla.status === 'locked') return;
 
     const match = xcla.bracket[roundIdx][matchIdx];
     match[field] = value;
@@ -5242,7 +5270,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
         match.winner = sA > sB ? match.tA : match.tB;
         advanceWinnerInternally(xcla, roundIdx, matchIdx, match.winner);
       } else {
-        match.winner = null; // Empate aguarda clique manual (Pênaltis)
+        match.winner = null; 
       }
     }
     setXclas(newXclas);
@@ -5268,7 +5296,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     if (!winnerTeam || !isAdmin) return;
     const newXclas = [...xclas];
     const xcla = newXclas.find(x => x.id === xclaId);
-    if (!xcla) return;
+    if (!xcla || xcla.status === 'locked') return;
 
     xcla.bracket[roundIdx][matchIdx].winner = winnerTeam;
     advanceWinnerInternally(xcla, roundIdx, matchIdx, winnerTeam);
@@ -5278,7 +5306,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
   // 🤖 MOTOR DE PREENCHIMENTO AUTOMÁTICO
   const handleAutoFillRoster = (xclaId) => {
     const xcla = xclas.find(x => x.id === xclaId);
-    if(!xcla) return;
+    if(!xcla || xcla.status === 'locked') return;
 
     const teamStats = {};
     xcla.bracket.forEach((round, rIdx) => {
@@ -5306,7 +5334,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       });
     });
 
-    // Ordenação: Fase Alcançada > Vitórias > Saldo de Gols > Gols Feitos
     const sortedTeams = Object.values(teamStats).sort((a,b) => {
       if(b.maxPhase !== a.maxPhase) return b.maxPhase - a.maxPhase;
       if(b.wins !== a.wins) return b.wins - a.wins;
@@ -5339,9 +5366,17 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
 
     const newXclas = [...xclas];
     const xcla = newXclas.find(x => x.id === xclaId);
+    if (xcla.status === 'locked') return;
     
+    // 🛡️ TRAVA 1: Já está neste esquadrão?
     if (xcla.titulares.some(t => t.id === teamId) || xcla.reservas.some(t => t.id === teamId)) {
       showToast("Este time já está convocado nesta escalação!", "warning");
+      return;
+    }
+
+    // 🛡️ TRAVA 2: Já está em OUTRO esquadrão do mesmo campeonato?
+    if (isTeamInOtherSquad(teamId, xcla.name, xcla.id)) {
+      showToast("Este time já foi escalado em outro Esquadrão para este campeonato!", "error");
       return;
     }
 
@@ -5361,6 +5396,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
   const removeTeamFromRoster = (xclaId, listType, teamId) => {
     const newXclas = [...xclas];
     const xcla = newXclas.find(x => x.id === xclaId);
+    if (xcla.status === 'locked') return;
     
     if (listType === 'titulares') xcla.titulares = xcla.titulares.filter(t => t.id !== teamId);
     else xcla.reservas = xcla.reservas.filter(t => t.id !== teamId);
@@ -5471,7 +5507,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
           {isAdmin && (
             <form onSubmit={handleGenerateXcla} className="bg-purple-900/40 border border-purple-500/50 rounded-2xl p-5 md:p-6 shadow-xl space-y-4">
               <h3 className="font-bold text-purple-400 uppercase tracking-widest flex items-center gap-2 mb-2"><Target size={18}/> Gerar Nova Seletiva</h3>
-              <p className="text-xs text-blue-300">A minicompetição puxará os times do Ranking Global. Os placares geram um critério de desempate para a Escalação Final.</p>
+              <p className="text-xs text-blue-300">A minicompetição puxará os times do Ranking Global. Os placares geram um critério de desempate para a Escalação Final. O sistema bloqueia automaticamente os times que já estão em outra escalação do mesmo campeonato.</p>
               
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="md:col-span-2">
@@ -5546,27 +5582,43 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                 const isSquadA = xcla.squad === 'A';
                 const colorClass = isSquadA ? 'emerald' : 'amber';
                 const teamCount = (xcla.titulares?.length || 0) + (xcla.reservas?.length || 0);
+                const isLocked = xcla.status === 'locked';
 
                 return (
-                  <div key={xcla.id} className="bg-blue-900 border border-blue-800 rounded-3xl overflow-hidden shadow-2xl relative flex flex-col xl:flex-row">
+                  <div key={xcla.id} className={`bg-blue-900 border rounded-3xl overflow-hidden shadow-2xl relative flex flex-col xl:flex-row ${isLocked ? 'border-blue-800' : 'border-blue-700'}`}>
+                    
+                    {/* Botoes de Ação Admin */}
                     {isAdmin && (
-                      <button onClick={() => handleDeleteXcla(xcla.id)} className="absolute top-4 right-4 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white p-2 rounded-full transition-colors z-20" title="Apagar Convocação">
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="absolute top-4 right-4 flex gap-2 z-20">
+                        {!isLocked && (
+                          <button onClick={() => handleLockRoster(xcla.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-md text-xs flex items-center gap-1">
+                            🔒 Fechar Time
+                          </button>
+                        )}
+                        <button onClick={() => handleDeleteXcla(xcla.id)} className="bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white p-1.5 rounded-lg transition-colors" title="Apagar Convocação">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     )}
                     
                     {/* 🎮 LADO ESQUERDO: MINICOMPETIÇÃO COM PLACARES */}
                     <div className="flex-1 p-5 md:p-6 bg-gradient-to-br from-blue-900/50 to-blue-950/80 border-b xl:border-b-0 xl:border-r border-blue-800">
                       <div className="mb-6 border-b border-blue-800/50 pb-4">
-                        <span className={`text-[10px] bg-${colorClass}-500/20 text-${colorClass}-400 px-2.5 py-0.5 rounded-full font-black tracking-widest uppercase inline-block border border-${colorClass}-500/30 mb-2`}>
-                          Seletiva para o Time {xcla.squad}
-                        </span>
+                        <div className="flex items-center gap-2 mb-2">
+                           <span className={`text-[10px] bg-${colorClass}-500/20 text-${colorClass}-400 px-2.5 py-0.5 rounded-full font-black tracking-widest uppercase inline-block border border-${colorClass}-500/30`}>
+                             Seletiva para o Time {xcla.squad}
+                           </span>
+                           {isLocked && <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-black uppercase">🔒 Escalação Fechada</span>}
+                        </div>
+                        
                         <h3 className="text-xl font-black text-white uppercase tracking-wider flex items-center gap-2"><Target size={20}/> {xcla.name}</h3>
-                        <p className="text-xs text-blue-400 mt-1">Coloque os placares. Em caso de empate, clique no escudo do time vencedor para avançar de fase!</p>
+                        <p className="text-xs text-blue-400 mt-1">
+                          {isLocked ? "O time para esta competição já foi fechado e as disputas encerradas." : "Coloque os placares. Em caso de empate, clique no escudo do time vencedor para avançar de fase!"}
+                        </p>
                       </div>
 
                       {/* Renderização do Mata-Mata */}
-                      <div className="flex gap-6 overflow-x-auto custom-scrollbar pb-4">
+                      <div className={`flex gap-6 overflow-x-auto custom-scrollbar pb-4 ${isLocked ? 'opacity-60 pointer-events-none grayscale-[30%]' : ''}`}>
                         {xcla.bracket.map((round, rIdx) => (
                           <div key={rIdx} className="flex flex-col justify-around gap-3 min-w-[200px]">
                             {round.map((m, mIdx) => (
@@ -5606,7 +5658,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                         <p className="text-[10px] text-blue-400">Total Convocado: {teamCount} Técnicos</p>
                       </div>
 
-                      {isAdmin && (
+                      {isAdmin && !isLocked && (
                         <button onClick={() => handleAutoFillRoster(xcla.id)} className="w-full py-2.5 text-[11px] font-black uppercase tracking-wider bg-purple-600 hover:bg-purple-500 text-white rounded-lg shadow-md border-0 transition-colors flex items-center justify-center gap-2">
                           ⚡ Puxar Resultados da Seletiva
                         </button>
@@ -5629,12 +5681,12 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                                     {t.isAuto && <span className="text-[8px] text-emerald-400 uppercase">🏆 Via Seletiva</span>}
                                   </div>
                                 </div>
-                                {isAdmin && <button onClick={() => removeTeamFromRoster(xcla.id, 'titulares', t.id)} className="text-blue-500 hover:text-red-400 p-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><X size={14}/></button>}
+                                {isAdmin && !isLocked && <button onClick={() => removeTeamFromRoster(xcla.id, 'titulares', t.id)} className="text-blue-500 hover:text-red-400 p-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><X size={14}/></button>}
                               </div>
                             ))
                           )}
                         </div>
-                        {isAdmin && xcla.titulares?.length < xcla.titularesMax && (
+                        {isAdmin && !isLocked && xcla.titulares?.length < xcla.titularesMax && (
                           <div className="flex gap-2 mt-2">
                             <select value={manualAddTitular} onChange={e=>setManualAddTitular(e.target.value)} className="flex-1 bg-blue-950 border border-blue-700 text-blue-300 text-xs rounded p-1.5 outline-none">
                               <option value="">Selecionar manualmente...</option>
@@ -5661,12 +5713,12 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                                     {t.isAuto && <span className="text-[8px] text-emerald-400 uppercase">🏆 Via Seletiva</span>}
                                   </div>
                                 </div>
-                                {isAdmin && <button onClick={() => removeTeamFromRoster(xcla.id, 'reservas', t.id)} className="text-blue-500 hover:text-red-400 p-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><X size={14}/></button>}
+                                {isAdmin && !isLocked && <button onClick={() => removeTeamFromRoster(xcla.id, 'reservas', t.id)} className="text-blue-500 hover:text-red-400 p-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><X size={14}/></button>}
                               </div>
                             ))
                           )}
                         </div>
-                        {isAdmin && xcla.reservas?.length < xcla.reservasMax && (
+                        {isAdmin && !isLocked && xcla.reservas?.length < xcla.reservasMax && (
                           <div className="flex gap-2 mt-2">
                             <select value={manualAddReserva} onChange={e=>setManualAddReserva(e.target.value)} className="flex-1 bg-blue-950 border border-blue-700 text-blue-300 text-xs rounded p-1.5 outline-none">
                               <option value="">Selecionar manualmente...</option>
