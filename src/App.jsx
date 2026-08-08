@@ -2387,7 +2387,10 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
                 <option value="liga_b">🥈 Liga Kame B (Série B)</option>
                 <option value="liga_c">🥉 Liga Kame C (Série C)</option>
                 <option value="liga_d">🎖️ Liga Kame D (Série D)</option>
+                <option value="liga_acesso">⬆️ Liga de Acesso</option>
                 <option value="copa_main">🏆 Copas Oficiais (Ex: Copa do Clã)</option>
+                <option value="copa_do_rei">👑 Copa do Rei</option>
+                <option value="copa_amazonia">🌳 Copa da Amazônia</option>
                 <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
               </select>
             </div>
@@ -3537,10 +3540,10 @@ const CreateCompetition = ({ teams, competitions, currentUser, onCreate }) => {
                 <option value="liga_b">🥈 Liga Kame B (Série B)</option>
                 <option value="liga_c">🥉 Liga Kame C (Série C)</option>
                 <option value="liga_d">🎖️ Liga Kame D (Série D)</option>
-                <option value="liga_acesso">⬆️</option>
+                <option value="liga_acesso">⬆️ Liga de Acesso</option>
                 <option value="copa_main">🏆 Copas Oficiais (Ex: Copa do Clã)</option>
                 <option value="copa_do_rei">👑 Copa do Rei</option>
-                <option value="copa_amazonia">🌳Copa da Amaxônia</option>
+                <option value="copa_amazonia">🌳 Copa da Amazônia</option>
                 <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
               </select>
             </div>
