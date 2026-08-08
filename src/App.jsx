@@ -4971,7 +4971,7 @@ const RecordsWall = ({ showToast, currentUser, globalRecords, onSaveRecords }) =
 
 const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-  
+
   // 🌟 NOVO: Controle de Abas dentro do Ranking
   const [activeTab, setActiveTab] = useState('ranking');
 
@@ -5003,7 +5003,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
         }
       });
 
-      // 1. Participações
       (competitions || []).forEach(c => {
         const ptsJoin = c.category === 'copa_flash' ? 2 : 10;
         if (c && c.teams) {
@@ -5011,7 +5010,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
         }
       });
 
-      // 2. Partidas Jogadas
       (matches || []).forEach(m => {
         if (m.status === 'approved') {
           const c = (competitions || []).find(comp => comp.id === m.compId);
@@ -5043,7 +5041,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
         }
       });
 
-      // 3. Mata-Mata e Pódio
       (competitions || []).forEach(c => {
         if (!c.rounds) return;
         const isFlash = c.category === 'copa_flash';
@@ -5087,7 +5084,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
         semiTeams.forEach(tId => { if (!finalTeams.has(tId) && stats[tId]) stats[tId].globalPoints += ptsThird; });
       });
 
-      // 4. Salvar tudo no Firebase simultaneamente
       const updatePromises = Object.keys(stats).map(teamId => {
         const tStats = stats[teamId];
         if (tStats.playedMatches > 0 || tStats.globalPoints > 0) {
@@ -5113,24 +5109,59 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     }
   };
 
-  // 🌟 NOVO SISTEMA DE XCLÃ / SELETIVAS
+  // 🌟 NOVO SISTEMA MESTRE DE XCLÃ / SELETIVAS
   const [xclas, setXclas] = useState(() => {
     try { return JSON.parse(localStorage.getItem('kame_xclas_db')) || []; }
     catch (e) { return []; }
   });
+
+  // Estados do Formulário de Criação
   const [newXclaName, setNewXclaName] = useState('');
-  const [newXclaSpots, setNewXclaSpots] = useState('');
+  const [newXclaSquad, setNewXclaSquad] = useState('A');
+  const [newXclaSeletivaSize, setNewXclaSeletivaSize] = useState('8');
+  const [newXclaTitularesCount, setNewXclaTitularesCount] = useState('5');
+  const [newXclaReservasCount, setNewXclaReservasCount] = useState('2');
+
+  // Seleções Manuais Dropdowns
+  const [manualAddTitular, setManualAddTitular] = useState('');
+  const [manualAddReserva, setManualAddReserva] = useState('');
 
   useEffect(() => {
     localStorage.setItem('kame_xclas_db', JSON.stringify(xclas));
   }, [xclas]);
 
+  // Função Geradora da Minicompetição (Chave de Mata-Mata)
+  const createMiniBracket = (teamsArr) => {
+    let shuffled = [...teamsArr].sort(() => Math.random() - 0.5);
+    const rounds = [];
+    let matchId = 1;
+    
+    // Rodada Inicial
+    let currentMatches = [];
+    for(let i=0; i<shuffled.length; i+=2) {
+      currentMatches.push({ id: matchId++, tA: shuffled[i], tB: shuffled[i+1] || null, winner: null });
+    }
+    rounds.push(currentMatches);
+    
+    // Próximas Rodadas
+    let prevSize = currentMatches.length;
+    while(prevSize > 1) {
+      let nextMatches = [];
+      for(let i=0; i<prevSize; i+=2) {
+          nextMatches.push({ id: matchId++, tA: null, tB: null, winner: null });
+      }
+      rounds.push(nextMatches);
+      prevSize = nextMatches.length;
+    }
+    return rounds;
+  };
+
   const handleGenerateXcla = (e) => {
     e.preventDefault();
-    const spots = parseInt(newXclaSpots, 10);
+    const selSize = parseInt(newXclaSeletivaSize, 10);
     
-    if (!newXclaName || !spots || spots <= 0) {
-      showToast("Preencha o nome e um número válido de vagas.", "error");
+    if (!newXclaName || !selSize || selSize <= 0) {
+      showToast("Preencha o nome e um número válido para a seletiva.", "error");
       return;
     }
     if (rankingData.length === 0) {
@@ -5138,27 +5169,35 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       return;
     }
 
-    // Puxa os Top N do Ranking Global
-    const draftedTeams = rankingData.slice(0, spots);
+    // Puxa os times do Ranking dependendo se é Time A ou Time B
+    let draftedTeams = [];
+    if (newXclaSquad === 'A') {
+      draftedTeams = rankingData.slice(0, selSize);
+    } else {
+      // Se for Time B, ignora os Top 8 (ou o tamanho escolhido) e pega os próximos
+      draftedTeams = rankingData.slice(selSize, selSize * 2);
+    }
 
-    // Divide as vagas: A primeira metade vai pro Time A (Principal), a segunda pro Time B (Aspirante)
-    const half = Math.ceil(draftedTeams.length / 2);
-    const teamA = draftedTeams.slice(0, half);
-    const teamB = draftedTeams.slice(half);
+    if (draftedTeams.length === 0) {
+      showToast("Não existem times suficientes no ranking para gerar esta seletiva.", "error");
+      return;
+    }
 
     const newXcla = {
       id: `xcla_${Date.now()}`,
       name: newXclaName,
-      spots: spots,
-      teamA,
-      teamB,
+      squad: newXclaSquad, // 'A' ou 'B'
+      titularesMax: parseInt(newXclaTitularesCount, 10) || 5,
+      reservasMax: parseInt(newXclaReservasCount, 10) || 2,
+      titulares: [], // Ficam vazios para serem preenchidos com os vencedores ou manualmente
+      reservas: [],
+      bracket: createMiniBracket(draftedTeams), // A minicompetição!
       date: Date.now()
     };
 
     setXclas([newXcla, ...xclas]);
     setNewXclaName('');
-    setNewXclaSpots('');
-    showToast("Convocação Oficial gerada com sucesso!", "success");
+    showToast(`Seletiva do Time ${newXclaSquad} gerada com sucesso!`, "success");
   };
 
   const handleDeleteXcla = (id) => {
@@ -5166,6 +5205,74 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       setXclas(xclas.filter(x => x.id !== id));
       showToast("Convocação removida do histórico.", "success");
     }
+  };
+
+  // Avança o time na minicompetição
+  const advanceTeamInBracket = (xclaId, roundIdx, matchIdx, winnerTeam) => {
+    if (!winnerTeam || !isAdmin) return;
+
+    const newXclas = [...xclas];
+    const xcla = newXclas.find(x => x.id === xclaId);
+    if (!xcla) return;
+
+    const match = xcla.bracket[roundIdx][matchIdx];
+    match.winner = winnerTeam; // Salva o objeto do time vencedor
+
+    // Move o vencedor para a próxima fase
+    if (roundIdx < xcla.bracket.length - 1) {
+      const nextMatchIdx = Math.floor(matchIdx / 2);
+      const isTeamA = matchIdx % 2 === 0;
+      if (isTeamA) {
+          xcla.bracket[roundIdx + 1][nextMatchIdx].tA = winnerTeam;
+      } else {
+          xcla.bracket[roundIdx + 1][nextMatchIdx].tB = winnerTeam;
+      }
+      // Reseta o ganhador da próxima fase caso tenha sido alterado antes
+      xcla.bracket[roundIdx + 1][nextMatchIdx].winner = null; 
+    }
+
+    setXclas(newXclas);
+  };
+
+  // Gerenciamento Manual de Escalação
+  const addTeamToRoster = (xclaId, listType, teamId) => {
+    if (!teamId) return;
+    const teamObj = teams.find(t => t.id === teamId);
+    if (!teamObj) return;
+
+    const newXclas = [...xclas];
+    const xcla = newXclas.find(x => x.id === xclaId);
+    
+    // Evita duplicatas
+    if (xcla.titulares.some(t => t.id === teamId) || xcla.reservas.some(t => t.id === teamId)) {
+      showToast("Este time já está convocado nesta escalação!", "warning");
+      return;
+    }
+
+    if (listType === 'titulares') {
+      if (xcla.titulares.length >= xcla.titularesMax) { showToast(`Limite de titulares (${xcla.titularesMax}) atingido!`, "error"); return; }
+      xcla.titulares.push(teamObj);
+    } else {
+      if (xcla.reservas.length >= xcla.reservasMax) { showToast(`Limite de reservas (${xcla.reservasMax}) atingido!`, "error"); return; }
+      xcla.reservas.push(teamObj);
+    }
+    
+    setXclas(newXclas);
+    setManualAddTitular('');
+    setManualAddReserva('');
+    showToast(`Time adicionado aos ${listType}!`, "success");
+  };
+
+  const removeTeamFromRoster = (xclaId, listType, teamId) => {
+    const newXclas = [...xclas];
+    const xcla = newXclas.find(x => x.id === xclaId);
+    
+    if (listType === 'titulares') {
+      xcla.titulares = xcla.titulares.filter(t => t.id !== teamId);
+    } else {
+      xcla.reservas = xcla.reservas.filter(t => t.id !== teamId);
+    }
+    setXclas(newXclas);
   };
 
   return (
@@ -5189,7 +5296,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
         </div>
       </div>
 
-      {/* 🌟 NAVEGAÇÃO DE ABAS */}
+      {/* 🌟 NAVEGAÇÃO DE ABAS DO RANKING */}
       <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800">
         <button onClick={() => setActiveTab('ranking')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab === 'ranking' ? 'bg-amber-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
           🏆 Ranking Principal
@@ -5264,110 +5371,182 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
         </div>
       )}
 
-      {/* ⚔️ CONTEÚDO: SELETIVAS / XCLÃ */}
+      {/* ⚔️ CONTEÚDO: SELETIVAS E XCLÃ */}
       {activeTab === 'xcla' && (
         <div className="space-y-8 animate-in slide-in-from-right-4">
           
           {isAdmin && (
             <form onSubmit={handleGenerateXcla} className="bg-purple-900/40 border border-purple-500/50 rounded-2xl p-5 md:p-6 shadow-xl space-y-4">
-              <h3 className="font-bold text-purple-400 uppercase tracking-widest flex items-center gap-2 mb-2"><Target size={18}/> Nova Convocação Externa</h3>
-              <p className="text-xs text-blue-300">O sistema lerá os pontos do Ranking Global e puxará automaticamente os melhores classificados para preencher as vagas do Xclã.</p>
+              <h3 className="font-bold text-purple-400 uppercase tracking-widest flex items-center gap-2 mb-2"><Target size={18}/> Gerar Nova Seletiva</h3>
+              <p className="text-xs text-blue-300">A minicompetição puxará os times automaticamente do Ranking Global com base no Time (A ou B) escolhido.</p>
               
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div className="md:col-span-2">
                   <label className="text-[10px] text-blue-400 font-bold uppercase block mb-1">Nome do Torneio (Xclã)</label>
-                  <input type="text" placeholder="Ex: Copa NFA" value={newXclaName} onChange={e=>setNewXclaName(e.target.value)} className="w-full bg-blue-950 border border-purple-500/40 rounded-lg p-3 text-white text-sm outline-none focus:border-purple-400" required />
+                  <input type="text" placeholder="Ex: Copa NFA" value={newXclaName} onChange={e=>setNewXclaName(e.target.value)} className="w-full bg-blue-950 border border-purple-500/40 rounded-lg p-2.5 text-white text-sm outline-none focus:border-purple-400" required />
                 </div>
-                <div className="md:w-48">
-                  <label className="text-[10px] text-blue-400 font-bold uppercase block mb-1">Total de Vagas</label>
-                  <input type="number" min="2" placeholder="Ex: 10" value={newXclaSpots} onChange={e=>setNewXclaSpots(e.target.value)} className="w-full bg-blue-950 border border-purple-500/40 rounded-lg p-3 text-emerald-400 font-black text-sm outline-none focus:border-purple-400" required />
+                
+                <div>
+                  <label className="text-[10px] text-blue-400 font-bold uppercase block mb-1">Esquadrão</label>
+                  <select value={newXclaSquad} onChange={e=>setNewXclaSquad(e.target.value)} className="w-full bg-blue-950 border border-purple-500/40 rounded-lg p-2.5 text-white font-bold text-sm outline-none focus:border-purple-400">
+                    <option value="A">Time A (Titulares)</option>
+                    <option value="B">Time B (Aspirantes)</option>
+                  </select>
                 </div>
-                <div className="flex items-end">
-                  <button type="submit" className="w-full md:w-auto bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-colors">
-                    Gerar Equipes
-                  </button>
+
+                <div>
+                  <label className="text-[10px] text-blue-400 font-bold uppercase block mb-1">Qtd. Titulares</label>
+                  <input type="number" min="1" value={newXclaTitularesCount} onChange={e=>setNewXclaTitularesCount(e.target.value)} className="w-full bg-blue-950 border border-purple-500/40 rounded-lg p-2.5 text-white font-bold text-sm outline-none focus:border-purple-400" required />
                 </div>
+
+                <div>
+                  <label className="text-[10px] text-blue-400 font-bold uppercase block mb-1">Qtd. Reservas</label>
+                  <input type="number" min="0" value={newXclaReservasCount} onChange={e=>setNewXclaReservasCount(e.target.value)} className="w-full bg-blue-950 border border-purple-500/40 rounded-lg p-2.5 text-white font-bold text-sm outline-none focus:border-purple-400" required />
+                </div>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-4 items-center justify-between border-t border-purple-800/50 pt-4">
+                <div className="w-full md:w-auto">
+                  <label className="text-[10px] text-blue-400 font-bold uppercase block mb-1">Tamanho da Seletiva (Mata-Mata)</label>
+                  <select value={newXclaSeletivaSize} onChange={e=>setNewXclaSeletivaSize(e.target.value)} className="w-full md:w-64 bg-blue-950 border border-purple-500/40 rounded-lg p-2.5 text-purple-300 font-bold text-sm outline-none focus:border-purple-400">
+                    <option value="4">4 Times (Semifinal Direta)</option>
+                    <option value="8">8 Times (Quartas de Final)</option>
+                    <option value="16">16 Times (Oitavas de Final)</option>
+                    <option value="32">32 Times (16 Avos)</option>
+                  </select>
+                </div>
+                
+                <button type="submit" className="w-full md:w-auto bg-purple-600 hover:bg-purple-500 text-white font-bold py-2.5 px-8 rounded-lg shadow-lg transition-colors">
+                  Gerar Minicompetição
+                </button>
               </div>
             </form>
           )}
 
-          <div className="space-y-6">
+          <div className="space-y-8">
             {xclas.length === 0 ? (
               <div className="bg-blue-950 p-8 rounded-2xl border border-blue-800 text-center border-dashed">
-                <p className="text-blue-500">Nenhuma convocação registrada. Crie uma nova seletiva acima!</p>
+                <p className="text-blue-500">Nenhuma seletiva de Xclã registrada no momento.</p>
               </div>
             ) : (
-              xclas.map((xcla) => (
-                <div key={xcla.id} className="bg-blue-900 border border-blue-800 rounded-3xl overflow-hidden shadow-2xl relative">
-                  {isAdmin && (
-                    <button onClick={() => handleDeleteXcla(xcla.id)} className="absolute top-4 right-4 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white p-2 rounded-full transition-colors z-10" title="Apagar Convocação">
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                  
-                  <div className="bg-blue-950/80 p-5 border-b border-blue-800 text-center relative overflow-hidden">
-                    <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2.5 py-0.5 rounded-full font-black tracking-widest uppercase mb-2 inline-block border border-purple-500/30">Convocação Oficial</span>
-                    <h3 className="text-2xl font-black text-white uppercase tracking-wider">{xcla.name}</h3>
-                    <p className="text-xs text-blue-400 mt-1">{new Date(xcla.date).toLocaleDateString('pt-BR')} • {xcla.spots} Participantes</p>
-                  </div>
+              xclas.map((xcla) => {
+                const isSquadA = xcla.squad === 'A';
+                const colorClass = isSquadA ? 'emerald' : 'amber';
+                const teamCount = (xcla.titulares?.length || 0) + (xcla.reservas?.length || 0);
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 md:p-8 bg-gradient-to-b from-blue-900/20 to-blue-950/50">
+                return (
+                  <div key={xcla.id} className="bg-blue-900 border border-blue-800 rounded-3xl overflow-hidden shadow-2xl relative flex flex-col xl:flex-row">
+                    {isAdmin && (
+                      <button onClick={() => handleDeleteXcla(xcla.id)} className="absolute top-4 right-4 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white p-2 rounded-full transition-colors z-20" title="Apagar Convocação">
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                     
-                    {/* TIME A (PRINCIPAL) */}
-                    <div className="bg-amber-500/5 border border-amber-500/30 rounded-2xl p-4 shadow-inner">
-                      <div className="text-center mb-4 border-b border-amber-500/20 pb-3">
-                        <span className="text-3xl block mb-1">⚔️</span>
-                        <h4 className="text-lg font-black text-amber-400 uppercase tracking-widest">Time A (Titular)</h4>
-                        <p className="text-[10px] text-amber-200/50 uppercase">Esquadrão de Elite</p>
+                    {/* 🎮 LADO ESQUERDO: MINICOMPETIÇÃO (SELETIVA) */}
+                    <div className="flex-1 p-5 md:p-6 bg-gradient-to-br from-blue-900/50 to-blue-950/80 border-b xl:border-b-0 xl:border-r border-blue-800">
+                      <div className="mb-6 border-b border-blue-800/50 pb-4">
+                        <span className={`text-[10px] bg-${colorClass}-500/20 text-${colorClass}-400 px-2.5 py-0.5 rounded-full font-black tracking-widest uppercase inline-block border border-${colorClass}-500/30 mb-2`}>
+                          Seletiva para o Time {xcla.squad}
+                        </span>
+                        <h3 className="text-xl font-black text-white uppercase tracking-wider flex items-center gap-2"><Target size={20}/> {xcla.name}</h3>
+                        <p className="text-xs text-blue-400 mt-1">Sorteio automático do Top Ranking. Clique no time vencedor para avançar de fase!</p>
                       </div>
-                      <div className="space-y-2">
-                        {xcla.teamA.map((t, i) => (
-                          <div key={t.id} className="bg-blue-950/80 border border-amber-500/20 p-2.5 rounded-xl flex items-center justify-between group hover:border-amber-500/50 transition-colors">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className="text-[10px] text-amber-500 font-black w-3 shrink-0">{i + 1}º</span>
-                              <div className="shrink-0"><ShieldDisplay shield={t.shield} size="small" /></div>
-                              <div className="flex flex-col min-w-0">
-                                <span className="font-bold text-white text-xs truncate group-hover:text-amber-400 transition-colors">{t.coach}</span>
-                                <span className="text-[9px] text-blue-400 truncate">{t.name}</span>
+
+                      {/* Renderização do Mata-Mata */}
+                      <div className="flex gap-6 overflow-x-auto custom-scrollbar pb-4">
+                        {xcla.bracket.map((round, rIdx) => (
+                          <div key={rIdx} className="flex flex-col justify-around gap-3 min-w-[180px]">
+                            {round.map((m, mIdx) => (
+                              <div key={m.id} className="bg-blue-950 border border-blue-800 rounded-xl p-2 flex flex-col gap-1 shadow-inner relative group">
+                                <div 
+                                  onClick={() => advanceTeamInBracket(xcla.id, rIdx, mIdx, m.tA)}
+                                  className={`flex items-center gap-2 p-1.5 rounded-lg cursor-pointer transition-colors ${m.winner?.id === m.tA?.id ? `bg-${colorClass}-500/20 border border-${colorClass}-500/50` : 'hover:bg-blue-900 border border-transparent'}`}>
+                                  <ShieldDisplay shield={m.tA?.shield} size="small" /> 
+                                  <span className={`text-xs font-bold truncate ${m.winner?.id === m.tA?.id ? `text-${colorClass}-400` : 'text-blue-200'}`}>{m.tA?.name || 'A Definir'}</span>
+                                </div>
+                                <div className="h-px w-full bg-blue-800/50 mx-auto w-[90%]"></div>
+                                <div 
+                                  onClick={() => advanceTeamInBracket(xcla.id, rIdx, mIdx, m.tB)}
+                                  className={`flex items-center gap-2 p-1.5 rounded-lg cursor-pointer transition-colors ${m.winner?.id === m.tB?.id ? `bg-${colorClass}-500/20 border border-${colorClass}-500/50` : 'hover:bg-blue-900 border border-transparent'}`}>
+                                  <ShieldDisplay shield={m.tB?.shield} size="small" /> 
+                                  <span className={`text-xs font-bold truncate ${m.winner?.id === m.tB?.id ? `text-${colorClass}-400` : 'text-blue-200'}`}>{m.tB?.name || 'A Definir'}</span>
+                                </div>
                               </div>
-                            </div>
-                            <span className="text-[9px] font-mono text-amber-500/70 bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0">{t.globalPoints} pts</span>
+                            ))}
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    {/* TIME B (ASPIRANTE) */}
-                    <div className="bg-slate-500/5 border border-slate-500/30 rounded-2xl p-4 shadow-inner">
-                      <div className="text-center mb-4 border-b border-slate-500/20 pb-3">
-                        <span className="text-3xl block mb-1">🛡️</span>
-                        <h4 className="text-lg font-black text-slate-300 uppercase tracking-widest">Time B (Acesso)</h4>
-                        <p className="text-[10px] text-slate-400/50 uppercase">Esquadrão Secundário</p>
+                    {/* 📋 LADO DIREITO: ESCALAÇÃO OFICIAL */}
+                    <div className="w-full xl:w-[380px] p-5 md:p-6 bg-blue-900/40 flex flex-col gap-6">
+                      <div className="text-center">
+                        <h4 className="text-lg font-black text-white uppercase tracking-widest mb-1">📋 Escalação Final</h4>
+                        <p className="text-[10px] text-blue-400">Total Convocado: {teamCount} Técnicos</p>
                       </div>
-                      <div className="space-y-2">
-                        {xcla.teamB.length === 0 ? (
-                           <p className="text-center text-xs text-blue-500 italic mt-4">Vagas insuficientes para formar o Time B.</p>
-                        ) : (
-                          xcla.teamB.map((t, i) => (
-                            <div key={t.id} className="bg-blue-950/80 border border-slate-500/20 p-2.5 rounded-xl flex items-center justify-between group hover:border-slate-500/50 transition-colors">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <span className="text-[10px] text-slate-400 font-black w-3 shrink-0">{xcla.teamA.length + i + 1}º</span>
-                                <div className="shrink-0"><ShieldDisplay shield={t.shield} size="small" /></div>
-                                <div className="flex flex-col min-w-0">
-                                  <span className="font-bold text-white text-xs truncate group-hover:text-slate-300 transition-colors">{t.coach}</span>
-                                  <span className="text-[9px] text-blue-400 truncate">{t.name}</span>
+
+                      {/* Lista de Titulares */}
+                      <div>
+                        <div className="flex justify-between items-end mb-2">
+                          <h5 className={`text-sm font-bold text-${colorClass}-400 uppercase`}>Titulares ({xcla.titulares?.length || 0}/{xcla.titularesMax})</h5>
+                        </div>
+                        <div className="space-y-2 bg-blue-950 p-2 rounded-xl border border-blue-800 min-h-[80px]">
+                          {xcla.titulares?.length === 0 ? <p className="text-xs text-blue-500 text-center py-4">Vazio</p> : (
+                            xcla.titulares.map(t => (
+                              <div key={t.id} className={`flex items-center justify-between bg-blue-900/50 p-2 rounded-lg border border-${colorClass}-500/20`}>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <ShieldDisplay shield={t.shield} size="small" />
+                                  <span className="text-xs font-bold text-white truncate">{t.name}</span>
                                 </div>
+                                {isAdmin && <button onClick={() => removeTeamFromRoster(xcla.id, 'titulares', t.id)} className="text-blue-500 hover:text-red-400 p-1"><X size={14}/></button>}
                               </div>
-                              <span className="text-[9px] font-mono text-slate-400/70 bg-slate-500/10 px-1.5 py-0.5 rounded shrink-0">{t.globalPoints} pts</span>
-                            </div>
-                          ))
+                            ))
+                          )}
+                        </div>
+                        {isAdmin && xcla.titulares?.length < xcla.titularesMax && (
+                          <div className="flex gap-2 mt-2">
+                            <select value={manualAddTitular} onChange={e=>setManualAddTitular(e.target.value)} className="flex-1 bg-blue-950 border border-blue-700 text-blue-300 text-xs rounded p-1.5 outline-none">
+                              <option value="">Selecionar manualmente...</option>
+                              {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                            <button onClick={() => addTeamToRoster(xcla.id, 'titulares', manualAddTitular)} className={`bg-${colorClass}-600 hover:bg-${colorClass}-500 text-white px-2 rounded font-bold text-xs`}>Add</button>
+                          </div>
                         )}
                       </div>
-                    </div>
 
+                      {/* Lista de Reservas */}
+                      <div>
+                        <div className="flex justify-between items-end mb-2">
+                          <h5 className="text-sm font-bold text-blue-300 uppercase">Reservas ({xcla.reservas?.length || 0}/{xcla.reservasMax})</h5>
+                        </div>
+                        <div className="space-y-2 bg-blue-950 p-2 rounded-xl border border-blue-800 min-h-[80px]">
+                          {xcla.reservas?.length === 0 ? <p className="text-xs text-blue-500 text-center py-4">Vazio</p> : (
+                            xcla.reservas.map(t => (
+                              <div key={t.id} className="flex items-center justify-between bg-blue-900/50 p-2 rounded-lg border border-blue-700/50">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <ShieldDisplay shield={t.shield} size="small" />
+                                  <span className="text-xs font-bold text-blue-100 truncate">{t.name}</span>
+                                </div>
+                                {isAdmin && <button onClick={() => removeTeamFromRoster(xcla.id, 'reservas', t.id)} className="text-blue-500 hover:text-red-400 p-1"><X size={14}/></button>}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        {isAdmin && xcla.reservas?.length < xcla.reservasMax && (
+                          <div className="flex gap-2 mt-2">
+                            <select value={manualAddReserva} onChange={e=>setManualAddReserva(e.target.value)} className="flex-1 bg-blue-950 border border-blue-700 text-blue-300 text-xs rounded p-1.5 outline-none">
+                              <option value="">Selecionar manualmente...</option>
+                              {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                            <button onClick={() => addTeamToRoster(xcla.id, 'reservas', manualAddReserva)} className="bg-blue-700 hover:bg-blue-600 text-white px-2 rounded font-bold text-xs">Add</button>
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
