@@ -3362,12 +3362,11 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   );
 };
 
-const CreateCompetition = ({ teams, competitions, currentUser, onCreate }) => {
+const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate, showToast }) => {
   const [name, setName] = useState('');
   const [format, setFormat] = useState('league');
   const [category, setCategory] = useState('liga_a');
   
-  // 🌟 NOVOS CAMPOS
   const [playStyle, setPlayStyle] = useState('Livre');
   const [rules, setRules] = useState('');
 
@@ -3391,19 +3390,17 @@ const CreateCompetition = ({ teams, competitions, currentUser, onCreate }) => {
   const [selectedTeams, setSelectedTeams] = useState([]);
   const [error, setError] = useState('');
 
-  // 🌟 AUTOMAÇÃO DO NOME E COPA FLASH
   useEffect(() => {
-    // Dicionário com os nomes limpos das categorias
     const CAT_NAMES = {
       liga_a: 'Liga Kame A',
       liga_b: 'Liga Kame B',
       liga_c: 'Liga Kame C',
       liga_d: 'Liga Kame D',
-      liga_acesso: 'Liga de acesso',
+      liga_acesso: 'Liga de Acesso',
       copa_main: 'Copa Oficial',
-      copa_flash: 'Copa Flash',
       copa_do_rei: 'Copa do Rei',
-      copa_amazonia: 'Copa da Amazônia'
+      copa_amazonia: 'Copa da Amazônia',
+      copa_flash: 'Copa Flash'
     };
 
     if (category === 'copa_flash') {
@@ -3414,7 +3411,6 @@ const CreateCompetition = ({ teams, competitions, currentUser, onCreate }) => {
     const nextEditionNumber = compsOfCategory.length + 1;
     const catName = CAT_NAMES[category] || 'Competição';
     
-    // Agora ele salva o nome completo!
     setName(`${catName} - Edição ${nextEditionNumber}`);
 
   }, [category, competitions]);
@@ -3424,14 +3420,74 @@ const CreateCompetition = ({ teams, competitions, currentUser, onCreate }) => {
     else setSelectedTeams([...selectedTeams, teamId]);
   };
 
+  // 🌟 NOVO MOTOR: IMPORTAÇÃO INTELIGENTE
+  const handleSmartImport = () => {
+    const HIERARCHY = ['liga_a', 'liga_b', 'liga_c', 'liga_d', 'liga_acesso'];
+    const myIdx = HIERARCHY.indexOf(category);
+    
+    if (myIdx === -1) {
+      if (showToast) showToast("A importação inteligente só funciona para as Ligas oficiais (A, B, C, D e Acesso).", "error");
+      return;
+    }
+
+    let importedTeams = new Set();
+    let logMsg = [];
+
+    // 1. Puxar quem ficou (Retidos da mesma liga anterior)
+    const lastSameLeague = (competitions || []).filter(c => c.category === category).sort((a,b) => b.id.localeCompare(a.id))[0];
+    if (lastSameLeague) {
+      const table = calculateStandings(matches, teams.filter(t => lastSameLeague.teams?.includes(t.id)), lastSameLeague.id);
+      const promo = lastSameLeague.promotions || 0;
+      const rele = lastSameLeague.relegations || 0;
+      
+      const retained = table.slice(promo, table.length - rele);
+      retained.forEach(t => importedTeams.add(t.id));
+      if (retained.length > 0) logMsg.push(`${retained.length} times mantidos da última edição`);
+    }
+
+    // 2. Puxar quem caiu da liga de cima (Rebaixados)
+    if (myIdx > 0) {
+      const upperCat = HIERARCHY[myIdx - 1];
+      const lastUpperLeague = (competitions || []).filter(c => c.category === upperCat).sort((a,b) => b.id.localeCompare(a.id))[0];
+      
+      if (lastUpperLeague && lastUpperLeague.relegations > 0) {
+        const table = calculateStandings(matches, teams.filter(t => lastUpperLeague.teams?.includes(t.id)), lastUpperLeague.id);
+        const relegated = table.slice(-lastUpperLeague.relegations);
+        relegated.forEach(t => importedTeams.add(t.id));
+        if (relegated.length > 0) logMsg.push(`${relegated.length} times rebaixados da Liga Superior`);
+      }
+    }
+
+    // 3. Puxar quem subiu da liga de baixo (Promovidos)
+    if (myIdx < HIERARCHY.length - 1) {
+      const lowerCat = HIERARCHY[myIdx + 1];
+      const lastLowerLeague = (competitions || []).filter(c => c.category === lowerCat).sort((a,b) => b.id.localeCompare(a.id))[0];
+      
+      if (lastLowerLeague && lastLowerLeague.promotions > 0) {
+        const table = calculateStandings(matches, teams.filter(t => lastLowerLeague.teams?.includes(t.id)), lastLowerLeague.id);
+        const promoted = table.slice(0, lastLowerLeague.promotions);
+        promoted.forEach(t => importedTeams.add(t.id));
+        if (promoted.length > 0) logMsg.push(`${promoted.length} times promovidos da Liga Inferior`);
+      }
+    }
+
+    const finalTeamsList = Array.from(importedTeams);
+    
+    if (finalTeamsList.length === 0) {
+      if (showToast) showToast("Não encontramos histórico ou times classificados para esta liga.", "info");
+      return;
+    }
+
+    setSelectedTeams(finalTeamsList);
+    setTeamCount(finalTeamsList.length.toString()); // Ajusta as vagas pro tamanho exato puxado
+    setIsAutoJoin(false); // Desativa o link de inscrição (já que você puxou a dedo)
+    
+    if (showToast) showToast(`Importação concluída! ${finalTeamsList.length} times escalados.`, "success");
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    // Validações Básicas
-    if (!name || !format || !teamCount || !deadline) { 
-      setError('Preencha os dados básicos do torneio.'); 
-      return; 
-    }
+    if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
     
     const parsedTeamCount = parseInt(teamCount, 10);
 
@@ -3444,17 +3500,13 @@ const CreateCompetition = ({ teams, competitions, currentUser, onCreate }) => {
       return;
     }
 
-    if (isPaid && (!entryFee || !pixKey || !prize1st || !prize2nd)) { 
-      setError('Em torneios pagos, preencha a taxa, a chave PIX e os prêmios do 1º e 2º lugar.'); 
-      return; 
-    }
+    if (isPaid && (!entryFee || !pixKey || !prize1st || !prize2nd)) { setError('Em torneios pagos, preencha a taxa, a chave PIX e os prêmios do 1º e 2º lugar.'); return; }
 
     setError('');
     const compId = `c${Date.now()}`;
     let finalRounds = [];
     let groupsData = null;
 
-    // Gera a tabela apenas se as inscrições já estiverem fechadas (!isAutoJoin)
     if (!isAutoJoin) {
       try {
         if (format === 'groups') {
@@ -3507,7 +3559,6 @@ const CreateCompetition = ({ teams, competitions, currentUser, onCreate }) => {
       })
     };
 
-    // Aciona a função do pai para salvar
     onCreate(newComp);
   };
 
@@ -3530,7 +3581,6 @@ const CreateCompetition = ({ teams, competitions, currentUser, onCreate }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 md:px-8">
             <div className="space-y-2">
               <label className="text-sm font-bold text-blue-300">Nome do Campeonato</label>
-              {/* O campo de nome agora é desabilitado e automático */}
               <input type="text" value={name} readOnly className="w-full bg-blue-950/50 border border-blue-800 rounded-xl p-3 text-blue-400 font-bold outline-none cursor-not-allowed" />
             </div>
             
@@ -3629,10 +3679,17 @@ const CreateCompetition = ({ teams, competitions, currentUser, onCreate }) => {
         </div>
 
         <div className="bg-blue-900 p-6 md:p-8 rounded-3xl border border-blue-800 shadow-xl animate-in fade-in">
-          <div className="flex flex-col mb-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
             <label className="text-sm font-bold text-blue-300">
               {isAutoJoin ? `Equipes Pré-Confirmadas (Opcional: ${selectedTeams.length}/${teamCount || '0'})` : `Marcar as Equipes Manualmente (Obrigatório: ${selectedTeams.length}/${teamCount || '0'})`}
             </label>
+            
+            {/* 🌟 BOTÃO MÁGICO DE IMPORTAÇÃO AQUI */}
+            {['liga_a', 'liga_b', 'liga_c', 'liga_d', 'liga_acesso'].includes(category) && (
+              <button type="button" onClick={handleSmartImport} className="text-xs bg-amber-600 hover:bg-amber-500 text-blue-950 font-black px-4 py-2 rounded-xl shadow-lg border border-amber-400 transition-colors flex items-center gap-2">
+                🔄 Puxar Times Automaticamente
+              </button>
+            )}
           </div>
           
           {teams.length === 0 ? <p className="text-blue-500 text-sm p-4 bg-blue-950 rounded border border-blue-800">Nenhum time cadastrado.</p> : (
@@ -6189,7 +6246,7 @@ export default function App() {
         
       case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); })} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
-      case 'create_comp': return <CreateCompetition teams={teams} competitions={competitions} currentUser={currentUser} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
+      case 'create_comp': return <CreateCompetition matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
       case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
       case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
