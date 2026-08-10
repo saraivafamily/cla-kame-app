@@ -42,19 +42,21 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
 };
 
 const CountdownTimer = ({ targetDateStr }) => {
-  const [timeLeft, setTimeLeft] = useState('');
+  const [timeLeft, setTimeLeft] = useState('Calculando...');
 
   useEffect(() => {
     if (!targetDateStr) return;
-    // Pega a data limite e junta com o horário exato (Ex: 2024-12-31T20:00:00)
-    const target = new Date(targetDateStr).getTime();
+    
+    // Tratamento universal de data para não bugar no iOS/Safari
+    const safeDateStr = targetDateStr.includes('T') ? targetDateStr : `${targetDateStr}T00:00:00`;
+    const target = new Date(safeDateStr).getTime();
     
     const updateTimer = () => {
       const now = Date.now();
       const diff = target - now;
 
       if (diff <= 0) {
-        setTimeLeft('INICIADO');
+        setTimeLeft('🔥 INICIADO 🔥');
         return;
       }
 
@@ -67,7 +69,7 @@ const CountdownTimer = ({ targetDateStr }) => {
       setTimeLeft(d > 0 ? `${d}d ${timeStr}` : timeStr);
     };
 
-    updateTimer(); // Chama imediatamente para não dar tela em branco
+    updateTimer(); // Atualiza na hora para não piscar
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
   }, [targetDateStr]);
@@ -1044,12 +1046,13 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                   </div>
                   
                   <div className="mt-5 pt-4 border-t border-blue-800">
-                    {/* ⏰ CRONÔMETRO AQUI */}
-                    {comp.category === 'copa_flash' && comp.deadline && comp.startTime && (
+                    
+                    {/* ⏰ CRONÔMETRO AQUI COM FALLBACK PARA COMPETIÇÕES ANTIGAS */}
+                    {comp.category === 'copa_flash' && comp.deadline && (
                       <div className="bg-blue-950 p-2.5 rounded-xl border border-amber-500/40 text-center mb-4">
                         <p className="text-[9px] text-amber-400 font-bold uppercase tracking-widest mb-0.5 flex items-center justify-center gap-1"><Activity size={12}/> Inicia em</p>
                         <p className="text-2xl text-amber-500 drop-shadow-md">
-                          <CountdownTimer targetDateStr={`${comp.deadline}T${comp.startTime}:00`} />
+                          <CountdownTimer targetDateStr={`${comp.deadline}T${comp.startTime || '20:00'}:00`} />
                         </p>
                       </div>
                     )}
@@ -2649,14 +2652,14 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
 
         <div className="p-6 space-y-6">
           
-          {/* ⏰ CRONÔMETRO GIGANTE NA TELA DE INSCRIÇÃO */}
-          {comp.category === 'copa_flash' && comp.deadline && comp.startTime && (
+          {/* ⏰ CRONÔMETRO GIGANTE COM FALLBACK */}
+          {comp.category === 'copa_flash' && comp.deadline && (
             <div className="bg-amber-900/40 p-5 rounded-2xl border border-amber-500/50 text-center shadow-inner animate-in zoom-in-95">
               <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-1.5 flex justify-center items-center gap-1.5">
                 <Activity size={14}/> A Copa Flash Inicia Em:
               </p>
               <p className="text-4xl text-amber-400 drop-shadow-md">
-                <CountdownTimer targetDateStr={`${comp.deadline}T${comp.startTime}:00`} />
+                <CountdownTimer targetDateStr={`${comp.deadline}T${comp.startTime || '20:00'}:00`} />
               </p>
             </div>
           )}
