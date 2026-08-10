@@ -3056,8 +3056,12 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDe
   const activeComps = visible.filter(c => c.status !== 'finished');
   const finishedComps = visible.filter(c => c.status === 'finished');
 
-  // Formata o nome para a Copa Flash
-  const formatName = (c) => c.category === 'copa_flash' ? `COPA FLASH KAME - ${c.name}` : String(c.name);
+  // 🌟 PADRONIZAÇÃO DE NOMES AQUI
+  // Força tudo para MAIÚSCULO para manter o painel organizado visualmente
+  const formatName = (c) => {
+    let name = c.category === 'copa_flash' ? `COPA FLASH KAME - ${c.name}` : String(c.name);
+    return name.toUpperCase(); // <-- Transforma qualquer texto em maiúsculo
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in pb-8">
@@ -3073,7 +3077,8 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDe
               <div key={c.id} onClick={()=>onSelectComp(c.id)} className="bg-blue-900 p-5 rounded-2xl border border-blue-800 hover:border-emerald-500/40 transition-all cursor-pointer flex justify-between items-center group shadow-md relative overflow-hidden">
                 {c.category === 'copa_flash' && <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>}
                 <div className={c.category === 'copa_flash' ? 'pl-2' : ''}>
-                  <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors">{formatName(c)}</h3>
+                  {/* Apliquei a classe 'uppercase' aqui também por segurança */}
+                  <h3 className="font-bold text-white uppercase group-hover:text-emerald-400 transition-colors">{formatName(c)}</h3>
                   <p className="text-xs text-blue-400 mt-1">{c.teams?.length || 0} Clubes inscritos • <span className="text-emerald-500 font-medium">{c.status === 'registration' ? 'Inscrições Abertas' : 'Em Andamento'}</span></p>
                 </div>
                 {canDelete && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio?')) onDeleteComp(c.id)}} className="text-blue-600 hover:text-red-400 p-2 z-10"><Trash2 size={16}/></button>}
@@ -3092,7 +3097,7 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDe
               <div key={c.id} onClick={()=>onSelectComp(c.id)} className="bg-blue-950/60 p-4 rounded-2xl border border-blue-900 hover:border-slate-500/40 transition-all cursor-pointer flex justify-between items-center group opacity-80 hover:opacity-100">
                 {c.category === 'copa_flash' && <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500/50"></div>}
                 <div className={c.category === 'copa_flash' ? 'pl-2' : ''}>
-                  <h3 className="font-bold text-slate-300 group-hover:text-white transition-colors">{formatName(c)}</h3>
+                  <h3 className="font-bold text-slate-300 uppercase group-hover:text-white transition-colors">{formatName(c)}</h3>
                   <p className="text-xs text-slate-500 mt-1">Finalizada</p>
                 </div>
                 {canDelete && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm('Excluir torneio do histórico?')) onDeleteComp(c.id)}} className="text-blue-800 hover:text-red-400 p-2 z-10"><Trash2 size={14}/></button>}
