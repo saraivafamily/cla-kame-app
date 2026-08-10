@@ -2684,7 +2684,9 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const [qualifiers, setQualifiers] = useState('2');
   const [isDoubleRound, setIsDoubleRound] = useState(false);
   const [isFinalDouble, setIsFinalDouble] = useState(false);
+  
   const [deadline, setDeadline] = useState('');
+  const [startTime, setStartTime] = useState(''); // ⏰ NOVO CAMPO: Horário
   
   const [flashDuration, setFlashDuration] = useState('60');
   const [isAutoJoin, setIsAutoJoin] = useState(true);
@@ -2700,7 +2702,6 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const [selectedTeams, setSelectedTeams] = useState([]);
   const [error, setError] = useState('');
   
-  // 🛡️ NOVO: ESTADO PARA EXCLUIR COMPETIÇÕES ESPECÍFICAS
   const [excludedCompIds, setExcludedCompIds] = useState([]);
 
   const CAT_NAMES = {
@@ -2722,12 +2723,10 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
     else setSelectedTeams([...selectedTeams, teamId]);
   };
 
-  // 🔍 LÓGICA DE FILTRAGEM: QUAIS COMPETIÇÕES ESTÃO ATIVAS?
   const activeComps = useMemo(() => {
     return (competitions || []).filter(c => c.status === 'active');
   }, [competitions]);
 
-  // 🔍 LÓGICA DE FILTRAGEM: PEGA OS TIMES DAS COMPETIÇÕES EXCLUÍDAS
   const busyTeamIds = useMemo(() => {
     const ids = new Set();
     (competitions || []).forEach(c => {
@@ -2747,7 +2746,6 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
     }
     setExcludedCompIds(newExcluded);
     
-    // Se o filtro ocultou times que já estavam selecionados, remove eles da seleção!
     const newBusyIds = new Set();
     (competitions || []).forEach(c => {
       if (newExcluded.includes(c.id) && c.teams) {
@@ -2757,7 +2755,6 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
     setSelectedTeams(prev => prev.filter(id => !newBusyIds.has(id)));
   };
 
-  // A lista final de times que aparece na tela (ignorando os ocupados nos torneios marcados)
   const displayTeams = teams.filter(t => !busyTeamIds.has(t.id));
 
   const handleSmartImport = () => {
@@ -2806,7 +2803,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name || !format || !teamCount || !deadline) { setError('Preencha os dados básicos do torneio.'); return; }
+    if (!name || !format || !teamCount || !deadline || !startTime) { setError('Preencha os dados básicos do torneio (incluindo datas e horários).'); return; }
     const parsedTeamCount = parseInt(teamCount, 10);
     if (!isAutoJoin && selectedTeams.length !== parsedTeamCount) { setError(`Atenção: Você selecionou ${selectedTeams.length} times, mas o limite é ${parsedTeamCount}.`); return; }
     if (isAutoJoin && selectedTeams.length > parsedTeamCount) { setError(`Atenção: Você pré-confirmou mais times (${selectedTeams.length}) que o limite.`); return; }
@@ -2828,7 +2825,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
     }
 
     const newComp = { 
-      id: compId, name, format, deadline, category, playStyle, rules,
+      id: compId, name, format, deadline, startTime, category, playStyle, rules, // 🌟 startTime salvo aqui!
       teamCount: parsedTeamCount,
       status: isAutoJoin ? 'registration' : 'active', 
       teams: selectedTeams, pendingTeams: [], rounds: finalRounds,
@@ -2863,7 +2860,6 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
               </select>
             </div>
             
-            {/* ⏱️ CONFIGURAÇÃO DE TEMPO FLASH */}
             {category === 'copa_flash' && (
                <div className="space-y-2 animate-in slide-in-from-top-2 col-span-1 md:col-span-2 bg-amber-900/30 border border-amber-500/40 p-4 rounded-xl">
                  <label className="text-sm font-black text-amber-400 flex items-center gap-1.5"><Activity size={16}/> Tempo por Fase (Minutos)</label>
@@ -2879,7 +2875,12 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
               <select value={playStyle} onChange={e=>setPlayStyle(e.target.value)} className="w-full bg-blue-950 border border-purple-500/50 rounded-xl p-3 text-purple-300 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"><option value="Livre">Livre (Qualquer Estilo)</option><option value="Full Razz">Full Razz (Sem Balão)</option><option value="Personalizado">Regras Especiais</option></select>
             </div>
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Qtd. Total de Vagas (Times)</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-emerald-400 font-black text-lg focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Prazo das Inscrições/Jogos</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+            
+            {/* ⏰ O NOVO CAMPO DE HORÁRIO ENTRA AQUI DIVIDINDO O ESPAÇO */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Data Final/Prazo</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Horário de Início</label><input type="time" value={startTime} onChange={e=>setStartTime(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+            </div>
             
             <div className="flex flex-col md:flex-row gap-4 mt-2 col-span-1 md:col-span-2">
               {format !== 'cup' && (<label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={isDoubleRound} onChange={e=>setIsDoubleRound(e.target.checked)} className="w-5 h-5 accent-emerald-500 cursor-pointer" /><span className="text-sm font-bold text-blue-300">Fases de Grupo em Ida e Volta</span></label>)}
@@ -2914,7 +2915,6 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
               )}
             </div>
 
-            {/* 🛡️ NOVO: FILTROS DINÂMICOS DE EXCLUSÃO */}
             {activeComps.length > 0 && (
               <div className="bg-blue-950/50 p-3 md:p-4 rounded-xl border border-blue-800">
                 <p className="text-[10px] text-red-400 font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
