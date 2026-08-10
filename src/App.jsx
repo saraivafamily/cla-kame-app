@@ -6654,6 +6654,104 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
   );
 };
 
+const KameStore = () => {
+  const [activeCategory, setActiveCategory] = useState('todos');
+
+  // 🛍️ INVENTÁRIO (Aqui você coloca seus links de afiliado reais!)
+  const STORE_PRODUCTS = [
+    {
+      id: 1, name: 'Luvinhas de Dedo (Gamer)', category: 'mobile', price: 'R$ 15,90',
+      image: 'https://images.tcdn.com.br/img/img_prod/823055/luva_de_dedo_gamer_fibra_de_prata_anti_suor_pubg_cod_freefire_touch_41_1_20201124112151.jpg',
+      partner: 'Shopee', badge: 'Mais Vendido', url: 'https://shopee.com.br'
+    },
+    {
+      id: 2, name: 'Cooler Resfriador Celular', category: 'mobile', price: 'R$ 54,90',
+      image: 'https://images.tcdn.com.br/img/img_prod/861750/cooler_para_celular_gamer_resfriador_rgb_fan_radiador_knup_215_1_20da603b5ba63b2dae95d666270e5b7b.jpg',
+      partner: 'Amazon', badge: 'Essencial', url: 'https://amazon.com.br'
+    },
+    {
+      id: 3, name: 'Gift Card Google Play (R$30)', category: 'cards', price: 'R$ 30,00',
+      image: 'https://storage.googleapis.com/wombo-env-production-public/images/products/12/3794/gift-card-google-play-r30-br-3fbd.png',
+      partner: 'Hype Games', badge: 'Compre Passe', url: 'https://hype.games/br'
+    },
+    {
+      id: 4, name: 'Fone Gamer Intra-Auricular KZ ZSN', category: 'mobile', price: 'R$ 120,00',
+      image: 'https://m.media-amazon.com/images/I/51r26zKIt+L._AC_SY450_.jpg',
+      partner: 'Amazon', badge: 'Zero Delay', url: 'https://amazon.com.br'
+    },
+    {
+      id: 5, name: 'Pré-Treino / Energético Gamer em Pó', category: 'energy', price: 'R$ 89,90',
+      image: 'https://bebaoverclock.com.br/cdn/shop/files/Overclock---Performance-Gamer-2.0---Sabor-Uva-210g---Kit-Iniciante---1.png',
+      partner: 'Overclock', badge: 'Foco Mental', url: 'https://bebaoverclock.com.br'
+    },
+    {
+      id: 6, name: 'Camisa Tecnológica (Não amassa/sua)', category: 'lifestyle', price: 'R$ 145,00',
+      image: 'https://www.insiderstore.com.br/cdn/shop/files/A_6b9cf41d-93ff-44e9-91f8-06abec7b2bfb.jpg',
+      partner: 'Insider', badge: 'Para sair', url: 'https://www.insiderstore.com.br'
+    }
+  ];
+
+  const filteredProducts = activeCategory === 'todos' ? STORE_PRODUCTS : STORE_PRODUCTS.filter(p => p.category === activeCategory);
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in pb-12">
+      
+      {/* 🚀 DESTAQUE / BANNER */}
+      <div className="bg-gradient-to-r from-emerald-900 via-blue-900 to-blue-950 p-6 rounded-3xl border border-emerald-500/30 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+        <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-emerald-500/20 blur-3xl rounded-full"></div>
+        <div className="z-10">
+          <span className="text-[10px] bg-emerald-500 text-blue-950 px-2 py-1 rounded-full font-black tracking-widest uppercase mb-3 inline-block shadow-lg">Lançamento</span>
+          <h2 className="text-3xl md:text-4xl font-black text-white uppercase tracking-wider mb-2">Kame Store</h2>
+          <p className="text-blue-300 md:w-3/4">O shopping do Clã. Compre com desconto nos nossos parceiros, envie o comprovante para a diretoria e <b>ganhe Kame Coins de Cashback</b> na hora!</p>
+        </div>
+        <div className="bg-blue-950/60 p-4 rounded-2xl border border-blue-800 backdrop-blur-sm z-10 shrink-0 text-center">
+          <p className="text-xs text-blue-400 font-bold uppercase mb-1 flex items-center justify-center gap-1"><Wallet size={14}/> Cashback Atual</p>
+          <p className="text-2xl font-black text-amber-400">Até 500 <span className="text-sm">BK</span></p>
+          <p className="text-[9px] text-blue-500 mt-1">Por compra confirmada</p>
+        </div>
+      </div>
+
+      {/* 🏷️ FILTROS */}
+      <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar">
+        <button onClick={()=>setActiveCategory('todos')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeTab==='todos'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>Tudo</button>
+        <button onClick={()=>setActiveCategory('mobile')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeTab==='mobile'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>🎮 Setup Mobile</button>
+        <button onClick={()=>setActiveCategory('cards')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeTab==='cards'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>💎 Gift Cards</button>
+        <button onClick={()=>setActiveCategory('energy')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeTab==='energy'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>⚡ Energia e Foco</button>
+        <button onClick={()=>setActiveCategory('lifestyle')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeTab==='lifestyle'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>🧔 Lifestyle</button>
+      </div>
+
+      {/* 🛍️ VITRINE DE PRODUTOS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+        {filteredProducts.map(product => (
+          <div key={product.id} className="bg-blue-900 border border-blue-800 rounded-2xl overflow-hidden hover:border-emerald-500/50 hover:shadow-[0_0_20px_rgba(16,185,129,0.15)] transition-all group flex flex-col">
+            <div className="h-48 bg-white relative overflow-hidden flex items-center justify-center p-4">
+              <span className="absolute top-2 left-2 bg-black/80 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider backdrop-blur-md z-10 border border-white/10">{product.partner}</span>
+              {product.badge && <span className="absolute top-2 right-2 bg-emerald-500 text-blue-950 text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider z-10 shadow-md">{product.badge}</span>}
+              <img src={product.image} alt={product.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" />
+            </div>
+            
+            <div className="p-5 flex flex-col flex-1 justify-between">
+              <div>
+                <h3 className="font-bold text-blue-100 text-sm leading-snug group-hover:text-emerald-400 transition-colors">{product.name}</h3>
+                <p className="text-2xl font-black text-white mt-2 mb-4">{product.price}</p>
+              </div>
+              
+              <a href={product.url} target="_blank" rel="noreferrer" className="w-full bg-blue-800 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md group-hover:shadow-emerald-900/50">
+                <Target size={14}/> Acessar Loja
+              </a>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-blue-950 p-6 rounded-2xl border border-blue-800 text-center border-dashed">
+        <p className="text-blue-400 text-sm">Ao comprar através dos nossos links, você apoia o Clã Kame a financiar as premiações e torneios futuros! 🤝</p>
+      </div>
+
+    </div>
+  );
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => { const saved = localStorage.getItem('claKame_user'); return saved ? JSON.parse(saved) : null; });
 
@@ -6882,6 +6980,7 @@ export default function App() {
   const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home }, 
     { id: 'profile', label: 'Meu Perfil', icon: User },
+    { id: 'store', label: 'Kame Store', icon: Target }, // 👈 A LOJA FOI ADICIONADA AQUI
     { id: 'bank', label: 'Kame Bank', icon: Landmark },
     { id: 'teams_list', label: 'Times', icon: Shield }, 
     { id: 'competitions', label: 'Competições', icon: Medal },
@@ -7104,6 +7203,7 @@ export default function App() {
         
       case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); })} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
+      case 'store': return <KameStore />;
       case 'create_comp': return <CreateCompetition matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
       case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
