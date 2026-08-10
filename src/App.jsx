@@ -2686,9 +2686,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const [isFinalDouble, setIsFinalDouble] = useState(false);
   const [deadline, setDeadline] = useState('');
   
-  // ⚡ DURAÇÃO DA COPA FLASH
   const [flashDuration, setFlashDuration] = useState('60');
-
   const [isAutoJoin, setIsAutoJoin] = useState(true);
 
   const [isPaid, setIsPaid] = useState(false);
@@ -2701,6 +2699,9 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
   const [selectedTeams, setSelectedTeams] = useState([]);
   const [error, setError] = useState('');
+  
+  // 🛡️ NOVO: ESTADO PARA EXCLUIR COMPETIÇÕES ESPECÍFICAS
+  const [excludedCompIds, setExcludedCompIds] = useState([]);
 
   const CAT_NAMES = {
     liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D',
@@ -2720,6 +2721,44 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
     if (selectedTeams.includes(teamId)) setSelectedTeams(selectedTeams.filter(id => id !== teamId));
     else setSelectedTeams([...selectedTeams, teamId]);
   };
+
+  // 🔍 LÓGICA DE FILTRAGEM: QUAIS COMPETIÇÕES ESTÃO ATIVAS?
+  const activeComps = useMemo(() => {
+    return (competitions || []).filter(c => c.status === 'active');
+  }, [competitions]);
+
+  // 🔍 LÓGICA DE FILTRAGEM: PEGA OS TIMES DAS COMPETIÇÕES EXCLUÍDAS
+  const busyTeamIds = useMemo(() => {
+    const ids = new Set();
+    (competitions || []).forEach(c => {
+      if (excludedCompIds.includes(c.id) && c.teams) {
+        c.teams.forEach(tId => ids.add(tId));
+      }
+    });
+    return ids;
+  }, [competitions, excludedCompIds]);
+
+  const handleToggleExcludeComp = (compId) => {
+    let newExcluded;
+    if (excludedCompIds.includes(compId)) {
+      newExcluded = excludedCompIds.filter(id => id !== compId);
+    } else {
+      newExcluded = [...excludedCompIds, compId];
+    }
+    setExcludedCompIds(newExcluded);
+    
+    // Se o filtro ocultou times que já estavam selecionados, remove eles da seleção!
+    const newBusyIds = new Set();
+    (competitions || []).forEach(c => {
+      if (newExcluded.includes(c.id) && c.teams) {
+        c.teams.forEach(tId => newBusyIds.add(tId));
+      }
+    });
+    setSelectedTeams(prev => prev.filter(id => !newBusyIds.has(id)));
+  };
+
+  // A lista final de times que aparece na tela (ignorando os ocupados nos torneios marcados)
+  const displayTeams = teams.filter(t => !busyTeamIds.has(t.id));
 
   const handleSmartImport = () => {
     const HIERARCHY = ['liga_a', 'liga_b', 'liga_c', 'liga_d', 'liga_acesso'];
@@ -2859,13 +2898,55 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
             </div>
           )}
         </div>
+        
         <div className="bg-blue-900 p-6 md:p-8 rounded-3xl border border-blue-800 shadow-xl animate-in fade-in">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4"><label className="text-sm font-bold text-blue-300">{isAutoJoin ? `Equipes Pré-Confirmadas (Opcional: ${selectedTeams.length}/${teamCount || '0'})` : `Marcar as Equipes Manualmente (Obrigatório: ${selectedTeams.length}/${teamCount || '0'})`}</label>{['liga_a', 'liga_b', 'liga_c', 'liga_d', 'liga_acesso'].includes(category) && (<button type="button" onClick={handleSmartImport} className="text-xs bg-amber-600 hover:bg-amber-500 text-blue-950 font-black px-4 py-2 rounded-xl shadow-lg border border-amber-400 transition-colors flex items-center gap-2">🔄 Puxar Times Automaticamente</button>)}</div>
-          {teams.length === 0 ? <p className="text-blue-500 text-sm p-4 bg-blue-950 rounded border border-blue-800">Nenhum time cadastrado.</p> : (
+          
+          <div className="flex flex-col gap-4 mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <label className="text-sm font-bold text-blue-300">
+                {isAutoJoin ? `Equipes Pré-Confirmadas (Opcional: ${selectedTeams.length}/${teamCount || '0'})` : `Marcar as Equipes Manualmente (Obrigatório: ${selectedTeams.length}/${teamCount || '0'})`}
+              </label>
+              
+              {['liga_a', 'liga_b', 'liga_c', 'liga_d', 'liga_acesso'].includes(category) && (
+                <button type="button" onClick={handleSmartImport} className="text-xs bg-amber-600 hover:bg-amber-500 text-blue-950 font-black px-4 py-2 rounded-xl shadow-lg border border-amber-400 transition-colors flex items-center gap-2">
+                  🔄 Puxar Times Automático
+                </button>
+              )}
+            </div>
+
+            {/* 🛡️ NOVO: FILTROS DINÂMICOS DE EXCLUSÃO */}
+            {activeComps.length > 0 && (
+              <div className="bg-blue-950/50 p-3 md:p-4 rounded-xl border border-blue-800">
+                <p className="text-[10px] text-red-400 font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                  <XCircle size={14}/> Ocultar times que já estão disputando:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {activeComps.map(c => (
+                    <label key={c.id} className={`flex items-center gap-1.5 text-[10px] md:text-xs uppercase font-bold px-3 py-2 rounded-lg cursor-pointer border transition-colors ${excludedCompIds.includes(c.id) ? 'bg-red-500/20 border-red-500/50 text-red-300' : 'bg-blue-900 border-blue-700 text-blue-400 hover:border-blue-500'}`}>
+                      <input 
+                        type="checkbox" 
+                        checked={excludedCompIds.includes(c.id)} 
+                        onChange={() => handleToggleExcludeComp(c.id)} 
+                        className="hidden" 
+                      />
+                      {excludedCompIds.includes(c.id) ? '🚫' : ''} {c.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {displayTeams.length === 0 ? <p className="text-blue-500 text-sm p-4 bg-blue-950 rounded border border-blue-800 border-dashed text-center">Nenhum time disponível para seleção com os filtros atuais.</p> : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {teams.map(team => { 
+              {displayTeams.map(team => { 
                 const isSelected = selectedTeams.includes(team.id); 
-                return ( <div key={team.id} onClick={() => toggleTeam(team.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-blue-950 border-blue-800 hover:border-blue-600'}`}><ShieldDisplay shield={team.shield} size="small" /><span className={`font-medium text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-blue-300'}`}>{team.name}</span></div> ); 
+                return ( 
+                  <div key={team.id} onClick={() => toggleTeam(team.id)} className={`cursor-pointer flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-blue-950 border-blue-800 hover:border-blue-600'}`}>
+                    <ShieldDisplay shield={team.shield} size="small" />
+                    <span className={`font-medium text-sm truncate ${isSelected ? 'text-emerald-400' : 'text-blue-300'}`}>{team.name}</span>
+                  </div> 
+                ); 
               })}
             </div>
           )}
