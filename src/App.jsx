@@ -989,6 +989,12 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               const alreadyJoined = compTeams.some(tId => userTeamIds.includes(tId));
               const isPending = compPending.some(p => p && userTeamIds.includes(p.teamId));
 
+              // 🛡️ VERIFICAÇÃO SE O TIME ESTÁ BLOQUEADO
+              const isBlockedByOtherComp = (comp.excludedCompIds || []).some(exCompId => {
+                const exComp = (competitions || []).find(c => c.id === exCompId);
+                return exComp?.teams?.some(tId => userTeamIds.includes(tId));
+              });
+
               return (
                 <div key={comp.id} className="bg-blue-900 p-5 rounded-2xl border border-amber-500/30 shadow-lg flex flex-col justify-between group hover:border-amber-500/60 transition-all">
                   <div>
@@ -1006,6 +1012,8 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                        <div className="text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20"><CheckCircle size={16}/> Você já está dentro!</div>
                     ) : isPending ? (
                        <div className="text-amber-400 text-xs font-bold flex items-center justify-center gap-1 bg-amber-500/10 py-2 rounded-lg border border-amber-500/20"><Activity size={16}/> Inscrição em Análise</div>
+                    ) : isBlockedByOtherComp ? (
+                       <div className="text-red-400 text-xs font-bold flex items-center justify-center gap-1 bg-red-500/10 py-2 rounded-lg border border-red-500/20 text-center"><XCircle size={16}/> Bloqueado (Jogando outro torneio)</div>
                     ) : isFull ? (
                        <div className="text-red-400 text-xs font-bold flex items-center justify-center gap-1 bg-red-500/10 py-2 rounded-lg border border-red-500/20"><XCircle size={16}/> Vagas Esgotadas</div>
                     ) : (
@@ -2556,7 +2564,12 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   const alreadyJoined = comp.teams && comp.teams.includes(userTeam.id);
   const isPending = comp.pendingTeams && comp.pendingTeams.some(p => p.teamId === userTeam.id);
 
-  // Checa se existe qualquer tipo de premiação configurada para este torneio
+  // 🛡️ VERIFICAÇÃO DE BLOQUEIO POR OUTROS TORNEIOS
+  const isBlockedByOtherComp = (comp.excludedCompIds || []).some(exCompId => {
+    const exComp = (competitions || []).find(c => c.id === exCompId);
+    return exComp?.teams?.includes(userTeam.id);
+  });
+
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
 
   const handleSubmit = async (e) => {
@@ -2590,7 +2603,6 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
             <div className="text-right"><p className="text-[10px] text-blue-400 uppercase font-bold">Prazo Final</p><p className="text-sm font-bold text-white">{new Date(comp.deadline + 'T12:00:00').toLocaleDateString()}</p></div>
           </div>
 
-          {/* 🏆 QUADRO DE PREMIAÇÃO LIVRE NA TELA DE INSCRIÇÃO */}
           {hasAnyPrize && (
             <div className="bg-gradient-to-b from-amber-500/5 to-blue-950/50 border border-amber-500/20 p-4 rounded-xl space-y-3">
               <div className="flex items-center gap-2 border-b border-blue-800 pb-2">
@@ -2644,6 +2656,8 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
              <div className="text-center p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl"><CheckCircle className="text-emerald-500 mx-auto mb-2" size={32}/><p className="font-bold text-emerald-400">Você já está confirmado neste torneio!</p></div>
           ) : isPending ? (
              <div className="text-center p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl"><Activity className="text-amber-500 mx-auto mb-2" size={32}/><p className="font-bold text-amber-400">Inscrição em Análise!</p><p className="text-xs text-amber-200 mt-1">Aguarde a validação dos líderes.</p></div>
+          ) : isBlockedByOtherComp ? (
+             <div className="text-center p-4 bg-red-500/10 border border-red-500/30 rounded-xl"><XCircle className="text-red-500 mx-auto mb-2" size={32}/><p className="font-bold text-red-400">Inscrição Bloqueada</p><p className="text-xs text-red-200 mt-1">Você está disputando um torneio que foi restrito para esta competição.</p></div>
           ) : isFull ? (
              <div className="text-center p-4 bg-red-500/10 border border-red-500/30 rounded-xl"><XCircle className="text-red-500 mx-auto mb-2" size={32}/><p className="font-bold text-red-400">Inscrições Esgotadas</p></div>
           ) : (
@@ -2684,9 +2698,9 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const [qualifiers, setQualifiers] = useState('2');
   const [isDoubleRound, setIsDoubleRound] = useState(false);
   const [isFinalDouble, setIsFinalDouble] = useState(false);
-  
   const [deadline, setDeadline] = useState('');
-  const [startTime, setStartTime] = useState(''); // ⏰ NOVO CAMPO: Horário
+  
+  const [startTime, setStartTime] = useState(''); 
   
   const [flashDuration, setFlashDuration] = useState('60');
   const [isAutoJoin, setIsAutoJoin] = useState(true);
@@ -2825,13 +2839,14 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
     }
 
     const newComp = { 
-      id: compId, name, format, deadline, startTime, category, playStyle, rules, // 🌟 startTime salvo aqui!
+      id: compId, name, format, deadline, startTime, category, playStyle, rules,
       teamCount: parsedTeamCount,
       status: isAutoJoin ? 'registration' : 'active', 
       teams: selectedTeams, pendingTeams: [], rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido', creatorId: currentUser?.id, admins: [currentUser?.id],  
       isDoubleRound, isFinalDouble, numGroups: parseInt(numGroups || '0', 10), qualifiersPerGroup: parseInt(qualifiers || '0', 10),
       flashDuration: category === 'copa_flash' ? parseInt(flashDuration, 10) : null,
+      excludedCompIds: excludedCompIds, // 🌟 SALVA NO BANCO OS TORNEIOS BLOQUEADOS
       ...(groupsData && { groups: groupsData }),
       isPaid: isPaid,
       ...(isPaid && {
@@ -2876,7 +2891,6 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
             </div>
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Qtd. Total de Vagas (Times)</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-emerald-400 font-black text-lg focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             
-            {/* ⏰ O NOVO CAMPO DE HORÁRIO ENTRA AQUI DIVIDINDO O ESPAÇO */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Data Final/Prazo</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
               <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Horário de Início</label><input type="time" value={startTime} onChange={e=>setStartTime(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
