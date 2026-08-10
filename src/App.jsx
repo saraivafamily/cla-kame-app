@@ -1871,16 +1871,10 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
   const [showEditPrizes, setShowEditPrizes] = useState(false);
   const [prizeData, setPrizeData] = useState({ first: comp?.prizes?.first || '', second: comp?.prizes?.second || '', third: comp?.prizes?.third || '', extra: comp?.prizes?.extra || '' });
 
-  // 🌟 ADICIONADO: excludedCompIds aqui para você poder alterar as travas
   const [showEditSettings, setShowEditSettings] = useState(false);
   const [settingsData, setSettingsData] = useState({
-    category: comp?.category || 'liga_a', 
-    edition: comp?.name ? comp.name.replace(/\D/g, '') : '', 
-    playStyle: comp?.playStyle || 'Livre', 
-    rules: comp?.rules || '',
-    promotions: comp?.promotions || 0, 
-    relegations: comp?.relegations || 0, 
-    admins: comp?.admins || [],
+    category: comp?.category || 'liga_a', edition: comp?.name ? comp.name.replace(/\D/g, '') : '', playStyle: comp?.playStyle || 'Livre', rules: comp?.rules || '',
+    promotions: comp?.promotions || 0, relegations: comp?.relegations || 0, admins: comp?.admins || [],
     excludedCompIds: comp?.excludedCompIds || [] 
   });
 
@@ -2058,17 +2052,28 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
   };
 
   const toggleRound = (id) => { setExpandedRoundId(prev => prev === id ? null : id); };
+  
+  // 🌟 NOVO: FUNÇÃO PARA DELETAR UMA RODADA INTEIRA
+  const handleDeleteRound = (roundId) => {
+    if (!window.confirm("⚠️ ATENÇÃO: Tem certeza que deseja excluir esta rodada e TODOS os jogos dentro dela? Essa ação não pode ser desfeita.")) return;
+    const updatedRounds = comp.rounds.filter(r => r.id !== roundId);
+    onEditComp({ ...comp, rounds: updatedRounds });
+    showToast("Rodada removida com sucesso!", "success");
+  };
+
   const handleOpenEditGroups = () => {
     const mapping = {};
     if (comp.groups) Object.keys(comp.groups).forEach(gName => { (comp.groups[gName] || []).forEach(tId => { mapping[tId] = gName; }); });
     (comp.teams || []).forEach(tId => { if (!mapping[tId]) { const firstGroupKey = Object.keys(comp.groups || {})[0] || 'A'; mapping[tId] = firstGroupKey; } });
     setTeamGroupMapping(mapping); setShowEditGroups(true);
   };
+
   const handleSaveGroups = () => {
     const newGroups = {}; const groupKeys = Object.keys(comp.groups || { A: [], B: [] }); groupKeys.forEach(k => { newGroups[k] = []; });
     Object.keys(teamGroupMapping).forEach(tId => { const gName = teamGroupMapping[tId]; if (!newGroups[gName]) newGroups[gName] = []; newGroups[gName].push(tId); });
     onEditComp({ ...comp, groups: newGroups }); setShowEditGroups(false); showToast("Grupos atualizados!", "success");
   };
+
   const handleAutoMigrateKnockout = () => {
     if (!comp.groups) return; showToast("Calculando classificados...", "info");
     const qualifiers = {};
@@ -2088,11 +2093,13 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
     });
     onEditComp({ ...comp, rounds: updatedRounds }); showToast("Mata-Mata preenchido!", "success");
   };
+
   const handleAddMatchToGroup = (roundId, groupLetter) => {
     const newMatch = { id: `m_manual_${Date.now()}_${Math.floor(Math.random()*1000)}`, teamA: '', teamB: '', group: groupLetter, placeholderA: 'A Definir', placeholderB: 'A Definir' };
     const updatedRounds = comp.rounds.map(r => r.id === roundId ? { ...r, matches: [...r.matches, newMatch] } : r);
     onEditComp({ ...comp, rounds: updatedRounds }); showToast("Nova partida adicionada!", "success");
   };
+
   const handleAddNewGroup = (roundId) => {
     const novoG = window.prompt("Qual a letra ou nome do novo grupo? (Ex: E)");
     if (novoG && novoG.trim()) {
@@ -2102,22 +2109,26 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
       onEditComp({ ...comp, rounds: updatedRounds, groups: updatedGroups }); showToast(`Grupo ${upperG} criado!`, "success");
     }
   };
+
   const handleAddNewRound = () => {
     const nextRoundNum = (comp.rounds && comp.rounds.length > 0) ? Math.max(...comp.rounds.map(r => r.number || 0)) + 1 : 1;
     const newMatch = { id: `m_manual_${Date.now()}_${Math.floor(Math.random()*1000)}`, teamA: '', teamB: '', group: null, placeholderA: 'A Definir', placeholderB: 'A Definir' };
     const newRound = { id: `r_manual_${Date.now()}`, number: nextRoundNum, status: 'released', releasedAt: Date.now(), matches: [newMatch] };
     onEditComp({ ...comp, rounds: [...(comp.rounds || []), newRound] }); showToast(`Rodada Extra adicionada!`, "success"); setExpandedRoundId(newRound.id); setShowCalendar(true);
   };
+
   const handleOpenEditModal = (m, roundId) => {
     const playedMatch = (matches || []).find(x => x.matchId === m.id && x.compId === comp.id && x.status !== 'rejected');
     setEditMatchData({ ...m, roundId: roundId, group: m.group || 'A', scoreA: playedMatch ? playedMatch.scoreA : '', scoreB: playedMatch ? playedMatch.scoreB : '', penaltiesA: playedMatch && playedMatch.penaltiesA !== null && playedMatch.penaltiesA !== undefined ? playedMatch.penaltiesA : '', penaltiesB: playedMatch && playedMatch.penaltiesB !== null && playedMatch.penaltiesB !== undefined ? playedMatch.penaltiesB : '', hasPlayed: !!playedMatch, playedMatchId: playedMatch ? playedMatch.id : null, woA: false, woB: false }); 
   };
+
   const handleDeleteMatchCompletely = () => {
     if(!window.confirm("Apagar ESTA PARTIDA INTEIRA do calendário?")) return;
     if (editMatchData.hasPlayed && onDeleteMatch && editMatchData.playedMatchId) onDeleteMatch(editMatchData.playedMatchId);
     const updatedRounds = comp.rounds.map(r => r.id === editMatchData.roundId ? { ...r, matches: r.matches.filter(m => m.id !== editMatchData.id) } : r);
     onEditComp({ ...comp, rounds: updatedRounds }); setEditMatchData(null); showToast("Removida do calendário!", "success");
   };
+
   const saveMatchEdit = () => {
     const updatedRounds = comp.rounds.map(r => r.id === editMatchData.roundId ? { ...r, matches: r.matches.map(m => m.id === editMatchData.id ? { ...m, teamA: editMatchData.teamA, teamB: editMatchData.teamB, group: editMatchData.group } : m) } : r);
     onEditComp({ ...comp, rounds: updatedRounds });
@@ -2135,19 +2146,24 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
     }
     setEditMatchData(null); if(showToast && !(editMatchData.woA && editMatchData.woB)) showToast("Atualizado!", "success");
   };
+
   const handleSavePrizes = () => { onEditComp({ ...comp, prizes: { first: prizeData.first.trim(), second: prizeData.second.trim(), third: prizeData.third.trim(), extra: prizeData.extra.trim() } }); setShowEditPrizes(false); showToast("Quadro de premiações atualizado!", "success"); };
+  
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
   const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id));
   const availableTeamsForEdit = (comp.format === 'groups' && editMatchData?.group && comp.groups) ? (comp.groups[editMatchData.group] || []) : (comp.teams || []);
+  
   const handleAddTeamToComp = () => { if(!newTeamToAdd) return; const newTeams = [...(comp.teams || []), newTeamToAdd]; const newPending = (comp.pendingTeams || []).filter(p => p.teamId !== newTeamToAdd); onEditComp({ ...comp, teams: newTeams, pendingTeams: newPending }); setNewTeamToAdd(''); setShowAddTeam(false); showToast("Time inserido manualmente com sucesso!", "success"); };
   const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}?join=${comp.id}`); showToast("Link copiado!", "success"); };
   const handleApproveTeam = (req) => { const newPending = comp.pendingTeams.filter(p => p.teamId !== req.teamId); const newTeams = [...(comp.teams || []), req.teamId]; onEditComp({ ...comp, pendingTeams: newPending, teams: newTeams }); showToast("Time Aprovado!", "success"); };
   const handleRejectTeam = (req) => { const newPending = comp.pendingTeams.filter(p => p.teamId !== req.teamId); onEditComp({ ...comp, pendingTeams: newPending }); showToast("Inscrição rejeitada.", "success"); };
+  
   const handleGenerateBracket = () => { if (comp.teams.length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times!`, "error"); return; } let finalRounds = []; let groupsData = null; if (comp.format === 'groups') { const res = generateGroupsAndKnockout(comp.teams, comp.id, comp.numGroups, comp.qualifiersPerGroup, comp.isDoubleRound, comp.isFinalDouble); finalRounds = res.rounds; groupsData = res.groups; } else if (comp.format === 'cup') { finalRounds = generateCupBracket(comp.teams, comp.id, comp.isFinalDouble); } else { finalRounds = generateRoundRobin(comp.teams, comp.id, comp.isDoubleRound); } onEditComp({ ...comp, status: 'active', rounds: finalRounds, groups: groupsData || comp.groups || null }); showToast("Tabela gerada!", "success"); };
   
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
   const knockoutRounds = (comp.rounds || []).filter(r => r.id.includes('ko') || comp.format === 'cup');
   const groupOrNormalRounds = (comp.rounds || []).filter(r => !r.id.includes('ko') && comp.format !== 'cup');
+  
   const championTeam = useMemo(() => {
     if (!comp.rounds || comp.rounds.length === 0) return null;
     if (comp.format === 'cup' || comp.format === 'groups') {
@@ -2215,10 +2231,12 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
             <div className="space-y-1 md:col-span-2"><label className="text-xs font-bold text-blue-400">Regras da Competição</label><textarea value={settingsData.rules} onChange={e => setSettingsData({...settingsData, rules: e.target.value})} placeholder="Descreva as regras..." className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500 min-h-[80px] resize-y" /></div>
             
             {isLeader && (
-              <div className="space-y-2 md:col-span-2 pt-2 border-t border-blue-800"><label className="text-xs font-bold text-emerald-400">Adicionar Organizadores</label><div className="flex flex-wrap gap-2">{users.filter(u => u.role === 'organizer').map(u => ( <label key={u.id} className="flex items-center gap-2 text-xs text-blue-200 bg-blue-950 px-3 py-2 rounded-lg border border-blue-800 cursor-pointer hover:border-emerald-500/50"><input type="checkbox" checked={settingsData.admins.includes(u.id)} onChange={e => { const newAdmins = e.target.checked ? [...settingsData.admins, u.id] : settingsData.admins.filter(id => id !== u.id); setSettingsData({...settingsData, admins: newAdmins}); }} className="accent-emerald-500 w-3 h-3" /> {u.name}</label> ))}</div></div>
+              <div className="space-y-2 md:col-span-2 pt-2 border-t border-blue-800">
+                <label className="text-xs font-bold text-emerald-400">Adicionar Organizadores</label>
+                <div className="flex flex-wrap gap-2">{users.filter(u => u.role === 'organizer').map(u => ( <label key={u.id} className="flex items-center gap-2 text-xs text-blue-200 bg-blue-950 px-3 py-2 rounded-lg border border-blue-800 cursor-pointer hover:border-emerald-500/50"><input type="checkbox" checked={settingsData.admins.includes(u.id)} onChange={e => { const newAdmins = e.target.checked ? [...settingsData.admins, u.id] : settingsData.admins.filter(id => id !== u.id); setSettingsData({...settingsData, admins: newAdmins}); }} className="accent-emerald-500 w-3 h-3" /> {u.name}</label> ))}</div>
+              </div>
             )}
 
-            {/* 🌟 BLOQUEIOS AQUI DENTRO DAS CONFIGURAÇÕES */}
             {isLeader && (
               <div className="space-y-2 md:col-span-2 pt-2 border-t border-blue-800">
                 <label className="text-xs font-bold text-red-400 flex items-center gap-1.5">
@@ -2260,7 +2278,7 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
                 promotions: settingsData.promotions, 
                 relegations: settingsData.relegations, 
                 admins: settingsData.admins,
-                excludedCompIds: settingsData.excludedCompIds // 🌟 SALVANDO O BLOQUEIO
+                excludedCompIds: settingsData.excludedCompIds
               }); 
               setShowEditSettings(false); 
               showToast("Configurações atualizadas!", "success"); 
@@ -2416,8 +2434,11 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
                                       <span className={`text-sm font-bold flex items-center gap-2 ${isLocked ? 'text-blue-400' : 'text-emerald-400'}`}>{isLocked ? <Lock size={16} className="text-amber-500"/> : <PlayCircle size={16} className="text-emerald-500"/>} Rodada {round.number}</span>
                                       <span className="text-blue-500 text-xs font-bold mr-2">{isExpanded ? '▲ Recolher' : '▼ Expandir'}</span>
                                     </button>
-                                    {isAdmin && isLocked && (<button type="button" onClick={(e) => { e.stopPropagation(); onReleaseRound(comp.id, round.id); }} className="bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[10px] px-3 py-1.5 rounded uppercase tracking-wider transition-colors shrink-0 shadow-md">🔓 Liberar</button>)}
-                                    {isAdmin && !isLocked && (<button type="button" onClick={(e) => { e.stopPropagation(); onLockRound(comp.id, round.id); }} className="bg-amber-600 hover:bg-amber-500 text-blue-950 font-black text-[10px] px-3 py-1.5 rounded uppercase tracking-wider transition-colors shrink-0 shadow-md">🔒 Travar</button>)}
+                                    <div className="flex items-center gap-1.5">
+                                      {isAdmin && isLocked && (<button type="button" onClick={(e) => { e.stopPropagation(); onReleaseRound(comp.id, round.id); }} className="bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[10px] px-3 py-1.5 rounded uppercase tracking-wider transition-colors shrink-0 shadow-md">🔓 Liberar</button>)}
+                                      {isAdmin && !isLocked && (<button type="button" onClick={(e) => { e.stopPropagation(); onLockRound(comp.id, round.id); }} className="bg-amber-600 hover:bg-amber-500 text-blue-950 font-black text-[10px] px-3 py-1.5 rounded uppercase tracking-wider transition-colors shrink-0 shadow-md">🔒 Travar</button>)}
+                                      {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteRound(round.id); }} className="bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white p-1.5 rounded transition-colors shrink-0 shadow-md" title="Excluir Rodada"><Trash2 size={14}/></button>)}
+                                    </div>
                                   </div>
                                   {isExpanded && (
                                     <div className="p-4 bg-blue-950/40 border-t border-blue-800">
@@ -2516,6 +2537,7 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
                               <div key={round.id} className="w-64 flex flex-col shrink-0 animate-in fade-in min-h-[400px]">
                                 <div className="bg-blue-900 border border-blue-800 rounded-xl px-4 py-2.5 text-center shadow-md relative overflow-hidden mb-6">
                                   <div className="absolute top-0 left-0 w-full h-[3px] bg-amber-500"></div>
+                                  {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteRound(round.id); }} className="absolute top-1.5 right-1.5 text-red-400 hover:text-red-300 bg-red-900/30 hover:bg-red-600 rounded p-1 z-10 transition-colors" title="Excluir Rodada"><Trash2 size={12}/></button>)}
                                   <span className="text-xs font-black text-amber-400 uppercase tracking-widest">Fase: {phaseName}</span>
                                   {isAdmin && round.status === 'locked' && (<button type="button" onClick={() => onReleaseRound(comp.id, round.id)} className="block w-full mt-1.5 bg-emerald-600 hover:bg-emerald-500 text-blue-950 font-black text-[9px] py-1 rounded uppercase tracking-wider transition-colors">🔓 Liberar Jogos</button>)}
                                   {isAdmin && round.status === 'released' && (<><button type="button" onClick={() => onLockRound(comp.id, round.id)} className="block w-full mt-1.5 bg-amber-600 hover:bg-amber-500 text-blue-950 font-black text-[9px] py-1 rounded uppercase tracking-wider transition-colors mb-1">🔒 Travar Jogos</button><button type="button" onClick={() => handleAddMatchToGroup(round.id, null)} className="block w-full bg-blue-800 hover:bg-blue-700 text-emerald-400 font-bold text-[9px] py-1.5 rounded uppercase tracking-wider transition-colors border border-blue-600 border-dashed">+ Adicionar Confronto</button></>)}
@@ -2553,6 +2575,7 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
                     </div>
                   </div>
                 )}
+
               </div>
             )}
             {subTab === 'submit' && isAdmin && (<div className="animate-in slide-in-from-right-4"><SubmitMatch teams={teams} competitions={[comp]} matches={matches} currentUser={currentUser} showToast={showToast} preSelectedCompId={comp.id} onSubmit={(m) => { onSubmitMatch(m); setSubTab('validation'); }} /></div>)}
@@ -2562,9 +2585,77 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
         </>
       )}
 
-      {/* Modal de Editar Grupos e Editar Placar continuam iguais */}
-      {/* ... */}
+      {/* Modal de Editar Grupos (Sem alterações) */}
+      {showEditGroups && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setShowEditGroups(false)}>
+          <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2"><Users size={18} className="text-purple-400"/> Gerenciar Equipes nos Grupos</h3>
+            <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1 my-2">
+              {(comp.teams || []).map(tId => {
+                const t = getTeam(tId); if (!t) return null;
+                return (
+                  <div key={tId} className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0"><ShieldDisplay shield={t.shield} size="small" /><span className="font-bold text-xs text-white truncate">{t.name}</span></div>
+                    <div className="flex items-center gap-1 shrink-0"><span className="text-[10px] font-bold text-blue-400 uppercase">Grupo:</span><select value={teamGroupMapping[tId] || 'A'} onChange={e => setTeamGroupMapping({...teamGroupMapping, [tId]: e.target.value})} className="bg-blue-900 border border-purple-500/50 rounded-lg p-1.5 text-purple-300 text-xs font-bold outline-none">{Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (<option key={gName} value={gName}>Grupo {gName}</option>))}</select></div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-blue-800"><Button variant="outline" onClick={() => setShowEditGroups(false)} className="py-2 text-xs">Cancelar</Button><Button onClick={handleSaveGroups} className="py-2 text-xs bg-purple-600 hover:bg-purple-500 border-0 shadow-md text-white">Salvar Grupos</Button></div>
+          </div>
+        </div>
+      )}
 
+      {/* Modal de Editar Placar (Sem alterações visuais) */}
+      {editMatchData && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setEditMatchData(null)}>
+          <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-md p-6 shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Edit size={18} className="text-amber-400"/> Editar Partida</h3>
+            <div className="space-y-4">
+              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 space-y-3">
+                  <p className="text-xs font-bold text-blue-400 uppercase tracking-widest">Alterar Times do Confronto</p>
+                  {comp.format === 'groups' && (<div className="pb-2 border-b border-blue-800/50 mb-3"><label className="text-[10px] font-bold text-purple-400 uppercase tracking-widest block mb-1">Pertencente ao Grupo</label><select value={editMatchData.group || 'A'} onChange={e => { setEditMatchData({ ...editMatchData, group: e.target.value, teamA: '', teamB: '' }); }} className="w-full bg-blue-900 border border-purple-500/40 rounded p-2 text-purple-300 text-xs font-bold outline-none">{Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (<option key={gName} value={gName}>Grupo {gName}</option>))}</select></div>)}
+                  <div className="space-y-2">
+                      <select value={editMatchData.teamA} onChange={e => setEditMatchData({...editMatchData, teamA: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none"><option value="">A Definir / Sorteio</option>{availableTeamsForEdit.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{t.name}</option> : null; })}</select>
+                      <div className="text-center text-blue-500 font-bold text-xs">X</div>
+                      <select value={editMatchData.teamB} onChange={e => setEditMatchData({...editMatchData, teamB: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none"><option value="">A Definir / Sorteio</option>{availableTeamsForEdit.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{t.name}</option> : null; })}</select>
+                  </div>
+              </div>
+              {editMatchData.hasPlayed && (
+                  <div className="bg-emerald-900/20 p-4 rounded-xl border border-emerald-500/30">
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Ajustar Placar Validado</p>
+                        <div className="flex gap-2">
+                          <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20"><input type="checkbox" checked={editMatchData.woA} onChange={e => { const isWo = e.target.checked; const otherWo = editMatchData.woB; let sA = editMatchData.scoreA; let sB = editMatchData.scoreB; if (isWo && !otherWo) { sA = 0; sB = 3; } else if (!isWo && otherWo) { sA = 3; sB = 0; } else if (isWo && otherWo) { sA = '?'; sB = '?'; } else { sA = ''; sB = ''; } setEditMatchData({...editMatchData, woA: isWo, scoreA: sA, scoreB: sB}); }} className="accent-red-500 w-3 h-3" /> W.O. Equipe A</label>
+                          <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20"><input type="checkbox" checked={editMatchData.woB} onChange={e => { const isWo = e.target.checked; const otherWo = editMatchData.woA; let sA = editMatchData.scoreA; let sB = editMatchData.scoreB; if (isWo && !otherWo) { sB = 0; sA = 3; } else if (!isWo && otherWo) { sB = 3; sA = 0; } else if (isWo && otherWo) { sA = '?'; sB = '?'; } else { sA = ''; sB = ''; } setEditMatchData({...editMatchData, woB: isWo, scoreA: sA, scoreB: sB}); }} className="accent-red-500 w-3 h-3" /> W.O. Equipe B</label>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-center gap-3">
+                          <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreA} onChange={e => setEditMatchData({...editMatchData, scoreA: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none disabled:opacity-50" />
+                          <span className="font-bold text-blue-500">X</span>
+                          <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreB} onChange={e => setEditMatchData({...editMatchData, scoreB: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none disabled:opacity-50" />
+                      </div>
+                      {comp.format !== 'league' && (
+                          <div className="mt-3 flex items-center justify-center gap-3">
+                              <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="Pên A" value={editMatchData.penaltiesA} onChange={e => setEditMatchData({...editMatchData, penaltiesA: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
+                              <span className="text-[10px] text-amber-500 font-bold uppercase">Pênaltis</span>
+                              <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="Pên B" value={editMatchData.penaltiesB} onChange={e => setEditMatchData({...editMatchData, penaltiesB: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
+                          </div>
+                      )}
+                      <p className="text-[10px] text-emerald-500/70 text-center mt-3 leading-tight">Ao salvar, a tabela será recalculada automaticamente.</p>
+                  </div>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row justify-between items-center sm:items-end gap-4 mt-5 pt-4 border-t border-blue-800">
+              <div className="flex flex-col gap-2 w-full sm:w-auto items-start">
+                {editMatchData.hasPlayed && (<button type="button" onClick={() => { if(window.confirm('Excluir apenas o resultado?')) { if (onDeleteMatch && editMatchData.playedMatchId) { onDeleteMatch(editMatchData.playedMatchId); setEditMatchData(null); } } }} className="flex items-center gap-1.5 text-[11px] text-amber-400 hover:text-amber-300 font-bold transition-colors">Excluir apenas Placar Validado</button>)}
+                <button type="button" onClick={handleDeleteMatchCompletely} className="flex items-center gap-1.5 text-[11px] text-red-400 hover:text-red-300 font-bold transition-colors bg-red-500/10 px-2 py-1 rounded border border-red-500/20"><Trash2 size={12} /> Excluir Partida Inteira do Calendário</button>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end"><Button variant="outline" onClick={() => setEditMatchData(null)} className="py-2 text-xs">Cancelar</Button><Button onClick={saveMatchEdit} className="py-2 text-xs bg-amber-600 hover:bg-amber-500 border-0 shadow-md text-white">Salvar</Button></div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
