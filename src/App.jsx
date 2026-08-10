@@ -989,10 +989,15 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               const alreadyJoined = compTeams.some(tId => userTeamIds.includes(tId));
               const isPending = compPending.some(p => p && userTeamIds.includes(p.teamId));
 
-              // 🛡️ VERIFICAÇÃO SE O TIME ESTÁ BLOQUEADO
-              const isBlockedByOtherComp = (comp.excludedCompIds || []).some(exCompId => {
+              // 🛡️ BLINDAGEM FORTE: Bloqueia se estiver Confirmado OU Pendente no torneio excluído
+              const isBlockedByOtherComp = Array.isArray(comp.excludedCompIds) && comp.excludedCompIds.some(exCompId => {
                 const exComp = (competitions || []).find(c => c.id === exCompId);
-                return exComp?.teams?.some(tId => userTeamIds.includes(tId));
+                if (!exComp) return false;
+                
+                const inConfirmed = Array.isArray(exComp.teams) && exComp.teams.some(tId => userTeamIds.includes(tId));
+                const inPendingEx = Array.isArray(exComp.pendingTeams) && exComp.pendingTeams.some(p => p && userTeamIds.includes(p.teamId));
+                
+                return inConfirmed || inPendingEx;
               });
 
               return (
@@ -2564,10 +2569,15 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   const alreadyJoined = comp.teams && comp.teams.includes(userTeam.id);
   const isPending = comp.pendingTeams && comp.pendingTeams.some(p => p.teamId === userTeam.id);
 
-  // 🛡️ VERIFICAÇÃO DE BLOQUEIO POR OUTROS TORNEIOS
-  const isBlockedByOtherComp = (comp.excludedCompIds || []).some(exCompId => {
+  // 🛡️ BLINDAGEM FORTE PARA A TELA DE INSCRIÇÃO
+  const isBlockedByOtherComp = Array.isArray(comp.excludedCompIds) && comp.excludedCompIds.some(exCompId => {
     const exComp = (competitions || []).find(c => c.id === exCompId);
-    return exComp?.teams?.includes(userTeam.id);
+    if (!exComp) return false;
+    
+    const inConfirmed = Array.isArray(exComp.teams) && exComp.teams.includes(userTeam.id);
+    const inPendingEx = Array.isArray(exComp.pendingTeams) && exComp.pendingTeams.some(p => p.teamId === userTeam.id);
+    
+    return inConfirmed || inPendingEx;
   });
 
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
