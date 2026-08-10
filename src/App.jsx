@@ -3059,6 +3059,7 @@ const CompetitionsList = ({ competitions, teams, currentUser, onSelectComp, onDe
   // 🌟 PADRONIZAÇÃO DE NOMES AQUI
   // Força tudo para MAIÚSCULO para manter o painel organizado visualmente
   const formatName = (c) => {
+    let name = c.category === 'copa_flash' ? `COPA FLASH KAME - ${c.name}` : String(c.name);
     return name.toUpperCase(); // <-- Transforma qualquer texto em maiúsculo
   };
 
