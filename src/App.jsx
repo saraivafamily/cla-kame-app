@@ -4386,9 +4386,9 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     return { label: 'Novato', icon: '🔰', color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' };
   };
 
-  // 🚀 RESTAURAÇÃO DE HISTÓRICO
+  // 🚀 RESTAURAÇÃO DE HISTÓRICO COM REGRA DE W.O.
   const handleSyncHistory = async () => {
-    if (!window.confirm("Atenção: O sistema vai ler todo o histórico antigo e gravar os pontos permanentemente nos times. Deseja continuar?")) return;
+    if (!window.confirm("Atenção: O sistema vai ler todo o histórico antigo e gravar os pontos permanentemente nos times (incluindo punições de W.O.). Deseja continuar?")) return;
     showToast("Calculando histórico... Por favor, aguarde.", "info");
 
     try {
@@ -4413,27 +4413,47 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
           const ptsPlay = isFlash ? 1 : 2; const ptsWin = isFlash ? 1 : 3; const ptsDraw = isFlash ? 0 : 1;
 
           const tA = stats[m.teamA]; const tB = stats[m.teamB];
-          if(tA) { tA.playedMatches += 1; tA.globalPoints += ptsPlay; tA.goalsFor += Number(m.scoreA||0); tA.goalsAgainst += Number(m.scoreB||0); }
-          if(tB) { tB.playedMatches += 1; tB.globalPoints += ptsPlay; tB.goalsFor += Number(m.scoreB||0); tB.goalsAgainst += Number(m.scoreA||0); }
-
           let scoreA = Number(m.scoreA||0); let scoreB = Number(m.scoreB||0);
           let penA = m.penaltiesA !== null && m.penaltiesA !== undefined ? Number(m.penaltiesA) : null;
           let penB = m.penaltiesB !== null && m.penaltiesB !== undefined ? Number(m.penaltiesB) : null;
 
+          // VERIFICAÇÃO DE W.O (-2 PONTOS)
+          let isWoA = false; let isWoB = false;
+          const obs = (m.observacoes || '').toLowerCase();
+          if (obs.includes('w.o') || obs.includes('wo')) {
+             if (obs.includes('duplo')) { isWoA = true; isWoB = true; }
+             else if (scoreA === 0 && scoreB === 3) isWoA = true;
+             else if (scoreB === 0 && scoreA === 3) isWoB = true;
+          }
+
+          if(tA) { 
+             tA.playedMatches += 1; 
+             tA.globalPoints += ptsPlay; 
+             if(isWoA) tA.globalPoints -= 2; // Punição
+             tA.goalsFor += scoreA; tA.goalsAgainst += scoreB; 
+          }
+          if(tB) { 
+             tB.playedMatches += 1; 
+             tB.globalPoints += ptsPlay; 
+             if(isWoB) tB.globalPoints -= 2; // Punição
+             tB.goalsFor += scoreB; tB.goalsAgainst += scoreA; 
+          }
+
           let winner = null;
-          if (scoreA > scoreB) winner = 'A';
-          else if (scoreB > scoreA) winner = 'B';
-          else if (penA !== null && penB !== null) {
-              if (tA) { tA.totalDraws += 1; tA.globalPoints += ptsDraw; }
-              if (tB) { tB.totalDraws += 1; tB.globalPoints += ptsDraw; }
-              if (penA > penB) winner = 'A'; else if (penB > penA) winner = 'B';
-          } else {
-              if (tA) { tA.totalDraws += 1; tA.globalPoints += ptsDraw; }
-              if (tB) { tB.totalDraws += 1; tB.globalPoints += ptsDraw; }
+          if (!isWoA && !isWoB) {
+            if (scoreA > scoreB) winner = 'A';
+            else if (scoreB > scoreA) winner = 'B';
+            else if (penA !== null && penB !== null) {
+                if (penA > penB) winner = 'A'; else if (penB > penA) winner = 'B';
+            }
           }
 
           if (winner === 'A' && tA) { tA.totalWins += 1; tA.globalPoints += ptsWin; } 
           else if (winner === 'B' && tB) { tB.totalWins += 1; tB.globalPoints += ptsWin; }
+          else if (!winner && !isWoA && !isWoB) {
+              if (tA) { tA.totalDraws += 1; tA.globalPoints += ptsDraw; }
+              if (tB) { tB.totalDraws += 1; tB.globalPoints += ptsDraw; }
+          }
         }
       });
 
@@ -4505,6 +4525,114 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     }
   };
 
+  // 🌟 NOVO MOTOR DE EXTRATO DO JOGADOR
+  const extratoData = useMemo(() => {
+    if (!currentUser) return [];
+    const myTeam = (teams || []).find(t => t.ownerId === currentUser.id);
+    if (!myTeam) return [];
+
+    const events = [];
+
+    // 1. Inscrições em Competições
+    (competitions || []).forEach(c => {
+        if (c.teams && c.teams.includes(myTeam.id)) {
+            const isFlash = c.category === 'copa_flash';
+            events.push({
+                id: `join_${c.id}`,
+                date: c.deadline ? new Date(c.deadline).getTime() : Date.now(),
+                title: `Inscrição: ${c.name}`,
+                pts: isFlash ? 2 : 10
+            });
+        }
+
+        // Fases Alcançadas
+        if (c.rounds) {
+            const isFlash = c.category === 'copa_flash';
+            const ptsOitavas = isFlash ? 0 : 5; const ptsQuartas = isFlash ? 2 : 10;
+            const ptsSemi = isFlash ? 5 : 15; const ptsThird = isFlash ? 5 : 15;
+            const ptsVice = isFlash ? 10 : 25; const ptsChamp = isFlash ? 20 : 50;
+
+            const koRounds = c.rounds.filter(r => r.id.includes('ko') || c.format === 'cup');
+            koRounds.forEach(r => {
+                r.matches.forEach(m => {
+                    if (m.teamA === myTeam.id || m.teamB === myTeam.id) {
+                        const matchDate = parseInt(m.id.split('_')[1] || Date.now());
+
+                        if (r.number === 'Oitavas' && ptsOitavas > 0) events.push({ id: `oitavas_${m.id}`, date: matchDate, title: `Avançou: Oitavas - ${c.name}`, pts: ptsOitavas });
+                        if (r.number === 'Quartas' && ptsQuartas > 0) events.push({ id: `quartas_${m.id}`, date: matchDate, title: `Avançou: Quartas - ${c.name}`, pts: ptsQuartas });
+                        if (r.number === 'Semifinal' && ptsSemi > 0) events.push({ id: `semi_${m.id}`, date: matchDate, title: `Avançou: Semifinal - ${c.name}`, pts: ptsSemi });
+
+                        if (r.number === 'Final') {
+                            const sUI = matches.find(x => x.matchId === m.id && x.compId === c.id && x.status === 'approved');
+                            if (sUI) {
+                                let scoreA = Number(sUI.scoreA||0); let scoreB = Number(sUI.scoreB||0);
+                                let penA = sUI.penaltiesA !== null ? Number(sUI.penaltiesA) : null; let penB = sUI.penaltiesB !== null ? Number(sUI.penaltiesB) : null;
+                                
+                                let winnerId = null; 
+                                if (scoreA > scoreB) winnerId = m.teamA; else if (scoreB > scoreA) winnerId = m.teamB;
+                                else if (penA !== null && penB !== null) { if (penA > penB) winnerId = m.teamA; else if (penB > penA) winnerId = m.teamB; }
+
+                                if (m.id.includes('_3rd') && winnerId === myTeam.id) {
+                                    events.push({ id: `third_${m.id}`, date: matchDate, title: `3º Lugar: ${c.name}`, pts: ptsThird });
+                                } else if (!m.id.includes('_3rd')) {
+                                    if (winnerId === myTeam.id) events.push({ id: `champ_${m.id}`, date: matchDate, title: `🏆 Campeão: ${c.name}`, pts: ptsChamp });
+                                    else if (winnerId && winnerId !== myTeam.id) events.push({ id: `vice_${m.id}`, date: matchDate, title: `🥈 Vice-Campeão: ${c.name}`, pts: ptsVice });
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+        }
+    });
+
+    // 2. Partidas Jogadas e Resultados
+    (matches || []).forEach(m => {
+        if (m.status === 'approved' && (m.teamA === myTeam.id || m.teamB === myTeam.id)) {
+            const c = competitions.find(comp => comp.id === m.compId);
+            const isFlash = c?.category === 'copa_flash';
+            const ptsPlay = isFlash ? 1 : 2; 
+            const ptsWin = isFlash ? 1 : 3; 
+            const ptsDraw = isFlash ? 0 : 1;
+
+            const matchDate = parseInt(String(m.id).split('_')[1] || Date.now());
+            const oppId = m.teamA === myTeam.id ? m.teamB : m.teamA;
+            const oppName = teams.find(t => t.id === oppId)?.name || 'Adversário';
+
+            // Punição W.O.
+            let isWoMe = false;
+            const obs = (m.observacoes || '').toLowerCase();
+            if (obs.includes('w.o') || obs.includes('wo')) {
+                if (obs.includes('duplo')) isWoMe = true;
+                else if (m.teamA === myTeam.id && m.scoreA === 0 && m.scoreB === 3) isWoMe = true;
+                else if (m.teamB === myTeam.id && m.scoreB === 0 && m.scoreA === 3) isWoMe = true;
+            }
+
+            if (isWoMe) {
+                events.push({ id: `play_${m.id}`, date: matchDate, title: `Partida vs ${oppName}`, pts: ptsPlay });
+                events.push({ id: `wo_${m.id}`, date: matchDate + 1, title: `🛑 Punição por W.O. vs ${oppName}`, pts: -2 });
+            } else {
+                events.push({ id: `play_${m.id}`, date: matchDate, title: `Partida Jogada vs ${oppName}`, pts: ptsPlay });
+
+                let scoreMe = m.teamA === myTeam.id ? Number(m.scoreA||0) : Number(m.scoreB||0);
+                let scoreOpp = m.teamA === myTeam.id ? Number(m.scoreB||0) : Number(m.scoreA||0);
+                let penMe = m.teamA === myTeam.id ? m.penaltiesA : m.penaltiesB;
+                let penOpp = m.teamA === myTeam.id ? m.penaltiesB : m.penaltiesA;
+
+                if (scoreMe > scoreOpp) {
+                    events.push({ id: `win_${m.id}`, date: matchDate + 1, title: `Vitória vs ${oppName}`, pts: ptsWin });
+                } else if (scoreMe === scoreOpp && penMe !== null && penOpp !== null && Number(penMe) > Number(penOpp)) {
+                    events.push({ id: `winpen_${m.id}`, date: matchDate + 1, title: `Vitória (Pênaltis) vs ${oppName}`, pts: ptsWin });
+                } else if (scoreMe === scoreOpp && penMe === null && ptsDraw > 0) {
+                    events.push({ id: `draw_${m.id}`, date: matchDate + 1, title: `Empate vs ${oppName}`, pts: ptsDraw });
+                }
+            }
+        }
+    });
+
+    return events.sort((a,b) => b.date - a.date);
+  }, [competitions, matches, teams, currentUser]);
+
   // 🌟 SISTEMA DE XCLÃ / SELETIVAS
   const [xclas, setXclas] = useState(() => {
     try { return JSON.parse(localStorage.getItem('kame_xclas_db')) || []; }
@@ -4523,7 +4651,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
   const [manualAddTitular, setManualAddTitular] = useState('');
   const [manualAddReserva, setManualAddReserva] = useState('');
 
-  // Painel de Competição Ativa
   const [selectedActiveXclaId, setSelectedActiveXclaId] = useState(null);
   const [newOpponentName, setNewOpponentName] = useState('');
   const [newMatchKameId, setNewMatchKameId] = useState('');
@@ -4568,15 +4695,8 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
   const handleGenerateXcla = (e) => {
     e.preventDefault();
     const selSize = parseInt(newXclaSeletivaSize, 10);
-    
-    if (!newXclaName || !selSize || selSize <= 0) {
-      showToast("Preencha o nome e um número válido para a seletiva.", "error");
-      return;
-    }
-    if (rankingData.length === 0) {
-      showToast("Não há times no ranking para convocar.", "error");
-      return;
-    }
+    if (!newXclaName || !selSize || selSize <= 0) { showToast("Preencha o nome e um número válido para a seletiva.", "error"); return; }
+    if (rankingData.length === 0) { showToast("Não há times no ranking para convocar.", "error"); return; }
 
     let pool = [...rankingData];
     let startingTitulares = [];
@@ -4584,17 +4704,11 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     if (newXclaSquad === 'A') {
       if (guaranteedMembroSuperior) {
          const t = teams.find(x => x.id === guaranteedMembroSuperior);
-         if (t) {
-            startingTitulares.push({...t, isGuaranteed: 'Membro Superior'});
-            pool = pool.filter(x => x.id !== guaranteedMembroSuperior); 
-         }
+         if (t) { startingTitulares.push({...t, isGuaranteed: 'Membro Superior'}); pool = pool.filter(x => x.id !== guaranteedMembroSuperior); }
       }
       if (guaranteedProfessor) {
          const t = teams.find(x => x.id === guaranteedProfessor);
-         if (t && t.id !== guaranteedMembroSuperior) {
-            startingTitulares.push({...t, isGuaranteed: 'Convite Professor'});
-            pool = pool.filter(x => x.id !== guaranteedProfessor); 
-         }
+         if (t && t.id !== guaranteedMembroSuperior) { startingTitulares.push({...t, isGuaranteed: 'Convite Professor'}); pool = pool.filter(x => x.id !== guaranteedProfessor); }
       }
     }
 
@@ -4607,35 +4721,15 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     });
     pool = pool.filter(t => !alreadyRosteredIds.has(t.id));
 
-    let draftedTeams = [];
-    if (newXclaSquad === 'A') {
-      draftedTeams = pool.slice(0, selSize);
-    } else {
-      draftedTeams = pool.slice(selSize, selSize * 2);
-    }
+    let draftedTeams = newXclaSquad === 'A' ? pool.slice(0, selSize) : pool.slice(selSize, selSize * 2);
 
-    if (draftedTeams.length === 0) {
-      showToast("Não existem times disponíveis no ranking para gerar esta seletiva. Todos já estão alocados.", "error");
-      return;
-    }
+    if (draftedTeams.length === 0) { showToast("Não existem times disponíveis no ranking para gerar esta seletiva. Todos já estão alocados.", "error"); return; }
 
     const newXcla = {
-      id: `xcla_${Date.now()}`,
-      name: newXclaName,
-      squad: newXclaSquad,
-      titularesMax: parseInt(newXclaTitularesCount, 10) || 5,
-      reservasMax: parseInt(newXclaReservasCount, 10) || 2,
-      titulares: startingTitulares,
-      reservas: [],
-      bracket: createMiniBracket(draftedTeams),
-      date: Date.now(),
-      status: 'open',
-      oppClanName: 'Clã Adversário',
-      pointsKame: 0,
-      pointsOpp: 0,
-      opponentsList: [],
-      xclaMatches: [],
-      news: []
+      id: `xcla_${Date.now()}`, name: newXclaName, squad: newXclaSquad,
+      titularesMax: parseInt(newXclaTitularesCount, 10) || 5, reservasMax: parseInt(newXclaReservasCount, 10) || 2,
+      titulares: startingTitulares, reservas: [], bracket: createMiniBracket(draftedTeams), date: Date.now(), status: 'open',
+      oppClanName: 'Clã Adversário', pointsKame: 0, pointsOpp: 0, opponentsList: [], xclaMatches: [], news: []
     };
 
     setXclas([newXcla, ...xclas]);
@@ -4653,207 +4747,108 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
 
   const handleLockRoster = (xclaId) => {
     const xcla = xclas.find(x => x.id === xclaId);
-    if((xcla.titulares || []).length === 0) {
-      showToast("Você precisa ter pelo menos 1 titular para fechar o time!", "error");
-      return;
-    }
-
+    if((xcla.titulares || []).length === 0) { showToast("Você precisa ter pelo menos 1 titular para fechar o time!", "error"); return; }
     if(window.confirm('Deseja FECHAR a escalação final? O time será trancado e a competição movida para a aba "Competições Ativas".')) {
-      const newXclas = xclas.map(x => x.id === xclaId ? { 
-        ...x, 
-        status: 'locked',
-        oppClanName: x.oppClanName || 'Clã Adversário',
-        pointsKame: x.pointsKame || 0,
-        pointsOpp: x.pointsOpp || 0,
-        opponentsList: x.opponentsList || [],
-        xclaMatches: x.xclaMatches || [],
-        news: x.news || []
-      } : x);
-      setXclas(newXclas);
-      showToast("A Escalação foi trancada e movida para Competições Ativas!", "success");
+      const newXclas = xclas.map(x => x.id === xclaId ? { ...x, status: 'locked', oppClanName: x.oppClanName || 'Clã Adversário', pointsKame: x.pointsKame || 0, pointsOpp: x.pointsOpp || 0, opponentsList: x.opponentsList || [], xclaMatches: x.xclaMatches || [], news: x.news || [] } : x);
+      setXclas(newXclas); showToast("A Escalação foi trancada e movida para Competições Ativas!", "success");
     }
   };
 
-  const updateActiveXcla = (id, payload) => {
-    setXclas(prev => prev.map(x => x.id === id ? { ...x, ...payload } : x));
-  };
+  const updateActiveXcla = (id, payload) => { setXclas(prev => prev.map(x => x.id === id ? { ...x, ...payload } : x)); };
 
   const updateBracketMatch = (xclaId, roundIdx, matchIdx, field, value) => {
-    const newXclas = [...xclas];
-    const xcla = newXclas.find(x => x.id === xclaId);
+    const newXclas = [...xclas]; const xcla = newXclas.find(x => x.id === xclaId);
     if (!xcla || xcla.status === 'locked') return;
-
-    const match = xcla.bracket[roundIdx][matchIdx];
-    match[field] = value;
-
+    const match = xcla.bracket[roundIdx][matchIdx]; match[field] = value;
     if (field === 'scoreA' || field === 'scoreB') {
-      const sA = parseInt(match.scoreA);
-      const sB = parseInt(match.scoreB);
-      if (!isNaN(sA) && !isNaN(sB) && sA !== sB) {
-        match.winner = sA > sB ? match.tA : match.tB;
-        advanceWinnerInternally(xcla, roundIdx, matchIdx, match.winner);
-      } else {
-        match.winner = null; 
-      }
+      const sA = parseInt(match.scoreA); const sB = parseInt(match.scoreB);
+      if (!isNaN(sA) && !isNaN(sB) && sA !== sB) { match.winner = sA > sB ? match.tA : match.tB; advanceWinnerInternally(xcla, roundIdx, matchIdx, match.winner); } else { match.winner = null; }
     }
     setXclas(newXclas);
   };
 
   const advanceWinnerInternally = (xcla, roundIdx, matchIdx, winnerTeam) => {
     if (roundIdx < xcla.bracket.length - 1) {
-      const nextMatchIdx = Math.floor(matchIdx / 2);
-      const isTeamA = matchIdx % 2 === 0;
-      if (isTeamA) {
-          xcla.bracket[roundIdx + 1][nextMatchIdx].tA = winnerTeam;
-      } else {
-          xcla.bracket[roundIdx + 1][nextMatchIdx].tB = winnerTeam;
-      }
-      xcla.bracket[roundIdx + 1][nextMatchIdx].winner = null; 
-      xcla.bracket[roundIdx + 1][nextMatchIdx].scoreA = ''; 
-      xcla.bracket[roundIdx + 1][nextMatchIdx].scoreB = ''; 
+      const nextMatchIdx = Math.floor(matchIdx / 2); const isTeamA = matchIdx % 2 === 0;
+      if (isTeamA) { xcla.bracket[roundIdx + 1][nextMatchIdx].tA = winnerTeam; } else { xcla.bracket[roundIdx + 1][nextMatchIdx].tB = winnerTeam; }
+      xcla.bracket[roundIdx + 1][nextMatchIdx].winner = null; xcla.bracket[roundIdx + 1][nextMatchIdx].scoreA = ''; xcla.bracket[roundIdx + 1][nextMatchIdx].scoreB = ''; 
     }
   };
 
   const forceAdvanceTeam = (xclaId, roundIdx, matchIdx, winnerTeam) => {
     if (!winnerTeam || !isAdmin) return;
-    const newXclas = [...xclas];
-    const xcla = newXclas.find(x => x.id === xclaId);
+    const newXclas = [...xclas]; const xcla = newXclas.find(x => x.id === xclaId);
     if (!xcla || xcla.status === 'locked') return;
-
-    xcla.bracket[roundIdx][matchIdx].winner = winnerTeam;
-    advanceWinnerInternally(xcla, roundIdx, matchIdx, winnerTeam);
-    setXclas(newXclas);
+    xcla.bracket[roundIdx][matchIdx].winner = winnerTeam; advanceWinnerInternally(xcla, roundIdx, matchIdx, winnerTeam); setXclas(newXclas);
   };
 
   const handleAutoFillRoster = (xclaId) => {
     const xcla = xclas.find(x => x.id === xclaId);
     if(!xcla || xcla.status === 'locked') return;
-
     const teamStats = {};
     xcla.bracket.forEach((round, rIdx) => {
       round.forEach(m => {
         if(m.tA) {
-          if(!teamStats[m.tA.id]) teamStats[m.tA.id] = { ...m.tA, maxPhase: rIdx, gf: 0, gd: 0, wins: 0 };
-          teamStats[m.tA.id].maxPhase = rIdx;
-          if(m.scoreA !== '') {
-            const sA = Number(m.scoreA), sB = Number(m.scoreB || 0);
-            teamStats[m.tA.id].gf += sA;
-            teamStats[m.tA.id].gd += (sA - sB);
-            if(sA > sB || m.winner?.id === m.tA.id) teamStats[m.tA.id].wins++;
-          }
+          if(!teamStats[m.tA.id]) teamStats[m.tA.id] = { ...m.tA, maxPhase: rIdx, gf: 0, gd: 0, wins: 0 }; teamStats[m.tA.id].maxPhase = rIdx;
+          if(m.scoreA !== '') { const sA = Number(m.scoreA), sB = Number(m.scoreB || 0); teamStats[m.tA.id].gf += sA; teamStats[m.tA.id].gd += (sA - sB); if(sA > sB || m.winner?.id === m.tA.id) teamStats[m.tA.id].wins++; }
         }
         if(m.tB) {
-          if(!teamStats[m.tB.id]) teamStats[m.tB.id] = { ...m.tB, maxPhase: rIdx, gf: 0, gd: 0, wins: 0 };
-          teamStats[m.tB.id].maxPhase = rIdx;
-          if(m.scoreB !== '') {
-            const sB = Number(m.scoreB), sA = Number(m.scoreA || 0);
-            teamStats[m.tB.id].gf += sB;
-            teamStats[m.tB.id].gd += (sB - sA);
-            if(sB > sA || m.winner?.id === m.tB.id) teamStats[m.tB.id].wins++;
-          }
+          if(!teamStats[m.tB.id]) teamStats[m.tB.id] = { ...m.tB, maxPhase: rIdx, gf: 0, gd: 0, wins: 0 }; teamStats[m.tB.id].maxPhase = rIdx;
+          if(m.scoreB !== '') { const sB = Number(m.scoreB), sA = Number(m.scoreA || 0); teamStats[m.tB.id].gf += sB; teamStats[m.tB.id].gd += (sB - sA); if(sB > sA || m.winner?.id === m.tB.id) teamStats[m.tB.id].wins++; }
         }
       });
     });
-
-    const sortedTeams = Object.values(teamStats).sort((a,b) => {
-      if(b.maxPhase !== a.maxPhase) return b.maxPhase - a.maxPhase;
-      if(b.wins !== a.wins) return b.wins - a.wins;
-      if(b.gd !== a.gd) return b.gd - a.gd;
-      return b.gf - a.gf;
-    });
-
+    const sortedTeams = Object.values(teamStats).sort((a,b) => { if(b.maxPhase !== a.maxPhase) return b.maxPhase - a.maxPhase; if(b.wins !== a.wins) return b.wins - a.wins; if(b.gd !== a.gd) return b.gd - a.gd; return b.gf - a.gf; });
     const newTitulares = [...(xcla.titulares || []).filter(t => t.isGuaranteed || t.isManual)];
     const newReservas = [...(xcla.reservas || []).filter(t => t.isManual)];
-
     sortedTeams.forEach(t => {
       if(!newTitulares.some(x => x.id === t.id) && !newReservas.some(x => x.id === t.id)) {
-        if(newTitulares.length < xcla.titularesMax) {
-          newTitulares.push({...t, isAuto: true});
-        } else if(newReservas.length < xcla.reservasMax) {
-          newReservas.push({...t, isAuto: true});
-        }
+        if(newTitulares.length < xcla.titularesMax) { newTitulares.push({...t, isAuto: true}); } else if(newReservas.length < xcla.reservasMax) { newReservas.push({...t, isAuto: true}); }
       }
     });
-
-    const newXclas = xclas.map(x => x.id === xclaId ? { ...x, titulares: newTitulares, reservas: newReservas } : x);
-    setXclas(newXclas);
-    showToast("Escalação montada baseada no desempenho da seletiva!", "success");
+    const newXclas = xclas.map(x => x.id === xclaId ? { ...x, titulares: newTitulares, reservas: newReservas } : x); setXclas(newXclas); showToast("Escalação montada baseada no desempenho da seletiva!", "success");
   };
 
   const addTeamToRoster = (xclaId, listType, teamId) => {
-    if (!teamId) return;
-    const teamObj = teams.find(t => t.id === teamId);
-    if (!teamObj) return;
-
-    const newXclas = [...xclas];
-    const xcla = newXclas.find(x => x.id === xclaId);
-    if (xcla.status === 'locked') return;
-    
-    if ((xcla.titulares || []).some(t => t.id === teamId) || (xcla.reservas || []).some(t => t.id === teamId)) {
-      showToast("Este time já está convocado nesta escalação!", "warning");
-      return;
-    }
-
-    if (isTeamInOtherSquad(teamId, xcla.name, xcla.id)) {
-      showToast("Este time já foi escalado em outro Esquadrão para este campeonato!", "error");
-      return;
-    }
-
+    if (!teamId) return; const teamObj = teams.find(t => t.id === teamId); if (!teamObj) return;
+    const newXclas = [...xclas]; const xcla = newXclas.find(x => x.id === xclaId); if (xcla.status === 'locked') return;
+    if ((xcla.titulares || []).some(t => t.id === teamId) || (xcla.reservas || []).some(t => t.id === teamId)) { showToast("Este time já está convocado nesta escalação!", "warning"); return; }
+    if (isTeamInOtherSquad(teamId, xcla.name, xcla.id)) { showToast("Este time já foi escalado em outro Esquadrão para este campeonato!", "error"); return; }
     if (listType === 'titulares') {
-      if ((xcla.titulares || []).length >= xcla.titularesMax) { showToast(`Limite de titulares (${xcla.titularesMax}) atingido!`, "error"); return; }
-      xcla.titulares.push({...teamObj, isManual: true});
+      if ((xcla.titulares || []).length >= xcla.titularesMax) { showToast(`Limite de titulares (${xcla.titularesMax}) atingido!`, "error"); return; } xcla.titulares.push({...teamObj, isManual: true});
     } else {
-      if ((xcla.reservas || []).length >= xcla.reservasMax) { showToast(`Limite de reservas (${xcla.reservasMax}) atingido!`, "error"); return; }
-      xcla.reservas.push({...teamObj, isManual: true});
+      if ((xcla.reservas || []).length >= xcla.reservasMax) { showToast(`Limite de reservas (${xcla.reservasMax}) atingido!`, "error"); return; } xcla.reservas.push({...teamObj, isManual: true});
     }
-    
-    setXclas(newXclas);
-    setManualAddTitular(''); setManualAddReserva('');
-    showToast(`Time adicionado aos ${listType}!`, "success");
+    setXclas(newXclas); setManualAddTitular(''); setManualAddReserva(''); showToast(`Time adicionado aos ${listType}!`, "success");
   };
 
   const removeTeamFromRoster = (xclaId, listType, teamId) => {
-    const newXclas = [...xclas];
-    const xcla = newXclas.find(x => x.id === xclaId);
-    if (xcla.status === 'locked') return;
-    
-    if (listType === 'titulares') xcla.titulares = (xcla.titulares || []).filter(t => t.id !== teamId);
-    else xcla.reservas = (xcla.reservas || []).filter(t => t.id !== teamId);
-    
+    const newXclas = [...xclas]; const xcla = newXclas.find(x => x.id === xclaId); if (xcla.status === 'locked') return;
+    if (listType === 'titulares') xcla.titulares = (xcla.titulares || []).filter(t => t.id !== teamId); else xcla.reservas = (xcla.reservas || []).filter(t => t.id !== teamId);
     setXclas(newXclas);
   };
 
   const handleAddOpponentPlayer = (xclaId) => {
-    if(!newOpponentName) return;
-    const xcla = xclas.find(x => x.id === xclaId);
-    const updatedOpps = [...(xcla.opponentsList || []), newOpponentName];
-    updateActiveXcla(xclaId, { opponentsList: updatedOpps });
-    setNewOpponentName('');
+    if(!newOpponentName) return; const xcla = xclas.find(x => x.id === xclaId); const updatedOpps = [...(xcla.opponentsList || []), newOpponentName];
+    updateActiveXcla(xclaId, { opponentsList: updatedOpps }); setNewOpponentName('');
   };
 
   const handleAddXclaMatch = (xclaId) => {
     if(!newMatchKameId || !newMatchOppName) { showToast("Selecione os dois jogadores!", "error"); return; }
-    const xcla = xclas.find(x => x.id === xclaId);
-    const newMatch = { id: `xm_${Date.now()}`, kameId: newMatchKameId, oppName: newMatchOppName, scoreKame: '', scoreOpp: '' };
-    updateActiveXcla(xclaId, { xclaMatches: [...(xcla.xclaMatches || []), newMatch] });
-    setNewMatchKameId(''); setNewMatchOppName('');
+    const xcla = xclas.find(x => x.id === xclaId); const newMatch = { id: `xm_${Date.now()}`, kameId: newMatchKameId, oppName: newMatchOppName, scoreKame: '', scoreOpp: '' };
+    updateActiveXcla(xclaId, { xclaMatches: [...(xcla.xclaMatches || []), newMatch] }); setNewMatchKameId(''); setNewMatchOppName('');
   };
 
   const handleUpdateXclaMatchScore = (xclaId, matchId, field, value) => {
-    const xcla = xclas.find(x => x.id === xclaId);
-    const updatedMatches = (xcla.xclaMatches || []).map(m => m.id === matchId ? { ...m, [field]: value } : m);
+    const xcla = xclas.find(x => x.id === xclaId); const updatedMatches = (xcla.xclaMatches || []).map(m => m.id === matchId ? { ...m, [field]: value } : m);
     updateActiveXcla(xclaId, { xclaMatches: updatedMatches });
   };
 
   const handleAddXclaNews = (xclaId) => {
-    if(!newNewsText) return;
-    const xcla = xclas.find(x => x.id === xclaId);
-    const newNews = { id: `n_${Date.now()}`, text: newNewsText, timestamp: Date.now() };
-    updateActiveXcla(xclaId, { news: [newNews, ...(xcla.news || [])] });
-    setNewNewsText('');
+    if(!newNewsText) return; const xcla = xclas.find(x => x.id === xclaId); const newNews = { id: `n_${Date.now()}`, text: newNewsText, timestamp: Date.now() };
+    updateActiveXcla(xclaId, { news: [newNews, ...(xcla.news || [])] }); setNewNewsText('');
   };
 
-  // Listas divididas para as abas
   const openSeletivas = xclas.filter(x => x.status !== 'locked');
   const activeCompetitions = xclas.filter(x => x.status === 'locked');
   const selectedActiveXcla = selectedActiveXclaId ? xclas.find(x => x.id === selectedActiveXclaId) : null;
@@ -4883,6 +4878,9 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       <div className="flex gap-1.5 p-1.5 bg-blue-950 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar">
         <button onClick={() => {setActiveTab('ranking'); setSelectedActiveXclaId(null);}} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'ranking' ? 'bg-amber-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
           🏆 Ranking
+        </button>
+        <button onClick={() => {setActiveTab('extrato'); setSelectedActiveXclaId(null);}} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'extrato' ? 'bg-indigo-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
+          📜 Meu Extrato
         </button>
         <button onClick={() => {setActiveTab('xcla'); setSelectedActiveXclaId(null);}} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'xcla' ? 'bg-purple-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
           ⚔️ Seletivas ({openSeletivas.length})
@@ -4957,6 +4955,42 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
         </div>
       )}
 
+      {/* 📜 CONTEÚDO: EXTRATO DE PONTOS */}
+      {activeTab === 'extrato' && (
+        <div className="bg-blue-950 rounded-3xl border border-blue-800 shadow-2xl overflow-hidden animate-in slide-in-from-right-4 p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+              <div>
+                <h3 className="text-xl font-black text-white uppercase tracking-wider">Meu Extrato Xclã</h3>
+                <p className="text-xs text-blue-400 mt-1">Histórico completo de pontuações e penalidades do seu time.</p>
+              </div>
+              <div className="bg-blue-900 border border-blue-700 px-6 py-3 rounded-xl text-center shadow-inner w-full sm:w-auto">
+                <p className="text-[10px] text-blue-400 uppercase font-bold mb-1">Saldo Atual</p>
+                <p className="text-2xl font-black text-emerald-400">{extratoData.reduce((acc, ev) => acc + ev.pts, 0)} Pts</p>
+              </div>
+          </div>
+
+          {extratoData.length === 0 ? (
+              <div className="text-center p-8 bg-blue-900/50 rounded-2xl border border-blue-800 border-dashed text-blue-500">
+                 Nenhuma movimentação de pontos encontrada no seu histórico.
+              </div>
+          ) : (
+              <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                  {extratoData.map((ev, idx) => (
+                      <div key={idx} className="flex justify-between items-center bg-blue-900/40 p-4 rounded-xl border border-blue-800/50 hover:bg-blue-800/40 transition-colors">
+                          <div>
+                              <p className="text-sm font-bold text-white leading-tight">{ev.title}</p>
+                              <p className="text-[10px] text-blue-400 mt-1">{new Date(ev.date).toLocaleDateString('pt-BR')} às {new Date(ev.date).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</p>
+                          </div>
+                          <div className={`text-lg font-black px-3 py-1 rounded-lg ${ev.pts > 0 ? 'text-emerald-400 bg-emerald-500/10' : ev.pts < 0 ? 'text-red-400 bg-red-500/10' : 'text-blue-300 bg-blue-500/10'}`}>
+                              {ev.pts > 0 ? `+${ev.pts}` : ev.pts}
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          )}
+        </div>
+      )}
+
       {/* ⚔️ CONTEÚDO: SELETIVAS / XCLÃ */}
       {activeTab === 'xcla' && (
         <div className="space-y-8 animate-in slide-in-from-right-4">
@@ -4964,7 +4998,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
           {isAdmin && (
             <form onSubmit={handleGenerateXcla} className="bg-purple-900/40 border border-purple-500/50 rounded-2xl p-5 md:p-6 shadow-xl space-y-4">
               <h3 className="font-bold text-purple-400 uppercase tracking-widest flex items-center gap-2 mb-2"><Target size={18}/> Gerar Nova Seletiva</h3>
-              <p className="text-xs text-blue-300">A minicompetição puxará os times do Ranking Global. Os placares geram um critério de desempate para a Escalação Final. O sistema bloqueia automaticamente os times que já estão em outra escalação do mesmo campeonato.</p>
+              <p className="text-xs text-blue-300">A minicompetição puxará os times do Ranking Global. Os placares geram um critério de desempate para a Escalação Final.</p>
               
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="md:col-span-2">
@@ -4991,7 +5025,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                 </div>
               </div>
 
-              {/* 🌟 Vagas Garantidas (Só aparecem se for Time A) */}
+              {/* 🌟 Vagas Garantidas */}
               {newXclaSquad === 'A' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-purple-800/50">
                   <div>
@@ -5043,7 +5077,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                 return (
                   <div key={xcla.id} className="bg-blue-900 border border-blue-700 rounded-3xl overflow-hidden shadow-2xl relative flex flex-col xl:flex-row">
                     
-                    {/* Botoes de Ação Admin */}
                     {isAdmin && (
                       <div className="absolute top-4 right-4 flex gap-2 z-20">
                         <button onClick={() => handleLockRoster(xcla.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-md text-xs flex items-center gap-1">
@@ -5055,7 +5088,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                       </div>
                     )}
                     
-                    {/* 🎮 LADO ESQUERDO: MINICOMPETIÇÃO COM PLACARES */}
                     <div className="flex-1 p-5 md:p-6 bg-gradient-to-br from-blue-900/50 to-blue-950/80 border-b xl:border-b-0 xl:border-r border-blue-800">
                       <div className="mb-6 border-b border-blue-800/50 pb-4 pr-32">
                         <span className={`text-[10px] bg-${colorClass}-500/20 text-${colorClass}-400 px-2.5 py-0.5 rounded-full font-black tracking-widest uppercase inline-block border border-${colorClass}-500/30 mb-2`}>
@@ -5065,13 +5097,11 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                         <p className="text-xs text-blue-400 mt-1">Coloque os placares. Em caso de empate, clique no escudo do time vencedor para avançar de fase!</p>
                       </div>
 
-                      {/* Renderização do Mata-Mata */}
                       <div className="flex gap-6 overflow-x-auto custom-scrollbar pb-4">
                         {xcla.bracket.map((round, rIdx) => (
                           <div key={rIdx} className="flex flex-col justify-around gap-3 min-w-[200px]">
                             {round.map((m, mIdx) => (
                               <div key={m.id} className="bg-blue-950 border border-blue-800 rounded-xl p-2 flex flex-col gap-1.5 shadow-inner">
-                                
                                 <div className={`flex items-center justify-between p-1.5 rounded-lg transition-colors ${m.winner?.id === m.tA?.id ? `bg-${colorClass}-500/20 border border-${colorClass}-500/50` : 'border border-transparent'}`}>
                                   <div onClick={() => forceAdvanceTeam(xcla.id, rIdx, mIdx, m.tA)} className="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0" title="Forçar Vitória">
                                     <ShieldDisplay shield={m.tA?.shield} size="small" /> 
@@ -5079,9 +5109,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                                   </div>
                                   <input type="number" min="0" value={m.scoreA||''} onChange={e=>updateBracketMatch(xcla.id, rIdx, mIdx, 'scoreA', e.target.value)} className="w-8 h-6 bg-blue-900 border border-blue-700 rounded text-center text-[10px] text-white outline-none focus:border-amber-500 shrink-0" placeholder="-" />
                                 </div>
-                                
                                 <div className="h-px w-full bg-blue-800/50 mx-auto w-[90%]"></div>
-                                
                                 <div className={`flex items-center justify-between p-1.5 rounded-lg transition-colors ${m.winner?.id === m.tB?.id ? `bg-${colorClass}-500/20 border border-${colorClass}-500/50` : 'border border-transparent'}`}>
                                   <div onClick={() => forceAdvanceTeam(xcla.id, rIdx, mIdx, m.tB)} className="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0" title="Forçar Vitória">
                                     <ShieldDisplay shield={m.tB?.shield} size="small" /> 
@@ -5089,7 +5117,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                                   </div>
                                   <input type="number" min="0" value={m.scoreB||''} onChange={e=>updateBracketMatch(xcla.id, rIdx, mIdx, 'scoreB', e.target.value)} className="w-8 h-6 bg-blue-900 border border-blue-700 rounded text-center text-[10px] text-white outline-none focus:border-amber-500 shrink-0" placeholder="-" />
                                 </div>
-
                               </div>
                             ))}
                           </div>
@@ -5097,7 +5124,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                       </div>
                     </div>
 
-                    {/* 📋 LADO DIREITO: ESCALAÇÃO OFICIAL */}
                     <div className="w-full xl:w-[380px] p-5 md:p-6 bg-blue-900/40 flex flex-col gap-6">
                       <div className="text-center">
                         <h4 className="text-lg font-black text-white uppercase tracking-widest mb-1">📋 Escalação Final</h4>
@@ -5110,7 +5136,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                         </button>
                       )}
 
-                      {/* Lista de Titulares */}
                       <div>
                         <div className="flex justify-between items-end mb-2">
                           <h5 className={`text-sm font-bold text-${colorClass}-400 uppercase`}>Titulares ({(xcla.titulares || []).length}/{xcla.titularesMax})</h5>
@@ -5143,7 +5168,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                         )}
                       </div>
 
-                      {/* Lista de Reservas */}
                       <div>
                         <div className="flex justify-between items-end mb-2">
                           <h5 className="text-sm font-bold text-blue-300 uppercase">Reservas ({(xcla.reservas || []).length}/{xcla.reservasMax})</h5>
@@ -5191,7 +5215,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
           {selectedActiveXcla ? (
             <div className="bg-blue-900 border border-blue-700 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
               
-              {/* Header do Xclã Ativo */}
               <div className="bg-gradient-to-br from-blue-950 to-blue-900 p-6 border-b border-blue-800 relative">
                  <button onClick={() => setSelectedActiveXclaId(null)} className="absolute top-6 left-6 text-blue-400 hover:text-white flex items-center gap-1 text-xs">
                    <ArrowLeft size={14}/> Voltar
@@ -5204,7 +5227,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                    <h2 className="text-3xl font-black text-white uppercase tracking-wider mt-3">{selectedActiveXcla.name}</h2>
                  </div>
 
-                 {/* PLACAR GERAL */}
                  <div className="flex items-center justify-center gap-4 sm:gap-8 mt-6">
                     <div className="flex flex-col items-center flex-1">
                       <ShieldDisplay shield="🛡️" size="large" />
@@ -5249,10 +5271,8 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                  </div>
               </div>
 
-              {/* Corpo da Competição Ativa */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-1 divide-y lg:divide-y-0 lg:divide-x divide-blue-800">
                  
-                 {/* COLUNA 1: ADVERSÁRIOS E ELENCO */}
                  <div className="p-6 bg-blue-900/50 space-y-6">
                     <div>
                       <h4 className="text-sm font-black text-blue-300 uppercase tracking-widest mb-3 flex items-center gap-2"><Shield size={16}/> Elenco Convocado</h4>
@@ -5292,7 +5312,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                     </div>
                  </div>
 
-                 {/* COLUNA 2: CONFRONTOS (JOGOS) */}
                  <div className="p-6 bg-blue-950/30 lg:col-span-1 space-y-6">
                     <div className="flex justify-between items-center mb-2">
                        <h4 className="text-sm font-black text-amber-400 uppercase tracking-widest flex items-center gap-2"><Trophy size={16}/> Confrontos Oficiais</h4>
@@ -5354,7 +5373,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                     </div>
                  </div>
 
-                 {/* COLUNA 3: MURAL DE NOTÍCIAS */}
                  <div className="p-6 bg-blue-900/50 space-y-4">
                     <h4 className="text-sm font-black text-sky-400 uppercase tracking-widest mb-3 flex items-center gap-2"><MessageCircle size={16}/> Resenha / Atualizações</h4>
                     
