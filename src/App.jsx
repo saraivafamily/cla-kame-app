@@ -2,8 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where } from 'firebase/firestore';
-import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet } from 'lucide-react';
-
+import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart } from 'lucide-react';
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
 const firebaseConfig = { 
@@ -6713,11 +6712,11 @@ const KameStore = () => {
 
       {/* 🏷️ FILTROS */}
       <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar">
-        <button onClick={()=>setActiveCategory('todos')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeTab==='todos'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>Tudo</button>
-        <button onClick={()=>setActiveCategory('mobile')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeTab==='mobile'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>🎮 Setup Mobile</button>
-        <button onClick={()=>setActiveCategory('cards')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeTab==='cards'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>💎 Gift Cards</button>
-        <button onClick={()=>setActiveCategory('energy')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeTab==='energy'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>⚡ Energia e Foco</button>
-        <button onClick={()=>setActiveCategory('lifestyle')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeTab==='lifestyle'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>🧔 Lifestyle</button>
+        <button onClick={()=>setActiveCategory('todos')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeCategory==='todos'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>Tudo</button>
+        <button onClick={()=>setActiveCategory('mobile')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeCategory==='mobile'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>🎮 Setup Mobile</button>
+        <button onClick={()=>setActiveCategory('cards')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeCategory==='cards'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>💎 Gift Cards</button>
+        <button onClick={()=>setActiveCategory('energy')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeCategory==='energy'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>⚡ Energia e Foco</button>
+        <button onClick={()=>setActiveCategory('lifestyle')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all ${activeCategory==='lifestyle'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>🧔 Lifestyle</button>
       </div>
 
       {/* 🛍️ VITRINE DE PRODUTOS */}
@@ -6737,7 +6736,7 @@ const KameStore = () => {
               </div>
               
               <a href={product.url} target="_blank" rel="noreferrer" className="w-full bg-blue-800 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md group-hover:shadow-emerald-900/50">
-                <Target size={14}/> Acessar Loja
+                <ShoppingCart size={14}/> Acessar Loja
               </a>
             </div>
           </div>
@@ -6980,7 +6979,7 @@ export default function App() {
   const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home }, 
     { id: 'profile', label: 'Meu Perfil', icon: User },
-    { id: 'store', label: 'Kame Store', icon: Target }, // 👈 A LOJA FOI ADICIONADA AQUI
+    { id: 'store', label: 'Kame Store', icon: ShoppingCart }, // 👈 A LOJA FOI ADICIONADA AQUI
     { id: 'bank', label: 'Kame Bank', icon: Landmark },
     { id: 'teams_list', label: 'Times', icon: Shield }, 
     { id: 'competitions', label: 'Competições', icon: Medal },
