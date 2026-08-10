@@ -41,6 +41,40 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
   return <button type={type} onClick={onClick} disabled={disabled} className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${className}`}>{children}</button>;
 };
 
+const CountdownTimer = ({ targetDateStr }) => {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    if (!targetDateStr) return;
+    // Pega a data limite e junta com o horário exato (Ex: 2024-12-31T20:00:00)
+    const target = new Date(targetDateStr).getTime();
+    
+    const updateTimer = () => {
+      const now = Date.now();
+      const diff = target - now;
+
+      if (diff <= 0) {
+        setTimeLeft('INICIADO');
+        return;
+      }
+
+      const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const m = Math.floor((diff / 1000 / 60) % 60);
+      const s = Math.floor((diff / 1000) % 60);
+
+      const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      setTimeLeft(d > 0 ? `${d}d ${timeStr}` : timeStr);
+    };
+
+    updateTimer(); // Chama imediatamente para não dar tela em branco
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [targetDateStr]);
+
+  return <span className="font-mono font-black tracking-widest">{timeLeft}</span>;
+};
+
 const calculateStandings = (matches, teams, compId) => {
   const table = {}; (teams || []).forEach(t => { if (t) table[t.id] = { ...t, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0 }; });
   const appMap = {}; (matches || []).filter(m => m && m.compId === compId && m.status === 'approved').forEach(m => { const time = parseInt(String(m?.id || '').split('_')[1] || '0'); if (!appMap[m.matchId] || time > parseInt(String(appMap[m.matchId].id).split('_')[1] || '0')) { appMap[m.matchId] = m; } });
@@ -989,22 +1023,19 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               const alreadyJoined = compTeams.some(tId => userTeamIds.includes(tId));
               const isPending = compPending.some(p => p && userTeamIds.includes(p.teamId));
 
-              // 🛡️ BLINDAGEM FORTE: Bloqueia se estiver Confirmado OU Pendente no torneio excluído
               const isBlockedByOtherComp = Array.isArray(comp.excludedCompIds) && comp.excludedCompIds.some(exCompId => {
                 const exComp = (competitions || []).find(c => c.id === exCompId);
                 if (!exComp) return false;
-                
                 const inConfirmed = Array.isArray(exComp.teams) && exComp.teams.some(tId => userTeamIds.includes(tId));
                 const inPendingEx = Array.isArray(exComp.pendingTeams) && exComp.pendingTeams.some(p => p && userTeamIds.includes(p.teamId));
-                
                 return inConfirmed || inPendingEx;
               });
 
               return (
-                <div key={comp.id} className="bg-blue-900 p-5 rounded-2xl border border-amber-500/30 shadow-lg flex flex-col justify-between group hover:border-amber-500/60 transition-all">
+                <div key={comp.id} className={`bg-blue-900 p-5 rounded-2xl border ${comp.category === 'copa_flash' ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-amber-500/30'} shadow-lg flex flex-col justify-between group hover:border-amber-500/60 transition-all`}>
                   <div>
                     <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-black text-white text-lg group-hover:text-amber-400 transition-colors">{comp.name}</h4>
+                      <h4 className={`font-black text-lg transition-colors ${comp.category === 'copa_flash' ? 'text-amber-400' : 'text-white group-hover:text-amber-400'}`}>{comp.name}</h4>
                       <span className="text-xs bg-amber-500/20 text-amber-400 font-bold px-2 py-1 rounded-lg border border-amber-500/30">
                         {compTeams.length}/{teamCount} Vagas
                       </span>
@@ -1013,6 +1044,16 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                   </div>
                   
                   <div className="mt-5 pt-4 border-t border-blue-800">
+                    {/* ⏰ CRONÔMETRO AQUI */}
+                    {comp.category === 'copa_flash' && comp.deadline && comp.startTime && (
+                      <div className="bg-blue-950 p-2.5 rounded-xl border border-amber-500/40 text-center mb-4">
+                        <p className="text-[9px] text-amber-400 font-bold uppercase tracking-widest mb-0.5 flex items-center justify-center gap-1"><Activity size={12}/> Inicia em</p>
+                        <p className="text-2xl text-amber-500 drop-shadow-md">
+                          <CountdownTimer targetDateStr={`${comp.deadline}T${comp.startTime}:00`} />
+                        </p>
+                      </div>
+                    )}
+
                     {alreadyJoined ? (
                        <div className="text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20"><CheckCircle size={16}/> Você já está dentro!</div>
                     ) : isPending ? (
@@ -2569,13 +2610,12 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   const alreadyJoined = comp.teams && comp.teams.includes(userTeam.id);
   const isPending = comp.pendingTeams && comp.pendingTeams.some(p => p.teamId === userTeam.id);
 
-  // 🛡️ BLINDAGEM FORTE PARA A TELA DE INSCRIÇÃO
   const isBlockedByOtherComp = Array.isArray(comp.excludedCompIds) && comp.excludedCompIds.some(exCompId => {
     const exComp = (competitions || []).find(c => c.id === exCompId);
     if (!exComp) return false;
     
     const inConfirmed = Array.isArray(exComp.teams) && exComp.teams.includes(userTeam.id);
-    const inPendingEx = Array.isArray(exComp.pendingTeams) && exComp.pendingTeams.some(p => p.teamId === userTeam.id);
+    const inPendingEx = Array.isArray(exComp.pendingTeams) && exComp.pendingTeams.some(p => p.teamId === userTeam.id); 
     
     return inConfirmed || inPendingEx;
   });
@@ -2600,17 +2640,33 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
     <div className="max-w-md mx-auto animate-in fade-in pb-12 mt-8">
       <button onClick={onBack} className="text-xs text-blue-400 hover:text-white flex items-center gap-1 mb-6"><ArrowLeft size={14}/> Voltar ao Início</button>
       
-      <div className="bg-blue-900 border border-blue-800 rounded-3xl overflow-hidden shadow-2xl">
+      <div className={`bg-blue-900 border rounded-3xl overflow-hidden shadow-2xl ${comp.category === 'copa_flash' ? 'border-amber-500/50' : 'border-blue-800'}`}>
         <div className="bg-blue-950/80 p-8 text-center border-b border-blue-800 relative overflow-hidden">
-          <Trophy className="text-amber-400 mx-auto mb-4" size={48} />
+          <Trophy className={`${comp.category === 'copa_flash' ? 'text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'text-amber-400'} mx-auto mb-4`} size={48} />
           <h2 className="text-2xl font-black text-white uppercase tracking-wider">{comp.name}</h2>
           <p className="text-emerald-400 font-bold mt-2 text-sm uppercase tracking-widest">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</p>
         </div>
 
         <div className="p-6 space-y-6">
+          
+          {/* ⏰ CRONÔMETRO GIGANTE NA TELA DE INSCRIÇÃO */}
+          {comp.category === 'copa_flash' && comp.deadline && comp.startTime && (
+            <div className="bg-amber-900/40 p-5 rounded-2xl border border-amber-500/50 text-center shadow-inner animate-in zoom-in-95">
+              <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-1.5 flex justify-center items-center gap-1.5">
+                <Activity size={14}/> A Copa Flash Inicia Em:
+              </p>
+              <p className="text-4xl text-amber-400 drop-shadow-md">
+                <CountdownTimer targetDateStr={`${comp.deadline}T${comp.startTime}:00`} />
+              </p>
+            </div>
+          )}
+
           <div className="flex justify-between items-center bg-blue-950 p-4 rounded-xl border border-blue-800">
             <div><p className="text-[10px] text-blue-400 uppercase font-bold">Vagas Preenchidas</p><p className="text-lg font-black text-white">{(comp.teams?.length || 0)} <span className="text-blue-500">/ {comp.teamCount}</span></p></div>
-            <div className="text-right"><p className="text-[10px] text-blue-400 uppercase font-bold">Prazo Final</p><p className="text-sm font-bold text-white">{new Date(comp.deadline + 'T12:00:00').toLocaleDateString()}</p></div>
+            <div className="text-right">
+              <p className="text-[10px] text-blue-400 uppercase font-bold">Data do Jogo</p>
+              <p className="text-sm font-bold text-white">{new Date(comp.deadline + 'T12:00:00').toLocaleDateString()}</p>
+            </div>
           </div>
 
           {hasAnyPrize && (
