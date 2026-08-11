@@ -6938,7 +6938,7 @@ export default function App() {
       <aside className="w-full md:w-64 bg-blue-900 border-b md:border-b-0 md:border-r border-blue-800 flex flex-col shrink-0 z-10 shadow-2xl">
         <div className="p-6 flex items-center gap-3"><img src={LOGO_URL} alt="Clã Kame" className="w-24 h-24" /><div><h1 className="font-bold text-white text-lg">Clã Kame</h1><p className="text-[10px] text-emerald-400 font-bold uppercase">Arena DLS</p></div></div>
         
-        <nav className="flex-1 px-4 pb-4 overflow-y-auto flex md:flex-col gap-2 overflow-x-auto custom-scrollbar">
+        <nav className="flex-1 px-4 pb-4 overflow-y-auto flex md:flex-col gap-2 overflow-x-auto custom-scrollbar items-center md:items-stretch">
           {TABS.map(tab => {
             const isActive = currentTab === tab.id || (tab.id === 'competitions' && currentTab === 'comp_details'); 
             const Icon = tab.icon;
@@ -6952,7 +6952,6 @@ export default function App() {
                   if (tab.id === 'feed') {
                     const now = Date.now();
                     setLastSeenFeed(now);
-                    // 🛡️ BLINDADO
                     try { localStorage.setItem('kame_last_seen_feed', now.toString()); } catch(e){}
                   }
                   setCurrentTab(tab.id);
@@ -6970,8 +6969,18 @@ export default function App() {
               </button> 
             );
           })}
+
+          {/* 📱 BOTÃO DE SAIR NO CELULAR */}
+          <button 
+            onClick={() => { setCurrentUser(null); signOut(auth); }} 
+            className="md:hidden relative flex items-center gap-2 px-4 py-3 rounded-xl whitespace-nowrap outline-none border border-red-500/20 text-red-400 bg-red-950/30 hover:bg-red-900/50 transition-colors ml-2 md:ml-0"
+          >
+            <LogOut size={18} /> 
+            <span className="text-sm font-bold">Sair</span>
+          </button>
         </nav>
         
+        {/* BLOCO DE PERFIL E SAIR DO PC */}
         <div className="p-4 border-t border-blue-800 hidden md:block">
           <div className="bg-blue-950 rounded-xl p-4 border border-blue-800/50 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
