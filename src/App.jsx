@@ -6379,7 +6379,7 @@ const KameStore = ({ currentUser, storeProducts = [], showToast }) => {
 };
 
 export default function App() {
-  // 🛡️ BLINDAGEM CONTRA A ABA ANÔNIMA
+  // 🛡️ BLINDAGEM TOTAL: Se a aba for anônima, o localStorage não derruba o React
   const [currentUser, setCurrentUser] = useState(() => { 
     try { 
       const saved = localStorage.getItem('claKame_user'); 
@@ -6394,8 +6394,6 @@ export default function App() {
   });
 
   const [storeProducts, setStoreProducts] = useState([]);
-  
-  // 🎲 O ESTADO DO BOLÃO VOLTOU!
   const [predictions, setPredictions] = useState([]);
   
   const urlParams = new URLSearchParams(window.location.search);
@@ -6413,12 +6411,10 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState(null); 
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
 
-  // 🪙 1. O MOTOR DE MISSÕES DO FEED (Post e Like)
   const handleTaskcompleted = async (taskName, reward) => {
     const today = new Date().toLocaleDateString('pt-BR');
     const taskKey = taskName === 'post' ? 'lastPostDate' : 'lastLikeDate';
     
-    // Só recompensa se a data da última missão for diferente de hoje
     if (currentUser[taskKey] !== today) {
        const newCoins = (currentUser.kameCoins || 0) + reward;
        const updates = { kameCoins: newCoins, [taskKey]: today };
@@ -6428,7 +6424,6 @@ export default function App() {
     }
   };
 
-  // 🪙 2. BÔNUS DOS VETERANOS E CHECK-IN DIÁRIO
   useEffect(() => {
     if (currentUser && currentUser.id) {
        const today = new Date().toLocaleDateString('pt-BR');
@@ -6436,7 +6431,6 @@ export default function App() {
        let hasChanges = false;
        let msg = "";
 
-       // Se o membro é antigo e não tem a carteira, cria a carteira dele agora
        if (currentUser.kameCoins === undefined) {
           updates.kameCoins = 100;
           updates.receivedProfileBonus = !!currentUser.photoURL;
@@ -6447,7 +6441,6 @@ export default function App() {
 
        const currentCoins = updates.kameCoins !== undefined ? updates.kameCoins : currentUser.kameCoins;
 
-       // Verifica o Check-in Diário
        if (currentUser.lastCheckInDate !== today) {
           updates.kameCoins = currentCoins + 5;
           updates.lastCheckInDate = today;
@@ -6455,7 +6448,6 @@ export default function App() {
           msg += "📅 +5 kc de Check-in Diário!";
        }
 
-       // Salva tudo no Firebase de forma invisível
        if (hasChanges) {
           updateDoc(getPublicDocPath('users', currentUser.id), updates);
           setCurrentUser(prev => ({...prev, ...updates}));
@@ -6492,14 +6484,12 @@ export default function App() {
     const unsubM = onSnapshot(getPublicPath('matches'), snap => setMatches(snap.docs.map(d=>d.data())));
     const unsubStore = onSnapshot(getPublicPath('store'), snap => setStoreProducts(snap.docs.map(d=>d.data())));
     
-    // 🛑 LIMITE DE LEITURAS: Puxa só os 10 últimos posts para economizar a cota do Firebase
     const feedQuery = query(getPublicPath('feed'), orderBy('timestamp', 'desc'), limit(10));
     const unsubF = onSnapshot(feedQuery, snap => {
       const fetched = snap.docs.map(d => d.data());
       setFeedPosts(fetched);
     });
 
-    // 🎲 O FIREBASE DO BOLÃO VOLTOU!
     const unsubP = onSnapshot(getPublicPath('predictions'), snap => {
       setPredictions(snap.docs.map(d => d.data()));
     });
@@ -6508,14 +6498,15 @@ export default function App() {
     return () => { unsubU(); unsubT(); unsubC(); unsubM(); unsubF(); unsubP(); unsubStore(); };
   }, []);
 
+  // 🛡️ BLINDADO: Monitoramento de Login à prova de aba anônima
   useEffect(() => {
     try {
       if (currentUser) {
         localStorage.setItem('claKame_user', JSON.stringify(currentUser)); 
         const stillExists = users.find(u => u && u.id === currentUser.id);
         if (users.length > 0 && !stillExists) { 
-          setCurrentUser(null); 
-          localStorage.removeItem('claKame_user'); 
+           setCurrentUser(null); 
+           localStorage.removeItem('claKame_user'); 
         } 
         else if (stillExists && (stillExists.role !== currentUser.role || stillExists.status !== currentUser.status || stillExists.kameCoins !== currentUser.kameCoins)) { 
           setCurrentUser(stillExists); 
@@ -6524,8 +6515,7 @@ export default function App() {
         localStorage.removeItem('claKame_user'); 
       }
     } catch (error) {
-      // Se for aba anônima e bloquear, o sistema ignora e não quebra a tela!
-      console.warn("Acesso à memória bloqueado pela aba anônima.");
+      console.warn("Aba anônima: localStorage ignorado.");
     }
   }, [users, currentUser]);
   
@@ -6578,7 +6568,6 @@ export default function App() {
     const userCredential = await createUserWithEmailAndPassword(auth, email, data.password);
     const uid = userCredential.user.uid;
     
-    // 🪙 KAME COINS AQUI: 100 kc de Boas-Vindas
     const newUser = { id: uid, name: fullName, email: email, whatsapp: cleanPhone, role: 'member', status: 'pending', kameCoins: 100, receivedProfileBonus: false };
     const newTeam = { id: `t_${uid}`, name: data.teamName, coach: fullName, whatsapp: cleanPhone, ownerId: uid, shield: '🛡️' };
     
@@ -6605,6 +6594,37 @@ export default function App() {
     catch (e) { throw new Error("Acesso negado. Verifique os dados."); }
   };
 
+  const handleGoogleLogin = async (googleUser) => {
+    const email = googleUser.email.toLowerCase();
+    const existingUser = users.find(u => u.email && u.email.toLowerCase() === email);
+    
+    if (existingUser) {
+      if (existingUser.status === 'pending') throw new Error("Sua conta ainda está aguardando aprovação dos líderes.");
+      setCurrentUser(existingUser);
+      setCurrentTab('dashboard');
+    } else {
+      const uid = googleUser.uid;
+      const newUser = { 
+        id: uid, 
+        name: googleUser.displayName || 'Jogador Convidado', 
+        email: email, 
+        whatsapp: '00000000000', 
+        role: 'member', 
+        status: 'pending', 
+        kameCoins: 100, 
+        receivedProfileBonus: true,
+        photoURL: googleUser.photoURL || null
+      };
+      const newTeam = { id: `t_${uid}`, name: 'Time Google', coach: googleUser.displayName || 'Jogador', whatsapp: '', ownerId: uid, shield: '🛡️' };
+      
+      await setDoc(getPublicDocPath('users', uid), newUser);
+      await setDoc(getPublicDocPath('teams', newTeam.id), newTeam);
+      
+      await signOut(auth); 
+      throw new Error("Cadastro via Google realizado! Aguarde a aprovação dos líderes.");
+    }
+  };
+
   const handleApproveUser = async (userId) => {
     await updateDoc(getPublicDocPath('users', userId), { status: 'active' });
     showToast("Técnico aprovado com sucesso!", "success");
@@ -6628,48 +6648,6 @@ export default function App() {
     );
   }
 
-  const handleGoogleLogin = async (googleUser) => {
-    const email = googleUser.email.toLowerCase();
-    
-    // Verifica se o usuário já existe no nosso banco de dados
-    const existingUser = users.find(u => u.email && u.email.toLowerCase() === email);
-    
-    if (existingUser) {
-      if (existingUser.status === 'pending') throw new Error("Sua conta ainda está aguardando aprovação dos líderes.");
-      setCurrentUser(existingUser);
-      setCurrentTab('dashboard');
-    } else {
-      // Se não existe, cria um cadastro PENDENTE pegando o nome e a foto do Google
-      const uid = googleUser.uid;
-      const newUser = { 
-        id: uid, 
-        name: googleUser.displayName || 'Jogador Convidado', 
-        email: email, 
-        whatsapp: '00000000000', // Pede pra pessoa atualizar no perfil depois
-        role: 'member', 
-        status: 'pending', 
-        kameCoins: 100, 
-        receivedProfileBonus: true,
-        photoURL: googleUser.photoURL || null
-      };
-      
-      const newTeam = { 
-        id: `t_${uid}`, 
-        name: 'Time Google', // Placeholder
-        coach: googleUser.displayName || 'Jogador', 
-        whatsapp: '', 
-        ownerId: uid, 
-        shield: '🛡️' 
-      };
-      
-      await setDoc(getPublicDocPath('users', uid), newUser);
-      await setDoc(getPublicDocPath('teams', newTeam.id), newTeam);
-      
-      await signOut(auth); // Desloga porque ele fica como PENDENTE
-      throw new Error("Cadastro via Google realizado! Aguarde a aprovação dos líderes.");
-    }
-  };
-
   const isLeaderOrKaioh = currentUser.role === 'leader' || currentUser.role === 'kaioh';
   const isOrganizer = currentUser.role === 'organizer';
   const hasEventAccess = isLeaderOrKaioh || isOrganizer;
@@ -6677,7 +6655,7 @@ export default function App() {
   const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home }, 
     { id: 'profile', label: 'Meu Perfil', icon: User },
-    { id: 'store', label: 'Kame Store', icon: ShoppingCart }, // 👈 A LOJA FOI ADICIONADA AQUI
+    { id: 'store', label: 'Kame Store', icon: ShoppingCart },
     { id: 'bank', label: 'Kame Bank', icon: Landmark },
     { id: 'teams_list', label: 'Times', icon: Shield }, 
     { id: 'competitions', label: 'Competições', icon: Medal },
@@ -6714,7 +6692,6 @@ export default function App() {
       const finalPenaltiesA = updatedData && updatedData.penaltiesA !== undefined ? parseInt(updatedData.penaltiesA) : match.penaltiesA; 
       const finalPenaltiesB = updatedData && updatedData.penaltiesB !== undefined ? parseInt(updatedData.penaltiesB) : match.penaltiesB;
       
-     // 🎲 LIQUIDAÇÃO KAMEBET (Corrigida)
       const matchPreds = predictions.filter(p => p.matchId === match.matchId && !p.status); 
       if (matchPreds.length > 0) {
          let realOutcome = 'D'; 
@@ -6725,7 +6702,6 @@ export default function App() {
             else if (finalPenaltiesB > finalPenaltiesA) realOutcome = 'B';
          }
 
-         // Agrupa os pagamentos para não sobreescrever o saldo se o usuário ganhar múltiplas apostas
          const userPayouts = {};
 
          for (const pred of matchPreds) {
@@ -6743,7 +6719,6 @@ export default function App() {
             await updateDoc(getPublicDocPath('predictions', pred.id), { status: isWin ? 'won' : 'lost', payout, profit });
          }
 
-         // Atualiza o saldo final dos vencedores
          for (const userId of Object.keys(userPayouts)) {
             const u = users.find(x => x.id === userId);
             if (u) {
@@ -6754,7 +6729,6 @@ export default function App() {
          }
       }
 
-      // 🏆 NOVO: AGREGAÇÃO DE ESTATÍSTICAS DIRETAMENTE NO TIME
       const tA = teams.find(t => t.id === match.teamA);
       const tB = teams.find(t => t.id === match.teamB);
 
@@ -6776,11 +6750,22 @@ export default function App() {
         let winsA = 0; let winsB = 0;
         let drawsA = 0; let drawsB = 0;
 
+        // PUNIÇÃO W.O - EXTRATO
+        let isWoMe = false; let isWoOpp = false;
+        const obs = (match.observacoes || '').toLowerCase();
+        if (obs.includes('w.o') || obs.includes('wo')) {
+           if (obs.includes('duplo')) { isWoMe = true; isWoOpp = true; }
+           else if (match.scoreA === 0 && match.scoreB === 3) isWoMe = true;
+           else if (match.scoreB === 0 && match.scoreA === 3) isWoOpp = true;
+        }
+
+        if (isWoMe) addPtsA -= 2;
+        if (isWoOpp) addPtsB -= 2;
+
         if (winner === 'A') { addPtsA += ptsWin; winsA = 1; }
         else if (winner === 'B') { addPtsB += ptsWin; winsB = 1; }
         else { addPtsA += ptsDraw; addPtsB += ptsDraw; drawsA = 1; drawsB = 1; }
 
-        // Pontos de Fases de Mata-Mata
         const isKnockoutMatch = match.matchId.includes('_ko_') || comp?.format === 'cup';
         const roundDetails = comp?.rounds?.find(r => r.id === match.roundId);
         
@@ -6795,7 +6780,6 @@ export default function App() {
           }
         }
 
-        // Envia as métricas definitivas para os times na nuvem
         await updateDoc(getPublicDocPath('teams', tA.id), {
           globalPoints: (tA.globalPoints || 0) + addPtsA,
           playedMatches: (tA.playedMatches || 0) + 1,
@@ -6815,7 +6799,6 @@ export default function App() {
         });
       }
 
-      // 🔄 AVANÇO AUTOMÁTICO DE CHAVES NO MATA-MATA
       if (comp && (comp.format === 'cup' || comp.format === 'groups')) {
         let winnerId = null; 
         if (finalScoreA > finalScoreB) winnerId = match.teamA; else if (finalScoreB > finalScoreA) winnerId = match.teamB; else if (finalPenaltiesA !== null && finalPenaltiesA !== undefined) { if (finalPenaltiesA > finalPenaltiesB) winnerId = match.teamA; else if (finalPenaltiesB > finalPenaltiesA) winnerId = match.teamB; }
@@ -6869,10 +6852,8 @@ export default function App() {
   const renderContent = () => {
     switch (currentTab) {
       case 'dashboard': return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} onChangeTab={setCurrentTab} onJoinOpenComp={(id) => { setSelectedCompId(id); setCurrentTab('join_comp'); }} />;
-      
       case 'profile': return <Profile currentUser={currentUser} teams={teams} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onUpdateUserPhoto={async (url) => { 
           const updates = { photoURL: url }; let rewardMsg = "";
-          // 🪙 KAME COINS: Dá 50 kc se for a primeira vez atualizando foto!
           if (!currentUser.receivedProfileBonus) {
             updates.kameCoins = (currentUser.kameCoins || 0) + 50;
             updates.receivedProfileBonus = true;
@@ -6891,7 +6872,7 @@ export default function App() {
       case 'predictions': return <PredictionsPanel competitions={competitions} matches={matches} teams={teams} users={users} currentUser={currentUser} predictions={predictions} showToast={showToast} onSavePrediction={async (p, oldAmount) => { 
           const currentCoins = Number(currentUser.kameCoins) || 0;
           const betCost = Number(p.amount) - Number(oldAmount);
-          const newBalance = Math.max(0, currentCoins - betCost); // Matemágica blindada!
+          const newBalance = Math.max(0, currentCoins - betCost); 
           
           await updateDoc(getPublicDocPath('users', currentUser.id), { kameCoins: newBalance });
           setCurrentUser(prev => ({...prev, kameCoins: newBalance}));
@@ -6941,7 +6922,8 @@ export default function App() {
                   if (tab.id === 'feed') {
                     const now = Date.now();
                     setLastSeenFeed(now);
-                    localStorage.setItem('kame_last_seen_feed', now.toString());
+                    // 🛡️ BLINDADO
+                    try { localStorage.setItem('kame_last_seen_feed', now.toString()); } catch(e){}
                   }
                   setCurrentTab(tab.id);
                 }} 
@@ -6966,7 +6948,6 @@ export default function App() {
             <p className="font-bold text-white text-sm truncate">{String(currentUser?.name)}</p>
             <p className="text-[10px] text-emerald-400 uppercase font-bold mb-3">{ROLE_NAMES[currentUser?.role]}</p>
             
-            {/* 🪙 A CARTEIRA KAME COINS */}
             <div className="bg-blue-900/50 border border-amber-500/30 rounded-lg p-2.5 mb-3 flex items-center justify-between shadow-inner">
                <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1.5"><Star size={12}/> Saldo</span>
                <span className="text-sm font-black text-white">{currentUser?.kameCoins || 0} <span className="text-amber-500 text-xs">bk</span></span>
