@@ -4784,7 +4784,11 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
   const [newNewsText, setNewNewsText] = useState('');
 
   useEffect(() => {
-    localStorage.setItem('kame_xclas_db', JSON.stringify(xclas));
+    try {
+      localStorage.setItem('kame_xclas_db', JSON.stringify(xclas));
+    } catch(e) {
+      console.warn("Sem permissão para salvar histórico local na aba anônima.");
+    }
   }, [xclas]);
 
   const createMiniBracket = (teamsArr) => {
@@ -6506,13 +6510,24 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('claKame_user', JSON.stringify(currentUser)); const stillExists = users.find(u => u && u.id === currentUser.id);
-      if (users.length > 0 && !stillExists) { setCurrentUser(null); localStorage.removeItem('claKame_user'); } 
-      else if (stillExists && (stillExists.role !== currentUser.role || stillExists.status !== currentUser.status || stillExists.kameCoins !== currentUser.kameCoins)) { 
-        setCurrentUser(stillExists); 
+    try {
+      if (currentUser) {
+        localStorage.setItem('claKame_user', JSON.stringify(currentUser)); 
+        const stillExists = users.find(u => u && u.id === currentUser.id);
+        if (users.length > 0 && !stillExists) { 
+          setCurrentUser(null); 
+          localStorage.removeItem('claKame_user'); 
+        } 
+        else if (stillExists && (stillExists.role !== currentUser.role || stillExists.status !== currentUser.status || stillExists.kameCoins !== currentUser.kameCoins)) { 
+          setCurrentUser(stillExists); 
+        }
+      } else { 
+        localStorage.removeItem('claKame_user'); 
       }
-    } else { localStorage.removeItem('claKame_user'); }
+    } catch (error) {
+      // Se for aba anônima e bloquear, o sistema ignora e não quebra a tela!
+      console.warn("Acesso à memória bloqueado pela aba anônima.");
+    }
   }, [users, currentUser]);
   
   const handleReleaseRound = async (compId, roundId) => { 
