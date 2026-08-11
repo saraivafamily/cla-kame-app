@@ -3483,10 +3483,12 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     active: false, phase: 'idle', winner: null, flicker: 'A' 
   });
 
+  // 🛡️ BLINDADO: Tenta ler a chave, se a aba anônima bloquear, retorna vazio
   const [userApiKey, setUserApiKey] = useState(() => {
     try { return localStorage.getItem('gemini_api_key') || ''; }
     catch(e) { return ''; }
   });
+  
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [tempKey, setTempKey] = useState('');
 
@@ -3595,7 +3597,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
   const handleSaveApiKey = () => {
     if (tempKey.trim() !== '') {
-      localStorage.setItem('gemini_api_key', tempKey.trim());
+      // 🛡️ BLINDADO
+      try { localStorage.setItem('gemini_api_key', tempKey.trim()); } catch(e) {}
       setUserApiKey(tempKey.trim());
       setShowKeyInput(false);
       showToast("Chave da IA ativada com sucesso no seu navegador!", "success");
@@ -3661,7 +3664,9 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                const errData = await response.json().catch(() => null);
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
                if (response.status === 403 || response.status === 400) {
-                 localStorage.removeItem('gemini_api_key'); setUserApiKey(''); setShowKeyInput(true);
+                 // 🛡️ BLINDADO
+                 try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
+                 setUserApiKey(''); setShowKeyInput(true);
                  throw new Error("Sua Chave da IA é inválida. Verifique se copiou tudo corretamente.");
                }
                throw new Error(`Erro Google: ${errorMsg}`);
@@ -3714,7 +3719,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     runAIOnFile(e.target.files[0]);
   };
 
-  // 📋 OUVINTE DO CTRL+V (PASTE PARA PC)
   useEffect(() => {
     const handlePaste = (e) => {
       if (!selectedMatchId || isManualMode || isAnalyzing || imageUploaded) return;
@@ -3735,14 +3739,12 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMatchId, isManualMode, isAnalyzing, imageUploaded, userApiKey, teamA, teamB]);
 
-  // 📱 NOVO: FUNÇÃO PARA COLAR NO CELULAR VIA BOTÃO
   const handlePasteFromClipboardClick = async () => {
     try {
       if (!navigator.clipboard || !navigator.clipboard.read) {
          showToast("Seu navegador não suporta colar direto do botão. Envie o arquivo normalmente.", "error");
          return;
       }
-
       const clipboardItems = await navigator.clipboard.read();
       for (const clipboardItem of clipboardItems) {
         const imageTypes = clipboardItem.types.filter(type => type.startsWith('image/'));
@@ -3846,10 +3848,8 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in duration-500 pb-12 relative">
       
-      {/* 🌟 TELA DE ANIMAÇÃO DO SORTEIO DUPLO W.O. */}
       {drawState.active && (
         <div className="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-md animate-in fade-in zoom-in-95 duration-300">
-          
           <h2 className="text-3xl font-black text-amber-400 uppercase tracking-widest mb-12 animate-pulse text-center">
             {drawState.phase === 'spinning' ? 'Sorteando Vencedor...' : 'VENCEDOR DO W.O. DUPLO!'}
           </h2>
@@ -3960,7 +3960,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                 )}
               </label>
 
-              {/* 📱 NOVO BOTÃO: COLAR DO CELULAR */}
               {!isAnalyzing && !imageUploaded && (
                 <button 
                   type="button" 
