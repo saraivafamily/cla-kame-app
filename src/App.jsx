@@ -3340,12 +3340,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [woA, setWoA] = useState(false);
   const [woB, setWoB] = useState(false);
 
-  // 🌟 ESTADOS DA ANIMAÇÃO DE SORTEIO
   const [drawState, setDrawState] = useState({ 
-    active: false, 
-    phase: 'idle', // 'idle', 'spinning', 'revealed'
-    winner: null, 
-    flicker: 'A' 
+    active: false, phase: 'idle', winner: null, flicker: 'A' 
   });
 
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
@@ -3384,44 +3380,15 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const isCup = selectedComp?.format === 'cup' || (selectedComp?.format === 'groups' && selectedMatchId.includes('_ko_'));
   const isTie = scoreA !== '' && scoreB !== '' && scoreA === scoreB;
 
-  // 1. Atualiza a lista de partidas (sem resetar a tela atoa)
   useEffect(() => {
-    if (!selectedCompId) {
-      setAvailableMatches([]);
-      return;
-    }
+    if (!selectedCompId) { setAvailableMatches([]); return; }
     const comp = competitions.find(c => c.id === selectedCompId);
     if (comp && comp.rounds) {
       let toPlay = [];
-      const amIAdmin = isCompAdmin(comp);
+      const amIAdmin = isCompAdmin(comp); 
       comp.rounds.filter(r => r.status === 'released').forEach(round => {
         round.matches.forEach(rm => {
           const alreadySubmitted = matches.some(m => m.matchId === rm.id && m.compId === comp.id && (m.status === 'pending' || m.status === 'approved'));
-          if (!alreadySubmitted && rm.teamA && rm.teamB && (isAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
-            toPlay.push({ ...rm, roundId: round.id });
-          }
-        });
-      });
-      setAvailableMatches(toPlay);
-    }
-  }, [selectedCompId, competitions, matches]);
-
-  // 1. Atualiza a lista de partidas silenciosamente (sem resetar a tela à toa)
- // 1. Atualiza a lista de partidas ativas silenciosamente
-  useEffect(() => {
-    if (!selectedCompId) {
-      setAvailableMatches([]);
-      return;
-    }
-    const comp = competitions.find(c => c.id === selectedCompId);
-    if (comp && comp.rounds) {
-      let toPlay = [];
-      const amIAdmin = isCompAdmin(comp); // <--- Aqui definimos a regra corretamente
-      
-      comp.rounds.filter(r => r.status === 'released').forEach(round => {
-        round.matches.forEach(rm => {
-          const alreadySubmitted = matches.some(m => m.matchId === rm.id && m.compId === comp.id && (m.status === 'pending' || m.status === 'approved'));
-          // 👇 E aqui usamos a variável certa (amIAdmin) para liberar as partidas 👇
           if (!alreadySubmitted && rm.teamA && rm.teamB && (amIAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
             toPlay.push({ ...rm, roundId: round.id });
           }
@@ -3431,13 +3398,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     }
   }, [selectedCompId, competitions, matches]);
 
-  // 2. Reseta a tela APENAS se você trocar de Campeonato
-  useEffect(() => {
-    setSelectedMatchId('');
-    resetAI();
-  }, [selectedCompId]);
+  useEffect(() => { setSelectedMatchId(''); resetAI(); }, [selectedCompId]);
 
-  // 3. Reseta a IA e puxa os escudos APENAS ao trocar de Partida
   useEffect(() => {
     resetAI();
     if (selectedMatchId) {
@@ -3449,30 +3411,24 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     } else {
       setTeamA(null); setTeamB(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMatchId]);
 
-  // 🌟 EFEITO DO PISCA-PISCA DO SORTEIO
   useEffect(() => {
     if (drawState.active && drawState.phase === 'spinning') {
       let ticks = 0;
       const interval = setInterval(() => {
         setDrawState(prev => ({ ...prev, flicker: prev.flicker === 'A' ? 'B' : 'A' }));
         ticks++;
-        
-        // Depois de ~3.5 segundos, para na equipe vencedora
         if (ticks > 35) {
           clearInterval(interval);
           setDrawState(prev => ({ ...prev, phase: 'revealed', flicker: prev.winner }));
-          
-          // Aguarda mais 4 segundos pra galera ver o ganhador e envia os dados
           setTimeout(() => {
              processSubmission(drawState.winner);
              setDrawState({ active: false, phase: 'idle', winner: null, flicker: 'A' });
           }, 4000);
         }
-      }, 100); // Velocidade do pisca-pisca
-
+      }, 100); 
       return () => clearInterval(interval);
     }
   }, [drawState.active, drawState.phase, drawState.winner]);
@@ -3504,8 +3460,8 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     }
   };
 
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
+  // 🤖 O NOVO MOTOR QUE RODA A IA (Separado para poder ser chamado no Paste e no Clique)
+  const runAIOnFile = (file) => {
     if (!file) return;
 
     if (!userApiKey) {
@@ -3542,13 +3498,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         const base64ImageData = base64.split(',')[1];
 
         const payload = {
-          contents: [{ 
-            role: "user", 
-            parts: [ 
-              { text: prompt }, 
-              { inlineData: { mimeType: mimeType, data: base64ImageData } } 
-            ] 
-          }],
+          contents: [{ role: "user", parts: [ { text: prompt }, { inlineData: { mimeType: mimeType, data: base64ImageData } } ] }],
           generationConfig: { responseMimeType: "application/json" }
         };
 
@@ -3564,27 +3514,17 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
         for (const url of endpoints) {
           if (resultJson) break;
-          
           try {
-            const response = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-
+            const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             if (!response.ok) {
                const errData = await response.json().catch(() => null);
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
-               
                if (response.status === 403 || response.status === 400) {
-                 localStorage.removeItem('gemini_api_key');
-                 setUserApiKey('');
-                 setShowKeyInput(true);
+                 localStorage.removeItem('gemini_api_key'); setUserApiKey(''); setShowKeyInput(true);
                  throw new Error("Sua Chave da IA é inválida. Verifique se copiou tudo corretamente.");
                }
                throw new Error(`Erro Google: ${errorMsg}`);
             }
-
             resultJson = await response.json();
           } catch (error) {
             lastError = error;
@@ -3598,7 +3538,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         textResponse = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
         
         const data = JSON.parse(textResponse);
-
         const leftName = String(data.leftTeamName || "");
         const rightName = String(data.rightTeamName || "");
         const nameA = String(teamA?.name || "");
@@ -3612,32 +3551,50 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         const isTeamA_Left = (leftMatchesA + rightMatchesB) >= (leftMatchesB + rightMatchesA);
 
         if (isTeamA_Left) {
-          setScoreA(data.leftScore?.toString() || '0');
-          setScoreB(data.rightScore?.toString() || '0');
-          setGoalsA(data.leftGoals || []);
-          setGoalsB(data.rightGoals || []);
+          setScoreA(data.leftScore?.toString() || '0'); setScoreB(data.rightScore?.toString() || '0');
+          setGoalsA(data.leftGoals || []); setGoalsB(data.rightGoals || []);
         } else {
-          setScoreA(data.rightScore?.toString() || '0');
-          setScoreB(data.leftScore?.toString() || '0');
-          setGoalsA(data.rightGoals || []);
-          setGoalsB(data.leftGoals || []);
+          setScoreA(data.rightScore?.toString() || '0'); setScoreB(data.leftScore?.toString() || '0');
+          setGoalsA(data.rightGoals || []); setGoalsB(data.leftGoals || []);
         }
 
         if (showToast) showToast("Dados extraídos do Print pela IA!", "success");
 
       } catch (error) {
         console.error("Erro IA:", error);
-        if (showToast) {
-          showToast(`Falha: ${error.message.substring(0, 70)}`, "error");
-        } else {
-          alert(`Falha na IA: ${error.message}`);
-        }
+        if (showToast) { showToast(`Falha: ${error.message.substring(0, 70)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
       } finally {
-        setIsAnalyzing(false);
-        setImageUploaded(true);
+        setIsAnalyzing(false); setImageUploaded(true);
       }
     });
   };
+
+  const handleImageUpload = (e) => {
+    runAIOnFile(e.target.files[0]);
+  };
+
+  // 📋 O MÁGICO OUVINTE DO CTRL+V (PASTE)
+  useEffect(() => {
+    const handlePaste = (e) => {
+      // Ignora se não houver um jogo selecionado, se já tiver no modo manual ou se a IA já estiver rodando
+      if (!selectedMatchId || isManualMode || isAnalyzing || imageUploaded) return;
+      
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          runAIOnFile(file);
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMatchId, isManualMode, isAnalyzing, imageUploaded, userApiKey, teamA, teamB]);
 
   const handleAddGoal = (team) => {
     if (team === 'A') { setGoalsA([...goalsA, { player: '', assist: '', minute: '' }]); setScoreA((parseInt(scoreA || 0) + 1).toString()); } 
@@ -3655,7 +3612,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
   };
 
   const handleSubmitInit = (e) => {
-    e.preventDefault(); // <--- AQUI ESTAVA O ERRO (Corrigido!)
+    e.preventDefault(); 
     if(!selectedCompId || !selectedMatchId || scoreA === '' || scoreB === '') return;
 
     if (scoreA === '?' || scoreB === '?' || scoreA === '' || scoreB === '') {
@@ -3667,18 +3624,15 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
       return;
     }
 
-    // Se for duplo W.O, inicia a animação de sorteio!
     if (woA && woB) {
       const drawnWinner = Math.random() < 0.5 ? 'A' : 'B';
       setDrawState({ active: true, phase: 'spinning', winner: drawnWinner, flicker: 'A' });
       return;
     }
 
-    // Se for W.O comum ou jogo normal, segue reto
     processSubmission(null);
   };
 
-  // Função separada que faz o envio de fato para a nuvem
   const processSubmission = (forcedDoubleWoWinner = null) => {
     let finalScoreA = scoreA;
     let finalScoreB = scoreB;
@@ -3817,9 +3771,12 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
         {selectedMatchId && !isManualMode && (
           <div className="animate-in slide-in-from-top-4">
-            <label className="block text-sm font-medium text-blue-400 mb-2">3. Envie o Print do Resultado</label>
+            <label className="block text-sm font-medium text-blue-400 mb-2 flex justify-between items-end">
+              <span>3. Envie o Print do Resultado</span>
+              <span className="text-[10px] text-amber-400/80 uppercase font-black tracking-widest hidden sm:inline-block">Dica: CTRL+V para Colar</span>
+            </label>
             <div className="mb-2">
-              <label className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer relative overflow-hidden block ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-blue-700 hover:border-blue-500 bg-blue-950'}`}>
+              <label className={`block border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer relative overflow-hidden focus:outline-none ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-blue-700 hover:border-blue-500 bg-blue-950'}`}>
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isAnalyzing} />
                 {isAnalyzing ? (
                   <div className="flex flex-col items-center space-y-3">
@@ -3834,7 +3791,9 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                 ) : (
                   <div className="flex flex-col items-center space-y-3">
                     <UploadCloud className="text-blue-500" size={40} />
-                    <p className="text-white font-medium">Clique para enviar a foto e usar a IA</p>
+                    <p className="text-white font-medium px-4">
+                      Clique para buscar na Galeria ou <b className="text-emerald-400">Cole a Imagem Aqui (Ctrl+V)</b>
+                    </p>
                   </div>
                 )}
               </label>
@@ -3880,13 +3839,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                     }} className="accent-red-500 w-3 h-3" /> DAR W.O.
                   </label>
                 </div>
-                {/* 🌟 AJUSTE: inputMode e pattern no Placar A */}
                 <input type="text" inputMode="numeric" pattern="[0-9]*" value={scoreA} onChange={e=>setScoreA(e.target.value)} disabled={woA || woB} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none disabled:opacity-50" required />
                 
                 {isCup && isTie && !woA && !woB && (
                   <div className="mt-2">
                     <label className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Pênaltis A</label>
-                    {/* 🌟 AJUSTE: inputMode e pattern nos Pênaltis A */}
                     <input type="number" inputMode="numeric" pattern="[0-9]*" required value={penaltiesA} onChange={e=>setPenaltiesA(e.target.value)} className="w-full bg-blue-900 border border-amber-500/50 text-center font-bold text-lg text-amber-400 rounded p-2 outline-none focus:border-amber-500" />
                   </div>
                 )}
@@ -3898,7 +3855,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                       <input type="text" value={g.player} onChange={e=>handleGoalChange('A', i, 'player', e.target.value)} placeholder="Goleador" className="w-full bg-blue-950 text-xs text-white px-2 py-1 rounded border border-blue-700 outline-none" required />
                       <div className="flex gap-1">
                         <input type="text" value={g.assist || ''} onChange={e=>handleGoalChange('A', i, 'assist', e.target.value)} placeholder="Assistência" className="flex-1 bg-blue-950 text-[10px] text-blue-400 px-2 py-1 rounded border border-blue-700 outline-none" />
-                        {/* 🌟 AJUSTE: inputMode e pattern nos Minutos A */}
                         <input type="number" inputMode="numeric" pattern="[0-9]*" value={g.minute} onChange={e=>handleGoalChange('A', i, 'minute', e.target.value)} placeholder="Min" className="w-12 bg-blue-950 text-xs text-emerald-400 text-center px-1 py-1 rounded border border-blue-700 outline-none" required />
                         <button type="button" onClick={()=>handleRemoveGoal('A', i)} className="text-red-400 p-1 hover:text-red-300"><X size={12}/></button>
                       </div>
@@ -3924,13 +3880,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                   </label>
                   <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2">{teamB?.name} <ShieldDisplay shield={teamB?.shield} size="small" /></div>
                 </div>
-                {/* 🌟 AJUSTE: inputMode e pattern no Placar B */}
                 <input type="text" inputMode="numeric" pattern="[0-9]*" value={scoreB} onChange={e=>setScoreB(e.target.value)} disabled={woA || woB} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none disabled:opacity-50" required />
                 
                 {isCup && isTie && !woA && !woB && (
                   <div className="mt-2">
                     <label className="text-[10px] text-amber-400 uppercase tracking-widest font-bold text-right block">Pênaltis B</label>
-                    {/* 🌟 AJUSTE: inputMode e pattern nos Pênaltis B */}
                     <input type="number" inputMode="numeric" pattern="[0-9]*" required value={penaltiesB} onChange={e=>setPenaltiesB(e.target.value)} className="w-full bg-blue-900 border border-amber-500/50 text-center font-bold text-lg text-amber-400 rounded p-2 outline-none focus:border-amber-500" />
                   </div>
                 )}
@@ -3942,7 +3896,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                       <input type="text" value={g.player} onChange={e=>handleGoalChange('B', i, 'player', e.target.value)} placeholder="Goleador" className="w-full bg-blue-950 text-xs text-white px-2 py-1 rounded border border-blue-700 outline-none text-right" required />
                       <div className="flex gap-1">
                         <button type="button" onClick={()=>handleRemoveGoal('B', i)} className="text-red-400 p-1 hover:text-red-300"><X size={12}/></button>
-                        {/* 🌟 AJUSTE: inputMode e pattern nos Minutos B */}
                         <input type="number" inputMode="numeric" pattern="[0-9]*" value={g.minute} onChange={e=>handleGoalChange('B', i, 'minute', e.target.value)} placeholder="Min" className="w-12 bg-blue-950 text-xs text-emerald-400 text-center px-1 py-1 rounded border border-blue-700 outline-none" required />
                         <input type="text" value={g.assist || ''} onChange={e=>handleGoalChange('B', i, 'assist', e.target.value)} placeholder="Assistência" className="flex-1 bg-blue-950 text-[10px] text-blue-400 px-2 py-1 rounded border border-blue-700 outline-none text-right" />
                       </div>
