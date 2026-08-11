@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where, getDoc } from 'firebase/firestore';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart } from 'lucide-react';
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
@@ -6596,14 +6596,36 @@ export default function App() {
 
   const handleGoogleLogin = async (googleUser) => {
     const email = googleUser.email.toLowerCase();
-    const existingUser = users.find(u => u.email && u.email.toLowerCase() === email);
+    const uid = googleUser.uid;
     
-    if (existingUser) {
-      if (existingUser.status === 'pending') throw new Error("Sua conta ainda está aguardando aprovação dos líderes.");
+    // 🛡️ BLINDAGEM: Lê diretamente do banco de dados para evitar o erro de tela carregando
+    const userRef = getPublicDocPath('users', uid);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists()) {
+      // Usuário já tem cadastro oficial no banco!
+      const existingUser = userSnap.data();
+      if (existingUser.status === 'pending') {
+         await signOut(auth);
+         throw new Error("Sua conta ainda está aguardando aprovação dos líderes.");
+      }
       setCurrentUser(existingUser);
       setCurrentTab('dashboard');
     } else {
-      const uid = googleUser.uid;
+      // Plano B: Checa se por acaso ele cadastrou com Email/Senha e agora clicou no Google
+      const existingByEmail = users.find(u => u.email && u.email.toLowerCase() === email);
+      
+      if (existingByEmail) {
+        if (existingByEmail.status === 'pending') {
+           await signOut(auth);
+           throw new Error("Sua conta ainda está aguardando aprovação dos líderes.");
+        }
+        setCurrentUser(existingByEmail);
+        setCurrentTab('dashboard');
+        return;
+      }
+
+      // Se não existe em lugar nenhum, cria a conta nova pendente
       const newUser = { 
         id: uid, 
         name: googleUser.displayName || 'Jogador Convidado', 
@@ -6615,7 +6637,15 @@ export default function App() {
         receivedProfileBonus: true,
         photoURL: googleUser.photoURL || null
       };
-      const newTeam = { id: `t_${uid}`, name: 'Time Google', coach: googleUser.displayName || 'Jogador', whatsapp: '', ownerId: uid, shield: '🛡️' };
+      
+      const newTeam = { 
+        id: `t_${uid}`, 
+        name: 'Time Google', 
+        coach: googleUser.displayName || 'Jogador', 
+        whatsapp: '', 
+        ownerId: uid, 
+        shield: '🛡️' 
+      };
       
       await setDoc(getPublicDocPath('users', uid), newUser);
       await setDoc(getPublicDocPath('teams', newTeam.id), newTeam);
