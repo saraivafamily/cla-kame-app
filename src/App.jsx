@@ -2053,7 +2053,6 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
 
   const toggleRound = (id) => { setExpandedRoundId(prev => prev === id ? null : id); };
   
-  // 🌟 NOVO: FUNÇÃO PARA DELETAR UMA RODADA INTEIRA
   const handleDeleteRound = (roundId) => {
     if (!window.confirm("⚠️ ATENÇÃO: Tem certeza que deseja excluir esta rodada e TODOS os jogos dentro dela? Essa ação não pode ser desfeita.")) return;
     const updatedRounds = comp.rounds.filter(r => r.id !== roundId);
@@ -2154,7 +2153,7 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
   const availableTeamsForEdit = (comp.format === 'groups' && editMatchData?.group && comp.groups) ? (comp.groups[editMatchData.group] || []) : (comp.teams || []);
   
   const handleAddTeamToComp = () => { if(!newTeamToAdd) return; const newTeams = [...(comp.teams || []), newTeamToAdd]; const newPending = (comp.pendingTeams || []).filter(p => p.teamId !== newTeamToAdd); onEditComp({ ...comp, teams: newTeams, pendingTeams: newPending }); setNewTeamToAdd(''); setShowAddTeam(false); showToast("Time inserido manualmente com sucesso!", "success"); };
-  const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}?join=${comp.id}`); showToast("Link copiado!", "success"); };
+  const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}/api/share?id=${comp.id}`); showToast("Link de compartilhamento especial copiado!", "success"); };
   const handleApproveTeam = (req) => { const newPending = comp.pendingTeams.filter(p => p.teamId !== req.teamId); const newTeams = [...(comp.teams || []), req.teamId]; onEditComp({ ...comp, pendingTeams: newPending, teams: newTeams }); showToast("Time Aprovado!", "success"); };
   const handleRejectTeam = (req) => { const newPending = comp.pendingTeams.filter(p => p.teamId !== req.teamId); onEditComp({ ...comp, pendingTeams: newPending }); showToast("Inscrição rejeitada.", "success"); };
   
@@ -2578,6 +2577,86 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
 
               </div>
             )}
+            
+            {/* REINSERIDO: ABA DE ESTATÍSTICAS (Goleadores e Garçons) */}
+            {subTab === 'stats' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
+                
+                {/* TOP GOLEADORES */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-end mb-2">
+                    <h3 className="text-lg font-bold text-white pl-2">Top Goleadores</h3>
+                    <Button onClick={() => captureSection('capture-scorers', `Artilharia-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-lg" variant="outline">
+                      <Camera size={14}/> Salvar
+                    </Button>
+                  </div>
+                  <div id="capture-scorers" className="bg-blue-900 rounded-xl border border-blue-800 overflow-hidden shadow-xl p-2 sm:p-4">
+                    <div className="bg-blue-950/80 p-4 border border-blue-800 rounded-xl mb-4 flex flex-col items-center justify-center">
+                      <h3 className="font-bold text-emerald-400 text-lg uppercase tracking-widest text-center">⚽ Artilharia</h3>
+                      <span className="text-[10px] font-bold text-blue-400 mt-1">{comp.name}</span>
+                    </div>
+                    <div className="divide-y divide-blue-800/50 bg-blue-950 rounded-xl border border-blue-800">
+                      {topScorers.length === 0 ? (
+                        <p className="p-6 text-sm text-blue-500 text-center">Nenhum gol validado até o momento.</p>
+                      ) : (
+                        topScorers.map((s, idx) => (
+                          <div key={idx} className="p-3 flex items-center justify-between hover:bg-blue-800/50 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <span className={`font-black w-6 text-center ${idx === 0 ? 'text-amber-400 text-lg' : idx === 1 ? 'text-blue-300 text-lg' : idx === 2 ? 'text-amber-700 text-lg' : 'text-blue-600'}`}>{idx + 1}º</span>
+                              <ShieldDisplay shield={getTeam(s.teamId)?.shield} size="normal" />
+                              <div className="flex flex-col">
+                                <span className="font-bold text-blue-200 text-sm md:text-base leading-tight">{s.player}</span>
+                                <span className="text-[10px] md:text-xs text-blue-400 font-medium">{getTeam(s.teamId)?.name}</span>
+                              </div>
+                            </div>
+                            <div className="bg-blue-900 px-4 py-2 rounded-lg border border-blue-800 text-emerald-400 font-black text-lg">{s.count}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* TOP GARÇONS */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-end mb-2">
+                    <h3 className="text-lg font-bold text-white pl-2">Top Garçons</h3>
+                    <Button onClick={() => captureSection('capture-assists', `Assistencias-${comp.name}`)} className="text-[10px] py-1 px-3 shadow-lg" variant="outline">
+                      <Camera size={14}/> Salvar
+                    </Button>
+                  </div>
+                  <div id="capture-assists" className="bg-blue-900 rounded-xl border border-blue-800 overflow-hidden shadow-xl p-2 sm:p-4">
+                    <div className="bg-blue-950/80 p-4 border border-blue-800 rounded-xl mb-4 flex flex-col items-center justify-center">
+                      <h3 className="font-bold text-emerald-400 text-lg uppercase tracking-widest text-center flex items-center gap-2">
+                        <Star size={20}/> Assistências
+                      </h3>
+                      <span className="text-[10px] font-bold text-blue-400 mt-1">{comp.name}</span>
+                    </div>
+                    <div className="divide-y divide-blue-800/50 bg-blue-950 rounded-xl border border-blue-800">
+                      {topAssists.length === 0 ? (
+                        <p className="p-6 text-sm text-blue-500 text-center">Nenhuma assistência validada até o momento.</p>
+                      ) : (
+                        topAssists.map((a, idx) => (
+                          <div key={idx} className="p-3 flex items-center justify-between hover:bg-blue-800/50 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <span className={`font-black w-6 text-center ${idx === 0 ? 'text-amber-400 text-lg' : idx === 1 ? 'text-blue-300 text-lg' : idx === 2 ? 'text-amber-700 text-lg' : 'text-blue-600'}`}>{idx + 1}º</span>
+                              <ShieldDisplay shield={getTeam(a.teamId)?.shield} size="normal" />
+                              <div className="flex flex-col">
+                                <span className="font-bold text-blue-200 text-sm md:text-base leading-tight">{a.player}</span>
+                                <span className="text-[10px] md:text-xs text-blue-400 font-medium">{getTeam(a.teamId)?.name}</span>
+                              </div>
+                            </div>
+                            <div className="bg-blue-900 px-4 py-2 rounded-lg border border-blue-800 text-blue-400 font-black text-lg">{a.count}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+            
             {subTab === 'submit' && isAdmin && (<div className="animate-in slide-in-from-right-4"><SubmitMatch teams={teams} competitions={[comp]} matches={matches} currentUser={currentUser} showToast={showToast} preSelectedCompId={comp.id} onSubmit={(m) => { onSubmitMatch(m); setSubTab('validation'); }} /></div>)}
             {subTab === 'validation' && isAdmin && (<div className="animate-in slide-in-from-right-4"><ValidationPanel matches={matches.filter(m => m.compId === comp.id)} teams={teams} competitions={[comp]} onUpdateStatus={onUpdateMatchStatus} showToast={showToast} currentUser={currentUser} /></div>)}
             {subTab === 'draw' && isAdmin && (<div className="animate-in slide-in-from-right-4"><DrawPanel comp={comp} teams={teams} matches={matches} showToast={showToast} /></div>)}
