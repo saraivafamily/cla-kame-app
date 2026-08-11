@@ -3460,7 +3460,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     }
   };
 
-  // 🤖 O NOVO MOTOR QUE RODA A IA (Separado para poder ser chamado no Paste e no Clique)
   const runAIOnFile = (file) => {
     if (!file) return;
 
@@ -3573,12 +3572,10 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     runAIOnFile(e.target.files[0]);
   };
 
-  // 📋 O MÁGICO OUVINTE DO CTRL+V (PASTE)
+  // 📋 OUVINTE DO CTRL+V (PASTE PARA PC)
   useEffect(() => {
     const handlePaste = (e) => {
-      // Ignora se não houver um jogo selecionado, se já tiver no modo manual ou se a IA já estiver rodando
       if (!selectedMatchId || isManualMode || isAnalyzing || imageUploaded) return;
-      
       const items = e.clipboardData?.items;
       if (!items) return;
       
@@ -3595,6 +3592,31 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     return () => window.removeEventListener('paste', handlePaste);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMatchId, isManualMode, isAnalyzing, imageUploaded, userApiKey, teamA, teamB]);
+
+  // 📱 NOVO: FUNÇÃO PARA COLAR NO CELULAR VIA BOTÃO
+  const handlePasteFromClipboardClick = async () => {
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.read) {
+         showToast("Seu navegador não suporta colar direto do botão. Envie o arquivo normalmente.", "error");
+         return;
+      }
+
+      const clipboardItems = await navigator.clipboard.read();
+      for (const clipboardItem of clipboardItems) {
+        const imageTypes = clipboardItem.types.filter(type => type.startsWith('image/'));
+        if (imageTypes.length > 0) {
+          const blob = await clipboardItem.getType(imageTypes[0]);
+          const file = new File([blob], "pasted-image.png", { type: imageTypes[0] });
+          runAIOnFile(file);
+          return;
+        }
+      }
+      showToast("Nenhuma imagem encontrada na área de transferência.", "error");
+    } catch (err) {
+      console.error(err);
+      showToast("Permissão negada ou não há imagem copiada.", "error");
+    }
+  };
 
   const handleAddGoal = (team) => {
     if (team === 'A') { setGoalsA([...goalsA, { player: '', assist: '', minute: '' }]); setScoreA((parseInt(scoreA || 0) + 1).toString()); } 
@@ -3691,10 +3713,8 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           </h2>
 
           <div className="relative w-64 h-64 flex items-center justify-center">
-             {/* Efeito de brilho fundo */}
              <div className={`absolute inset-0 rounded-full blur-3xl opacity-50 ${drawState.phase === 'revealed' ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'}`}></div>
              
-             {/* Escudo Team A */}
              <div className={`absolute transition-all duration-100 ${drawState.flicker === 'A' ? 'scale-110 opacity-100 z-10' : 'scale-90 opacity-20 blur-sm z-0'}`}>
                 <div className="flex flex-col items-center">
                   <ShieldDisplay shield={teamA?.shield} size="large" />
@@ -3702,7 +3722,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                 </div>
              </div>
 
-             {/* Escudo Team B */}
              <div className={`absolute transition-all duration-100 ${drawState.flicker === 'B' ? 'scale-110 opacity-100 z-10' : 'scale-90 opacity-20 blur-sm z-0'}`}>
                 <div className="flex flex-col items-center">
                   <ShieldDisplay shield={teamB?.shield} size="large" />
@@ -3775,8 +3794,9 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
               <span>3. Envie o Print do Resultado</span>
               <span className="text-[10px] text-amber-400/80 uppercase font-black tracking-widest hidden sm:inline-block">Dica: CTRL+V para Colar</span>
             </label>
-            <div className="mb-2">
-              <label className={`block border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer relative overflow-hidden focus:outline-none ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-blue-700 hover:border-blue-500 bg-blue-950'}`}>
+            
+            <div className="flex flex-col gap-3 mb-2">
+              <label className={`block border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer relative overflow-hidden focus:outline-none ${matchImageBase64 ? 'border-emerald-500 bg-emerald-500/5' : 'border-blue-700 hover:border-blue-500 bg-blue-950'}`}>
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isAnalyzing} />
                 {isAnalyzing ? (
                   <div className="flex flex-col items-center space-y-3">
@@ -3792,11 +3812,22 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                   <div className="flex flex-col items-center space-y-3">
                     <UploadCloud className="text-blue-500" size={40} />
                     <p className="text-white font-medium px-4">
-                      Clique para buscar na Galeria ou <b className="text-emerald-400">Cole a Imagem Aqui (Ctrl+V)</b>
+                      Clique para buscar na Galeria
                     </p>
                   </div>
                 )}
               </label>
+
+              {/* 📱 NOVO BOTÃO: COLAR DO CELULAR */}
+              {!isAnalyzing && !imageUploaded && (
+                <button 
+                  type="button" 
+                  onClick={handlePasteFromClipboardClick}
+                  className="bg-blue-800/80 hover:bg-blue-700 border border-blue-600/50 text-blue-200 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm"
+                >
+                  📋 Colar Imagem Copiada (Celular)
+                </button>
+              )}
             </div>
             
             {!imageUploaded && !isAnalyzing && (
