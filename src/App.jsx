@@ -3483,7 +3483,10 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     active: false, phase: 'idle', winner: null, flicker: 'A' 
   });
 
-  const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [userApiKey, setUserApiKey] = useState(() => {
+    try { return localStorage.getItem('gemini_api_key') || ''; }
+    catch(e) { return ''; }
+  });
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [tempKey, setTempKey] = useState('');
 
@@ -6373,10 +6376,19 @@ const KameStore = ({ currentUser, storeProducts = [], showToast }) => {
 };
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState(() => { const saved = localStorage.getItem('claKame_user'); return saved ? JSON.parse(saved) : null; });
+  // 🛡️ BLINDAGEM CONTRA A ABA ANÔNIMA
+  const [currentUser, setCurrentUser] = useState(() => { 
+    try { 
+      const saved = localStorage.getItem('claKame_user'); 
+      return saved ? JSON.parse(saved) : null; 
+    } catch (e) { return null; } 
+  });
 
   const [feedPosts, setFeedPosts] = useState([]);
-  const [lastSeenFeed, setLastSeenFeed] = useState(() => parseInt(localStorage.getItem('kame_last_seen_feed') || '0'));
+  const [lastSeenFeed, setLastSeenFeed] = useState(() => {
+    try { return parseInt(localStorage.getItem('kame_last_seen_feed') || '0'); }
+    catch (e) { return 0; }
+  });
 
   const [storeProducts, setStoreProducts] = useState([]);
   
