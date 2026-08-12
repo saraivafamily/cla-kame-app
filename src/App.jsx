@@ -6466,7 +6466,6 @@ const KameStore = ({ currentUser, storeProducts = [], showToast }) => {
 };
 
 export default function App() {
-  // 🛡️ BLINDAGEM TOTAL: Se a aba for anônima, o localStorage não derruba o React
   const [currentUser, setCurrentUser] = useState(() => { 
     try { 
       const saved = localStorage.getItem('claKame_user'); 
@@ -6585,7 +6584,6 @@ export default function App() {
     return () => { unsubU(); unsubT(); unsubC(); unsubM(); unsubF(); unsubP(); unsubStore(); };
   }, []);
 
-  // 🛡️ BLINDADO: Monitoramento de Login à prova de aba anônima
   useEffect(() => {
     try {
       if (currentUser) {
@@ -6656,7 +6654,6 @@ export default function App() {
     const uid = userCredential.user.uid;
     
     const newUser = { id: uid, name: fullName, email: email, whatsapp: cleanPhone, role: 'member', status: 'pending', kameCoins: 100, receivedProfileBonus: false };
-    // 🛡️ Agora ele salva o escudo obrigatoriamente
     const newTeam = { id: `t_${uid}`, name: data.teamName, coach: fullName, whatsapp: cleanPhone, ownerId: uid, shield: data.shield };
     
     await setDoc(getPublicDocPath('users', uid), newUser);
@@ -6693,13 +6690,10 @@ export default function App() {
         setCurrentTab('dashboard');
         return { isNew: false };
       }
-
-      // Se não existe, envia o sinal "isNew: true" para a tela de login abrir a aba de completar dados
       return { isNew: true };
     }
   };
 
-  // 🌟 NOVA FUNÇÃO: Finaliza o cadastro de quem veio pelo Google
   const handleCompleteGoogleRegister = async (uid, data, photoURL) => {
     const cleanPhone = data.whatsapp.replace(/\D/g, '');
     const fullName = `${data.firstName} ${data.lastName}`.trim();
@@ -6747,76 +6741,11 @@ export default function App() {
     catch (e) { throw new Error("Acesso negado. Verifique os dados."); }
   };
 
-  const handleGoogleLogin = async (googleUser) => {
-    const email = googleUser.email.toLowerCase();
-    const uid = googleUser.uid;
-    
-    // 🛡️ BLINDAGEM: Lê diretamente do banco de dados para evitar o erro de tela carregando
-    const userRef = getPublicDocPath('users', uid);
-    const userSnap = await getDoc(userRef);
-    
-    if (userSnap.exists()) {
-      // Usuário já tem cadastro oficial no banco!
-      const existingUser = userSnap.data();
-      if (existingUser.status === 'pending') {
-         await signOut(auth);
-         throw new Error("Sua conta ainda está aguardando aprovação dos líderes.");
-      }
-      setCurrentUser(existingUser);
-      setCurrentTab('dashboard');
-    } else {
-      // Plano B: Checa se por acaso ele cadastrou com Email/Senha e agora clicou no Google
-      const existingByEmail = users.find(u => u.email && u.email.toLowerCase() === email);
-      
-      if (existingByEmail) {
-        if (existingByEmail.status === 'pending') {
-           await signOut(auth);
-           throw new Error("Sua conta ainda está aguardando aprovação dos líderes.");
-        }
-        setCurrentUser(existingByEmail);
-        setCurrentTab('dashboard');
-        return;
-      }
-
-      // Se não existe em lugar nenhum, cria a conta nova pendente
-      const newUser = { 
-        id: uid, 
-        name: googleUser.displayName || 'Jogador Convidado', 
-        email: email, 
-        whatsapp: '00000000000', 
-        role: 'member', 
-        status: 'pending', 
-        kameCoins: 100, 
-        receivedProfileBonus: true,
-        photoURL: googleUser.photoURL || null
-      };
-      
-      const newTeam = { 
-        id: `t_${uid}`, 
-        name: 'Time Google', 
-        coach: googleUser.displayName || 'Jogador', 
-        whatsapp: '', 
-        ownerId: uid, 
-        shield: '🛡️' 
-      };
-      
-      await setDoc(getPublicDocPath('users', uid), newUser);
-      await setDoc(getPublicDocPath('teams', newTeam.id), newTeam);
-      
-      await signOut(auth); 
-      throw new Error("Cadastro via Google realizado! Aguarde a aprovação dos líderes.");
-    }
-  };
-
-  const handleApproveUser = async (userId) => {
-    await updateDoc(getPublicDocPath('users', userId), { status: 'active' });
-    showToast("Técnico aprovado com sucesso!", "success");
-  };
-
   useEffect(() => { const unsub = onAuthStateChanged(auth, (fbUser) => { if (fbUser && users.length > 0) { const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); if (found) setCurrentUser(found); } }); return () => unsub(); }, [users]);
 
   if (isFirebaseLoading) return (<div className="min-h-screen bg-blue-950 text-amber-400 flex items-center justify-center font-sans font-bold text-sm shadow-xl animate-pulse">🛡️ Carregando Arena Kame...</div>);
   if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} onGoogleLogin={handleGoogleLogin} onCompleteGoogleRegister={handleCompleteGoogleRegister} />;
+  
   if (currentUser.status === 'pending') {
     return (
       <div className="min-h-screen bg-blue-950 flex flex-col items-center justify-center p-4">
@@ -6932,7 +6861,6 @@ export default function App() {
         let winsA = 0; let winsB = 0;
         let drawsA = 0; let drawsB = 0;
 
-        // PUNIÇÃO W.O - EXTRATO
         let isWoMe = false; let isWoOpp = false;
         const obs = (match.observacoes || '').toLowerCase();
         if (obs.includes('w.o') || obs.includes('wo')) {
@@ -7061,7 +6989,21 @@ export default function App() {
           await setDoc(getPublicDocPath('predictions', p.id), p); 
       }} />;
         
-      case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); })} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} onBatchUpdateComp={async (updatedComp, newMatchesArray) => { await updateDoc(getPublicDocPath('competitions', updatedComp.id), updatedComp); const promises = newMatchesArray.map(m => setDoc(getPublicDocPath('matches', m.id), m)); await Promise.all(promises); showToast("Fase encerrada e chaves atualizadas!", "success"); }} />;
+      case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} 
+      // 🛡️ BLINDAGEM MÁXIMA AQUI: Impede o aplicativo de travar se o banco de dados rejeitar a gravação
+      onSubmitMatch={m => {
+          setDoc(getPublicDocPath('matches', m.id), m)
+          .then(() => { 
+             showToast("Resultado enviado e aguardando validação!"); 
+             setSubTab('validation'); 
+          })
+          .catch(err => { 
+             console.error(err); 
+             showToast("Falha na gravação! Verifique se todos os campos (placares/times) estão preenchidos.", "error"); 
+          });
+      }} 
+      onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} onBatchUpdateComp={async (updatedComp, newMatchesArray) => { await updateDoc(getPublicDocPath('competitions', updatedComp.id), updatedComp); const promises = newMatchesArray.map(m => setDoc(getPublicDocPath('matches', m.id), m)); await Promise.all(promises); showToast("Fase encerrada e chaves atualizadas!", "success"); }} />;
+      
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'store': return <KameStore currentUser={currentUser} storeProducts={storeProducts} showToast={showToast} />;
       case 'create_comp': return <CreateCompetition matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
@@ -7122,7 +7064,6 @@ export default function App() {
             );
           })}
 
-          {/* 📱 BOTÃO DE SAIR NO CELULAR */}
           <button 
             onClick={() => { setCurrentUser(null); signOut(auth); }} 
             className="md:hidden relative flex items-center gap-2 px-4 py-3 rounded-xl whitespace-nowrap outline-none border border-red-500/20 text-red-400 bg-red-950/30 hover:bg-red-900/50 transition-colors ml-2 md:ml-0"
@@ -7132,7 +7073,6 @@ export default function App() {
           </button>
         </nav>
         
-        {/* BLOCO DE PERFIL E SAIR DO PC */}
         <div className="p-4 border-t border-blue-800 hidden md:block">
           <div className="bg-blue-950 rounded-xl p-4 border border-blue-800/50 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
