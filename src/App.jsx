@@ -2217,7 +2217,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const handleAddTeamToComp = () => { if(!newTeamToAdd) return; const newTeams = [...(comp.teams || []), newTeamToAdd]; const newPending = (comp.pendingTeams || []).filter(p => p.teamId !== newTeamToAdd); onEditComp({ ...comp, teams: newTeams, pendingTeams: newPending }); setNewTeamToAdd(''); setShowAddTeam(false); showToast("Time inserido manualmente com sucesso!", "success"); };
   const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}/api/share?id=${comp.id}`); showToast("Link de compartilhamento especial copiado!", "success"); };
   const handleApproveTeam = (req) => { const newPending = comp.pendingTeams.filter(p => p.teamId !== req.teamId); const newTeams = [...(comp.teams || []), req.teamId]; onEditComp({ ...comp, pendingTeams: newPending, teams: newTeams }); showToast("Time Aprovado!", "success"); };
-  const const handleRemoveConfirmedTeam = (teamId) => {
+  const handleRemoveConfirmedTeam = (teamId) => {
     if (window.confirm("Deseja remover este time da lista de confirmados?")) {
       const newTeams = (comp.teams || []).filter(id => id !== teamId);
       onEditComp({ ...comp, teams: newTeams });
