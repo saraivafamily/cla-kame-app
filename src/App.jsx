@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where } from 'firebase/firestore';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart } from 'lucide-react';
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
@@ -271,13 +271,11 @@ const generateCupBracket = (teamIds, compId, isFinalDouble = false) => {
   return rounds;
 };
 
-const LoginScreen = ({ onLogin, onRegister, onGoogleLogin, onCompleteGoogleRegister }) => {
-  const [view, setView] = useState('login'); 
+const LoginScreen = ({ onLogin, onRegister, onGoogleLogin }) => {
+  const [view, setView] = useState('login'); // 'login', 'register', 'reset'
   const [loginData, setLoginData] = useState({ identifier: '', password: '' });
-  const [regData, setRegData] = useState({ firstName: '', lastName: '', teamName: '', email: '', whatsapp: '', password: '', shield: null });
+  const [regData, setRegData] = useState({ firstName: '', lastName: '', teamName: '', email: '', whatsapp: '', password: '' });
   const [resetEmail, setResetEmail] = useState('');
-  
-  const [googlePendingUser, setGooglePendingUser] = useState(null);
   
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -292,11 +290,10 @@ const LoginScreen = ({ onLogin, onRegister, onGoogleLogin, onCompleteGoogleRegis
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault(); setError(''); setMsg(''); setIsProcessing(true);
-    if (!regData.shield) { setError("A foto do escudo do time é obrigatória!"); setIsProcessing(false); return; }
     try { 
       await onRegister(regData); 
       setView('login');
-      setRegData({ firstName: '', lastName: '', teamName: '', email: '', whatsapp: '', password: '', shield: null });
+      setRegData({ firstName: '', lastName: '', teamName: '', email: '', whatsapp: '', password: '' });
       setMsg("Cadastro enviado! Aguarde aprovação.");
     } 
     catch (err) { setError("Erro ao cadastrar. O e-mail pode já estar em uso."); }
@@ -320,41 +317,9 @@ const LoginScreen = ({ onLogin, onRegister, onGoogleLogin, onCompleteGoogleRegis
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      const response = await onGoogleLogin(result.user);
-      
-      // Se for a primeira vez do usuário, redireciona para completar os dados!
-      if (response && response.isNew) {
-        const nameParts = (result.user.displayName || '').split(' ');
-        setRegData({
-          firstName: nameParts[0] || '',
-          lastName: nameParts.slice(1).join(' ') || '',
-          email: result.user.email || '',
-          teamName: '',
-          whatsapp: '',
-          password: '', 
-          shield: null
-        });
-        setGooglePendingUser(result.user);
-        setView('google_register');
-        setMsg("Quase lá! Conclua a criação do seu clube para entrar na Arena.");
-      }
+      await onGoogleLogin(result.user);
     } catch (err) {
-      setError(err.message || "O login com o Google foi cancelado ou falhou.");
-    }
-    setIsProcessing(false);
-  };
-
-  const handleGoogleRegisterSubmit = async (e) => {
-    e.preventDefault(); setError(''); setMsg(''); setIsProcessing(true);
-    if (!regData.shield) { setError("A foto do escudo do time é obrigatória!"); setIsProcessing(false); return; }
-    try {
-      await onCompleteGoogleRegister(googlePendingUser.uid, regData, googlePendingUser.photoURL);
-      setView('login');
-      setGooglePendingUser(null);
-      setRegData({ firstName: '', lastName: '', teamName: '', email: '', whatsapp: '', password: '', shield: null });
-      setMsg("Cadastro concluído com sucesso! Aguarde a aprovação dos líderes.");
-    } catch (err) {
-      setError("Erro ao finalizar cadastro pelo Google.");
+      setError("O login com o Google foi cancelado ou falhou.");
     }
     setIsProcessing(false);
   };
@@ -406,7 +371,9 @@ const LoginScreen = ({ onLogin, onRegister, onGoogleLogin, onCompleteGoogleRegis
           <form onSubmit={handlePasswordReset} className="space-y-4 animate-in fade-in duration-300">
             <h2 className="text-lg font-bold text-white text-center mb-1">Recuperar Senha</h2>
             <p className="text-xs text-blue-400 text-center mb-4 leading-relaxed">Digite o e-mail da sua conta. Nós enviaremos um link seguro para você redefinir sua senha.</p>
+            
             <div><input required type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} className={inputClass} placeholder="Seu e-mail cadastrado..." /></div>
+            
             <Button type="submit" disabled={isProcessing} className="w-full py-3 bg-amber-600 hover:bg-amber-500 shadow-amber-900/50">{isProcessing ? 'Enviando...' : 'Enviar Link de Recuperação'}</Button>
             <button type="button" onClick={() => {setView('login'); setError(''); setMsg('');}} className="w-full text-xs text-blue-500 hover:text-white pt-2 pb-2 mt-2">Voltar para o Login</button>
           </form>
@@ -426,60 +393,8 @@ const LoginScreen = ({ onLogin, onRegister, onGoogleLogin, onCompleteGoogleRegis
             <div><input required type="tel" placeholder="WhatsApp (com DDD)" value={regData.whatsapp} onChange={e=>setRegData({...regData, whatsapp: e.target.value})} className={inputClass} /></div>
             <div><input required type="password" placeholder="Crie uma Senha (mín 6 dígitos)" value={regData.password} onChange={e=>setRegData({...regData, password: e.target.value})} className={inputClass} minLength={6} /></div>
             
-            <div className="bg-blue-950 p-3 rounded-xl border border-blue-800">
-              <label className="text-[10px] text-blue-400 font-bold uppercase block mb-2">Escudo do Time (Obrigatório)</label>
-              <label className={`block border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors ${regData.shield ? 'border-emerald-500 bg-emerald-500/10' : 'border-blue-700 hover:border-blue-500 bg-blue-900/50'}`}>
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], (base64) => setRegData({...regData, shield: base64}))} />
-                {regData.shield ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <img src={regData.shield} className="w-8 h-8 object-contain" alt="Escudo" />
-                    <span className="text-emerald-400 font-bold text-xs"><CheckCircle size={14} className="inline"/> Anexado</span>
-                  </div>
-                ) : (
-                  <span className="text-blue-300 font-bold flex items-center justify-center gap-2 text-xs"><UploadCloud size={16}/> Escolher Imagem</span>
-                )}
-              </label>
-            </div>
-            
             <Button type="submit" disabled={isProcessing} className="w-full py-3 mt-2">{isProcessing ? 'Enviando...' : 'Solicitar Entrada no Clã'}</Button>
             <button type="button" onClick={() => {setView('login'); setError(''); setMsg('');}} className="w-full text-xs text-blue-500 hover:text-white mt-2 pb-2">Voltar para o Login</button>
-          </form>
-        )}
-
-        {/* 🌟 NOVA ABA EXCLUSIVA DO GOOGLE */}
-        {view === 'google_register' && (
-          <form onSubmit={handleGoogleRegisterSubmit} className="space-y-3 animate-in slide-in-from-right-4 duration-300">
-            <div className="text-center mb-4">
-               <h2 className="text-lg font-bold text-white mb-1">Bem-vindo(a)!</h2>
-               <p className="text-[10px] text-emerald-400 font-bold uppercase">Complete a criação do seu Clube</p>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-[10px] text-blue-400 uppercase font-bold pl-1">Nome</label><input required value={regData.firstName} onChange={e=>setRegData({...regData, firstName: e.target.value})} className={inputClass} /></div>
-              <div><label className="text-[10px] text-blue-400 uppercase font-bold pl-1">Sobrenome</label><input required value={regData.lastName} onChange={e=>setRegData({...regData, lastName: e.target.value})} className={inputClass} /></div>
-            </div>
-            
-            <div><label className="text-[10px] text-blue-400 uppercase font-bold pl-1">Nome do seu Clube (Time)</label><input required placeholder="Ex: Fúria FC" value={regData.teamName} onChange={e=>setRegData({...regData, teamName: e.target.value})} className={inputClass} /></div>
-            <div><label className="text-[10px] text-blue-400 uppercase font-bold pl-1">E-mail (Vinculado ao Google)</label><input required type="email" value={regData.email} disabled className={`${inputClass} opacity-60 cursor-not-allowed`} /></div>
-            <div><label className="text-[10px] text-blue-400 uppercase font-bold pl-1">WhatsApp (com DDD)</label><input required type="tel" placeholder="Ex: 91988887777" value={regData.whatsapp} onChange={e=>setRegData({...regData, whatsapp: e.target.value})} className={inputClass} /></div>
-            
-            <div className="bg-blue-950 p-3 rounded-xl border border-blue-800 mt-2">
-              <label className="text-[10px] text-emerald-400 font-bold uppercase block mb-2">Escudo do Time (Obrigatório)</label>
-              <label className={`block border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors ${regData.shield ? 'border-emerald-500 bg-emerald-500/10' : 'border-emerald-700/50 hover:border-emerald-500 bg-emerald-900/10'}`}>
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], (base64) => setRegData({...regData, shield: base64}))} />
-                {regData.shield ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <img src={regData.shield} className="w-8 h-8 object-contain" alt="Escudo" />
-                    <span className="text-emerald-400 font-bold text-xs"><CheckCircle size={14} className="inline"/> Anexado</span>
-                  </div>
-                ) : (
-                  <span className="text-emerald-400 font-bold flex items-center justify-center gap-2 text-xs"><UploadCloud size={16}/> Escolher Imagem da Galeria</span>
-                )}
-              </label>
-            </div>
-            
-            <Button type="submit" disabled={isProcessing} className="w-full py-4 mt-4 font-black uppercase tracking-wider text-sm shadow-xl">{isProcessing ? 'Criando Clube...' : 'Finalizar e Entrar na Arena'}</Button>
-            <button type="button" onClick={() => {setView('login'); setGooglePendingUser(null); setError(''); setMsg('');}} className="w-full text-xs text-blue-500 hover:text-white mt-2 pb-2">Cancelar e Voltar</button>
           </form>
         )}
       </div>
@@ -3568,6 +3483,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     active: false, phase: 'idle', winner: null, flicker: 'A' 
   });
 
+  // 🛡️ BLINDADO: Tenta ler a chave, se a aba anônima bloquear, retorna vazio
   const [userApiKey, setUserApiKey] = useState(() => {
     try { return localStorage.getItem('gemini_api_key') || ''; }
     catch(e) { return ''; }
@@ -3681,6 +3597,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
   const handleSaveApiKey = () => {
     if (tempKey.trim() !== '') {
+      // 🛡️ BLINDADO
       try { localStorage.setItem('gemini_api_key', tempKey.trim()); } catch(e) {}
       setUserApiKey(tempKey.trim());
       setShowKeyInput(false);
@@ -3747,6 +3664,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                const errData = await response.json().catch(() => null);
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
                if (response.status === 403 || response.status === 400) {
+                 // 🛡️ BLINDADO
                  try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
                  setUserApiKey(''); setShowKeyInput(true);
                  throw new Error("Sua Chave da IA é inválida. Verifique se copiou tudo corretamente.");
@@ -3881,7 +3799,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     processSubmission(null);
   };
 
-  // 🛡️ BLINDAGEM MÁXIMA NA GRAVAÇÃO
   const processSubmission = (forcedDoubleWoWinner = null) => {
     let finalScoreA = scoreA;
     let finalScoreB = scoreB;
@@ -3898,28 +3815,24 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
     const matchDetails = availableMatches.find(m => m.id === selectedMatchId);
     
-    // Evita crash se um time foi apagado do banco de dados
-    const safeTeamAId = teamA?.id || matchDetails?.teamA;
-    const safeTeamBId = teamB?.id || matchDetails?.teamB;
-
     const allGoals = [
-      ...(goalsA || []).map(g => ({ teamId: safeTeamAId, player: g.player, assist: g.assist || '', minute: g.minute })),
-      ...(goalsB || []).map(g => ({ teamId: safeTeamBId, player: g.player, assist: g.assist || '', minute: g.minute }))
+      ...(goalsA || []).map(g => ({ teamId: teamA.id, player: g.player, assist: g.assist || '', minute: g.minute })),
+      ...(goalsB || []).map(g => ({ teamId: teamB.id, player: g.player, assist: g.assist || '', minute: g.minute }))
     ];
 
     const finalObs = isDoubleWo 
-      ? `Sorteio de Duplo W.O. realizado na resenha! Vencedor: ${forcedDoubleWoWinner === 'A' ? (teamA?.name || 'Equipe A') : (teamB?.name || 'Equipe B')}\n${observacoes}`.trim() 
+      ? `Sorteio de Duplo W.O. realizado na resenha! Vencedor: ${forcedDoubleWoWinner === 'A' ? teamA.name : teamB.name}\n${observacoes}`.trim() 
       : (woA || woB ? `Vitória por W.O.\n${observacoes}`.trim() : observacoes.trim());
 
     onSubmit({
       id: `m_${Date.now()}`, 
       compId: selectedCompId, 
-      roundId: matchDetails?.roundId || '', 
+      roundId: matchDetails.roundId, 
       matchId: selectedMatchId, 
-      teamA: safeTeamAId, 
-      teamB: safeTeamBId, 
-      scoreA: parseInt(finalScoreA) || 0, // 🛡️ Evita falha de NaN se o usuário digitou letras
-      scoreB: parseInt(finalScoreB) || 0,
+      teamA: teamA.id, 
+      teamB: teamB.id, 
+      scoreA: parseInt(finalScoreA), 
+      scoreB: parseInt(finalScoreB),
       penaltiesA: (isCup && finalScoreA === finalScoreB && penaltiesA !== '') ? parseInt(penaltiesA) : null,
       penaltiesB: (isCup && finalScoreA === finalScoreB && penaltiesB !== '') ? parseInt(penaltiesB) : null,
       goals: (woA || woB || isDoubleWo) ? [] : allGoals,
@@ -3947,14 +3860,14 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
              <div className={`absolute transition-all duration-100 ${drawState.flicker === 'A' ? 'scale-110 opacity-100 z-10' : 'scale-90 opacity-20 blur-sm z-0'}`}>
                 <div className="flex flex-col items-center">
                   <ShieldDisplay shield={teamA?.shield} size="large" />
-                  <span className="mt-6 text-2xl font-black text-white bg-black/50 px-4 py-2 rounded-xl text-center shadow-lg border border-white/10 uppercase tracking-wider">{teamA?.name || 'Equipe A'}</span>
+                  <span className="mt-6 text-2xl font-black text-white bg-black/50 px-4 py-2 rounded-xl text-center shadow-lg border border-white/10 uppercase tracking-wider">{teamA?.name}</span>
                 </div>
              </div>
 
              <div className={`absolute transition-all duration-100 ${drawState.flicker === 'B' ? 'scale-110 opacity-100 z-10' : 'scale-90 opacity-20 blur-sm z-0'}`}>
                 <div className="flex flex-col items-center">
                   <ShieldDisplay shield={teamB?.shield} size="large" />
-                  <span className="mt-6 text-2xl font-black text-white bg-black/50 px-4 py-2 rounded-xl text-center shadow-lg border border-white/10 uppercase tracking-wider">{teamB?.name || 'Equipe B'}</span>
+                  <span className="mt-6 text-2xl font-black text-white bg-black/50 px-4 py-2 rounded-xl text-center shadow-lg border border-white/10 uppercase tracking-wider">{teamB?.name}</span>
                 </div>
              </div>
           </div>
@@ -4008,8 +3921,8 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
               <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
                 <option value="">Registrar qual jogo?</option>
                 {availableMatches.map(m => {
-                  const tA = (teams || []).find(t=>t.id===m.teamA)?.name || 'A Definir';
-                  const tB = (teams || []).find(t=>t.id===m.teamB)?.name || 'A Definir';
+                  const tA = (teams || []).find(t=>t.id===m.teamA)?.name;
+                  const tB = (teams || []).find(t=>t.id===m.teamB)?.name;
                   return <option key={m.id} value={m.id}>Rodada {String(m.roundId || '').replace('r','')} - {tA} x {tB}</option>
                 })}
               </select>
@@ -4086,7 +3999,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             <div className="flex flex-col md:flex-row gap-6 items-start bg-blue-950 p-4 rounded-xl border border-blue-800">
               <div className="flex-1 w-full space-y-3">
                 <div className="flex justify-between items-center mb-2">
-                  <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2"><ShieldDisplay shield={teamA?.shield} size="small" /> {teamA?.name || 'Equipe A'}</div>
+                  <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2"><ShieldDisplay shield={teamA?.shield} size="small" /> {teamA?.name}</div>
                   <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20 hover:bg-red-500/20 transition-colors">
                     <input type="checkbox" checked={woA} onChange={(e) => {
                       const isWo = e.target.checked;
@@ -4137,7 +4050,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                       else { setScoreA(''); setScoreB(''); }
                     }} className="accent-red-500 w-3 h-3" /> DAR W.O.
                   </label>
-                  <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2">{teamB?.name || 'Equipe B'} <ShieldDisplay shield={teamB?.shield} size="small" /></div>
+                  <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2">{teamB?.name} <ShieldDisplay shield={teamB?.shield} size="small" /></div>
                 </div>
                 <input type="text" inputMode="numeric" pattern="[0-9]*" value={scoreB} onChange={e=>setScoreB(e.target.value)} disabled={woA || woB} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none disabled:opacity-50" required />
                 
@@ -4223,71 +4136,15 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
 };
 
 const CreateTeamManual = ({ onCreate, showToast }) => {
-  const [name, setName] = useState(''); 
-  const [coach, setCoach] = useState(''); 
-  const [shield, setShield] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault(); 
-    if (!name) return; 
-    
-    setIsProcessing(true);
-    try {
-      await onCreate({
-        id: `t_${Date.now()}`,
-        name: name,
-        coach: coach || 'Sem Técnico',
-        whatsapp: '',
-        ownerId: 'manual',
-        shield: shield || '🛡️'
-      });
-      // Deixamos a limpeza de tela e a troca de aba para a função principal
-    } catch (err) {
-      console.error("Erro na criação:", err);
-      showToast(`Falha: ${err.message || 'Erro ao comunicar com o servidor.'}`, "error");
-      setIsProcessing(false);
-    }
-  };
-
+  const [name, setName] = useState(''); const [coach, setCoach] = useState(''); const [shield, setShield] = useState(null);
   return (
-    <form onSubmit={handleSubmit} className="max-w-xl mx-auto bg-blue-900 border border-blue-800 p-6 md:p-8 rounded-3xl space-y-5 animate-in fade-in shadow-2xl">
-      <h2 className="text-xl font-black text-white flex items-center gap-2 uppercase tracking-wider mb-2">
-        <UserPlus className="text-emerald-500" size={24}/> Novo Time Simples
-      </h2>
-      
-      <div>
-        <label className="text-[10px] text-blue-400 font-bold uppercase tracking-widest block mb-1.5 pl-1">Nome do Clube</label>
-        <input required value={name} onChange={e=>setName(e.target.value)} className={inputClass} placeholder="Ex: Fúria FC"/>
-      </div>
-      
-      <div>
-        <label className="text-[10px] text-blue-400 font-bold uppercase tracking-widest block mb-1.5 pl-1">Nome do Técnico (Opcional)</label>
-        <input value={coach} onChange={e=>setCoach(e.target.value)} className={inputClass} placeholder="Ex: Gustavo"/>
-      </div>
-      
-      <div className="bg-blue-950 p-4 rounded-xl flex items-center justify-between border border-blue-800 mt-2">
-        <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">Escudo do Time:</span>
-        <label className="cursor-pointer bg-blue-800 px-4 py-2 rounded-lg text-xs font-bold text-white hover:bg-emerald-600 transition-colors shadow-md">
-          <UploadCloud size={14} className="inline mr-1"/> {shield ? 'Trocar Imagem' : 'Escolher Imagem'}
-          <input type="file" accept="image/*" className="hidden" onChange={e=>processImage(e.target.files[0], setShield)}/>
-        </label>
-      </div>
-      
-      {shield && (
-        <div className="text-center p-4 bg-blue-950/50 rounded-xl border border-emerald-500/30 animate-in zoom-in-95">
-          <ShieldDisplay shield={shield} size="large" />
-          <p className="text-[10px] text-emerald-400 font-bold mt-3 uppercase tracking-widest flex justify-center items-center gap-1">
-            <CheckCircle size={12}/> Escudo Carregado
-          </p>
-        </div>
-      )}
-      
-      <div className="pt-4 border-t border-blue-800 mt-2">
-        <Button type="submit" disabled={isProcessing} className="w-full py-4 text-sm font-black shadow-xl uppercase tracking-wider">
-          {isProcessing ? 'Gravando no Banco...' : 'Salvar Time no Clã'}
-        </Button>
-      </div>
+    <form onSubmit={async (e)=>{e.preventDefault(); if(!name)return; await onCreate({id:`t${Date.now()}`,name,coach:coach||'Técnico',whatsapp:'',ownerId:'manual',shield:shield||'🛡️'}); showToast("Time salvo!"); setName(''); setCoach(''); setShield(null); }} className="max-w-xl mx-auto bg-blue-900 border border-blue-800 p-6 rounded-2xl space-y-4 animate-in fade-in">
+      <h2 className="text-lg font-bold text-white flex items-center gap-2"><UserPlus size={18}/> Novo Time Simples</h2>
+      <div><label className="text-xs text-blue-400 block mb-1">Nome do Clube</label><input required value={name} onChange={e=>setName(e.target.value)} className={inputClass}/></div>
+      <div><label className="text-xs text-blue-400 block mb-1">Nome do Técnico</label><input value={coach} onChange={e=>setCoach(e.target.value)} className={inputClass}/></div>
+      <div className="bg-blue-950 p-3 rounded-xl flex items-center justify-between"><span className="text-xs text-blue-400">Escudo do Time:</span><label className="cursor-pointer bg-blue-800 px-3 py-1.5 rounded text-xs text-white hover:bg-emerald-600"><UploadCloud size={14} className="inline mr-1"/> Enviar Imagem<input type="file" accept="image/*" className="hidden" onChange={e=>processImage(e.target.files[0],setShield)}/></label></div>
+      {shield && <div className="text-center p-2"><ShieldDisplay shield={shield} size="large" /></div>}
+      <Button type="submit" className="w-full py-3">Salvar Time</Button>
     </form>
   );
 };
@@ -4307,10 +4164,8 @@ const CreateTeamFull = ({ onCreate, showToast }) => {
 };
 
 const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, onExpelUser, onApproveUser, onEditUser, showToast }) => {
-  // 🛡️ BLINDAGEM: Filtra qualquer usuário nulo ou fantasma antes de ler o status
-  const validUsers = (users || []).filter(u => u && u.id);
-  const pendingUsers = validUsers.filter(u => u.status === 'pending');
-  const activeUsers = validUsers.filter(u => u.status !== 'pending');
+  const pendingUsers = users.filter(u => u.status === 'pending');
+  const activeUsers = users.filter(u => u.status !== 'pending');
   
   // Verificação de segurança com acesso irrestrito para o e-mail Master
   const isSuperAdmin = currentUser?.email === 'saviosaraiva777@gmail.com';
@@ -4321,9 +4176,8 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
   const [editData, setEditData] = useState({ name: '', whatsapp: '' });
 
   const startEdit = (u) => {
-    if (!u) return;
     setEditingId(u.id);
-    setEditData({ name: u.name || '', whatsapp: u.whatsapp || '' });
+    setEditData({ name: u.name, whatsapp: u.whatsapp });
   };
 
   const saveEdit = (u) => {
@@ -4344,7 +4198,7 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
             <table className="w-full text-left text-xs whitespace-nowrap"><thead className="text-blue-400 font-bold border-b border-blue-800"><tr><th className="p-3">Técnico</th><th className="p-3">Clube</th><th className="p-3">WhatsApp</th><th className="p-3 text-center">Ação</th></tr></thead>
             <tbody className="divide-y divide-blue-800/40">
               {pendingUsers.map(u => {
-                const t = (teams || []).find(x => x && x.ownerId === u.id);
+                const t = teams.find(x => x.ownerId === u.id);
                 return (
                   <tr key={u.id} className="hover:bg-blue-950/40">
                     <td className="p-3 font-bold text-blue-200">{u.name}</td><td className="p-3 text-amber-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-blue-400">{u.whatsapp}</td>
@@ -4366,7 +4220,7 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
           <table className="w-full text-left text-xs whitespace-nowrap"><thead className="bg-blue-950/60 text-blue-400 font-bold border-b border-blue-800"><tr><th className="p-3">Técnico</th><th className="p-3">Clube</th><th className="p-3">WhatsApp</th><th className="p-3">Cargo</th><th className="p-3 text-center">Ação</th></tr></thead>
           <tbody className="divide-y divide-blue-800/40">
             {activeUsers.map(u=>{ 
-              const t = (teams || []).find(x => x && x.ownerId === u.id); 
+              const t=teams.find(x=>x.ownerId===u.id); 
               
               // Modo de Edição
               if (editingId === u.id) {
@@ -6524,54 +6378,8 @@ const KameStore = ({ currentUser, storeProducts = [], showToast }) => {
   );
 };
 
-const TeamManagement = ({ users, teams, currentUser, onExpelUser, onApproveUser, onEditUser, onUpdateUserRole, onCreateFull, onCreateManual, showToast }) => {
-  const [activeTab, setActiveTab] = useState('members'); // 'members', 'invite', 'manual'
-
-  // 🛡️ BLINDAGEM: Conta apenas usuários que realmente existem e não são nulos
-  const validUsers = (users || []).filter(u => u && u.id);
-  const pendingCount = validUsers.filter(u => u.status === 'pending').length;
-
-  return (
-    <div className="space-y-6 animate-in fade-in pb-12 max-w-5xl mx-auto">
-      <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex items-center gap-4">
-        <div className="bg-blue-950 p-3 rounded-full border border-emerald-500/50 shadow-inner">
-          <Users size={32} className="text-emerald-400" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-black text-white uppercase tracking-wider">Gestão de Times</h2>
-          <p className="text-sm text-blue-400 mt-1">Aprove novos membros, gerencie patentes ou crie novos clubes.</p>
-        </div>
-      </div>
-
-      <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar">
-        <button onClick={() => setActiveTab('members')} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'members' ? 'bg-emerald-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
-          👥 Controle de Elenco 
-          {pendingCount > 0 && <span className="bg-amber-500 text-blue-950 px-1.5 py-0.5 rounded-full text-[10px] ml-1 shadow-sm">{pendingCount}</span>}
-        </button>
-        <button onClick={() => setActiveTab('invite')} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'invite' ? 'bg-emerald-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
-          📩 Convidar Técnico
-        </button>
-        <button onClick={() => setActiveTab('manual')} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'manual' ? 'bg-emerald-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
-          🤖 Novo Time Simples
-        </button>
-      </div>
-
-      <div className="mt-4">
-        {activeTab === 'members' && (
-          <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={onExpelUser} onApproveUser={onApproveUser} onEditUser={onEditUser} onUpdateUserRole={onUpdateUserRole} showToast={showToast} />
-        )}
-        {activeTab === 'invite' && (
-          <CreateTeamFull onCreate={onCreateFull} showToast={showToast} />
-        )}
-        {activeTab === 'manual' && (
-          <CreateTeamManual onCreate={onCreateManual} showToast={showToast} />
-        )}
-      </div>
-    </div>
-  );
-};
-
 export default function App() {
+  // 🛡️ BLINDAGEM TOTAL: Se a aba for anônima, o localStorage não derruba o React
   const [currentUser, setCurrentUser] = useState(() => { 
     try { 
       const saved = localStorage.getItem('claKame_user'); 
@@ -6690,6 +6498,7 @@ export default function App() {
     return () => { unsubU(); unsubT(); unsubC(); unsubM(); unsubF(); unsubP(); unsubStore(); };
   }, []);
 
+  // 🛡️ BLINDADO: Monitoramento de Login à prova de aba anônima
   useEffect(() => {
     try {
       if (currentUser) {
@@ -6737,17 +6546,6 @@ export default function App() {
   };
 
   const handleCreateTeamAndUser = async ({ user, team }) => { await setDoc(getPublicDocPath('users', user.id), user); await setDoc(getPublicDocPath('teams', team.id), team); setCurrentTab('teams_list'); showToast("Treinador registrado!"); return true; };
-
-  const handleCreateManualTeam = async (newTeamData) => {
-    await setDoc(getPublicDocPath('teams', newTeamData.id), newTeamData);
-    showToast("Time inserido com sucesso!", "success");
-    setCurrentTab('teams_list');
-  };
-
-  const handleApproveUser = async (userId) => {
-    await updateDoc(getPublicDocPath('users', userId), { status: 'active' });
-    showToast("Técnico aprovado com sucesso!", "success");
-  };
   
   const handleExpelUser = async (userId) => {
     await deleteDoc(getPublicDocPath('users', userId));
@@ -6771,75 +6569,13 @@ export default function App() {
     const uid = userCredential.user.uid;
     
     const newUser = { id: uid, name: fullName, email: email, whatsapp: cleanPhone, role: 'member', status: 'pending', kameCoins: 100, receivedProfileBonus: false };
-    const newTeam = { id: `t_${uid}`, name: data.teamName, coach: fullName, whatsapp: cleanPhone, ownerId: uid, shield: data.shield };
+    const newTeam = { id: `t_${uid}`, name: data.teamName, coach: fullName, whatsapp: cleanPhone, ownerId: uid, shield: '🛡️' };
     
     await setDoc(getPublicDocPath('users', uid), newUser);
     await setDoc(getPublicDocPath('teams', newTeam.id), newTeam);
     
     await signOut(auth);
-  };
-
-  const handleGoogleLogin = async (googleUser) => {
-    const email = googleUser.email.toLowerCase();
-    const uid = googleUser.uid;
-    
-    const userRef = getPublicDocPath('users', uid);
-    const userSnap = await getDoc(userRef);
-    
-    if (userSnap.exists()) {
-      const existingUser = userSnap.data();
-      if (existingUser.status === 'pending') {
-         await signOut(auth);
-         throw new Error("Sua conta ainda está aguardando aprovação dos líderes.");
-      }
-      setCurrentUser(existingUser);
-      setCurrentTab('dashboard');
-      return { isNew: false };
-    } else {
-      const existingByEmail = users.find(u => u.email && u.email.toLowerCase() === email);
-      
-      if (existingByEmail) {
-        if (existingByEmail.status === 'pending') {
-           await signOut(auth);
-           throw new Error("Sua conta ainda está aguardando aprovação dos líderes.");
-        }
-        setCurrentUser(existingByEmail);
-        setCurrentTab('dashboard');
-        return { isNew: false };
-      }
-      return { isNew: true };
-    }
-  };
-
-  const handleCompleteGoogleRegister = async (uid, data, photoURL) => {
-    const cleanPhone = data.whatsapp.replace(/\D/g, '');
-    const fullName = `${data.firstName} ${data.lastName}`.trim();
-    
-    const newUser = { 
-      id: uid, 
-      name: fullName, 
-      email: data.email.toLowerCase(), 
-      whatsapp: cleanPhone, 
-      role: 'member', 
-      status: 'pending', 
-      kameCoins: 100, 
-      receivedProfileBonus: true,
-      photoURL: photoURL || null
-    };
-    
-    const newTeam = { 
-      id: `t_${uid}`, 
-      name: data.teamName, 
-      coach: fullName, 
-      whatsapp: cleanPhone, 
-      ownerId: uid, 
-      shield: data.shield 
-    };
-    
-    await setDoc(getPublicDocPath('users', uid), newUser);
-    await setDoc(getPublicDocPath('teams', newTeam.id), newTeam);
-    
-    await signOut(auth); 
+    showToast("Cadastro realizado! Aguarde a aprovação.", "success");
   };
 
   const handleLogin = async (identifier, password) => {
@@ -6858,11 +6594,47 @@ export default function App() {
     catch (e) { throw new Error("Acesso negado. Verifique os dados."); }
   };
 
+  const handleGoogleLogin = async (googleUser) => {
+    const email = googleUser.email.toLowerCase();
+    const existingUser = users.find(u => u.email && u.email.toLowerCase() === email);
+    
+    if (existingUser) {
+      if (existingUser.status === 'pending') throw new Error("Sua conta ainda está aguardando aprovação dos líderes.");
+      setCurrentUser(existingUser);
+      setCurrentTab('dashboard');
+    } else {
+      const uid = googleUser.uid;
+      const newUser = { 
+        id: uid, 
+        name: googleUser.displayName || 'Jogador Convidado', 
+        email: email, 
+        whatsapp: '00000000000', 
+        role: 'member', 
+        status: 'pending', 
+        kameCoins: 100, 
+        receivedProfileBonus: true,
+        photoURL: googleUser.photoURL || null
+      };
+      const newTeam = { id: `t_${uid}`, name: 'Time Google', coach: googleUser.displayName || 'Jogador', whatsapp: '', ownerId: uid, shield: '🛡️' };
+      
+      await setDoc(getPublicDocPath('users', uid), newUser);
+      await setDoc(getPublicDocPath('teams', newTeam.id), newTeam);
+      
+      await signOut(auth); 
+      throw new Error("Cadastro via Google realizado! Aguarde a aprovação dos líderes.");
+    }
+  };
+
+  const handleApproveUser = async (userId) => {
+    await updateDoc(getPublicDocPath('users', userId), { status: 'active' });
+    showToast("Técnico aprovado com sucesso!", "success");
+  };
+
   useEffect(() => { const unsub = onAuthStateChanged(auth, (fbUser) => { if (fbUser && users.length > 0) { const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); if (found) setCurrentUser(found); } }); return () => unsub(); }, [users]);
 
   if (isFirebaseLoading) return (<div className="min-h-screen bg-blue-950 text-amber-400 flex items-center justify-center font-sans font-bold text-sm shadow-xl animate-pulse">🛡️ Carregando Arena Kame...</div>);
-  if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} onGoogleLogin={handleGoogleLogin} onCompleteGoogleRegister={handleCompleteGoogleRegister} />;
-  
+  if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} onGoogleLogin={handleGoogleLogin} />;
+
   if (currentUser.status === 'pending') {
     return (
       <div className="min-h-screen bg-blue-950 flex flex-col items-center justify-center p-4">
@@ -6898,7 +6670,9 @@ export default function App() {
     ] : []),
 
     ...(isLeaderOrKaioh ? [
-      { id: 'team_management', label: 'Gestão de Times', icon: Users }
+      { id: 'members_list', label: 'Técnicos', icon: Award },
+      { id: 'create_team', label: 'Convidar Técnico', icon: Users },
+      { id: 'create_team_manual', label: 'Time Simples', icon: UserPlus } 
     ] : []),
   ];
 
@@ -6976,6 +6750,7 @@ export default function App() {
         let winsA = 0; let winsB = 0;
         let drawsA = 0; let drawsB = 0;
 
+        // PUNIÇÃO W.O - EXTRATO
         let isWoMe = false; let isWoOpp = false;
         const obs = (match.observacoes || '').toLowerCase();
         if (obs.includes('w.o') || obs.includes('wo')) {
@@ -7104,25 +6879,13 @@ export default function App() {
           await setDoc(getPublicDocPath('predictions', p.id), p); 
       }} />;
         
-      case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} 
-      // 🛡️ BLINDAGEM MÁXIMA AQUI: Impede o aplicativo de travar se o banco de dados rejeitar a gravação
-      onSubmitMatch={m => {
-          setDoc(getPublicDocPath('matches', m.id), m)
-          .then(() => { 
-             showToast("Resultado enviado e aguardando validação!"); 
-             setSubTab('validation'); 
-          })
-          .catch(err => { 
-             console.error(err); 
-             showToast("Falha na gravação! Verifique se todos os campos (placares/times) estão preenchidos.", "error"); 
-          });
-      }} 
-      onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} onBatchUpdateComp={async (updatedComp, newMatchesArray) => { await updateDoc(getPublicDocPath('competitions', updatedComp.id), updatedComp); const promises = newMatchesArray.map(m => setDoc(getPublicDocPath('matches', m.id), m)); await Promise.all(promises); showToast("Fase encerrada e chaves atualizadas!", "success"); }} />;
-      
+      case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); })} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} onBatchUpdateComp={async (updatedComp, newMatchesArray) => { await updateDoc(getPublicDocPath('competitions', updatedComp.id), updatedComp); const promises = newMatchesArray.map(m => setDoc(getPublicDocPath('matches', m.id), m)); await Promise.all(promises); showToast("Fase encerrada e chaves atualizadas!", "success"); }} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'store': return <KameStore currentUser={currentUser} storeProducts={storeProducts} showToast={showToast} />;
       case 'create_comp': return <CreateCompetition matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
-      case 'team_management': return <TeamManagement users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} onCreateFull={handleCreateTeamAndUser} onCreateManual={handleCreateManualTeam} showToast={showToast} />;
+      case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
+      case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
+      case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
       case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} posts={feedPosts} onTaskcompleted={handleTaskcompleted} />;
       case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} />;
       case 'records': return <RecordsWall showToast={showToast} currentUser={currentUser} />;
@@ -7145,7 +6908,7 @@ export default function App() {
       <aside className="w-full md:w-64 bg-blue-900 border-b md:border-b-0 md:border-r border-blue-800 flex flex-col shrink-0 z-10 shadow-2xl">
         <div className="p-6 flex items-center gap-3"><img src={LOGO_URL} alt="Clã Kame" className="w-24 h-24" /><div><h1 className="font-bold text-white text-lg">Clã Kame</h1><p className="text-[10px] text-emerald-400 font-bold uppercase">Arena DLS</p></div></div>
         
-        <nav className="flex-1 px-4 pb-4 overflow-y-auto flex md:flex-col gap-2 overflow-x-auto custom-scrollbar items-center md:items-stretch">
+        <nav className="flex-1 px-4 pb-4 overflow-y-auto flex md:flex-col gap-2 overflow-x-auto custom-scrollbar">
           {TABS.map(tab => {
             const isActive = currentTab === tab.id || (tab.id === 'competitions' && currentTab === 'comp_details'); 
             const Icon = tab.icon;
@@ -7159,6 +6922,7 @@ export default function App() {
                   if (tab.id === 'feed') {
                     const now = Date.now();
                     setLastSeenFeed(now);
+                    // 🛡️ BLINDADO
                     try { localStorage.setItem('kame_last_seen_feed', now.toString()); } catch(e){}
                   }
                   setCurrentTab(tab.id);
@@ -7176,14 +6940,6 @@ export default function App() {
               </button> 
             );
           })}
-
-          <button 
-            onClick={() => { setCurrentUser(null); signOut(auth); }} 
-            className="md:hidden relative flex items-center gap-2 px-4 py-3 rounded-xl whitespace-nowrap outline-none border border-red-500/20 text-red-400 bg-red-950/30 hover:bg-red-900/50 transition-colors ml-2 md:ml-0"
-          >
-            <LogOut size={18} /> 
-            <span className="text-sm font-bold">Sair</span>
-          </button>
         </nav>
         
         <div className="p-4 border-t border-blue-800 hidden md:block">
