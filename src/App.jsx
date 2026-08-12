@@ -6378,6 +6378,73 @@ const KameStore = ({ currentUser, storeProducts = [], showToast }) => {
   );
 };
 
+const ClanManagement = ({
+  currentUser, users, teams, matches, competitions,
+  onExpelUser, onApproveUser, onEditUser, onUpdateUserRole,
+  onCreateTeamAndUser, onCreateTeamManual, onCreateComp,
+  showToast
+}) => {
+  const isLeaderOrKaioh = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
+  const isOrganizer = currentUser?.role === 'organizer';
+  const hasEventAccess = isLeaderOrKaioh || isOrganizer;
+
+  // Se for organizador, cai direto na aba de Competições. Se for líder, cai nos Técnicos.
+  const [activeTab, setActiveTab] = useState(isLeaderOrKaioh ? 'members' : 'comp');
+
+  const pendingCount = users.filter(u => u.status === 'pending').length;
+
+  return (
+    <div className="space-y-6 animate-in fade-in pb-12 max-w-5xl mx-auto">
+      <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex items-center gap-4">
+        <div className="bg-blue-950 p-3 rounded-full border border-emerald-500/50 shadow-inner">
+          <Award size={32} className="text-emerald-400" />
+        </div>
+        <div>
+          <h2 className="text-2xl font-black text-white uppercase tracking-wider">Gestão Clã</h2>
+          <p className="text-sm text-blue-400 mt-1">Painel administrativo para Líderes e Organizadores.</p>
+        </div>
+      </div>
+
+      <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar">
+        {isLeaderOrKaioh && (
+          <>
+            <button onClick={() => setActiveTab('members')} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'members' ? 'bg-emerald-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
+              👥 Elenco
+              {pendingCount > 0 && <span className="bg-amber-500 text-blue-950 px-1.5 py-0.5 rounded-full text-[10px] ml-1 shadow-sm">{pendingCount}</span>}
+            </button>
+            <button onClick={() => setActiveTab('invite')} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'invite' ? 'bg-emerald-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
+              📩 Convidar
+            </button>
+            <button onClick={() => setActiveTab('manual')} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'manual' ? 'bg-emerald-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
+              🤖 Time Simples
+            </button>
+          </>
+        )}
+        {hasEventAccess && (
+           <button onClick={() => setActiveTab('comp')} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'comp' ? 'bg-emerald-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
+             🏆 Nova Competição
+           </button>
+        )}
+      </div>
+
+      <div className="mt-4">
+        {activeTab === 'members' && isLeaderOrKaioh && (
+          <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={onExpelUser} onApproveUser={onApproveUser} onEditUser={onEditUser} onUpdateUserRole={onUpdateUserRole} showToast={showToast} />
+        )}
+        {activeTab === 'invite' && isLeaderOrKaioh && (
+          <CreateTeamFull onCreate={onCreateTeamAndUser} showToast={showToast} />
+        )}
+        {activeTab === 'manual' && isLeaderOrKaioh && (
+          <CreateTeamManual onCreate={onCreateTeamManual} showToast={showToast} />
+        )}
+        {activeTab === 'comp' && hasEventAccess && (
+          <CreateCompetition matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onCreate={onCreateComp} showToast={showToast} />
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   // 🛡️ BLINDAGEM TOTAL: Se a aba for anônima, o localStorage não derruba o React
   const [currentUser, setCurrentUser] = useState(() => { 
@@ -6665,16 +6732,10 @@ export default function App() {
     { id: 'records', label: 'Mural de Recordes', icon: Trophy },
     { id: 'rules', label: 'Regras do Clã', icon: BookOpen },
     
+    // Apenas quem é da diretoria vê este botão
     ...(hasEventAccess ? [
-      { id: 'create_comp', label: 'Nova Comp', icon: PlusCircle }
+      { id: 'gestao_cla', label: 'Gestão Clã', icon: Award }
     ] : []),
-
-    ...(isLeaderOrKaioh ? [
-      { id: 'members_list', label: 'Técnicos', icon: Award },
-      { id: 'create_team', label: 'Convidar Técnico', icon: Users },
-      { id: 'create_team_manual', label: 'Time Simples', icon: UserPlus } 
-    ] : []),
-  ];
 
   const handleUpdateMatchStatus = async (id, st, updatedData = null) => {
     const updatePayload = { status: st };
@@ -6879,13 +6940,22 @@ export default function App() {
           await setDoc(getPublicDocPath('predictions', p.id), p); 
       }} />;
         
-      case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); })} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} onBatchUpdateComp={async (updatedComp, newMatchesArray) => { await updateDoc(getPublicDocPath('competitions', updatedComp.id), updatedComp); const promises = newMatchesArray.map(m => setDoc(getPublicDocPath('matches', m.id), m)); await Promise.all(promises); showToast("Fase encerrada e chaves atualizadas!", "success"); }} />;
+     case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); })} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} onBatchUpdateComp={async (updatedComp, newMatchesArray) => { await updateDoc(getPublicDocPath('competitions', updatedComp.id), updatedComp); const promises = newMatchesArray.map(m => setDoc(getPublicDocPath('matches', m.id), m)); await Promise.all(promises); showToast("Fase encerrada e chaves atualizadas!", "success"); }} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'store': return <KameStore currentUser={currentUser} storeProducts={storeProducts} showToast={showToast} />;
-      case 'create_comp': return <CreateCompetition matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
-      case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
-      case 'create_team_manual': return <CreateTeamManual onCreate={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} showToast={showToast} />;   
-      case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
+      
+      // 🌟 NOVA ROTA UNIFICADA DA GESTÃO CLÃ
+      case 'gestao_cla': 
+        return <ClanManagement 
+          currentUser={currentUser} users={users} teams={teams} matches={matches} competitions={competitions} 
+          onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} 
+          onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} 
+          onCreateTeamAndUser={handleCreateTeamAndUser} 
+          onCreateTeamManual={t => setDoc(getPublicDocPath('teams', t.id), t).then(()=>setCurrentTab('teams_list'))} 
+          onCreateComp={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} 
+          showToast={showToast} 
+        />;
+
       case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} posts={feedPosts} onTaskcompleted={handleTaskcompleted} />;
       case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} />;
       case 'records': return <RecordsWall showToast={showToast} currentUser={currentUser} />;
