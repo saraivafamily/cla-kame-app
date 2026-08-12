@@ -3568,7 +3568,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     active: false, phase: 'idle', winner: null, flicker: 'A' 
   });
 
-  // 🛡️ BLINDADO: Tenta ler a chave, se a aba anônima bloquear, retorna vazio
   const [userApiKey, setUserApiKey] = useState(() => {
     try { return localStorage.getItem('gemini_api_key') || ''; }
     catch(e) { return ''; }
@@ -3682,7 +3681,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
   const handleSaveApiKey = () => {
     if (tempKey.trim() !== '') {
-      // 🛡️ BLINDADO
       try { localStorage.setItem('gemini_api_key', tempKey.trim()); } catch(e) {}
       setUserApiKey(tempKey.trim());
       setShowKeyInput(false);
@@ -3749,7 +3747,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                const errData = await response.json().catch(() => null);
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
                if (response.status === 403 || response.status === 400) {
-                 // 🛡️ BLINDADO
                  try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
                  setUserApiKey(''); setShowKeyInput(true);
                  throw new Error("Sua Chave da IA é inválida. Verifique se copiou tudo corretamente.");
@@ -3884,6 +3881,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     processSubmission(null);
   };
 
+  // 🛡️ BLINDAGEM MÁXIMA NA GRAVAÇÃO
   const processSubmission = (forcedDoubleWoWinner = null) => {
     let finalScoreA = scoreA;
     let finalScoreB = scoreB;
@@ -3900,24 +3898,28 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
     const matchDetails = availableMatches.find(m => m.id === selectedMatchId);
     
+    // Evita crash se um time foi apagado do banco de dados
+    const safeTeamAId = teamA?.id || matchDetails?.teamA;
+    const safeTeamBId = teamB?.id || matchDetails?.teamB;
+
     const allGoals = [
-      ...(goalsA || []).map(g => ({ teamId: teamA.id, player: g.player, assist: g.assist || '', minute: g.minute })),
-      ...(goalsB || []).map(g => ({ teamId: teamB.id, player: g.player, assist: g.assist || '', minute: g.minute }))
+      ...(goalsA || []).map(g => ({ teamId: safeTeamAId, player: g.player, assist: g.assist || '', minute: g.minute })),
+      ...(goalsB || []).map(g => ({ teamId: safeTeamBId, player: g.player, assist: g.assist || '', minute: g.minute }))
     ];
 
     const finalObs = isDoubleWo 
-      ? `Sorteio de Duplo W.O. realizado na resenha! Vencedor: ${forcedDoubleWoWinner === 'A' ? teamA.name : teamB.name}\n${observacoes}`.trim() 
+      ? `Sorteio de Duplo W.O. realizado na resenha! Vencedor: ${forcedDoubleWoWinner === 'A' ? (teamA?.name || 'Equipe A') : (teamB?.name || 'Equipe B')}\n${observacoes}`.trim() 
       : (woA || woB ? `Vitória por W.O.\n${observacoes}`.trim() : observacoes.trim());
 
     onSubmit({
       id: `m_${Date.now()}`, 
       compId: selectedCompId, 
-      roundId: matchDetails.roundId, 
+      roundId: matchDetails?.roundId || '', 
       matchId: selectedMatchId, 
-      teamA: teamA.id, 
-      teamB: teamB.id, 
-      scoreA: parseInt(finalScoreA), 
-      scoreB: parseInt(finalScoreB),
+      teamA: safeTeamAId, 
+      teamB: safeTeamBId, 
+      scoreA: parseInt(finalScoreA) || 0, // 🛡️ Evita falha de NaN se o usuário digitou letras
+      scoreB: parseInt(finalScoreB) || 0,
       penaltiesA: (isCup && finalScoreA === finalScoreB && penaltiesA !== '') ? parseInt(penaltiesA) : null,
       penaltiesB: (isCup && finalScoreA === finalScoreB && penaltiesB !== '') ? parseInt(penaltiesB) : null,
       goals: (woA || woB || isDoubleWo) ? [] : allGoals,
@@ -3945,14 +3947,14 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
              <div className={`absolute transition-all duration-100 ${drawState.flicker === 'A' ? 'scale-110 opacity-100 z-10' : 'scale-90 opacity-20 blur-sm z-0'}`}>
                 <div className="flex flex-col items-center">
                   <ShieldDisplay shield={teamA?.shield} size="large" />
-                  <span className="mt-6 text-2xl font-black text-white bg-black/50 px-4 py-2 rounded-xl text-center shadow-lg border border-white/10 uppercase tracking-wider">{teamA?.name}</span>
+                  <span className="mt-6 text-2xl font-black text-white bg-black/50 px-4 py-2 rounded-xl text-center shadow-lg border border-white/10 uppercase tracking-wider">{teamA?.name || 'Equipe A'}</span>
                 </div>
              </div>
 
              <div className={`absolute transition-all duration-100 ${drawState.flicker === 'B' ? 'scale-110 opacity-100 z-10' : 'scale-90 opacity-20 blur-sm z-0'}`}>
                 <div className="flex flex-col items-center">
                   <ShieldDisplay shield={teamB?.shield} size="large" />
-                  <span className="mt-6 text-2xl font-black text-white bg-black/50 px-4 py-2 rounded-xl text-center shadow-lg border border-white/10 uppercase tracking-wider">{teamB?.name}</span>
+                  <span className="mt-6 text-2xl font-black text-white bg-black/50 px-4 py-2 rounded-xl text-center shadow-lg border border-white/10 uppercase tracking-wider">{teamB?.name || 'Equipe B'}</span>
                 </div>
              </div>
           </div>
@@ -4006,8 +4008,8 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
               <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
                 <option value="">Registrar qual jogo?</option>
                 {availableMatches.map(m => {
-                  const tA = (teams || []).find(t=>t.id===m.teamA)?.name;
-                  const tB = (teams || []).find(t=>t.id===m.teamB)?.name;
+                  const tA = (teams || []).find(t=>t.id===m.teamA)?.name || 'A Definir';
+                  const tB = (teams || []).find(t=>t.id===m.teamB)?.name || 'A Definir';
                   return <option key={m.id} value={m.id}>Rodada {String(m.roundId || '').replace('r','')} - {tA} x {tB}</option>
                 })}
               </select>
@@ -4084,7 +4086,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             <div className="flex flex-col md:flex-row gap-6 items-start bg-blue-950 p-4 rounded-xl border border-blue-800">
               <div className="flex-1 w-full space-y-3">
                 <div className="flex justify-between items-center mb-2">
-                  <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2"><ShieldDisplay shield={teamA?.shield} size="small" /> {teamA?.name}</div>
+                  <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2"><ShieldDisplay shield={teamA?.shield} size="small" /> {teamA?.name || 'Equipe A'}</div>
                   <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20 hover:bg-red-500/20 transition-colors">
                     <input type="checkbox" checked={woA} onChange={(e) => {
                       const isWo = e.target.checked;
@@ -4135,7 +4137,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                       else { setScoreA(''); setScoreB(''); }
                     }} className="accent-red-500 w-3 h-3" /> DAR W.O.
                   </label>
-                  <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2">{teamB?.name} <ShieldDisplay shield={teamB?.shield} size="small" /></div>
+                  <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2">{teamB?.name || 'Equipe B'} <ShieldDisplay shield={teamB?.shield} size="small" /></div>
                 </div>
                 <input type="text" inputMode="numeric" pattern="[0-9]*" value={scoreB} onChange={e=>setScoreB(e.target.value)} disabled={woA || woB} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none disabled:opacity-50" required />
                 
