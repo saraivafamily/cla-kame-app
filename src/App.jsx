@@ -3682,18 +3682,18 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             if (!response.ok) {
                const errData = await response.json().catch(() => null);
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
-               if (response.status === 403 || response.status === 400) {
-                 // 🛡️ BLINDADO
+               // Adicionamos o 404 aqui para te avisar se a API estiver desativada no Google!
+               if (response.status === 403 || response.status === 400 || response.status === 404) {
                  try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
                  setUserApiKey(''); setShowKeyInput(true);
-                 throw new Error("Sua Chave da IA é inválida. Verifique se copiou tudo corretamente.");
+                 throw new Error("Sua Chave da IA é inválida ou a API 'Generative Language' não está ativada no Google Cloud.");
                }
                throw new Error(`Erro Google: ${errorMsg}`);
             }
             resultJson = await response.json();
           } catch (error) {
             lastError = error;
-            if (error.message.includes("inválida")) throw error;
+            if (error.message.includes("inválida") || error.message.includes("Generative Language")) throw error;
           }
         }
 
@@ -3724,16 +3724,22 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         }
 
         if (showToast) showToast("Dados extraídos do Print pela IA!", "success");
+        
+        // CORREÇÃO: A tela verde só aparece SE der tudo certo!
+        setImageUploaded(true); 
 
       } catch (error) {
         console.error("Erro IA:", error);
-        if (showToast) { showToast(`Falha: ${error.message.substring(0, 70)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
+        if (showToast) { showToast(`Falha: ${error.message.substring(0, 80)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
+        
+        // CORREÇÃO: Limpa a imagem se a IA falhar para destravar o botão "Preencher Manualmente"
+        setMatchImageBase64(null); 
       } finally {
-        setIsAnalyzing(false); setImageUploaded(true);
+        setIsAnalyzing(false); 
       }
     });
   };
-
+  
   const handleImageUpload = (e) => {
     runAIOnFile(e.target.files[0]);
   };
