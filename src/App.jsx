@@ -3502,7 +3502,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     active: false, phase: 'idle', winner: null, flicker: 'A' 
   });
 
-  // 🛡️ BLINDADO: Tenta ler a chave, se a aba anônima bloquear, retorna vazio
   const [userApiKey, setUserApiKey] = useState(() => {
     try { return localStorage.getItem('gemini_api_key') || ''; }
     catch(e) { return ''; }
@@ -3574,7 +3573,6 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
     } else {
       setTeamA(null); setTeamB(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMatchId]);
 
   useEffect(() => {
@@ -3616,11 +3614,10 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
   const handleSaveApiKey = () => {
     if (tempKey.trim() !== '') {
-      // 🛡️ BLINDADO
       try { localStorage.setItem('gemini_api_key', tempKey.trim()); } catch(e) {}
       setUserApiKey(tempKey.trim());
       setShowKeyInput(false);
-      showToast("Chave da IA ativada com sucesso no seu navegador!", "success");
+      showToast("Chave da IA ativada com sucesso!", "success");
     }
   };
 
@@ -3668,8 +3665,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         const safeKey = encodeURIComponent(userApiKey.trim());
         const endpoints = [
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${safeKey}`
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`
         ];
 
         let resultJson;
@@ -3682,18 +3678,17 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             if (!response.ok) {
                const errData = await response.json().catch(() => null);
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
-               // Adicionamos o 404 aqui para te avisar se a API estiver desativada no Google!
                if (response.status === 403 || response.status === 400 || response.status === 404) {
                  try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
                  setUserApiKey(''); setShowKeyInput(true);
-                 throw new Error("Sua Chave da IA é inválida ou a API 'Generative Language' não está ativada no Google Cloud.");
+                 throw new Error("Chave Inválida ou a API 'Generative Language' não está ativada no Google Cloud.");
                }
                throw new Error(`Erro Google: ${errorMsg}`);
             }
             resultJson = await response.json();
           } catch (error) {
             lastError = error;
-            if (error.message.includes("inválida") || error.message.includes("Generative Language")) throw error;
+            if (error.message.includes("Inválida") || error.message.includes("Generative")) throw error;
           }
         }
 
@@ -3724,22 +3719,18 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         }
 
         if (showToast) showToast("Dados extraídos do Print pela IA!", "success");
-        
-        // CORREÇÃO: A tela verde só aparece SE der tudo certo!
-        setImageUploaded(true); 
+        setImageUploaded(true); // O verde do sucesso só aparece aqui agora
 
       } catch (error) {
         console.error("Erro IA:", error);
-        if (showToast) { showToast(`Falha: ${error.message.substring(0, 80)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
-        
-        // CORREÇÃO: Limpa a imagem se a IA falhar para destravar o botão "Preencher Manualmente"
-        setMatchImageBase64(null); 
+        if (showToast) { showToast(`Falha: ${error.message.substring(0, 70)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
+        setMatchImageBase64(null); // Limpa a imagem para o botão Manual reaparecer
       } finally {
         setIsAnalyzing(false); 
       }
     });
   };
-  
+
   const handleImageUpload = (e) => {
     runAIOnFile(e.target.files[0]);
   };
@@ -3804,14 +3795,21 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
   const handleSubmitInit = (e) => {
     e.preventDefault(); 
-    if(!selectedCompId || !selectedMatchId || scoreA === '' || scoreB === '') return;
-
-    if (scoreA === '?' || scoreB === '?' || scoreA === '' || scoreB === '') {
-      if (!woA && !woB) return; 
+    
+    if(!selectedCompId || !selectedMatchId) {
+       showToast("Selecione o campeonato e a partida primeiro.", "error");
+       return;
+    }
+    
+    if (scoreA === '' || scoreB === '') {
+      if (!woA && !woB) {
+         showToast("Preencha o placar das duas equipes antes de enviar.", "error");
+         return; 
+      }
     }
 
     if (isCup && scoreA === scoreB && (penaltiesA === '' || penaltiesB === '') && !woA && !woB) {
-      if(showToast) showToast("Em jogos de eliminação, não pode haver empate. Preencha os Pênaltis!", "error");
+      if(showToast) showToast("⚠️ Em Mata-Mata não pode haver empate! Preencha os Pênaltis para enviar.", "error");
       return;
     }
 
@@ -3840,22 +3838,26 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
     const matchDetails = availableMatches.find(m => m.id === selectedMatchId);
     
+    // Blindagem para não dar erro se teamA ou teamB estiverem vazios
+    const safeTeamAId = teamA?.id || '';
+    const safeTeamBId = teamB?.id || '';
+
     const allGoals = [
-      ...(goalsA || []).map(g => ({ teamId: teamA.id, player: g.player, assist: g.assist || '', minute: g.minute })),
-      ...(goalsB || []).map(g => ({ teamId: teamB.id, player: g.player, assist: g.assist || '', minute: g.minute }))
+      ...(goalsA || []).map(g => ({ teamId: safeTeamAId, player: g.player, assist: g.assist || '', minute: g.minute })),
+      ...(goalsB || []).map(g => ({ teamId: safeTeamBId, player: g.player, assist: g.assist || '', minute: g.minute }))
     ];
 
     const finalObs = isDoubleWo 
-      ? `Sorteio de Duplo W.O. realizado na resenha! Vencedor: ${forcedDoubleWoWinner === 'A' ? teamA.name : teamB.name}\n${observacoes}`.trim() 
+      ? `Sorteio de Duplo W.O.! Vencedor: ${forcedDoubleWoWinner === 'A' ? teamA?.name : teamB?.name}\n${observacoes}`.trim() 
       : (woA || woB ? `Vitória por W.O.\n${observacoes}`.trim() : observacoes.trim());
 
     onSubmit({
       id: `m_${Date.now()}`, 
       compId: selectedCompId, 
-      roundId: matchDetails.roundId, 
+      roundId: matchDetails?.roundId || '', 
       matchId: selectedMatchId, 
-      teamA: teamA.id, 
-      teamB: teamB.id, 
+      teamA: safeTeamAId, 
+      teamB: safeTeamBId, 
       scoreA: parseInt(finalScoreA), 
       scoreB: parseInt(finalScoreB),
       penaltiesA: (isCup && finalScoreA === finalScoreB && penaltiesA !== '') ? parseInt(penaltiesA) : null,
