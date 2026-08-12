@@ -2736,7 +2736,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
               </div>
             )}
             
-            {subTab === 'submit' && isAdmin && (<div className="animate-in slide-in-from-right-4"><SubmitMatch teams={teams} competitions={[comp]} matches={matches} currentUser={currentUser} showToast={showToast} preSelectedCompId={comp.id} onSubmit={(m) => { onSubmitMatch(m); setSubTab('validation'); }} /></div>)}
+            {subTab === 'submit' && isAdmin && (<div className="animate-in slide-in-from-right-4"><SubmitMatch teams={teams} competitions={[comp]} matches={matches} currentUser={currentUser} showToast={showToast} preSelectedCompId={comp.id} onSubmit={async (m) => { await onSubmitMatch(m); setSubTab('validation'); }} /></div>)}
             {subTab === 'validation' && isAdmin && (<div className="animate-in slide-in-from-right-4"><ValidationPanel matches={matches.filter(m => m.compId === comp.id)} teams={teams} competitions={[comp]} onUpdateStatus={onUpdateMatchStatus} showToast={showToast} currentUser={currentUser} /></div>)}
             {subTab === 'draw' && isAdmin && (<div className="animate-in slide-in-from-right-4"><DrawPanel comp={comp} teams={teams} matches={matches} showToast={showToast} /></div>)}
           </div>
