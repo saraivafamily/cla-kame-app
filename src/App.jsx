@@ -6743,6 +6743,11 @@ export default function App() {
     showToast("Time inserido com sucesso!", "success");
     setCurrentTab('teams_list');
   };
+
+  const handleApproveUser = async (userId) => {
+    await updateDoc(getPublicDocPath('users', userId), { status: 'active' });
+    showToast("Técnico aprovado com sucesso!", "success");
+  };
   
   const handleExpelUser = async (userId) => {
     await deleteDoc(getPublicDocPath('users', userId));
