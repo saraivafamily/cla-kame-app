@@ -6736,6 +6736,7 @@ export default function App() {
     ...(hasEventAccess ? [
       { id: 'gestao_cla', label: 'Gestão Clã', icon: Award }
     ] : []),
+    ];
 
   const handleUpdateMatchStatus = async (id, st, updatedData = null) => {
     const updatePayload = { status: st };
