@@ -3492,6 +3492,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [matchImageBase64, setMatchImageBase64] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [imageUploaded, setImageUploaded] = useState(false);
+  const [isSubmittingMatch, setIsSubmittingMatch] = useState(false);
   
   const [isManualMode, setIsManualMode] = useState(false);
   
@@ -3719,12 +3720,12 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         }
 
         if (showToast) showToast("Dados extraídos do Print pela IA!", "success");
-        setImageUploaded(true); // O verde do sucesso só aparece aqui agora
+        setImageUploaded(true); // O sucesso só aparece se chegar até aqui!
 
       } catch (error) {
         console.error("Erro IA:", error);
-        if (showToast) { showToast(`Falha: ${error.message.substring(0, 70)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
-        setMatchImageBase64(null); // Limpa a imagem para o botão Manual reaparecer
+        if (showToast) { showToast(`Falha: ${error.message.substring(0, 80)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
+        setMatchImageBase64(null); // Limpa a imagem quebrada para você poder clicar no manual
       } finally {
         setIsAnalyzing(false); 
       }
@@ -3793,7 +3794,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     else { const updated = [...goalsB]; updated[index][field] = value; setGoalsB(updated); }
   };
 
-  const handleSubmitInit = (e) => {
+  const handleSubmitInit = async (e) => {
     e.preventDefault(); 
     
     if(!selectedCompId || !selectedMatchId) {
@@ -3819,10 +3820,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
       return;
     }
 
-    processSubmission(null);
+    await processSubmission(null);
   };
 
-  const processSubmission = (forcedDoubleWoWinner = null) => {
+  const processSubmission = async (forcedDoubleWoWinner = null) => {
+    setIsSubmittingMatch(true);
     let finalScoreA = scoreA;
     let finalScoreB = scoreB;
     let isDoubleWo = forcedDoubleWoWinner !== null;
@@ -3838,7 +3840,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
     const matchDetails = availableMatches.find(m => m.id === selectedMatchId);
     
-    // Blindagem para não dar erro se teamA ou teamB estiverem vazios
     const safeTeamAId = teamA?.id || '';
     const safeTeamBId = teamB?.id || '';
 
@@ -3851,7 +3852,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
       ? `Sorteio de Duplo W.O.! Vencedor: ${forcedDoubleWoWinner === 'A' ? teamA?.name : teamB?.name}\n${observacoes}`.trim() 
       : (woA || woB ? `Vitória por W.O.\n${observacoes}`.trim() : observacoes.trim());
 
-    onSubmit({
+    await onSubmit({
       id: `m_${Date.now()}`, 
       compId: selectedCompId, 
       roundId: matchDetails?.roundId || '', 
@@ -3869,6 +3870,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
       imageUrl: matchImageBase64
     });
     
+    setIsSubmittingMatch(false);
     setSelectedCompId('');
   };
 
@@ -4110,8 +4112,8 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
               <textarea placeholder="Ocorreu alguma queda de conexão? Relate aqui..." value={observacoes} onChange={e=>setObservacoes(e.target.value)} className="w-full bg-blue-950 border border-blue-700 focus:border-emerald-500 rounded-lg p-3 text-blue-300 text-sm h-24 outline-none resize-none transition-colors" />
             </div>
 
-            <Button type="submit" className="w-full py-4 text-lg">
-               {woA && woB ? '🎲 Iniciar Sorteio de W.O' : 'Enviar Partida para Líderes'}
+            <Button type="submit" disabled={isSubmittingMatch} className="w-full py-4 text-lg">
+               {isSubmittingMatch ? '⏳ Enviando...' : (woA && woB ? '🎲 Iniciar Sorteio de W.O' : 'Enviar Partida para Líderes')}
             </Button>
           </form>
         )}
@@ -6968,7 +6970,7 @@ export default function App() {
           await setDoc(getPublicDocPath('predictions', p.id), p); 
       }} />;
         
-     case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} competitions={competitions} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); })} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} onBatchUpdateComp={async (updatedComp, newMatchesArray) => { await updateDoc(getPublicDocPath('competitions', updatedComp.id), updatedComp); const promises = newMatchesArray.map(m => setDoc(getPublicDocPath('matches', m.id), m)); await Promise.all(promises); showToast("Fase encerrada e chaves atualizadas!", "success"); }} />;
+     case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} competitions={competitions} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={async (m) => { try { await setDoc(getPublicDocPath('matches', m.id), m); showToast("Resultado enviado!"); } catch(e) { showToast("Erro ao salvar no banco: " + e.message, "error"); } }} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} onBatchUpdateComp={async (updatedComp, newMatchesArray) => { await updateDoc(getPublicDocPath('competitions', updatedComp.id), updatedComp); const promises = newMatchesArray.map(m => setDoc(getPublicDocPath('matches', m.id), m)); await Promise.all(promises); showToast("Fase encerrada e chaves atualizadas!", "success"); }} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'store': return <KameStore currentUser={currentUser} storeProducts={storeProducts} showToast={showToast} />;
       
