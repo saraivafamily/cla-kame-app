@@ -271,11 +271,13 @@ const generateCupBracket = (teamIds, compId, isFinalDouble = false) => {
   return rounds;
 };
 
-const LoginScreen = ({ onLogin, onRegister, onGoogleLogin }) => {
-  const [view, setView] = useState('login'); // 'login', 'register', 'reset'
+const LoginScreen = ({ onLogin, onRegister, onGoogleLogin, onCompleteGoogleRegister }) => {
+  const [view, setView] = useState('login'); 
   const [loginData, setLoginData] = useState({ identifier: '', password: '' });
-  const [regData, setRegData] = useState({ firstName: '', lastName: '', teamName: '', email: '', whatsapp: '', password: '' });
+  const [regData, setRegData] = useState({ firstName: '', lastName: '', teamName: '', email: '', whatsapp: '', password: '', shield: null });
   const [resetEmail, setResetEmail] = useState('');
+  
+  const [googlePendingUser, setGooglePendingUser] = useState(null);
   
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -290,10 +292,11 @@ const LoginScreen = ({ onLogin, onRegister, onGoogleLogin }) => {
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault(); setError(''); setMsg(''); setIsProcessing(true);
+    if (!regData.shield) { setError("A foto do escudo do time é obrigatória!"); setIsProcessing(false); return; }
     try { 
       await onRegister(regData); 
       setView('login');
-      setRegData({ firstName: '', lastName: '', teamName: '', email: '', whatsapp: '', password: '' });
+      setRegData({ firstName: '', lastName: '', teamName: '', email: '', whatsapp: '', password: '', shield: null });
       setMsg("Cadastro enviado! Aguarde aprovação.");
     } 
     catch (err) { setError("Erro ao cadastrar. O e-mail pode já estar em uso."); }
@@ -317,9 +320,41 @@ const LoginScreen = ({ onLogin, onRegister, onGoogleLogin }) => {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      await onGoogleLogin(result.user);
+      const response = await onGoogleLogin(result.user);
+      
+      // Se for a primeira vez do usuário, redireciona para completar os dados!
+      if (response && response.isNew) {
+        const nameParts = (result.user.displayName || '').split(' ');
+        setRegData({
+          firstName: nameParts[0] || '',
+          lastName: nameParts.slice(1).join(' ') || '',
+          email: result.user.email || '',
+          teamName: '',
+          whatsapp: '',
+          password: '', 
+          shield: null
+        });
+        setGooglePendingUser(result.user);
+        setView('google_register');
+        setMsg("Quase lá! Conclua a criação do seu clube para entrar na Arena.");
+      }
     } catch (err) {
-      setError("O login com o Google foi cancelado ou falhou.");
+      setError(err.message || "O login com o Google foi cancelado ou falhou.");
+    }
+    setIsProcessing(false);
+  };
+
+  const handleGoogleRegisterSubmit = async (e) => {
+    e.preventDefault(); setError(''); setMsg(''); setIsProcessing(true);
+    if (!regData.shield) { setError("A foto do escudo do time é obrigatória!"); setIsProcessing(false); return; }
+    try {
+      await onCompleteGoogleRegister(googlePendingUser.uid, regData, googlePendingUser.photoURL);
+      setView('login');
+      setGooglePendingUser(null);
+      setRegData({ firstName: '', lastName: '', teamName: '', email: '', whatsapp: '', password: '', shield: null });
+      setMsg("Cadastro concluído com sucesso! Aguarde a aprovação dos líderes.");
+    } catch (err) {
+      setError("Erro ao finalizar cadastro pelo Google.");
     }
     setIsProcessing(false);
   };
@@ -371,9 +406,7 @@ const LoginScreen = ({ onLogin, onRegister, onGoogleLogin }) => {
           <form onSubmit={handlePasswordReset} className="space-y-4 animate-in fade-in duration-300">
             <h2 className="text-lg font-bold text-white text-center mb-1">Recuperar Senha</h2>
             <p className="text-xs text-blue-400 text-center mb-4 leading-relaxed">Digite o e-mail da sua conta. Nós enviaremos um link seguro para você redefinir sua senha.</p>
-            
             <div><input required type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} className={inputClass} placeholder="Seu e-mail cadastrado..." /></div>
-            
             <Button type="submit" disabled={isProcessing} className="w-full py-3 bg-amber-600 hover:bg-amber-500 shadow-amber-900/50">{isProcessing ? 'Enviando...' : 'Enviar Link de Recuperação'}</Button>
             <button type="button" onClick={() => {setView('login'); setError(''); setMsg('');}} className="w-full text-xs text-blue-500 hover:text-white pt-2 pb-2 mt-2">Voltar para o Login</button>
           </form>
@@ -393,8 +426,60 @@ const LoginScreen = ({ onLogin, onRegister, onGoogleLogin }) => {
             <div><input required type="tel" placeholder="WhatsApp (com DDD)" value={regData.whatsapp} onChange={e=>setRegData({...regData, whatsapp: e.target.value})} className={inputClass} /></div>
             <div><input required type="password" placeholder="Crie uma Senha (mín 6 dígitos)" value={regData.password} onChange={e=>setRegData({...regData, password: e.target.value})} className={inputClass} minLength={6} /></div>
             
+            <div className="bg-blue-950 p-3 rounded-xl border border-blue-800">
+              <label className="text-[10px] text-blue-400 font-bold uppercase block mb-2">Escudo do Time (Obrigatório)</label>
+              <label className={`block border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors ${regData.shield ? 'border-emerald-500 bg-emerald-500/10' : 'border-blue-700 hover:border-blue-500 bg-blue-900/50'}`}>
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], (base64) => setRegData({...regData, shield: base64}))} />
+                {regData.shield ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <img src={regData.shield} className="w-8 h-8 object-contain" alt="Escudo" />
+                    <span className="text-emerald-400 font-bold text-xs"><CheckCircle size={14} className="inline"/> Anexado</span>
+                  </div>
+                ) : (
+                  <span className="text-blue-300 font-bold flex items-center justify-center gap-2 text-xs"><UploadCloud size={16}/> Escolher Imagem</span>
+                )}
+              </label>
+            </div>
+            
             <Button type="submit" disabled={isProcessing} className="w-full py-3 mt-2">{isProcessing ? 'Enviando...' : 'Solicitar Entrada no Clã'}</Button>
             <button type="button" onClick={() => {setView('login'); setError(''); setMsg('');}} className="w-full text-xs text-blue-500 hover:text-white mt-2 pb-2">Voltar para o Login</button>
+          </form>
+        )}
+
+        {/* 🌟 NOVA ABA EXCLUSIVA DO GOOGLE */}
+        {view === 'google_register' && (
+          <form onSubmit={handleGoogleRegisterSubmit} className="space-y-3 animate-in slide-in-from-right-4 duration-300">
+            <div className="text-center mb-4">
+               <h2 className="text-lg font-bold text-white mb-1">Bem-vindo(a)!</h2>
+               <p className="text-[10px] text-emerald-400 font-bold uppercase">Complete a criação do seu Clube</p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-[10px] text-blue-400 uppercase font-bold pl-1">Nome</label><input required value={regData.firstName} onChange={e=>setRegData({...regData, firstName: e.target.value})} className={inputClass} /></div>
+              <div><label className="text-[10px] text-blue-400 uppercase font-bold pl-1">Sobrenome</label><input required value={regData.lastName} onChange={e=>setRegData({...regData, lastName: e.target.value})} className={inputClass} /></div>
+            </div>
+            
+            <div><label className="text-[10px] text-blue-400 uppercase font-bold pl-1">Nome do seu Clube (Time)</label><input required placeholder="Ex: Fúria FC" value={regData.teamName} onChange={e=>setRegData({...regData, teamName: e.target.value})} className={inputClass} /></div>
+            <div><label className="text-[10px] text-blue-400 uppercase font-bold pl-1">E-mail (Vinculado ao Google)</label><input required type="email" value={regData.email} disabled className={`${inputClass} opacity-60 cursor-not-allowed`} /></div>
+            <div><label className="text-[10px] text-blue-400 uppercase font-bold pl-1">WhatsApp (com DDD)</label><input required type="tel" placeholder="Ex: 91988887777" value={regData.whatsapp} onChange={e=>setRegData({...regData, whatsapp: e.target.value})} className={inputClass} /></div>
+            
+            <div className="bg-blue-950 p-3 rounded-xl border border-blue-800 mt-2">
+              <label className="text-[10px] text-emerald-400 font-bold uppercase block mb-2">Escudo do Time (Obrigatório)</label>
+              <label className={`block border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors ${regData.shield ? 'border-emerald-500 bg-emerald-500/10' : 'border-emerald-700/50 hover:border-emerald-500 bg-emerald-900/10'}`}>
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => processImage(e.target.files[0], (base64) => setRegData({...regData, shield: base64}))} />
+                {regData.shield ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <img src={regData.shield} className="w-8 h-8 object-contain" alt="Escudo" />
+                    <span className="text-emerald-400 font-bold text-xs"><CheckCircle size={14} className="inline"/> Anexado</span>
+                  </div>
+                ) : (
+                  <span className="text-emerald-400 font-bold flex items-center justify-center gap-2 text-xs"><UploadCloud size={16}/> Escolher Imagem da Galeria</span>
+                )}
+              </label>
+            </div>
+            
+            <Button type="submit" disabled={isProcessing} className="w-full py-4 mt-4 font-black uppercase tracking-wider text-sm shadow-xl">{isProcessing ? 'Criando Clube...' : 'Finalizar e Entrar na Arena'}</Button>
+            <button type="button" onClick={() => {setView('login'); setGooglePendingUser(null); setError(''); setMsg('');}} className="w-full text-xs text-blue-500 hover:text-white mt-2 pb-2">Cancelar e Voltar</button>
           </form>
         )}
       </div>
@@ -6569,13 +6654,79 @@ export default function App() {
     const uid = userCredential.user.uid;
     
     const newUser = { id: uid, name: fullName, email: email, whatsapp: cleanPhone, role: 'member', status: 'pending', kameCoins: 100, receivedProfileBonus: false };
-    const newTeam = { id: `t_${uid}`, name: data.teamName, coach: fullName, whatsapp: cleanPhone, ownerId: uid, shield: '🛡️' };
+    // 🛡️ Agora ele salva o escudo obrigatoriamente
+    const newTeam = { id: `t_${uid}`, name: data.teamName, coach: fullName, whatsapp: cleanPhone, ownerId: uid, shield: data.shield };
     
     await setDoc(getPublicDocPath('users', uid), newUser);
     await setDoc(getPublicDocPath('teams', newTeam.id), newTeam);
     
     await signOut(auth);
-    showToast("Cadastro realizado! Aguarde a aprovação.", "success");
+  };
+
+  const handleGoogleLogin = async (googleUser) => {
+    const email = googleUser.email.toLowerCase();
+    const uid = googleUser.uid;
+    
+    const userRef = getPublicDocPath('users', uid);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists()) {
+      const existingUser = userSnap.data();
+      if (existingUser.status === 'pending') {
+         await signOut(auth);
+         throw new Error("Sua conta ainda está aguardando aprovação dos líderes.");
+      }
+      setCurrentUser(existingUser);
+      setCurrentTab('dashboard');
+      return { isNew: false };
+    } else {
+      const existingByEmail = users.find(u => u.email && u.email.toLowerCase() === email);
+      
+      if (existingByEmail) {
+        if (existingByEmail.status === 'pending') {
+           await signOut(auth);
+           throw new Error("Sua conta ainda está aguardando aprovação dos líderes.");
+        }
+        setCurrentUser(existingByEmail);
+        setCurrentTab('dashboard');
+        return { isNew: false };
+      }
+
+      // Se não existe, envia o sinal "isNew: true" para a tela de login abrir a aba de completar dados
+      return { isNew: true };
+    }
+  };
+
+  // 🌟 NOVA FUNÇÃO: Finaliza o cadastro de quem veio pelo Google
+  const handleCompleteGoogleRegister = async (uid, data, photoURL) => {
+    const cleanPhone = data.whatsapp.replace(/\D/g, '');
+    const fullName = `${data.firstName} ${data.lastName}`.trim();
+    
+    const newUser = { 
+      id: uid, 
+      name: fullName, 
+      email: data.email.toLowerCase(), 
+      whatsapp: cleanPhone, 
+      role: 'member', 
+      status: 'pending', 
+      kameCoins: 100, 
+      receivedProfileBonus: true,
+      photoURL: photoURL || null
+    };
+    
+    const newTeam = { 
+      id: `t_${uid}`, 
+      name: data.teamName, 
+      coach: fullName, 
+      whatsapp: cleanPhone, 
+      ownerId: uid, 
+      shield: data.shield 
+    };
+    
+    await setDoc(getPublicDocPath('users', uid), newUser);
+    await setDoc(getPublicDocPath('teams', newTeam.id), newTeam);
+    
+    await signOut(auth); 
   };
 
   const handleLogin = async (identifier, password) => {
@@ -6663,8 +6814,7 @@ export default function App() {
   useEffect(() => { const unsub = onAuthStateChanged(auth, (fbUser) => { if (fbUser && users.length > 0) { const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); if (found) setCurrentUser(found); } }); return () => unsub(); }, [users]);
 
   if (isFirebaseLoading) return (<div className="min-h-screen bg-blue-950 text-amber-400 flex items-center justify-center font-sans font-bold text-sm shadow-xl animate-pulse">🛡️ Carregando Arena Kame...</div>);
-  if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} onGoogleLogin={handleGoogleLogin} />;
-
+  if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} onGoogleLogin={handleGoogleLogin} onCompleteGoogleRegister={handleCompleteGoogleRegister} />;
   if (currentUser.status === 'pending') {
     return (
       <div className="min-h-screen bg-blue-950 flex flex-col items-center justify-center p-4">
