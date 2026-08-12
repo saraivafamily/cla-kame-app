@@ -4222,79 +4222,7 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
   );
 };
 
-const CreateTeamManual = ({ onCreate, showToast }) => {
-  const [name, setName] = useState(''); 
-  const [coach, setCoach] = useState(''); 
-  const [shield, setShield] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault(); 
-    if (!name) return; 
-    
-    setIsProcessing(true);
-    try {
-      await onCreate({
-        id: `t_${Date.now()}`,
-        name: name,
-        coach: coach || 'Sem Técnico',
-        whatsapp: '',
-        ownerId: 'manual',
-        shield: shield || '🛡️'
-      });
-      // O reset agora é seguro caso a tela não mude por algum motivo
-      setName(''); 
-      setCoach(''); 
-      setShield(null);
-    } catch (err) {
-      console.error(err);
-      showToast("Falha ao criar o time. Tente novamente.", "error");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="max-w-xl mx-auto bg-blue-900 border border-blue-800 p-6 md:p-8 rounded-3xl space-y-5 animate-in fade-in shadow-2xl">
-      <h2 className="text-xl font-black text-white flex items-center gap-2 uppercase tracking-wider mb-2">
-        <UserPlus className="text-emerald-500" size={24}/> Novo Time Simples
-      </h2>
-      
-      <div>
-        <label className="text-[10px] text-blue-400 font-bold uppercase tracking-widest block mb-1.5 pl-1">Nome do Clube</label>
-        <input required value={name} onChange={e=>setName(e.target.value)} className={inputClass} placeholder="Ex: Fúria FC"/>
-      </div>
-      
-      <div>
-        <label className="text-[10px] text-blue-400 font-bold uppercase tracking-widest block mb-1.5 pl-1">Nome do Técnico (Opcional)</label>
-        <input value={coach} onChange={e=>setCoach(e.target.value)} className={inputClass} placeholder="Ex: Gustavo"/>
-      </div>
-      
-      <div className="bg-blue-950 p-4 rounded-xl flex items-center justify-between border border-blue-800 mt-2">
-        <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">Escudo do Time:</span>
-        <label className="cursor-pointer bg-blue-800 px-4 py-2 rounded-lg text-xs font-bold text-white hover:bg-emerald-600 transition-colors shadow-md">
-          <UploadCloud size={14} className="inline mr-1"/> {shield ? 'Trocar Imagem' : 'Escolher Imagem'}
-          <input type="file" accept="image/*" className="hidden" onChange={e=>processImage(e.target.files[0], setShield)}/>
-        </label>
-      </div>
-      
-      {shield && (
-        <div className="text-center p-4 bg-blue-950/50 rounded-xl border border-emerald-500/30 animate-in zoom-in-95">
-          <ShieldDisplay shield={shield} size="large" />
-          <p className="text-[10px] text-emerald-400 font-bold mt-3 uppercase tracking-widest flex justify-center items-center gap-1">
-            <CheckCircle size={12}/> Escudo Carregado
-          </p>
-        </div>
-      )}
-      
-      <div className="pt-4 border-t border-blue-800 mt-2">
-        <Button type="submit" disabled={isProcessing} className="w-full py-4 text-sm font-black shadow-xl uppercase tracking-wider">
-          {isProcessing ? 'Gravando no Banco...' : 'Salvar Time no Clã'}
-        </Button>
-      </div>
-    </form>
-  );
-};
+case 'create_team_manual': return <CreateTeamManual onCreate={async (t) => { await setDoc(getPublicDocPath('teams', t.id), t); showToast("Time inserido com sucesso!", "success"); setCurrentTab('teams_list'); }} showToast={showToast} />;
 
 const CreateTeamFull = ({ onCreate, showToast }) => {
   const [fn, setFn] = useState(''); const [ln, setFnL] = useState(''); const [tn, setTn] = useState(''); const [wa, setWa] = useState(''); const [em, setEm] = useState(''); const [role, setRole] = useState('member');
@@ -6691,6 +6619,12 @@ export default function App() {
   };
 
   const handleCreateTeamAndUser = async ({ user, team }) => { await setDoc(getPublicDocPath('users', user.id), user); await setDoc(getPublicDocPath('teams', team.id), team); setCurrentTab('teams_list'); showToast("Treinador registrado!"); return true; };
+
+  const handleCreateManualTeam = async (newTeamData) => {
+    await setDoc(getPublicDocPath('teams', newTeamData.id), newTeamData);
+    showToast("Time inserido com sucesso!", "success");
+    setCurrentTab('teams_list');
+  };
   
   const handleExpelUser = async (userId) => {
     await deleteDoc(getPublicDocPath('users', userId));
@@ -7068,7 +7002,7 @@ export default function App() {
       case 'store': return <KameStore currentUser={currentUser} storeProducts={storeProducts} showToast={showToast} />;
       case 'create_comp': return <CreateCompetition matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
       case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
-      case 'create_team_manual': return <CreateTeamManual onCreate={async (t) => { await setDoc(getPublicDocPath('teams', t.id), t); showToast("Time inserido com sucesso!", "success"); setCurrentTab('teams_list'); }} showToast={showToast} />;   
+      case 'create_team_manual': return <CreateTeamManual onCreate={handleCreateManualTeam} showToast={showToast} />;   
       case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
       case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} posts={feedPosts} onTaskcompleted={handleTaskcompleted} />;
       case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} />;
