@@ -6521,6 +6521,52 @@ const KameStore = ({ currentUser, storeProducts = [], showToast }) => {
   );
 };
 
+const TeamManagement = ({ users, teams, currentUser, onExpelUser, onApproveUser, onEditUser, onUpdateUserRole, onCreateFull, onCreateManual, showToast }) => {
+  const [activeTab, setActiveTab] = useState('members'); // 'members', 'invite', 'manual'
+
+  // Conta quantos usuários estão aguardando aprovação
+  const pendingCount = users.filter(u => u.status === 'pending').length;
+
+  return (
+    <div className="space-y-6 animate-in fade-in pb-12 max-w-5xl mx-auto">
+      <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex items-center gap-4">
+        <div className="bg-blue-950 p-3 rounded-full border border-emerald-500/50 shadow-inner">
+          <Users size={32} className="text-emerald-400" />
+        </div>
+        <div>
+          <h2 className="text-2xl font-black text-white uppercase tracking-wider">Gestão de Times</h2>
+          <p className="text-sm text-blue-400 mt-1">Aprove novos membros, gerencie patentes ou crie novos clubes.</p>
+        </div>
+      </div>
+
+      <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar">
+        <button onClick={() => setActiveTab('members')} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'members' ? 'bg-emerald-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
+          👥 Controle de Elenco 
+          {pendingCount > 0 && <span className="bg-amber-500 text-blue-950 px-1.5 py-0.5 rounded-full text-[10px] ml-1 shadow-sm">{pendingCount}</span>}
+        </button>
+        <button onClick={() => setActiveTab('invite')} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'invite' ? 'bg-emerald-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
+          📩 Convidar Técnico
+        </button>
+        <button onClick={() => setActiveTab('manual')} className={`shrink-0 flex-1 py-2 px-3 text-xs md:text-sm rounded-lg font-bold transition-all ${activeTab === 'manual' ? 'bg-emerald-600 text-white shadow-md' : 'text-blue-500 hover:text-white'}`}>
+          🤖 Novo Time Simples
+        </button>
+      </div>
+
+      <div className="mt-4">
+        {activeTab === 'members' && (
+          <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={onExpelUser} onApproveUser={onApproveUser} onEditUser={onEditUser} onUpdateUserRole={onUpdateUserRole} showToast={showToast} />
+        )}
+        {activeTab === 'invite' && (
+          <CreateTeamFull onCreate={onCreateFull} showToast={showToast} />
+        )}
+        {activeTab === 'manual' && (
+          <CreateTeamManual onCreate={onCreateManual} showToast={showToast} />
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => { 
     try { 
@@ -6843,9 +6889,7 @@ export default function App() {
     ] : []),
 
     ...(isLeaderOrKaioh ? [
-      { id: 'members_list', label: 'Técnicos', icon: Award },
-      { id: 'create_team', label: 'Convidar Técnico', icon: Users },
-      { id: 'create_team_manual', label: 'Time Simples', icon: UserPlus } 
+      { id: 'team_management', label: 'Gestão de Times', icon: Users }
     ] : []),
   ];
 
@@ -7069,9 +7113,7 @@ export default function App() {
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'store': return <KameStore currentUser={currentUser} storeProducts={storeProducts} showToast={showToast} />;
       case 'create_comp': return <CreateCompetition matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onCreate={c => setDoc(getPublicDocPath('competitions', c.id), c).then(()=>setCurrentTab('competitions'))} showToast={showToast} />;
-      case 'create_team': return <CreateTeamFull onCreate={handleCreateTeamAndUser} showToast={showToast} />;
-      case 'create_team_manual': return <CreateTeamManual onCreate={handleCreateManualTeam} showToast={showToast} />;   
-      case 'members_list': return <MembersList users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} showToast={showToast} />;
+      case 'team_management': return <TeamManagement users={users} teams={teams} currentUser={currentUser} onExpelUser={handleExpelUser} onApproveUser={handleApproveUser} onEditUser={handleEditUser} onUpdateUserRole={(id,role)=>updateDoc(getPublicDocPath('users',id),{role})} onCreateFull={handleCreateTeamAndUser} onCreateManual={handleCreateManualTeam} showToast={showToast} />;
       case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} posts={feedPosts} onTaskcompleted={handleTaskcompleted} />;
       case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} />;
       case 'records': return <RecordsWall showToast={showToast} currentUser={currentUser} />;
