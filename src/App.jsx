@@ -1920,7 +1920,7 @@ const DrawPanel = ({ comp, teams, matches, showToast }) => {
   );
 };
 
-const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentUser, onReleaseRound, onLockRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch, onSubmitMatch, onUpdateMatchStatus, onBatchUpdateComp }) => {
+const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [], onBack, currentUser, onReleaseRound, onLockRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch, onSubmitMatch, onUpdateMatchStatus, onBatchUpdateComp }) => {
   const [subTab, setSubTab] = useState('overview'); 
   const [expandedRoundId, setExpandedRoundId] = useState(null);
   const [editMatchData, setEditMatchData] = useState(null);
@@ -2217,7 +2217,13 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
   const handleAddTeamToComp = () => { if(!newTeamToAdd) return; const newTeams = [...(comp.teams || []), newTeamToAdd]; const newPending = (comp.pendingTeams || []).filter(p => p.teamId !== newTeamToAdd); onEditComp({ ...comp, teams: newTeams, pendingTeams: newPending }); setNewTeamToAdd(''); setShowAddTeam(false); showToast("Time inserido manualmente com sucesso!", "success"); };
   const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}/api/share?id=${comp.id}`); showToast("Link de compartilhamento especial copiado!", "success"); };
   const handleApproveTeam = (req) => { const newPending = comp.pendingTeams.filter(p => p.teamId !== req.teamId); const newTeams = [...(comp.teams || []), req.teamId]; onEditComp({ ...comp, pendingTeams: newPending, teams: newTeams }); showToast("Time Aprovado!", "success"); };
-  const handleRejectTeam = (req) => { const newPending = comp.pendingTeams.filter(p => p.teamId !== req.teamId); onEditComp({ ...comp, pendingTeams: newPending }); showToast("Inscrição rejeitada.", "success"); };
+  const const handleRemoveConfirmedTeam = (teamId) => {
+    if (window.confirm("Deseja remover este time da lista de confirmados?")) {
+      const newTeams = (comp.teams || []).filter(id => id !== teamId);
+      onEditComp({ ...comp, teams: newTeams });
+      showToast("Time removido da competição.", "success");
+    }
+  };
   
   const handleGenerateBracket = () => { if (comp.teams.length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times!`, "error"); return; } let finalRounds = []; let groupsData = null; if (comp.format === 'groups') { const res = generateGroupsAndKnockout(comp.teams, comp.id, comp.numGroups, comp.qualifiersPerGroup, comp.isDoubleRound, comp.isFinalDouble); finalRounds = res.rounds; groupsData = res.groups; } else if (comp.format === 'cup') { finalRounds = generateCupBracket(comp.teams, comp.id, comp.isFinalDouble); } else { finalRounds = generateRoundRobin(comp.teams, comp.id, comp.isDoubleRound); } onEditComp({ ...comp, status: 'active', rounds: finalRounds, groups: groupsData || comp.groups || null }); showToast("Tabela gerada!", "success"); };
   
@@ -2399,7 +2405,18 @@ const CompetitionDetails = ({ comp, teams, matches, users = [], onBack, currentU
                 {(!comp.teams || comp.teams.length === 0) && <p className="text-xs text-blue-500 p-4 bg-blue-950 rounded-xl border border-blue-800 border-dashed text-center col-span-2">Nenhum time aprovado ainda.</p>}
                 {(comp.teams || []).map(tId => {
                   const t = getTeam(tId);
-                  return (<div key={tId} className="bg-blue-950 p-3 rounded-xl border border-emerald-500/20 flex items-center gap-2"><ShieldDisplay shield={t?.shield} size="small" /><span className="font-bold text-xs text-blue-100 truncate">{t?.name}</span></div>);
+                  return (<div key={tId} className="bg-blue-950 p-3 rounded-xl border border-emerald-500/20 flex items-center justify-between gap-2 group">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ShieldDisplay shield={t?.shield} size="small" />
+                        <span className="font-bold text-xs text-blue-100 truncate">{t?.name}</span>
+                      </div>
+                      {isAdmin && (
+                        <button onClick={() => handleRemoveConfirmedTeam(tId)} className="text-blue-500 hover:text-red-400 p-1 md:opacity-0 group-hover:opacity-100 transition-opacity" title="Remover Time">
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  );
                 })}
               </div>
             </div>
@@ -6932,7 +6949,7 @@ export default function App() {
 
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onDeleteTeam={async (id) => { await deleteDoc(getPublicDocPath('teams', id)); showToast("Time excluído com sucesso!", "success"); }} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
-      case 'ranking': return <GlobalRanking teams={teams} matches={matches} competitions={competitions} currentUser={currentUser} showToast={showToast} />;
+      case 'ranking': return <GlobalRanking teams={teams} matches={matches} competitions={competitions} currentUser={currentUser} showToast={showToast} />;Times Confirmados
       case 'predictions': return <PredictionsPanel competitions={competitions} matches={matches} teams={teams} users={users} currentUser={currentUser} predictions={predictions} showToast={showToast} onSavePrediction={async (p, oldAmount) => { 
           const currentCoins = Number(currentUser.kameCoins) || 0;
           const betCost = Number(p.amount) - Number(oldAmount);
@@ -6943,7 +6960,7 @@ export default function App() {
           await setDoc(getPublicDocPath('predictions', p.id), p); 
       }} />;
         
-     case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); })} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} onBatchUpdateComp={async (updatedComp, newMatchesArray) => { await updateDoc(getPublicDocPath('competitions', updatedComp.id), updatedComp); const promises = newMatchesArray.map(m => setDoc(getPublicDocPath('matches', m.id), m)); await Promise.all(promises); showToast("Fase encerrada e chaves atualizadas!", "success"); }} />;
+     case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} competitions={competitions} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={m => setDoc(getPublicDocPath('matches', m.id), m).then(() => { showToast("Resultado enviado!"); })} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} onBatchUpdateComp={async (updatedComp, newMatchesArray) => { await updateDoc(getPublicDocPath('competitions', updatedComp.id), updatedComp); const promises = newMatchesArray.map(m => setDoc(getPublicDocPath('matches', m.id), m)); await Promise.all(promises); showToast("Fase encerrada e chaves atualizadas!", "success"); }} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'store': return <KameStore currentUser={currentUser} storeProducts={storeProducts} showToast={showToast} />;
       
