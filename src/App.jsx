@@ -4307,8 +4307,10 @@ const CreateTeamFull = ({ onCreate, showToast }) => {
 };
 
 const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, onExpelUser, onApproveUser, onEditUser, showToast }) => {
-  const pendingUsers = users.filter(u => u.status === 'pending');
-  const activeUsers = users.filter(u => u.status !== 'pending');
+  // 🛡️ BLINDAGEM: Filtra qualquer usuário nulo ou fantasma antes de ler o status
+  const validUsers = (users || []).filter(u => u && u.id);
+  const pendingUsers = validUsers.filter(u => u.status === 'pending');
+  const activeUsers = validUsers.filter(u => u.status !== 'pending');
   
   // Verificação de segurança com acesso irrestrito para o e-mail Master
   const isSuperAdmin = currentUser?.email === 'saviosaraiva777@gmail.com';
@@ -4319,8 +4321,9 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
   const [editData, setEditData] = useState({ name: '', whatsapp: '' });
 
   const startEdit = (u) => {
+    if (!u) return;
     setEditingId(u.id);
-    setEditData({ name: u.name, whatsapp: u.whatsapp });
+    setEditData({ name: u.name || '', whatsapp: u.whatsapp || '' });
   };
 
   const saveEdit = (u) => {
@@ -4341,7 +4344,7 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
             <table className="w-full text-left text-xs whitespace-nowrap"><thead className="text-blue-400 font-bold border-b border-blue-800"><tr><th className="p-3">Técnico</th><th className="p-3">Clube</th><th className="p-3">WhatsApp</th><th className="p-3 text-center">Ação</th></tr></thead>
             <tbody className="divide-y divide-blue-800/40">
               {pendingUsers.map(u => {
-                const t = teams.find(x => x.ownerId === u.id);
+                const t = (teams || []).find(x => x && x.ownerId === u.id);
                 return (
                   <tr key={u.id} className="hover:bg-blue-950/40">
                     <td className="p-3 font-bold text-blue-200">{u.name}</td><td className="p-3 text-amber-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-blue-400">{u.whatsapp}</td>
@@ -4363,7 +4366,7 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
           <table className="w-full text-left text-xs whitespace-nowrap"><thead className="bg-blue-950/60 text-blue-400 font-bold border-b border-blue-800"><tr><th className="p-3">Técnico</th><th className="p-3">Clube</th><th className="p-3">WhatsApp</th><th className="p-3">Cargo</th><th className="p-3 text-center">Ação</th></tr></thead>
           <tbody className="divide-y divide-blue-800/40">
             {activeUsers.map(u=>{ 
-              const t=teams.find(x=>x.ownerId===u.id); 
+              const t = (teams || []).find(x => x && x.ownerId === u.id); 
               
               // Modo de Edição
               if (editingId === u.id) {
@@ -6524,8 +6527,9 @@ const KameStore = ({ currentUser, storeProducts = [], showToast }) => {
 const TeamManagement = ({ users, teams, currentUser, onExpelUser, onApproveUser, onEditUser, onUpdateUserRole, onCreateFull, onCreateManual, showToast }) => {
   const [activeTab, setActiveTab] = useState('members'); // 'members', 'invite', 'manual'
 
-  // Conta quantos usuários estão aguardando aprovação
-  const pendingCount = users.filter(u => u.status === 'pending').length;
+  // 🛡️ BLINDAGEM: Conta apenas usuários que realmente existem e não são nulos
+  const validUsers = (users || []).filter(u => u && u.id);
+  const pendingCount = validUsers.filter(u => u.status === 'pending').length;
 
   return (
     <div className="space-y-6 animate-in fade-in pb-12 max-w-5xl mx-auto">
