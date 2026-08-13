@@ -3492,7 +3492,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [matchImageBase64, setMatchImageBase64] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [imageUploaded, setImageUploaded] = useState(false);
-  const [isSubmittingMatch, setIsSubmittingMatch] = useState(false);
+  const [isSubmittingMatch, setIsSubmittingMatch] = useState(false); // Novo estado de carregamento
   
   const [isManualMode, setIsManualMode] = useState(false);
   
@@ -3663,11 +3663,9 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-       const safeKey = encodeURIComponent(userApiKey.trim());
-        
-        // A lista definitiva: testa do mais rápido/novo para os mais antigos e estáveis
         const safeKey = encodeURIComponent(userApiKey.trim());
         
+        // A ÚNICA ROTA CORRETA E OFICIAL QUE SOBROU NO GOOGLE (gemini-1.5-flash na v1beta)
         const endpoints = [
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`
         ];
@@ -3676,28 +3674,24 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         let lastError;
 
         for (const url of endpoints) {
-          if (resultJson) break; // Se já conseguiu ler, sai do loop
+          if (resultJson) break;
           try {
             const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            
             if (!response.ok) {
                const errData = await response.json().catch(() => null);
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
                
-               // Se a chave estiver errada/bloqueada, aborta tudo
+               // Só apaga a chave se ela for Inválida (403). Erros 400, 404, 500 NÃO apagam mais a chave!
                if (response.status === 403) {
                  try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
                  setUserApiKey(''); setShowKeyInput(true);
                  throw new Error("Sua chave foi recusada (Erro 403). Verifique se copiou corretamente.");
                }
-               
-               // Se for erro de modelo não encontrado (404), ele pula para o próximo link da lista
                throw new Error(`Erro Google: ${errorMsg}`);
             }
-            resultJson = await response.json(); // Sucesso!
+            resultJson = await response.json();
           } catch (error) {
             lastError = error;
-            // Se o erro for a chave, quebra a tentativa. Se for modelo sumido, continua testando.
             if (error.message.includes("recusada")) throw error;
           }
         }
@@ -3733,7 +3727,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
       } catch (error) {
         console.error("Erro IA:", error);
-        // Agora, se der erro de leitura, ele só te avisa e deixa você usar o botão manual, mas não apaga sua chave!
+        // Em caso de erro, limpa a imagem quebrada e libera o modo manual
         if (showToast) { showToast(`Falha: ${error.message.substring(0, 80)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
         setMatchImageBase64(null); 
       } finally {
@@ -3804,6 +3798,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     else { const updated = [...goalsB]; updated[index][field] = value; setGoalsB(updated); }
   };
 
+  // AGORA É ASYNC PARA ESPERAR O BANCO DE DADOS
   const handleSubmitInit = async (e) => {
     e.preventDefault(); 
     
@@ -3834,7 +3829,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
   };
 
   const processSubmission = async (forcedDoubleWoWinner = null) => {
-    setIsSubmittingMatch(true);
+    setIsSubmittingMatch(true); // Trava o botão
     let finalScoreA = scoreA;
     let finalScoreB = scoreB;
     let isDoubleWo = forcedDoubleWoWinner !== null;
