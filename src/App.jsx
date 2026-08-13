@@ -3665,8 +3665,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
         const safeKey = encodeURIComponent(userApiKey.trim());
         
-        // A ÚNICA ROTA CORRETA E OFICIAL QUE SOBROU NO GOOGLE (gemini-1.5-flash na v1beta)
+        // A lista definitiva: testa as versões mais recentes caso as antigas tenham sido desativadas
         const endpoints = [
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${safeKey}`,
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`
         ];
 
@@ -3674,29 +3677,38 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         let lastError;
 
         for (const url of endpoints) {
-          if (resultJson) break;
+          if (resultJson) break; // Se já conseguiu ler em uma das portas, sai do loop
           try {
-            const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const response = await fetch(url, { 
+              method: 'POST', 
+              headers: { 'Content-Type': 'application/json' }, 
+              body: JSON.stringify(payload) 
+            });
+            
             if (!response.ok) {
                const errData = await response.json().catch(() => null);
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
                
-               // Só apaga a chave se ela for Inválida (403). Erros 400, 404, 500 NÃO apagam mais a chave!
+               // Só apaga a chave e bloqueia tudo se a chave for Inválida (403). 
                if (response.status === 403) {
                  try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
                  setUserApiKey(''); setShowKeyInput(true);
                  throw new Error("Sua chave foi recusada (Erro 403). Verifique se copiou corretamente.");
                }
+               
+               // Se der 404 (modelo não encontrado), ele lança o erro para cair no catch e tentar o PRÓXIMO link
                throw new Error(`Erro Google: ${errorMsg}`);
             }
+            
             resultJson = await response.json();
           } catch (error) {
             lastError = error;
+            // Se o erro for a chave recusada, aborta tudo. Se for 404, o loop continua.
             if (error.message.includes("recusada")) throw error;
           }
         }
 
-        if (!resultJson || !resultJson.candidates) throw lastError || new Error("A IA não conseguiu ler o placar.");
+        if (!resultJson || !resultJson.candidates) throw lastError || new Error("A IA não conseguiu ler o placar em nenhum modelo disponível.");
 
         let textResponse = resultJson.candidates[0].content.parts[0].text.trim();
         textResponse = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
