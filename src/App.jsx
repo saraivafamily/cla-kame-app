@@ -6082,10 +6082,12 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
             ) : (
               myPreds.map(pred => {
                 const isDeposit = pred.type === 'deposit';
-                const match = !isDeposit ? matches.find(m => m.id === pred.matchId) : null;
+                
+                // 🌟 CORREÇÃO AQUI: m.matchId localiza a partida certa no seu banco de dados
+                const match = !isDeposit ? matches.find(m => m.matchId === pred.matchId) : null;
                 const tA = getTeam(match?.teamA);
                 const tB = getTeam(match?.teamB);
-                const matchName = tA && tB ? `${tA.name} x ${tB.name}` : 'Partida Encerrada';
+                const matchName = tA && tB ? `${tA.name} x ${tB.name}` : 'Aposta Oficial (Aguardando Resultado)';
                 
                 let statusColor = "text-amber-400";
                 let statusBg = "bg-amber-500/10 border-amber-500/20";
@@ -6115,7 +6117,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                       </div>
                       <p className="text-sm font-bold text-white">{isDeposit ? 'Compra de BitKames' : matchName}</p>
                       {!isDeposit && (
-                        <p className="text-xs text-blue-300 mt-0.5">Palpite: <b className="text-blue-100">{pred.option === 'A' ? tA?.name : pred.option === 'B' ? tB?.name : 'Empate'}</b></p>
+                        <p className="text-xs text-blue-300 mt-0.5">Palpite: <b className="text-blue-100">{pred.option === 'A' ? tA?.name || 'Time A' : pred.option === 'B' ? tB?.name || 'Time B' : 'Empate'}</b></p>
                       )}
                     </div>
                     <div className="text-right w-full sm:w-auto bg-blue-950 sm:bg-transparent p-3 sm:p-0 rounded-lg sm:rounded-none border sm:border-0 border-blue-800">
