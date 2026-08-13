@@ -3663,34 +3663,43 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        const safeKey = encodeURIComponent(userApiKey.trim());
+       const safeKey = encodeURIComponent(userApiKey.trim());
+        
+        // A lista definitiva: testa do mais rápido/novo para os mais antigos e estáveis
         const endpoints = [
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`
+          `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1/models/gemini-pro-vision:generateContent?key=${safeKey}`
         ];
 
         let resultJson;
         let lastError;
 
         for (const url of endpoints) {
-          if (resultJson) break;
+          if (resultJson) break; // Se já conseguiu ler, sai do loop
           try {
             const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            
             if (!response.ok) {
                const errData = await response.json().catch(() => null);
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
                
-               // CORREÇÃO AQUI: Só apagamos a chave se for erro 403 (Chave Inválida).
-               // Erros 400, 404, etc, não apagam mais a sua chave!
+               // Se a chave estiver errada/bloqueada, aborta tudo
                if (response.status === 403) {
                  try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
                  setUserApiKey(''); setShowKeyInput(true);
-                 throw new Error("Sua chave foi recusada. Verifique se copiou corretamente.");
+                 throw new Error("Sua chave foi recusada (Erro 403). Verifique se copiou corretamente.");
                }
+               
+               // Se for erro de modelo não encontrado (404), ele pula para o próximo link da lista
                throw new Error(`Erro Google: ${errorMsg}`);
             }
-            resultJson = await response.json();
+            resultJson = await response.json(); // Sucesso!
           } catch (error) {
             lastError = error;
+            // Se o erro for a chave, quebra a tentativa. Se for modelo sumido, continua testando.
             if (error.message.includes("recusada")) throw error;
           }
         }
