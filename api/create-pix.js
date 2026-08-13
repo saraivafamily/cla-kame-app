@@ -16,6 +16,8 @@ export default async function handler(req, res) {
       description: description,
       payment_method_id: 'pix',
       payer: { email: email },
+      // 🌟 A MÁGICA AQUI: Forçamos o Mercado Pago a mandar o aviso para este link exato!
+      notification_url: 'https://cla-kame.vercel.app/api/webhook',
       metadata: {
         user_id: userId,
         package_coins: Number(packageCoins)
