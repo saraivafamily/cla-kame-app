@@ -784,6 +784,15 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
     return { label: 'Novato', icon: '🔰' };
   };
 
+  const CATEGORY_NAMES = {
+    liga_a: '🥇 Liga Kame A', liga_b: '🥈 Liga Kame B', liga_c: '🥉 Liga Kame C', liga_d: '🎖️ Liga Kame D',
+    liga_acesso: '⬆️ Liga de Acesso', copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia',
+    copa_main: '🏆 Copas Oficiais', copa_flash: '⚡ Copa Flash', outros: '🏅 Outros Torneios'
+  };
+
+  // Ordem de importância na hora de exibir
+  const CATEGORY_ORDER = ['liga_a', 'liga_b', 'liga_c', 'liga_d', 'liga_acesso', 'copa_do_rei', 'copa_amazonia', 'copa_main', 'copa_flash', 'outros'];
+
   if (userTeams.length === 0) {
     return (
       <div className="animate-in fade-in text-center p-12 bg-blue-900 rounded-2xl border border-blue-800">
@@ -895,7 +904,23 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
           if (biggestWin && (biggestWin.scoreFor - biggestWin.scoreAgainst) >= 5) marcos.push({ icon: '⚡', title: 'IMPIEDOSO', desc: 'Venceu com 5+ gols de diferença' });
           if (draws >= 50) marcos.push({ icon: '🤝', title: 'REI DO EMPATE', desc: 'Empatou 50 ou mais vezes' });
           
+          // Lógica de Competições Ativas com AGRUPAMENTO
           const activeComps = competitions.filter(c => c.teams?.includes(team.id));
+          const groupedComps = {};
+          
+          activeComps.forEach(comp => {
+            const cat = comp.category || 'outros';
+            if (!groupedComps[cat]) groupedComps[cat] = [];
+            groupedComps[cat].push(comp);
+          });
+
+          const sortedCategories = Object.keys(groupedComps).sort((a, b) => {
+            let idxA = CATEGORY_ORDER.indexOf(a);
+            let idxB = CATEGORY_ORDER.indexOf(b);
+            if (idxA === -1) idxA = 99;
+            if (idxB === -1) idxB = 99;
+            return idxA - idxB;
+          });
 
           return (
             <div key={team.id} className="bg-blue-900 rounded-2xl border border-blue-800 overflow-hidden shadow-xl">
@@ -956,30 +981,49 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
                   )}
                 </div>
 
+                {/* 📋 DESEMPENHO SEGMENTADO */}
                 <div>
                   <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Trophy className="text-emerald-500" size={20}/> Desempenho nos Torneios</h4>
-                  {activeComps.length > 0 ? (
-                    <div className="space-y-4">
-                      {activeComps.map(comp => {
-                        const table = calculateStandings(matches, teams, comp.id);
-                        const myStats = table.find(t => t.id === team.id);
-                        const rankIndex = table.findIndex(t => t.id === team.id);
-                        const rank = rankIndex !== -1 ? rankIndex + 1 : '-';
+                  {sortedCategories.length > 0 ? (
+                    <div className="space-y-6">
+                      {sortedCategories.map(catKey => {
+                        const compsInCategory = groupedComps[catKey];
                         return (
-                          <div key={comp.id} className="bg-blue-950 rounded-xl border border-blue-800 overflow-hidden">
-                            <div className="bg-blue-900 p-3 border-b border-blue-800 flex justify-between items-center px-4"><span className="text-sm font-bold text-blue-200">{comp.name}</span><div className="flex items-center gap-2"><span className="text-[10px] uppercase font-bold text-blue-500 hidden sm:block">{comp.format === 'league' ? 'Liga' : 'Copa'}</span><span className="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded border border-emerald-500/20 font-bold">{rank}º Lugar</span></div></div>
-                            {myStats && myStats.p > 0 ? (
-                              <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 p-4 text-center">
-                                <div><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">PTS</p><p className="text-xl font-black text-emerald-400">{myStats.pts}</p></div>
-                                <div><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">Jogos</p><p className="text-lg font-bold text-blue-300">{myStats.p}</p></div>
-                                <div><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">V</p><p className="text-lg font-bold text-emerald-500">{myStats.w}</p></div>
-                                <div><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">E</p><p className="text-lg font-bold text-blue-400">{myStats.d}</p></div>
-                                <div className="sm:hidden block"><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">D</p><p className="text-lg font-bold text-red-400">{myStats.l}</p></div>
-                                <div className="hidden sm:block"><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">D</p><p className="text-lg font-bold text-red-400">{myStats.l}</p></div>
-                                <div className="hidden sm:block"><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">GP</p><p className="text-lg font-bold text-emerald-400">{myStats.gf}</p></div>
-                                <div className="hidden sm:block"><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">Saldo</p><p className="text-lg font-bold text-blue-300">{myStats.gd > 0 ? `+${myStats.gd}` : myStats.gd}</p></div>
-                              </div>
-                            ) : ( <p className="p-4 text-sm text-blue-500 text-center bg-blue-950">Ainda não disputou partidas neste torneio.</p> )}
+                          <div key={catKey} className="space-y-3">
+                            <h5 className="text-[11px] font-black text-blue-300 uppercase tracking-widest border-b border-blue-800/60 pb-1.5 pl-1">
+                              {CATEGORY_NAMES[catKey] || 'Outros Torneios'} <span className="text-blue-500 ml-1">({compsInCategory.length})</span>
+                            </h5>
+                            
+                            <div className="space-y-3">
+                              {compsInCategory.map(comp => {
+                                const table = calculateStandings(matches, teams, comp.id);
+                                const myStats = table.find(t => t.id === team.id);
+                                const rankIndex = table.findIndex(t => t.id === team.id);
+                                const rank = rankIndex !== -1 ? rankIndex + 1 : '-';
+                                return (
+                                  <div key={comp.id} className="bg-blue-950 rounded-xl border border-blue-800 overflow-hidden">
+                                    <div className="bg-blue-900/60 p-3 border-b border-blue-800 flex justify-between items-center px-4">
+                                      <span className="text-sm font-bold text-blue-200">{comp.name}</span>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded border border-emerald-500/20 font-bold">{rank}º Lugar</span>
+                                      </div>
+                                    </div>
+                                    {myStats && myStats.p > 0 ? (
+                                      <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 p-4 text-center">
+                                        <div><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">PTS</p><p className="text-xl font-black text-emerald-400">{myStats.pts}</p></div>
+                                        <div><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">Jogos</p><p className="text-lg font-bold text-blue-300">{myStats.p}</p></div>
+                                        <div><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">V</p><p className="text-lg font-bold text-emerald-500">{myStats.w}</p></div>
+                                        <div><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">E</p><p className="text-lg font-bold text-blue-400">{myStats.d}</p></div>
+                                        <div className="sm:hidden block"><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">D</p><p className="text-lg font-bold text-red-400">{myStats.l}</p></div>
+                                        <div className="hidden sm:block"><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">D</p><p className="text-lg font-bold text-red-400">{myStats.l}</p></div>
+                                        <div className="hidden sm:block"><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">GP</p><p className="text-lg font-bold text-emerald-400">{myStats.gf}</p></div>
+                                        <div className="hidden sm:block"><p className="text-[10px] text-blue-500 uppercase font-bold mb-0.5">Saldo</p><p className="text-lg font-bold text-blue-300">{myStats.gd > 0 ? `+${myStats.gd}` : myStats.gd}</p></div>
+                                      </div>
+                                    ) : ( <p className="p-4 text-sm text-blue-500 text-center bg-blue-950">Ainda não disputou partidas neste torneio.</p> )}
+                                  </div>
+                                )
+                              })}
+                            </div>
                           </div>
                         )
                       })}
