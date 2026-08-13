@@ -3056,7 +3056,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const [rules, setRules] = useState('');
 
   const [teamCount, setTeamCount] = useState('');
-  const [numGroups, setNumGroups] = useState('2');
+  const [numGroups, setNumGroups] = useState('1');
   const [qualifiers, setQualifiers] = useState('2');
   const [isDoubleRound, setIsDoubleRound] = useState(false);
   const [isFinalDouble, setIsFinalDouble] = useState(false);
@@ -3262,7 +3262,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
               {format !== 'cup' && (<label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={isDoubleRound} onChange={e=>setIsDoubleRound(e.target.checked)} className="w-5 h-5 accent-emerald-500 cursor-pointer" /><span className="text-sm font-bold text-blue-300">Fases de Grupo em Ida e Volta</span></label>)}
               {format !== 'league' && (<label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={isFinalDouble} onChange={e=>setIsFinalDouble(e.target.checked)} className="w-5 h-5 accent-amber-500 cursor-pointer" /><span className="text-sm font-bold text-amber-400">Final em Ida e Volta (2 Jogos)</span></label>)}
             </div>
-            {format === 'groups' && (<><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Quantidade de Grupos</label><input type="number" min="2" placeholder="Ex: 2, 3, 4..." value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white outline-none" required /></div><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Classificados por Grupo</label><input type="number" min="1" placeholder="Ex: 2" value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white outline-none" required /></div></>)}
+            {format === 'groups' && (<><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Quantidade de Grupos</label><input type="number" min="1" placeholder="Ex: 1, 2, 3, 4..." value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white outline-none" required /></div><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Classificados por Grupo</label><input type="number" min="1" placeholder="Ex: 2" value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white outline-none" required /></div></>)}
           </div>
           <div className="bg-blue-950/50 mt-6 p-6 md:p-8 border-t border-blue-800"><label className="text-sm font-bold text-sky-400 flex items-center gap-2 mb-2"><BookOpen size={16}/> Regras do Campeonato (Opcional)</label><textarea placeholder="Descreva aqui limites de overral de jogadores, times permitidos, ou regras de conduta específicas para este torneio..." value={rules} onChange={e=>setRules(e.target.value)} className="w-full bg-blue-900 border border-blue-700 focus:border-emerald-500 rounded-xl p-3 text-blue-200 text-sm min-h-[100px] outline-none resize-y" /></div>
         </div>
