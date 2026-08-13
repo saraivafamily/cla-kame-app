@@ -685,7 +685,7 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
   // 🧠 MOTOR DE RANKING ESPELHADO
   const rankingData = useMemo(() => {
     let stats = {};
-    (teams || []).forEach(t => { if(t && t.ownerId) stats[t.id] = { ...t, points: 0, played: 0, wins: 0 }; });
+    (teams || []).forEach(t => { if(t && t.ownerId) stats[t.id] = { ...t, points: 0, played: 0, wins: 0, titles: 0 }; });
 
     (competitions || []).forEach(c => {
       const ptsJoin = c.category === 'copa_flash' ? 2 : 10;
@@ -738,7 +738,6 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
           if (r.number === 'Quartas') { if(tA) tA.points += ptsQuartas; if(tB) tB.points += ptsQuartas; }
           if (r.number === 'Semifinal') { if(tA) { tA.points += ptsSemi; semiTeams.add(m.teamA); } if(tB) { tB.points += ptsSemi; semiTeams.add(m.teamB); } }
           
-          // Pontua a vitória na disputa do 3º Lugar
           if (r.number === 'Final' && m.id.includes('_3rd')) {
              const sUI = matches.find(x => x.matchId === m.id && x.compId === c.id && x.status === 'approved');
              if (sUI) {
@@ -756,7 +755,6 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
         });
       });
       
-      // Entrega do Título Oficial (Soma de ida e volta automática)
       const champId = getChampionId(c, matches, teams);
       if (champId) {
          if (stats[champId]) { stats[champId].points += ptsChamp; stats[champId].titles += 1; }
@@ -766,7 +764,6 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
             if (viceId && stats[viceId]) stats[viceId].points += ptsVice;
          }
       } else {
-         // Retrocompatibilidade para torneios antigos sem 3º lugar estruturado
          const hasThirdPlaceMatch = koRounds.length > 0 && koRounds[koRounds.length - 1].matches.some(m => m.id.includes('_3rd'));
          if (!hasThirdPlaceMatch) {
             const finalMatch = koRounds[koRounds.length - 1]?.matches[0];
@@ -821,7 +818,7 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
           </div>
         </div>
 
-        {/* 🌟 NOVO: CARD DE RANKING GLOBAL NO PERFIL */}
+        {/* CARD DE RANKING GLOBAL NO PERFIL */}
         {userTeams.map(team => {
           const myRankIndex = rankingData.findIndex(t => t.id === team.id);
           const myRank = myRankIndex !== -1 ? myRankIndex + 1 : '-';
@@ -856,7 +853,7 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
             else { losses++; }
           });
 
-          // 🌟 LEITURA DINÂMICA DE TÍTULOS (Com Nomes Reais para Copas)
+          // 🌟 LEITURA DINÂMICA DE TÍTULOS
           let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0;
           let copasFlash = 0;
           let customTitles = {};
@@ -870,39 +867,33 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
                  else if (c.category === 'liga_d') ligaD++;
                  else if (c.category === 'copa_flash') copasFlash++;
                  else {
-                     // Qualquer outro torneio (Copas Oficiais ou torneios antigos) pega o nome exato!
                      const compName = c.name || 'Torneio Oficial';
                      customTitles[compName] = (customTitles[compName] || 0) + 1;
                  }
              }
           });
 
-          const conquistas = [];
+          // 🌟 SEPARAÇÃO: Títulos (Botões) x Marcos (Badges)
+          const titulos = [];
+          const marcos = [];
           
-          // INSERE OS TÍTULOS COMO AS PRIMEIRAS CONQUISTAS DO MURAL!
-          if (ligaA > 0) conquistas.push({ icon: '🥇', title: `LIGA KAME A - ${ligaA} TÍTULO${ligaA > 1 ? 'S' : ''}`, desc: 'Campeão da Divisão de Elite' });
-          if (ligaB > 0) conquistas.push({ icon: '🥈', title: `LIGA KAME B - ${ligaB} TÍTULO${ligaB > 1 ? 'S' : ''}`, desc: 'Campeão da Série B' });
-          if (ligaC > 0) conquistas.push({ icon: '🥉', title: `LIGA KAME C - ${ligaC} TÍTULO${ligaC > 1 ? 'S' : ''}`, desc: 'Campeão da Série C' });
-          if (ligaD > 0) conquistas.push({ icon: '🎖️', title: `LIGA KAME D - ${ligaD} TÍTULO${ligaD > 1 ? 'S' : ''}`, desc: 'Campeão da Série D' });
-          if (copasFlash > 0) conquistas.push({ icon: '⚡', title: `COPA FLASH - ${copasFlash} TÍTULO${copasFlash > 1 ? 'S' : ''}`, desc: 'Campeão de Tiro Curto' });
+          if (ligaA > 0) titulos.push({ icon: '🥇', title: `LIGA KAME A`, count: ligaA });
+          if (ligaB > 0) titulos.push({ icon: '🥈', title: `LIGA KAME B`, count: ligaB });
+          if (ligaC > 0) titulos.push({ icon: '🥉', title: `LIGA KAME C`, count: ligaC });
+          if (ligaD > 0) titulos.push({ icon: '🎖️', title: `LIGA KAME D`, count: ligaD });
+          if (copasFlash > 0) titulos.push({ icon: '⚡', title: `COPA FLASH`, count: copasFlash });
 
-          // 🌟 INSERE OS TÍTULOS COM NOMES REAIS (Ex: Copa das Estrelas)
           Object.keys(customTitles).forEach(compName => {
-              const count = customTitles[compName];
-              conquistas.push({ 
-                  icon: '🏆', 
-                  title: `${compName.toUpperCase()} - ${count} TÍTULO${count > 1 ? 'S' : ''}`, 
-                  desc: 'Campeão Oficial' 
-              });
+              titulos.push({ icon: '🏆', title: compName.toUpperCase(), count: customTitles[compName] });
           });
 
-          if (wins > 0) conquistas.push({ icon: '🌟', title: 'PRIMEIRA VITÓRIA', desc: 'Venceu uma partida oficial' });
-          if (gf >= 100) conquistas.push({ icon: '⚽', title: 'GOLEADOR', desc: 'Marcou 100 ou mais gols' });
-          if (gf >= 500) conquistas.push({ icon: '⚽', title: 'MERCENÁRIO', desc: 'Marcou 500 ou mais gols' });
-          if (wins >= 50) conquistas.push({ icon: '🔥', title: 'ON FIRE', desc: 'Alcançou 50 vitórias no clã' });
-          if (teamMatches.length >= 10 && losses === 0) conquistas.push({ icon: '🛡️', title: 'MURALHA', desc: 'Invicto após 10+ jogos' });
-          if (biggestWin && (biggestWin.scoreFor - biggestWin.scoreAgainst) >= 5) conquistas.push({ icon: '⚡', title: 'IMPIEDOSO', desc: 'Venceu com 5+ gols de diferença' });
-          if (draws >= 50) conquistas.push({ icon: '🤝', title: 'REI DO EMPATE', desc: 'Empatou 50 ou mais vezes' });
+          if (wins > 0) marcos.push({ icon: '🌟', title: 'PRIMEIRA VITÓRIA', desc: 'Venceu uma partida oficial' });
+          if (gf >= 100) marcos.push({ icon: '⚽', title: 'GOLEADOR', desc: 'Marcou 100 ou mais gols' });
+          if (gf >= 500) marcos.push({ icon: '⚽', title: 'MERCENÁRIO', desc: 'Marcou 500 ou mais gols' });
+          if (wins >= 50) marcos.push({ icon: '🔥', title: 'ON FIRE', desc: 'Alcançou 50 vitórias no clã' });
+          if (teamMatches.length >= 10 && losses === 0) marcos.push({ icon: '🛡️', title: 'MURALHA', desc: 'Invicto após 10+ jogos' });
+          if (biggestWin && (biggestWin.scoreFor - biggestWin.scoreAgainst) >= 5) marcos.push({ icon: '⚡', title: 'IMPIEDOSO', desc: 'Venceu com 5+ gols de diferença' });
+          if (draws >= 50) marcos.push({ icon: '🤝', title: 'REI DO EMPATE', desc: 'Empatou 50 ou mais vezes' });
           
           const activeComps = competitions.filter(c => c.teams?.includes(team.id));
 
@@ -926,22 +917,43 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
               </div>
 
               <div className="p-6 space-y-10">
+                
+                {/* 🏆 BOTÕES DOS TÍTULOS CONQUISTADOS */}
                 <div>
-                  <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Medal className="text-amber-400" size={20}/> Conquistas e Títulos</h4>
-                  {conquistas.length > 0 ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {conquistas.map((c, i) => {
-                        const isTitle = c.title.includes('TÍTULO');
-                        return (
-                          <div key={i} className={`p-4 rounded-xl border text-center flex flex-col items-center justify-center transition-all group ${isTitle ? 'bg-gradient-to-br from-amber-600/20 to-amber-900/40 border-amber-500/50 hover:border-amber-400' : 'bg-blue-950 border-blue-800 hover:border-amber-500/50 hover:bg-blue-900'}`}>
-                            <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{c.icon}</span>
-                            <p className={`text-sm font-bold ${isTitle ? 'text-amber-400 drop-shadow-md' : 'text-white'}`}>{c.title}</p>
-                            <p className={`text-[10px] mt-1 leading-tight ${isTitle ? 'text-amber-200/80 font-bold' : 'text-blue-400'}`}>{c.desc}</p>
-                          </div>
-                        );
-                      })}
+                  <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Medal className="text-amber-400" size={20}/> Títulos Conquistados</h4>
+                  {titulos.length > 0 ? (
+                    <div className="flex flex-wrap gap-3">
+                      {titulos.map((t, i) => (
+                        <button key={i} className="relative group bg-gradient-to-br from-amber-600 to-amber-900 border border-amber-500 hover:border-amber-300 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 transition-all hover:scale-105 hover:shadow-amber-500/50 cursor-default">
+                           <span className="text-2xl drop-shadow-md group-hover:animate-bounce">{t.icon}</span>
+                           <div className="text-left">
+                              <p className="text-sm font-black text-white leading-none drop-shadow-sm">{t.title}</p>
+                              <p className="text-[10px] text-amber-200 font-bold uppercase mt-1 tracking-widest">{t.count}x Campeão</p>
+                           </div>
+                        </button>
+                      ))}
                     </div>
-                  ) : ( <div className="text-center p-6 bg-blue-950 rounded-xl border border-blue-800 border-dashed"><p className="text-blue-500 text-sm">Nenhuma conquista desbloqueada. Jogue e vença partidas para ganhar emblemas!</p></div> )}
+                  ) : ( 
+                    <div className="text-center p-6 bg-blue-950 rounded-xl border border-blue-800 border-dashed"><p className="text-blue-500 text-sm">A estante de troféus ainda está vazia. Vença competições para adicionar títulos aqui!</p></div> 
+                  )}
+                </div>
+
+                {/* 🏅 MARCOS E CONQUISTAS SECUNDÁRIAS */}
+                <div>
+                  <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Star className="text-emerald-500" size={20}/> Marcos e Conquistas</h4>
+                  {marcos.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {marcos.map((c, i) => (
+                        <div key={i} className="bg-blue-950 border border-blue-800 hover:border-emerald-500/50 hover:bg-blue-900 p-4 rounded-xl text-center flex flex-col items-center justify-center transition-all group">
+                          <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{c.icon}</span>
+                          <p className="text-sm font-bold text-white">{c.title}</p>
+                          <p className="text-[10px] mt-1 leading-tight text-blue-400">{c.desc}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : ( 
+                    <div className="text-center p-6 bg-blue-950 rounded-xl border border-blue-800 border-dashed"><p className="text-blue-500 text-sm">Nenhum marco desbloqueado. Jogue partidas para ganhar emblemas!</p></div> 
+                  )}
                 </div>
 
                 <div>
