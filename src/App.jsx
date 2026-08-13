@@ -3666,12 +3666,10 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
        const safeKey = encodeURIComponent(userApiKey.trim());
         
         // A lista definitiva: testa do mais rápido/novo para os mais antigos e estáveis
+        const safeKey = encodeURIComponent(userApiKey.trim());
+        
         const endpoints = [
-          `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1/models/gemini-pro-vision:generateContent?key=${safeKey}`
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`
         ];
 
         let resultJson;
