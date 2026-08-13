@@ -3679,17 +3679,20 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             if (!response.ok) {
                const errData = await response.json().catch(() => null);
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
-               if (response.status === 403 || response.status === 400 || response.status === 404) {
+               
+               // CORREÇÃO AQUI: Só apagamos a chave se for erro 403 (Chave Inválida).
+               // Erros 400, 404, etc, não apagam mais a sua chave!
+               if (response.status === 403) {
                  try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
                  setUserApiKey(''); setShowKeyInput(true);
-                 throw new Error("Chave Inválida ou a API 'Generative Language' não está ativada no Google Cloud.");
+                 throw new Error("Sua chave foi recusada. Verifique se copiou corretamente.");
                }
                throw new Error(`Erro Google: ${errorMsg}`);
             }
             resultJson = await response.json();
           } catch (error) {
             lastError = error;
-            if (error.message.includes("Inválida") || error.message.includes("Generative")) throw error;
+            if (error.message.includes("recusada")) throw error;
           }
         }
 
@@ -3720,12 +3723,13 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         }
 
         if (showToast) showToast("Dados extraídos do Print pela IA!", "success");
-        setImageUploaded(true); // O sucesso só aparece se chegar até aqui!
+        setImageUploaded(true);
 
       } catch (error) {
         console.error("Erro IA:", error);
+        // Agora, se der erro de leitura, ele só te avisa e deixa você usar o botão manual, mas não apaga sua chave!
         if (showToast) { showToast(`Falha: ${error.message.substring(0, 80)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
-        setMatchImageBase64(null); // Limpa a imagem quebrada para você poder clicar no manual
+        setMatchImageBase64(null); 
       } finally {
         setIsAnalyzing(false); 
       }
