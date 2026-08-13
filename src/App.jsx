@@ -3666,9 +3666,13 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         // 1. Não precisamos mais do encodeURIComponent
         const safeKey = userApiKey.trim();
         
-        // 2. O link agora fica LIMPO, sem o "?key=" no final!
+        // 🌟 O Tanque de Guerra: Testa todos os modelos novos e antigos nas versões v1 e v1beta
         const endpoints = [
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`,
+          `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent`
         ];
 
         let resultJson;
@@ -3681,7 +3685,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
               method: 'POST', 
               headers: { 
                 'Content-Type': 'application/json',
-                'x-goog-api-key': safeKey // 🌟 A MÁGICA ACONTECE AQUI: A chave vai escondida no cabeçalho
+                'x-goog-api-key': safeKey // 🔑 Chave escondida no cabeçalho (resolve o erro da chave AQ)
               }, 
               body: JSON.stringify(payload) 
             });
@@ -3690,21 +3694,24 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                const errData = await response.json().catch(() => null);
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
                
+               // Se a chave for inválida de verdade, bloqueia.
                if (response.status === 403 || response.status === 401) {
                  try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
                  setUserApiKey(''); setShowKeyInput(true);
                  throw new Error("Sua chave foi recusada (Erro de Autenticação). Verifique se copiou corretamente.");
                }
+               
+               // Se der 404 (Modelo não encontrado), pula pro próximo link!
                throw new Error(`Erro Google: ${errorMsg}`);
             }
             resultJson = await response.json();
           } catch (error) {
             lastError = error;
-            if (error.message.includes("recusada")) throw error;
+            if (error.message.includes("Autenticação")) throw error;
           }
         }
 
-        if (!resultJson || !resultJson.candidates) throw lastError || new Error("A IA não conseguiu ler o placar.");
+        if (!resultJson || !resultJson.candidates) throw lastError || new Error("A IA não conseguiu ler o placar em nenhum modelo.");
 
         let textResponse = resultJson.candidates[0].content.parts[0].text.trim();
         textResponse = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
