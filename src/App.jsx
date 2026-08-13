@@ -5693,7 +5693,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
   const [activeTab, setActiveTab] = useState('open');
   const [betData, setBetData] = useState({});
 
-  // 👇 NOVOS ESTADOS DOS FILTROS (Dropdowns)
   const [selectedCompId, setSelectedCompId] = useState('');
   const [selectedRoundId, setSelectedRoundId] = useState('');
 
@@ -5701,7 +5700,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
   const getMyPred = (matchId) => (predictions || []).find(p => p.matchId === matchId && p.userId === currentUser.id);
   const myTeam = (teams || []).find(t => t.ownerId === currentUser.id);
 
-  // 👇 NOVA LÓGICA: Agrupa dados numa hierarquia (Torneios -> Rodadas -> Jogos)
   const bettingData = useMemo(() => {
     const comps = [];
     (competitions || []).forEach(c => {
@@ -5713,7 +5711,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
         
         const validMatches = [];
         r.matches.forEach(m => {
-          // Bloqueia auto-aposta
           if (myTeam && (m.teamA === myTeam.id || m.teamB === myTeam.id)) return;
 
           const hasResult = matches.some(x => x.matchId === m.id && x.compId === c.id && x.status !== 'rejected');
@@ -5723,13 +5720,11 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
           }
         });
 
-        // Só adiciona a rodada se ela tiver pelo menos 1 jogo disponível
         if (validMatches.length > 0) {
           validRounds.push({ id: r.id, number: r.number, matches: validMatches });
         }
       });
 
-      // Só adiciona o campeonato se ele tiver pelo menos 1 rodada com jogos
       if (validRounds.length > 0) {
         comps.push({ id: c.id, name: c.name, rounds: validRounds });
       }
@@ -5737,12 +5732,10 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
     return comps;
   }, [competitions, matches, myTeam]);
 
-  // Se trocar de torneio, zera a rodada selecionada
   useEffect(() => {
     setSelectedRoundId('');
   }, [selectedCompId]);
 
-  // Partidas finais que vão aparecer na tela após o usuário filtrar
   const displayedMatches = useMemo(() => {
     if (!selectedCompId || !selectedRoundId) return [];
     const comp = bettingData.find(c => c.id === selectedCompId);
@@ -5751,7 +5744,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
     return round ? round.matches : [];
   }, [bettingData, selectedCompId, selectedRoundId]);
 
-  // 🎲 MOTOR DE ODDS
   const getOdds = (compId, tA_id, tB_id) => {
      const table = calculateStandings(matches, teams, compId);
 
@@ -5833,29 +5825,26 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
   
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in pb-12">
-      <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex items-center gap-4">
-        <div className="bg-blue-950 p-3 rounded-full border border-amber-500/50 shadow-inner">
+      <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex flex-col md:flex-row items-center gap-4">
+        <div className="bg-blue-950 p-3 rounded-full border border-amber-500/50 shadow-inner shrink-0">
           <Dices size={32} className="text-amber-400 animate-pulse" />
         </div>
-        <div className="flex-1 flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-black text-white uppercase tracking-wider">KameBet</h2>
-            <p className="text-sm text-blue-400 mt-1">Odds Dinâmicas (1x2) com base na Tabela do Campeonato!</p>
-          </div>
-          <div className="bg-blue-950 p-3 rounded-xl border border-amber-500/30 text-center shadow-inner">
-            <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Sua Carteira</p>
-            <p className="text-xl font-black text-white">{currentUser.kameCoins || 0} BK</p>
-          </div>
+        <div className="flex-1 text-center md:text-left">
+          <h2 className="text-2xl font-black text-white uppercase tracking-wider">KameBet</h2>
+          <p className="text-sm text-blue-400 mt-1">Minigame social de palpites interno do Clã Kame.</p>
+        </div>
+        <div className="bg-blue-950 p-3 rounded-xl border border-amber-500/30 text-center shadow-inner w-full md:w-auto shrink-0">
+          <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Sua Carteira</p>
+          <p className="text-xl font-black text-white">{currentUser.kameCoins || 0} BK</p>
         </div>
       </div>
 
       <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800">
-        {/* 👇 2. ALTERE AQUI DENTRO DOS PARÊNTESES 👇 */}
         <button onClick={()=>setActiveTab('open')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab==='open'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>
-          🎯 Apostar ({totalOpenMatches})
+          🎯 Palpitar ({totalOpenMatches})
         </button>
         <button onClick={()=>setActiveTab('ranking')} className={`flex-1 py-2 text-sm rounded-lg font-bold transition-all ${activeTab==='ranking'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>
-          🏆 Top Apostadores
+          🏆 Top Estrategistas
         </button>
       </div>
 
@@ -5864,10 +5853,10 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
           
           {bettingData.length === 0 ? (
             <div className="bg-blue-900 p-8 rounded-2xl border border-blue-800 text-center text-blue-400 border-dashed">
-              <p className="font-bold text-lg mb-2">A casa de apostas está fechada.</p>
-              <p className="text-sm">Lembre-se das regras da banca:<br/>
-              1. Você só pode apostar em rodadas que ainda <b>não foram liberadas</b> (Travadas).<br/>
-              2. Você <b>não pode</b> apostar em jogos do seu próprio time.</p>
+              <p className="font-bold text-lg mb-2">A central de palpites está fechada.</p>
+              <p className="text-sm">Lembre-se das regras do jogo:<br/>
+              1. Só é possível dar palpites em rodadas que ainda <b>não foram liberadas</b> (Travadas).<br/>
+              2. Por ética, você <b>não pode</b> dar palpites nos jogos do seu próprio time.</p>
             </div>
           ) : (
             <div className="bg-blue-900 p-4 rounded-xl border border-blue-800 shadow-md">
@@ -5897,7 +5886,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
 
           {displayedMatches.length === 0 && selectedCompId && selectedRoundId && (
              <div className="text-center p-6 text-blue-500 bg-blue-950 rounded-xl border border-blue-800">
-               Nenhuma partida disponível para você nesta rodada.
+               Nenhuma partida disponível para palpites nesta rodada.
              </div>
           )}
 
@@ -5917,7 +5906,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                   <div key={m.id} className="bg-blue-900 p-5 rounded-2xl border border-blue-800 shadow-lg hover:border-amber-500/30 transition-all group">
                     <div className="flex justify-between items-center mb-3">
                       <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-widest">{m.compName} • Rodada {m.roundName}</span>
-                      {myPred && <span className="text-[10px] text-emerald-400 font-black uppercase flex items-center gap-1">✅ Bilhete Comprado</span>}
+                      {myPred && <span className="text-[10px] text-emerald-400 font-black uppercase flex items-center gap-1">✅ Bilhete Salvo</span>}
                     </div>
                     
                     <div className="grid grid-cols-3 gap-2 mb-4">
@@ -5951,7 +5940,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                         />
                       </div>
                       <Button onClick={() => handleSave(m)} disabled={!currentData.option || !currentData.amount} className="flex-1 py-3 text-xs bg-amber-600 hover:bg-amber-500 border-0 text-white shadow-md uppercase tracking-wider">
-                        {myPred ? 'Atualizar' : 'Apostar'}
+                        {myPred ? 'Atualizar' : 'Fechar Palpite'}
                       </Button>
                     </div>
                     {currentData.option && currentData.amount && (
@@ -5976,15 +5965,15 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
               <thead className="bg-blue-900 text-blue-300 font-bold border-b border-blue-800">
                 <tr>
                   <th className="p-4 w-12 text-center">Pos</th>
-                  <th className="p-4">Apostador</th>
-                  <th className="p-4 text-center">Apostas Feitas</th>
-                  <th className="p-4 text-center">Green (Acertos)</th>
-                  <th className="p-4 text-center">Lucro Líquido (BK)</th>
+                  <th className="p-4">Estrategista</th>
+                  <th className="p-4 text-center">Palpites Feitos</th>
+                  <th className="p-4 text-center">Acertos</th>
+                  <th className="p-4 text-center">Saldo Acumulado (BK)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-blue-800/40">
                 {ranking.length === 0 ? (
-                  <tr><td colSpan="5" className="p-8 text-center text-blue-500">O ranking será gerado assim que as partidas apostadas forem oficializadas.</td></tr>
+                  <tr><td colSpan="5" className="p-8 text-center text-blue-500">O ranking será gerado assim que as partidas com palpites forem oficializadas.</td></tr>
                 ) : (
                   ranking.map((u, idx) => {
                     const isTop3 = idx < 3;
@@ -6024,7 +6013,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
   const getTeam = (id) => (teams || []).find(t => t.id === id);
   const myPreds = (predictions || []).filter(p => p.userId === currentUser?.id).sort((a,b) => b.timestamp - a.timestamp);
 
-  const kc_PACKAGES = [
+  const BK_PACKAGES = [
     { id: 'p1', name: 'Pacote Iniciante', coins: 300, price: 5.00, bonus: 0, color: 'from-blue-600 to-blue-900', border: 'border-blue-500' },
     { id: 'p2', name: 'Pacote Profissional', coins: 700, price: 10.00, bonus: 100, color: 'from-emerald-600 to-emerald-900', border: 'border-emerald-500' },
     { id: 'p3', name: 'Pacote Magnata', coins: 1600, price: 20.00, bonus: 400, color: 'from-amber-500 to-amber-800', border: 'border-amber-400' },
@@ -6041,7 +6030,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transaction_amount: pkg.price,
-          description: `KameBank - ${pkg.name}`,
+          description: `Apoio Clã Kame - ${pkg.name}`,
           email: currentUser.email || 'jogador@clakame.com',
           userId: currentUser.id
         })
@@ -6118,13 +6107,13 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
         </div>
         <div className="bg-blue-950/80 p-4 rounded-2xl border border-amber-500/40 min-w-[200px] text-center shadow-inner">
           <p className="text-xs text-amber-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5"><Wallet size={14}/> Saldo Disponível</p>
-          <p className="text-4xl font-black text-white">{currentUser?.kameCoins || 0} <span className="text-xl text-amber-500">bk</span></p>
+          <p className="text-4xl font-black text-white">{currentUser?.kameCoins || 0} <span className="text-xl text-amber-500">BK</span></p>
         </div>
       </div>
 
       <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800">
         <button onClick={()=>setBankTab('extrato')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='extrato'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>📜 Extrato da Conta</button>
-        <button onClick={()=>setBankTab('deposito')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='deposito'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>💰 Depositar (Comprar kc)</button>
+        <button onClick={()=>setBankTab('deposito')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='deposito'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>💰 Adquirir BK</button>
       </div>
 
       {bankTab === 'extrato' && (
@@ -6139,29 +6128,28 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
               myPreds.map(pred => {
                 const isDeposit = pred.type === 'deposit';
                 
-                // 🌟 CORREÇÃO AQUI: m.matchId localiza a partida certa no seu banco de dados
                 const match = !isDeposit ? matches.find(m => m.matchId === pred.matchId) : null;
                 const tA = getTeam(match?.teamA);
                 const tB = getTeam(match?.teamB);
-                const matchName = tA && tB ? `${tA.name} x ${tB.name}` : 'Aposta Oficial (Aguardando Resultado)';
+                const matchName = tA && tB ? `${tA.name} x ${tB.name}` : 'Palpite Oficial (Aguardando Resultado)';
                 
                 let statusColor = "text-amber-400";
                 let statusBg = "bg-amber-500/10 border-amber-500/20";
                 let statusText = "Pendente";
-                let valueDisplay = `- ${pred.amount} bk`;
+                let valueDisplay = `- ${pred.amount} BK`;
 
                 if (isDeposit) {
                   statusColor = "text-emerald-400"; statusBg = "bg-emerald-500/10 border-emerald-500/20";
-                  statusText = "Depósito";
-                  valueDisplay = `+ ${pred.amount} bk`;
+                  statusText = "Apoio Clã";
+                  valueDisplay = `+ ${pred.amount} BK`;
                 } else if (pred.status === 'won') {
                   statusColor = "text-emerald-400"; statusBg = "bg-emerald-500/10 border-emerald-500/20";
-                  statusText = "Green (Ganhou)";
-                  valueDisplay = `+ ${pred.payout} bk`;
+                  statusText = "Acerto (Green)";
+                  valueDisplay = `+ ${pred.payout} BK`;
                 } else if (pred.status === 'lost') {
                   statusColor = "text-red-400"; statusBg = "bg-red-500/10 border-red-500/20";
-                  statusText = "Red (Perdeu)";
-                  valueDisplay = `- ${pred.amount} bk`;
+                  statusText = "Erro (Red)";
+                  valueDisplay = `- ${pred.amount} BK`;
                 }
 
                 return (
@@ -6171,7 +6159,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                         <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${statusBg} ${statusColor}`}>{statusText}</span>
                         <span className="text-[10px] text-blue-400">{new Date(pred.timestamp).toLocaleDateString()}</span>
                       </div>
-                      <p className="text-sm font-bold text-white">{isDeposit ? 'Compra de BitKames' : matchName}</p>
+                      <p className="text-sm font-bold text-white">{isDeposit ? 'Pacote de BitKames' : matchName}</p>
                       {!isDeposit && (
                         <p className="text-xs text-blue-300 mt-0.5">Palpite: <b className="text-blue-100">{pred.option === 'A' ? tA?.name || 'Time A' : pred.option === 'B' ? tB?.name || 'Time B' : 'Empate'}</b></p>
                       )}
@@ -6191,12 +6179,24 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
       {bankTab === 'deposito' && (
         <div className="space-y-6 animate-in slide-in-from-right-4">
           <div className="bg-blue-900 p-6 rounded-2xl border border-blue-800 text-center">
-            <h3 className="text-xl font-bold text-white mb-2">Comprar BitKames</h3>
-            <p className="text-sm text-blue-300 max-w-lg mx-auto">Pagamento automático via PIX. As moedas caem na sua conta em até 10 segundos após a confirmação!</p>
+            <h3 className="text-xl font-bold text-white mb-2">Apoie o Clã e Ganhe BitKames</h3>
+            <p className="text-sm text-blue-300 max-w-lg mx-auto">
+              Ao adquirir pacotes de BitKames (BK), você ajuda a financiar nossos torneios e premiações.
+            </p>
+            
+            {/* AVISO LEGAL BLINDADO */}
+            <div className="mt-5 bg-blue-950/50 p-4 rounded-xl border border-blue-800 inline-block text-left text-xs text-blue-400 shadow-inner">
+               <p className="text-amber-400 font-bold mb-1.5">⚠️ Aviso Legal</p>
+               <ul className="list-disc pl-4 space-y-1">
+                 <li>Os BitKames são bens virtuais exclusivos para uso no minigame (KameBet).</li>
+                 <li><b>Não possuem valor monetário real</b>, não sendo passíveis de saque ou troca por dinheiro.</li>
+                 <li>Ao realizar o apoio via PIX, você confirma ter <b>mais de 18 anos</b> de idade.</li>
+               </ul>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {kc_PACKAGES.map(pkg => (
+            {BK_PACKAGES.map(pkg => (
               <div key={pkg.id} onClick={() => handleStartCheckout(pkg)} className={`bg-gradient-to-b ${pkg.color} rounded-3xl p-1 shadow-xl hover:scale-105 transition-transform cursor-pointer relative overflow-hidden group`}>
                 {pkg.bonus > 0 && (
                   <div className="absolute top-4 -right-8 bg-red-500 text-white text-[10px] font-black uppercase tracking-wider py-1 px-10 transform rotate-45 shadow-lg z-10">
@@ -6244,7 +6244,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
               <div className="space-y-6 animate-in zoom-in-95 duration-300">
                 <div className="text-center">
                   <h3 className="text-2xl font-black text-white">Pagamento PIX</h3>
-                  <p className="text-blue-300 text-sm mt-1">Pacote: <b className="text-amber-400">{selectedPackage.coins} kc</b> (+{selectedPackage.bonus} Bônus)</p>
+                  <p className="text-blue-300 text-sm mt-1">Pacote: <b className="text-amber-400">{selectedPackage.coins} BK</b> (+{selectedPackage.bonus} Bônus)</p>
                 </div>
 
                 <div className="bg-blue-950 p-5 rounded-2xl border border-blue-800 text-center shadow-inner">
@@ -6266,7 +6266,7 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                   <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin shrink-0"></div>
                   <p className="text-xs text-amber-200 font-medium">
                     <b className="text-amber-400 block">Aguardando Pagamento...</b>
-                    Deixe esta tela aberta. As moedas cairão automaticamente assim que você pagar no seu banco.
+                    As moedas cairão automaticamente assim que você pagar no seu banco.
                   </p>
                 </div>
 
@@ -6287,11 +6287,11 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
                 </div>
                 <div>
                   <h3 className="text-3xl font-black text-white uppercase tracking-wider">Aprovado!</h3>
-                  <p className="text-blue-300 mt-2 text-sm">O seu pagamento foi confirmado pelo banco.</p>
+                  <p className="text-blue-300 mt-2 text-sm">Muito obrigado por apoiar o Clã Kame.</p>
                 </div>
                 <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 inline-block mx-auto min-w-[200px]">
                   <p className="text-xs text-blue-400 font-bold uppercase mb-1">Moedas Adicionadas</p>
-                  <p className="text-2xl font-black text-amber-400">+{selectedPackage.coins + selectedPackage.bonus} kc</p>
+                  <p className="text-2xl font-black text-amber-400">+{selectedPackage.coins + selectedPackage.bonus} BK</p>
                 </div>
                 <Button onClick={closeCheckout} className="w-full py-4 text-sm font-black bg-emerald-600 hover:bg-emerald-500 mt-4">
                   Voltar para o Banco
