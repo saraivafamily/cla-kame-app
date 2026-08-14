@@ -3816,16 +3816,14 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           generationConfig: { responseMimeType: "application/json" }
         };
 
-        // 1. Não precisamos mais do encodeURIComponent
         const safeKey = userApiKey.trim();
         
-        // 🌟 O Tanque de Guerra: Testa todos os modelos novos e antigos nas versões v1 e v1beta
+        // 🚀 Foguete Inteligente: Apenas modelos rápidos (Flash), testando os mais novos primeiro
         const endpoints = [
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`,
-          `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`,
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent`
+          `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent`
         ];
 
         let resultJson;
@@ -3838,7 +3836,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
               method: 'POST', 
               headers: { 
                 'Content-Type': 'application/json',
-                'x-goog-api-key': safeKey // 🔑 Chave escondida no cabeçalho (resolve o erro da chave AQ)
+                'x-goog-api-key': safeKey // 🔑 Protegido no cabeçalho
               }, 
               body: JSON.stringify(payload) 
             });
@@ -3847,14 +3845,12 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                const errData = await response.json().catch(() => null);
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
                
-               // Se a chave for inválida de verdade, bloqueia.
                if (response.status === 403 || response.status === 401) {
                  try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
                  setUserApiKey(''); setShowKeyInput(true);
                  throw new Error("Sua chave foi recusada (Erro de Autenticação). Verifique se copiou corretamente.");
                }
                
-               // Se der 404 (Modelo não encontrado), pula pro próximo link!
                throw new Error(`Erro Google: ${errorMsg}`);
             }
             resultJson = await response.json();
@@ -3895,7 +3891,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
       } catch (error) {
         console.error("Erro IA:", error);
-        // Em caso de erro, limpa a imagem quebrada e libera o modo manual
         if (showToast) { showToast(`Falha: ${error.message.substring(0, 80)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
         setMatchImageBase64(null); 
       } finally {
