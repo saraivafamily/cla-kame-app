@@ -3818,49 +3818,47 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
         const safeKey = userApiKey.trim();
         
-        // 🚀 Foguete Inteligente: Apenas modelos rápidos (Flash), testando os mais novos primeiro
+        // 🚀 CHAVE NA URL: Evita 100% o bloqueio de CORS em celulares
         const endpoints = [
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`,
-          `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent`
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${safeKey}`
         ];
 
         let resultJson;
-        let lastError;
+        let lastErrorMsg = "Erro desconhecido";
 
         for (const url of endpoints) {
           if (resultJson) break;
           try {
             const response = await fetch(url, { 
               method: 'POST', 
-              headers: { 
-                'Content-Type': 'application/json',
-                'x-goog-api-key': safeKey // 🔑 Protegido no cabeçalho
-              }, 
+              headers: { 'Content-Type': 'application/json' }, 
               body: JSON.stringify(payload) 
             });
             
             if (!response.ok) {
                const errData = await response.json().catch(() => null);
                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
+               lastErrorMsg = errorMsg;
                
-               if (response.status === 403 || response.status === 401) {
+               if (response.status === 403 || response.status === 401 || errorMsg.includes("API key not valid")) {
                  try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
                  setUserApiKey(''); setShowKeyInput(true);
-                 throw new Error("Sua chave foi recusada (Erro de Autenticação). Verifique se copiou corretamente.");
+                 throw new Error("Sua chave do Gemini é inválida ou foi recusada. Cole uma chave nova.");
                }
                
-               throw new Error(`Erro Google: ${errorMsg}`);
+               throw new Error(errorMsg);
             }
             resultJson = await response.json();
           } catch (error) {
-            lastError = error;
-            if (error.message.includes("Autenticação")) throw error;
+            lastErrorMsg = error.message;
+            if (error.message.includes("inválida")) throw error;
           }
         }
 
-        if (!resultJson || !resultJson.candidates) throw lastError || new Error("A IA não conseguiu ler o placar em nenhum modelo.");
+        if (!resultJson || !resultJson.candidates) {
+           throw new Error(`Falha do Google: ${lastErrorMsg}`);
+        }
 
         let textResponse = resultJson.candidates[0].content.parts[0].text.trim();
         textResponse = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -3891,7 +3889,8 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
       } catch (error) {
         console.error("Erro IA:", error);
-        if (showToast) { showToast(`Falha: ${error.message.substring(0, 80)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
+        // Exibe EXATAMENTE qual foi o erro na tela para podermos investigar caso falhe
+        if (showToast) { showToast(`Falha: ${error.message.substring(0, 100)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
         setMatchImageBase64(null); 
       } finally {
         setIsAnalyzing(false); 
