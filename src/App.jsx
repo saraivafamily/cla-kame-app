@@ -3818,10 +3818,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
         const safeKey = userApiKey.trim();
         
+        // 🚀 O SEGREDO ESTÁ AQUI: Nomes oficiais e limpos. 
+        // Se o Flash falhar, ele usa o Pro (que sabemos que funciona para a sua chave).
         const endpoints = [
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${safeKey}`
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${safeKey}`
         ];
 
         let resultJson;
@@ -3889,7 +3890,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
       } catch (error) {
         console.error("Erro IA:", error);
-        // Exibe EXATAMENTE qual foi o erro na tela para podermos investigar caso falhe
         if (showToast) { showToast(`Falha: ${error.message.substring(0, 100)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
         setMatchImageBase64(null); 
       } finally {
