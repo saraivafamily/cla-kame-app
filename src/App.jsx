@@ -3818,13 +3818,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
         const safeKey = userApiKey.trim();
         
-        // 🚀 O SEGREDO ESTÁ AQUI: Nomes oficiais e limpos. 
-        // Se o Flash falhar, ele usa o Pro (que sabemos que funciona para a sua chave).
         const endpoints = [
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${safeKey}`
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.0-pro-vision-latest:generateContent?key=${safeKey}`
         ];
-
+        
         let resultJson;
         let lastErrorMsg = "Erro desconhecido";
 
