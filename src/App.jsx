@@ -1078,10 +1078,42 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
 
   const openCompetitions = (competitions || []).filter(c => c && c.status === 'registration');
 
+  // Jogos que o usuário já enviou o placar, mas estão aguardando os líderes aprovarem
   const myPendingMatches = (matches || []).filter(m => 
     (userTeamIds.includes(m.teamA) || userTeamIds.includes(m.teamB)) &&
     m.status !== 'approved' && m.status !== 'rejected'
   );
+
+  // 🌟 NOVO MOTOR: Encontra os jogos que estão liberados para o usuário jogar agora
+  const matchesToPlay = useMemo(() => {
+    const available = [];
+    (competitions || []).forEach(comp => {
+      if (comp.status !== 'active') return;
+      
+      (comp.rounds || []).filter(r => r.status === 'released').forEach(round => {
+        (round.matches || []).forEach(m => {
+          // Se um dos times do usuário estiver no confronto
+          if (userTeamIds.includes(m.teamA) || userTeamIds.includes(m.teamB)) {
+            // Verifica se o resultado já não foi enviado para a nuvem
+            const alreadyPlayed = (matches || []).some(
+              submitted => submitted.matchId === m.id && submitted.compId === comp.id && submitted.status !== 'rejected'
+            );
+            
+            if (!alreadyPlayed) {
+              available.push({ 
+                ...m, 
+                compName: comp.name, 
+                compId: comp.id, 
+                roundName: round.number,
+                isFlash: comp.category === 'copa_flash'
+              });
+            }
+          }
+        });
+      });
+    });
+    return available;
+  }, [competitions, matches, userTeamIds]);
 
   const hasAdminAccess = isLeader || (competitions || []).some(c => c.status !== 'finished' && isCompAdmin(c));
 
@@ -1121,12 +1153,57 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
         </button>
       </div>
 
+      {/* 🌟 NOVO PAINEL: PARTIDAS LIBERADAS PARA JOGAR */}
+      {matchesToPlay.length > 0 && (
+        <div className="space-y-3 animate-in slide-in-from-left-4">
+          <h3 className="text-lg font-bold text-emerald-400 flex items-center gap-2">
+            <PlayCircle size={20} /> Seus Confrontos Liberados
+          </h3>
+          <p className="text-xs text-blue-400 -mt-2 mb-2">Partidas que já foram liberadas pelos líderes. Entre no jogo, enfrente o adversário e registre o placar.</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {matchesToPlay.map(m => {
+              const tA = getTeam(m.teamA);
+              const tB = getTeam(m.teamB);
+              return (
+                <div key={m.id} className="bg-blue-900/80 border border-emerald-500/40 hover:border-emerald-400/80 rounded-2xl p-4 shadow-lg transition-all flex flex-col justify-between group">
+                  <div className="flex justify-between items-start mb-4">
+                    <span className="text-[10px] bg-blue-950 text-blue-300 px-2.5 py-1 rounded font-bold uppercase tracking-widest border border-blue-800 shadow-inner">
+                      {m.compName} • Rodada {m.roundName}
+                    </span>
+                    {m.isFlash && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-1 rounded font-bold uppercase animate-pulse border border-amber-500/30 shadow-md flex items-center gap-1"><Activity size={10}/> Flash</span>}
+                  </div>
+                  
+                  <div className="flex items-center justify-between gap-2 mb-5 px-2">
+                    <div className="flex flex-col items-center flex-1 min-w-0">
+                      <ShieldDisplay shield={tA?.shield} size="small" />
+                      <span className={`text-xs font-bold mt-2 truncate w-full text-center ${userTeamIds.includes(m.teamA) ? 'text-emerald-400 drop-shadow-md' : 'text-blue-100'}`}>{tA?.name}</span>
+                    </div>
+                    <span className="text-blue-600 font-black text-lg px-2 shrink-0">X</span>
+                    <div className="flex flex-col items-center flex-1 min-w-0">
+                      <ShieldDisplay shield={tB?.shield} size="small" />
+                      <span className={`text-xs font-bold mt-2 truncate w-full text-center ${userTeamIds.includes(m.teamB) ? 'text-emerald-400 drop-shadow-md' : 'text-blue-100'}`}>{tB?.name}</span>
+                    </div>
+                  </div>
+                  
+                  <button onClick={() => onChangeTab('competitions')} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wide transition-colors shadow-md flex items-center justify-center gap-2">
+                    <Camera size={14}/> Ir para Registrar Placar
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* JOGOS AGUARDANDO APROVAÇÃO (Antigo pending matches) */}
       {myPendingMatches.length > 0 && (
         <div className="bg-blue-950/80 p-5 rounded-2xl border border-amber-500/40 shadow-lg relative overflow-hidden animate-in slide-in-from-bottom-4">
           <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
           <h3 className="text-sm font-bold text-amber-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <AlertCircle size={16} /> Você tem {myPendingMatches.length} {myPendingMatches.length === 1 ? 'jogo pendente' : 'jogos pendentes'}!
+            <AlertCircle size={16} /> Aguardando Validação ({myPendingMatches.length})
           </h3>
+          <p className="text-xs text-amber-400/70 mb-3 -mt-3">Estes placares já foram enviados e estão na fila de aprovação dos líderes.</p>
           <div className="space-y-2">
             {myPendingMatches.slice(0, 3).map(m => {
               const tA = getTeam(m.teamA);
