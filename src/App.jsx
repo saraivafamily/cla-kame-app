@@ -411,7 +411,7 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskcompleted }) =
   const [isPosting, setIsPosting] = useState(false);
   const [activeMenu, setActiveMenu] = useState(null); 
   
-  // 🌟 NOVO: Controle de quais comentários estão expandidos
+  // 🌟 Controle de quais comentários estão expandidos
   const [expandedComments, setExpandedComments] = useState({}); 
 
   // 1. FUNÇÃO PARA LER E COMPRIMIR A FOTO
@@ -468,7 +468,7 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskcompleted }) =
     }
   };
 
-  // 🛠️ CORREÇÃO: Blindagem para evitar inatividade nos comentários
+  // 🛠️ CORREÇÃO: Salvar comentário de forma blindada
   const handleComment = async (postId) => {
     const text = commentText[postId];
     if (!text?.trim()) return;
@@ -482,7 +482,9 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskcompleted }) =
     const currentComments = post.comments || []; 
     
     await updateDoc(getPublicDocPath('feed', postId), { comments: [...currentComments, newComment] });
-    setCommentText({ ...commentText, [postId]: '' });
+    
+    // Limpa a caixa de texto
+    setCommentText(prev => ({ ...prev, [postId]: '' }));
     
     // Expande os comentários automaticamente ao comentar
     setExpandedComments(prev => ({...prev, [postId]: true}));
@@ -604,7 +606,7 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskcompleted }) =
                 </div>
               )}
               
-              {/* Botões de Interação */}
+              {/* 🌟 BOTÕES DE INTERAÇÃO (AGORA O BOTÃO DE COMENTÁRIO FUNCIONA!) */}
               <div className="flex items-center gap-6 pt-2">
                 <button onClick={() => toggleLike(post.id)} className={`flex items-center gap-1.5 text-sm font-bold transition-all group ${isLiked ? 'text-red-500' : 'text-blue-400 hover:text-red-400'}`}>
                   <div className={`p-1.5 rounded-full group-hover:bg-red-500/10 transition-colors ${isLiked ? 'bg-red-500/10' : ''}`}>
@@ -612,12 +614,22 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskcompleted }) =
                   </div>
                   <span>{currentLikes.length > 0 && currentLikes.length}</span>
                 </button>
-                <div className="flex items-center gap-1.5 text-sm font-bold text-blue-400 group cursor-">
+                
+                {/* Botão de abrir caixa de comentários */}
+                <button 
+                  onClick={() => {
+                     // Força a caixa de texto a aparecer
+                     if (commentText[post.id] === undefined) {
+                       setCommentText(prev => ({...prev, [post.id]: ''}));
+                     }
+                  }} 
+                  className="flex items-center gap-1.5 text-sm font-bold text-blue-400 hover:text-blue-300 group cursor-pointer transition-all"
+                >
                   <div className="p-1.5 rounded-full group-hover:bg-blue-500/10 transition-colors">
                     <MessageCircle size={18} />
                   </div>
                   <span>{postComments.length > 0 && postComments.length}</span>
-                </div>
+                </button>
               </div>
 
               {/* Área de Comentários */}
@@ -657,14 +669,14 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskcompleted }) =
                       type="text" 
                       placeholder="Adicione um comentário..." 
                       value={commentText[post.id] || ''} 
-                      onChange={e => setCommentText({...commentText, [post.id]: e.target.value})} 
+                      onChange={e => setCommentText(prev => ({...prev, [post.id]: e.target.value}))} 
                       onKeyDown={e => e.key === 'Enter' && handleComment(post.id)} 
                       className="flex-1 bg-blue-900/50 border border-blue-800 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:border-emerald-500 transition-colors" 
                     />
                     <button 
                       onClick={() => handleComment(post.id)} 
                       disabled={!commentText[post.id]?.trim()} 
-                      className="text-emerald-500 disabled:text-blue-700 p-1.5 hover:bg-emerald-500/10 rounded-full transition-colors"
+                      className="text-emerald-500 disabled:text-blue-700 p-1.5 hover:bg-emerald-500/10 rounded-full transition-colors cursor-pointer"
                     >
                       <Send size={16}/>
                     </button>
