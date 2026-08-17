@@ -2854,7 +2854,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
 
                                 <div className="flex flex-col flex-1 h-full py-2">
                                   {comp.category === 'copa_flash_dupla' ? (
-  // ======= RENDERIZAÇÃO AGRUPADA PARA DUPLAS =======
+  
   Array.from({ length: round.matches.length / 2 }).map((_, idx) => {
     const mIda = round.matches[idx * 2];
     const mVolta = round.matches[idx * 2 + 1];
@@ -2937,9 +2937,15 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     );
   })
 )}
-
-              </div>
-            )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
             
             {subTab === 'stats' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
