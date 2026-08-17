@@ -3084,6 +3084,9 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
         const sIda = getMatchStatusDisplay(mIda.id);
         const sVolta = getMatchStatusDisplay(mVolta.id);
         
+        // A VARIÁVEL QUE FALTAVA PARA NÃO DAR TELA CINZA:
+        const isPlayed = sIda.isPlayed && sIda.text === 'Oficial' && sVolta.isPlayed && sVolta.text === 'Oficial';
+        
         return (
           <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setSelectedDuplaMatchup(null)}>
             <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-md p-6 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
