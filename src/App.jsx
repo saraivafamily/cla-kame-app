@@ -2784,19 +2784,51 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     }
 
     // SE FOR UM JOGADOR NORMAL, ELE VÊ A TELA DE ESPERA
-    return (
-      <div className="space-y-6 animate-in fade-in pb-10">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
-        <div className="bg-blue-900 p-8 md:p-12 rounded-3xl border border-amber-500/50 flex flex-col items-center text-center shadow-2xl mt-8">
-            <span className="text-6xl mb-6 animate-bounce">🎲</span>
-            <h2 className="text-3xl md:text-4xl font-black text-amber-400 uppercase tracking-widest mb-4">Sorteio Ao Vivo Ativo</h2>
-            <p className="text-blue-300 md:w-2/3 leading-relaxed">As inscrições foram encerradas. Acompanhe a live dos líderes!<br/><br/>A tabela e os confrontos estão bloqueados enquanto a diretoria realiza o sorteio oficial ao vivo.</p>
-        </div>
-      </div>
-    );
-  }
+            return (
+              <div className="space-y-6 animate-in fade-in pb-10">
+                <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
+                <div className="bg-blue-900 p-8 md:p-12 rounded-3xl border border-amber-500/50 flex flex-col items-center text-center shadow-2xl mt-8">
+                    <span className="text-6xl mb-6 animate-bounce">🎲</span>
+                    <h2 className="text-3xl md:text-4xl font-black text-amber-400 uppercase tracking-widest mb-4">Sorteio Ao Vivo Ativo</h2>
+                    <p className="text-blue-300 md:w-2/3 leading-relaxed">As inscrições foram encerradas. Acompanhe a live dos líderes!<br/><br/>A tabela e os confrontos estão bloqueados enquanto a diretoria realiza o sorteio oficial ao vivo.</p>
+                </div>
+              </div>
+            );
+          }
 
-      {showEditSettings && (
+          return (
+            <div className="space-y-6 animate-in fade-in pb-10">
+              <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
+              
+              <div className="bg-blue-900 p-5 rounded-3xl border border-blue-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl">
+                <div>
+                  <h2 className="text-xl font-bold text-white uppercase tracking-wider">{comp.category ? CATEGORY_NAMES[comp.category] : 'Campeonato'} - {comp.name}</h2>
+                  <div className="flex items-center flex-wrap gap-2 mt-2">
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">{comp.category ? CATEGORY_NAMES[comp.category] : 'Sem Categoria'}</span>
+                    <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">Estilo: {comp.playStyle || 'Livre'}</span>
+                    {comp.status === 'finished' && (<span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-black tracking-widest uppercase flex items-center gap-1"><Lock size={10}/> Encerrado</span>)}
+                    <span className="text-xs text-blue-400 font-medium ml-1">• {comp.format === 'league' ? 'Pontos Corridos' : comp.format === 'groups' ? 'Fase de Grupos + Copa' : 'Copa Mata-Mata'}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 w-full md:w-auto flex-wrap">
+                  {isAdmin && comp.format === 'groups' && comp.groups && (<button onClick={handleOpenEditGroups} className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-purple-700 shadow-md flex items-center gap-1">👥 Gerenciar Grupos</button>)}
+                  {isAdmin && comp.status !== 'finished' && (<button onClick={() => { setShowEditSettings(!showEditSettings); setShowEditPrizes(false); }} className="bg-blue-800 hover:bg-blue-700 text-blue-200 text-xs font-bold py-2 px-3 rounded-lg border border-blue-600 shadow-md flex items-center gap-1">⚙️ Configurações</button>)}
+                  {isAdmin && comp.status !== 'finished' && (<button onClick={() => { if(window.confirm("Deseja encerrar oficialmente esta competição?")) { onEditComp({ ...comp, status: 'finished' }); showToast("Competição encerrada!", "success"); } }} className="bg-red-900/80 hover:bg-red-800 text-red-200 text-xs font-bold py-2 px-3 rounded-lg border border-red-700 shadow-md flex items-center gap-1">🛑 Encerrar Torneio</button>)}
+                  {isAdmin && (<button onClick={() => { setShowEditPrizes(!showEditPrizes); setShowEditSettings(false); }} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-amber-700 shadow-md flex items-center gap-1">🏆 Premiação</button>)}
+                 {isAdmin && comp.status !== 'finished' && (
+                    <>
+                      {showAddTeam ? (
+                        <div className="flex gap-2 w-full sm:w-auto animate-in fade-in">
+                          <select value={newTeamToAdd} onChange={e=>setNewTeamToAdd(e.target.value)} className="bg-blue-950 border border-blue-700 rounded-lg p-2 text-xs text-white outline-none"><option value="">Escolher time...</option>{availableTeamsToAdd.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+                          <Button onClick={handleAddTeamToComp} className="py-1 px-3 text-xs">Salvar</Button><Button variant="outline" onClick={()=>{setShowAddTeam(false); setNewTeamToAdd('');}} className="py-1 px-2 text-xs font-bold text-blue-400">X</Button>
+                        </div>
+                      ) : (<Button variant="outline" onClick={()=>setShowAddTeam(true)} className="py-2 px-3 text-xs w-full sm:w-auto flex items-center justify-center gap-2"><span className="text-emerald-400 font-bold">+</span> Inserir Time</Button>)}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {showEditSettings && (
         <div className="bg-blue-950/80 border border-blue-700 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
           <h3 className="text-sm font-bold text-blue-300 uppercase tracking-wider flex items-center gap-2">⚙️ Configurações Gerais</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
