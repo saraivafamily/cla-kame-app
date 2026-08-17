@@ -1213,10 +1213,9 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               const isIda = m.id.includes('_ida');
               const isVolta = m.id.includes('_volta');
               
-              // Trava a Volta se a Ida não tiver sido jogada E APROVADA
               if (isDupla && isVolta) {
                  const idaMatchId = m.id.replace('_volta', '_ida');
-                 const idaPlayed = (matches || []).some(sub => sub.matchId === idaMatchId && sub.compId === m.compId && sub.status === 'approved');
+                 const idaPlayed = (matches || []).some(sub => sub.matchId === idaMatchId && sub.compId === m.compId && sub.status !== 'rejected');
                  if (!idaPlayed) return null; 
               }
 
@@ -1228,10 +1227,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               const myTeamObj = isUserTeamA ? tA : tB;
 
               const hideOpponent = isDupla && isIda;
-              
-              let sum = 0;
-              for(let i=0; i<m.id.length; i++) sum += m.id.charCodeAt(i);
-              const dlsCode = "KAM" + ((sum % 900) + 100);
+              const dlsCode = "KAM" + ((m.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 90) + 10);
 
               return (
                 <div key={m.id} className="bg-blue-900/80 border border-emerald-500/40 hover:border-emerald-400/80 rounded-2xl p-4 shadow-lg transition-all flex flex-col justify-between group">
@@ -1250,13 +1246,13 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                     <span className="text-blue-600 font-black text-lg px-2 shrink-0">X</span>
                     <div className="flex flex-col items-center flex-1 min-w-0">
                       <ShieldDisplay shield={hideOpponent ? "❓" : opponentTeam?.shield} size="small" />
-                      <span className={`text-xs font-bold mt-2 truncate w-full text-center text-blue-100`}>{hideOpponent ? "Adversário Oculto 🕵️" : opponentTeam?.name}</span>
+                      <span className={`text-xs font-bold mt-2 truncate w-full text-center text-blue-100`}>{hideOpponent ? "Adversário Oculto" : opponentTeam?.name}</span>
                     </div>
                   </div>
                   
                   {hideOpponent ? (
                     <button 
-                      onClick={() => alert(`CÓDIGO DA PARTIDA: ${dlsCode}\n\nEntre no DLS, vá em "Amistoso", digite este código exato e busque a partida ao mesmo tempo que o adversário para se encontrarem de forma anônima!`)} 
+                      onClick={() => alert(`CÓDIGO DA PARTIDA: ${dlsCode}\n\nEntre no DLS, vá em "Amistoso", digite este código exato e busque a partida ao mesmo tempo que o adversário!`)} 
                       className="w-full bg-amber-600 hover:bg-amber-500 text-blue-950 font-black py-2.5 rounded-xl text-xs uppercase tracking-wide transition-colors shadow-md flex items-center justify-center gap-2"
                     >
                       <Dices size={14}/> Gerar Código DLS
@@ -4406,26 +4402,25 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           <div className="animate-in fade-in">
             <label className="block text-sm font-medium text-blue-400 mb-2">2. Selecione a Partida Liberada</label>
             {availableMatches.length > 0 ? (
-              <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
-                <option value="">Selecione o Confronto...</option>
-                {availableMatches.map(m => {
-                  const isDupla = selectedComp?.category === 'copa_flash_dupla';
-                  const isIda = m.id.includes('_ida');
-                  const amITeamA = userTeamIds.includes(m.teamA);
-                  
-                  const myTeamObj = amITeamA ? teams.find(t=>t.id===m.teamA) : teams.find(t=>t.id===m.teamB);
-                  const oppTeamObj = amITeamA ? teams.find(t=>t.id===m.teamB) : teams.find(t=>t.id===m.teamA);
-                  
-                  const hideOpponent = isDupla && isIda && !isAdmin;
-                  const oppName = hideOpponent ? 'Adversário Oculto 🕵️' : oppTeamObj?.name;
-                  const myName = myTeamObj?.name || (isAdmin ? teams.find(t=>t.id===m.teamA)?.name : 'A Definir');
-                  const secondName = isAdmin ? teams.find(t=>t.id===m.teamB)?.name : oppName;
+              <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500">
+            <option value="">Selecione o Confronto...</option>
+            {availableMatches.map(m => {
+              const isDupla = selectedComp?.category === 'copa_flash_dupla';
+              const isIda = m.id.includes('_ida');
+              const amITeamA = userTeamIds.includes(m.teamA);
+              
+              const myTeamObj = amITeamA ? teams.find(t=>t.id===m.teamA) : teams.find(t=>t.id===m.teamB);
+              const oppTeamObj = amITeamA ? teams.find(t=>t.id===m.teamB) : teams.find(t=>t.id===m.teamA);
+              
+              const oppName = (isDupla && isIda && !isAdmin) ? 'Adversário Oculto 🕵️' : oppTeamObj?.name;
+              const myName = myTeamObj?.name || (isAdmin ? teams.find(t=>t.id===m.teamA)?.name : 'A Definir');
+              const secondName = isAdmin ? teams.find(t=>t.id===m.teamB)?.name : oppName;
 
-                  return (
-                    <option key={m.id} value={m.id}>Rodada {m.roundName}: {myName} x {secondName}</option>
-                  )
-                })}
-              </select>
+              return (
+                <option key={m.id} value={m.id}>Rodada {m.roundName}: {myName} x {secondName}</option>
+              )
+            })}
+          </select>
             ) : <div className="p-3 bg-blue-950 rounded border border-blue-800 text-blue-500 text-sm">Tudo limpo!.</div>}
           </div>
         )}
