@@ -1150,7 +1150,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                 compName: comp.name, 
                 compId: comp.id, 
                 roundName: round.number,
-                isFlash: comp.category === 'copa_flash'
+                isFlash: comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla'
               });
             }
           }
@@ -1228,7 +1228,10 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               const myTeamObj = isUserTeamA ? tA : tB;
 
               const hideOpponent = isDupla && isIda;
-              const dlsCode = "KAM" + ((m.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 90) + 10);
+              
+              let sum = 0;
+              for(let i=0; i<m.id.length; i++) sum += m.id.charCodeAt(i);
+              const dlsCode = "KAM" + ((sum % 900) + 100);
 
               return (
                 <div key={m.id} className="bg-blue-900/80 border border-emerald-500/40 hover:border-emerald-400/80 rounded-2xl p-4 shadow-lg transition-all flex flex-col justify-between group">
@@ -1247,13 +1250,13 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                     <span className="text-blue-600 font-black text-lg px-2 shrink-0">X</span>
                     <div className="flex flex-col items-center flex-1 min-w-0">
                       <ShieldDisplay shield={hideOpponent ? "❓" : opponentTeam?.shield} size="small" />
-                      <span className={`text-xs font-bold mt-2 truncate w-full text-center text-blue-100`}>{hideOpponent ? "Adversário Oculto" : opponentTeam?.name}</span>
+                      <span className={`text-xs font-bold mt-2 truncate w-full text-center text-blue-100`}>{hideOpponent ? "Adversário Oculto 🕵️" : opponentTeam?.name}</span>
                     </div>
                   </div>
                   
                   {hideOpponent ? (
                     <button 
-                      onClick={() => alert(`CÓDIGO DA PARTIDA: ${dlsCode}\n\nEntre no DLS, vá em "Amistoso", digite este código exato e busque a partida ao mesmo tempo que o adversário!`)} 
+                      onClick={() => alert(`CÓDIGO DA PARTIDA: ${dlsCode}\n\nEntre no DLS, vá em "Amistoso", digite este código exato e busque a partida ao mesmo tempo que o adversário para se encontrarem de forma anônima!`)} 
                       className="w-full bg-amber-600 hover:bg-amber-500 text-blue-950 font-black py-2.5 rounded-xl text-xs uppercase tracking-wide transition-colors shadow-md flex items-center justify-center gap-2"
                     >
                       <Dices size={14}/> Gerar Código DLS
@@ -1323,10 +1326,10 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               });
 
               return (
-                <div key={comp.id} className={`bg-blue-900 p-5 rounded-2xl border ${comp.category === 'copa_flash' ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-amber-500/30'} shadow-lg flex flex-col justify-between group hover:border-amber-500/60 transition-all`}>
+                <div key={comp.id} className={`bg-blue-900 p-5 rounded-2xl border ${comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla' ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-amber-500/30'} shadow-lg flex flex-col justify-between group hover:border-amber-500/60 transition-all`}>
                   <div>
                     <div className="flex justify-between items-start mb-2">
-                      <h4 className={`font-black text-lg transition-colors ${comp.category === 'copa_flash' ? 'text-amber-400' : 'text-white group-hover:text-amber-400'}`}>{comp.name}</h4>
+                      <h4 className={`font-black text-lg transition-colors ${comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla' ? 'text-amber-400' : 'text-white group-hover:text-amber-400'}`}>{comp.name}</h4>
                       <span className="text-xs bg-amber-500/20 text-amber-400 font-bold px-2 py-1 rounded-lg border border-amber-500/30">
                         {compTeams.length}/{teamCount} Vagas
                       </span>
@@ -1335,8 +1338,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                   </div>
                   
                   <div className="mt-5 pt-4 border-t border-blue-800">
-                    
-                    {comp.category === 'copa_flash' && comp.deadline && (
+                    {(comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla') && comp.deadline && (
                       <div className="bg-blue-950 p-2.5 rounded-xl border border-amber-500/40 text-center mb-4">
                         <p className="text-[9px] text-amber-400 font-bold uppercase tracking-widest mb-0.5 flex items-center justify-center gap-1"><Activity size={12}/> Inicia em</p>
                         <p className="text-2xl text-amber-500 drop-shadow-md">
@@ -1344,7 +1346,6 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                         </p>
                       </div>
                     )}
-
                     {alreadyJoined ? (
                        <div className="text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20"><CheckCircle size={16}/> Você já está dentro!</div>
                     ) : isPending ? (
@@ -3937,7 +3938,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
   const [matchImageBase64, setMatchImageBase64] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [imageUploaded, setImageUploaded] = useState(false);
-  const [isSubmittingMatch, setIsSubmittingMatch] = useState(false); // Novo estado de carregamento
+  const [isSubmittingMatch, setIsSubmittingMatch] = useState(false);
   
   const [isManualMode, setIsManualMode] = useState(false);
   
@@ -4250,7 +4251,6 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
     else { const updated = [...goalsB]; updated[index][field] = value; setGoalsB(updated); }
   };
 
-  // AGORA É ASYNC PARA ESPERAR O BANCO DE DADOS
   const handleSubmitInit = async (e) => {
     e.preventDefault(); 
     
@@ -4281,7 +4281,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
   };
 
   const processSubmission = async (forcedDoubleWoWinner = null) => {
-    setIsSubmittingMatch(true); // Trava o botão
+    setIsSubmittingMatch(true);
     let finalScoreA = scoreA;
     let finalScoreB = scoreB;
     let isDoubleWo = forcedDoubleWoWinner !== null;
@@ -4404,23 +4404,26 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           <div className="animate-in fade-in">
             <label className="block text-sm font-medium text-blue-400 mb-2">2. Selecione a Partida Liberada</label>
             {availableMatches.length > 0 ? (
-              <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500">
-            <option value="">Selecione o Confronto...</option>
-            {availableMatches.map(m => {
-              const isDupla = comp?.category === 'copa_flash_dupla';
-              const isIda = m.id.includes('_ida');
-              const amITeamA = userTeamIds.includes(m.teamA);
-              
-              const myTeamObj = amITeamA ? teams.find(t=>t.id===m.teamA) : teams.find(t=>t.id===m.teamB);
-              const oppTeamObj = amITeamA ? teams.find(t=>t.id===m.teamB) : teams.find(t=>t.id===m.teamA);
-              
-              const oppName = (isDupla && isIda) ? 'Adversário Oculto' : oppTeamObj?.name;
+              <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
+                <option value="">Selecione o Confronto...</option>
+                {availableMatches.map(m => {
+                  const isDupla = selectedComp?.category === 'copa_flash_dupla';
+                  const isIda = m.id.includes('_ida');
+                  const amITeamA = userTeamIds.includes(m.teamA);
+                  
+                  const myTeamObj = amITeamA ? teams.find(t=>t.id===m.teamA) : teams.find(t=>t.id===m.teamB);
+                  const oppTeamObj = amITeamA ? teams.find(t=>t.id===m.teamB) : teams.find(t=>t.id===m.teamA);
+                  
+                  const hideOpponent = isDupla && isIda && !isAdmin;
+                  const oppName = hideOpponent ? 'Adversário Oculto 🕵️' : oppTeamObj?.name;
+                  const myName = myTeamObj?.name || (isAdmin ? teams.find(t=>t.id===m.teamA)?.name : 'A Definir');
+                  const secondName = isAdmin ? teams.find(t=>t.id===m.teamB)?.name : oppName;
 
-              return (
-                <option key={m.id} value={m.id}>Rodada {m.roundName}: {myTeamObj?.name} x {oppName}</option>
-              )
-            })}
-          </select>
+                  return (
+                    <option key={m.id} value={m.id}>Rodada {m.roundName}: {myName} x {secondName}</option>
+                  )
+                })}
+              </select>
             ) : <div className="p-3 bg-blue-950 rounded border border-blue-800 text-blue-500 text-sm">Tudo limpo!.</div>}
           </div>
         )}
@@ -4491,87 +4494,106 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
               )}
             </div>
             
-            <div className="flex flex-col md:flex-row gap-6 items-start bg-blue-950 p-4 rounded-xl border border-blue-800">
-              <div className="flex-1 w-full space-y-3">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2"><ShieldDisplay shield={teamA?.shield} size="small" /> {teamA?.name}</div>
-                  <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20 hover:bg-red-500/20 transition-colors">
-                    <input type="checkbox" checked={woA} onChange={(e) => {
-                      const isWo = e.target.checked;
-                      setWoA(isWo);
-                      if (isWo && !woB) { setScoreA('0'); setScoreB('3'); setGoalsA([]); setGoalsB([]); }
-                      else if (!isWo && woB) { setScoreA('3'); setScoreB('0'); }
-                      else if (isWo && woB) { setScoreA('?'); setScoreB('?'); setGoalsA([]); setGoalsB([]); }
-                      else { setScoreA(''); setScoreB(''); }
-                    }} className="accent-red-500 w-3 h-3" /> DAR W.O.
-                  </label>
-                </div>
-                <input type="text" inputMode="numeric" pattern="[0-9]*" value={scoreA} onChange={e=>setScoreA(e.target.value)} disabled={woA || woB} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none disabled:opacity-50" required />
-                
-                {isCup && isTie && !woA && !woB && (
-                  <div className="mt-2">
-                    <label className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Pênaltis A</label>
-                    <input type="number" inputMode="numeric" pattern="[0-9]*" required value={penaltiesA} onChange={e=>setPenaltiesA(e.target.value)} className="w-full bg-blue-900 border border-amber-500/50 text-center font-bold text-lg text-amber-400 rounded p-2 outline-none focus:border-amber-500" />
-                  </div>
-                )}
+            {(() => {
+              const m = availableMatches.find(x=>x.id===selectedMatchId);
+              const isDupla = selectedComp?.category === 'copa_flash_dupla';
+              const isIda = m?.id.includes('_ida');
+              const hideOpponent = isDupla && isIda && !isAdmin;
 
-                <div className="space-y-2 pt-2">
-                  <span className="text-[10px] text-blue-500 uppercase font-bold block">Gols</span>
-                  {goalsA.map((g, i) => (
-                    <div key={i} className="flex flex-col gap-1 bg-blue-800 p-2 rounded">
-                      <input type="text" value={g.player} onChange={e=>handleGoalChange('A', i, 'player', e.target.value)} placeholder="Goleador" className="w-full bg-blue-950 text-xs text-white px-2 py-1 rounded border border-blue-700 outline-none" required />
-                      <div className="flex gap-1">
-                        <input type="text" value={g.assist || ''} onChange={e=>handleGoalChange('A', i, 'assist', e.target.value)} placeholder="Assistência" className="flex-1 bg-blue-950 text-[10px] text-blue-400 px-2 py-1 rounded border border-blue-700 outline-none" />
-                        <input type="number" inputMode="numeric" pattern="[0-9]*" value={g.minute} onChange={e=>handleGoalChange('A', i, 'minute', e.target.value)} placeholder="Min" className="w-12 bg-blue-950 text-xs text-emerald-400 text-center px-1 py-1 rounded border border-blue-700 outline-none" required />
-                        <button type="button" onClick={()=>handleRemoveGoal('A', i)} className="text-red-400 p-1 hover:text-red-300"><X size={12}/></button>
-                      </div>
-                    </div>
-                  ))}
-                  {!woA && !woB && <button type="button" onClick={()=>handleAddGoal('A')} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar Gol</button>}
-                </div>
-              </div>
+              const teamAObj = teams.find(t=>t.id===m?.teamA);
+              const teamBObj = teams.find(t=>t.id===m?.teamB);
               
-              <div className="text-blue-500 font-bold text-xl self-center pt-8 hidden md:block">X</div>
-              
-              <div className="flex-1 w-full space-y-3">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20 hover:bg-red-500/20 transition-colors">
-                    <input type="checkbox" checked={woB} onChange={(e) => {
-                      const isWo = e.target.checked;
-                      setWoB(isWo);
-                      if (isWo && !woA) { setScoreB('0'); setScoreA('3'); setGoalsA([]); setGoalsB([]); }
-                      else if (!isWo && woA) { setScoreB('3'); setScoreA('0'); }
-                      else if (isWo && woA) { setScoreA('?'); setScoreB('?'); setGoalsA([]); setGoalsB([]); }
-                      else { setScoreA(''); setScoreB(''); }
-                    }} className="accent-red-500 w-3 h-3" /> DAR W.O.
-                  </label>
-                  <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2">{teamB?.name} <ShieldDisplay shield={teamB?.shield} size="small" /></div>
-                </div>
-                <input type="text" inputMode="numeric" pattern="[0-9]*" value={scoreB} onChange={e=>setScoreB(e.target.value)} disabled={woA || woB} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none disabled:opacity-50" required />
-                
-                {isCup && isTie && !woA && !woB && (
-                  <div className="mt-2">
-                    <label className="text-[10px] text-amber-400 uppercase tracking-widest font-bold text-right block">Pênaltis B</label>
-                    <input type="number" inputMode="numeric" pattern="[0-9]*" required value={penaltiesB} onChange={e=>setPenaltiesB(e.target.value)} className="w-full bg-blue-900 border border-amber-500/50 text-center font-bold text-lg text-amber-400 rounded p-2 outline-none focus:border-amber-500" />
-                  </div>
-                )}
+              const amITeamA = userTeamIds.includes(m?.teamA);
 
-                <div className="space-y-2 pt-2">
-                  <span className="text-[10px] text-blue-500 uppercase font-bold block text-right">Gols</span>
-                  {goalsB.map((g, i) => (
-                    <div key={i} className="flex flex-col gap-1 bg-blue-800 p-2 rounded">
-                      <input type="text" value={g.player} onChange={e=>handleGoalChange('B', i, 'player', e.target.value)} placeholder="Goleador" className="w-full bg-blue-950 text-xs text-white px-2 py-1 rounded border border-blue-700 outline-none text-right" required />
-                      <div className="flex gap-1">
-                        <button type="button" onClick={()=>handleRemoveGoal('B', i)} className="text-red-400 p-1 hover:text-red-300"><X size={12}/></button>
-                        <input type="number" inputMode="numeric" pattern="[0-9]*" value={g.minute} onChange={e=>handleGoalChange('B', i, 'minute', e.target.value)} placeholder="Min" className="w-12 bg-blue-950 text-xs text-emerald-400 text-center px-1 py-1 rounded border border-blue-700 outline-none" required />
-                        <input type="text" value={g.assist || ''} onChange={e=>handleGoalChange('B', i, 'assist', e.target.value)} placeholder="Assistência" className="flex-1 bg-blue-950 text-[10px] text-blue-400 px-2 py-1 rounded border border-blue-700 outline-none text-right" />
-                      </div>
+              const shieldA = (hideOpponent && !amITeamA) ? "❓" : teamAObj?.shield;
+              const shieldB = (hideOpponent && amITeamA) ? "❓" : teamBObj?.shield;
+              const nameA = (hideOpponent && !amITeamA) ? 'Oculto' : teamAObj?.name;
+              const nameB = (hideOpponent && amITeamA) ? 'Oculto' : teamBObj?.name;
+
+              return (
+                <div className="flex flex-col md:flex-row gap-6 items-start bg-blue-950 p-4 rounded-xl border border-blue-800">
+                  <div className="flex-1 w-full space-y-3">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2"><ShieldDisplay shield={shieldA} size="small" /> {nameA}</div>
+                      <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20 hover:bg-red-500/20 transition-colors">
+                        <input type="checkbox" checked={woA} onChange={(e) => {
+                          const isWo = e.target.checked;
+                          setWoA(isWo);
+                          if (isWo && !woB) { setScoreA('0'); setScoreB('3'); setGoalsA([]); setGoalsB([]); }
+                          else if (!isWo && woB) { setScoreA('3'); setScoreB('0'); }
+                          else if (isWo && woB) { setScoreA('?'); setScoreB('?'); setGoalsA([]); setGoalsB([]); }
+                          else { setScoreA(''); setScoreB(''); }
+                        }} className="accent-red-500 w-3 h-3" /> DAR W.O.
+                      </label>
                     </div>
-                  ))}
-                  {!woA && !woB && <div className="flex justify-end"><button type="button" onClick={()=>handleAddGoal('B')} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar Gol</button></div>}
+                    <input type="text" inputMode="numeric" pattern="[0-9]*" value={scoreA} onChange={e=>setScoreA(e.target.value)} disabled={woA || woB} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none disabled:opacity-50" required />
+                    
+                    {isCup && isTie && !woA && !woB && (
+                      <div className="mt-2">
+                        <label className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Pênaltis A</label>
+                        <input type="number" inputMode="numeric" pattern="[0-9]*" required value={penaltiesA} onChange={e=>setPenaltiesA(e.target.value)} className="w-full bg-blue-900 border border-amber-500/50 text-center font-bold text-lg text-amber-400 rounded p-2 outline-none focus:border-amber-500" />
+                      </div>
+                    )}
+
+                    <div className="space-y-2 pt-2">
+                      <span className="text-[10px] text-blue-500 uppercase font-bold block">Gols</span>
+                      {goalsA.map((g, i) => (
+                        <div key={i} className="flex flex-col gap-1 bg-blue-800 p-2 rounded">
+                          <input type="text" value={g.player} onChange={e=>handleGoalChange('A', i, 'player', e.target.value)} placeholder="Goleador" className="w-full bg-blue-950 text-xs text-white px-2 py-1 rounded border border-blue-700 outline-none" required />
+                          <div className="flex gap-1">
+                            <input type="text" value={g.assist || ''} onChange={e=>handleGoalChange('A', i, 'assist', e.target.value)} placeholder="Assistência" className="flex-1 bg-blue-950 text-[10px] text-blue-400 px-2 py-1 rounded border border-blue-700 outline-none" />
+                            <input type="number" inputMode="numeric" pattern="[0-9]*" value={g.minute} onChange={e=>handleGoalChange('A', i, 'minute', e.target.value)} placeholder="Min" className="w-12 bg-blue-950 text-xs text-emerald-400 text-center px-1 py-1 rounded border border-blue-700 outline-none" required />
+                            <button type="button" onClick={()=>handleRemoveGoal('A', i)} className="text-red-400 p-1 hover:text-red-300"><X size={12}/></button>
+                          </div>
+                        </div>
+                      ))}
+                      {!woA && !woB && <button type="button" onClick={()=>handleAddGoal('A')} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar Gol</button>}
+                    </div>
+                  </div>
+                  
+                  <div className="text-blue-500 font-bold text-xl self-center pt-8 hidden md:block">X</div>
+                  
+                  <div className="flex-1 w-full space-y-3">
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20 hover:bg-red-500/20 transition-colors">
+                        <input type="checkbox" checked={woB} onChange={(e) => {
+                          const isWo = e.target.checked;
+                          setWoB(isWo);
+                          if (isWo && !woA) { setScoreB('0'); setScoreA('3'); setGoalsA([]); setGoalsB([]); }
+                          else if (!isWo && woA) { setScoreB('3'); setScoreA('0'); }
+                          else if (isWo && woA) { setScoreA('?'); setScoreB('?'); setGoalsA([]); setGoalsB([]); }
+                          else { setScoreA(''); setScoreB(''); }
+                        }} className="accent-red-500 w-3 h-3" /> DAR W.O.
+                      </label>
+                      <div className="text-center font-bold text-lg text-blue-300 flex items-center justify-center gap-2">{nameB} <ShieldDisplay shield={shieldB} size="small" /></div>
+                    </div>
+                    <input type="text" inputMode="numeric" pattern="[0-9]*" value={scoreB} onChange={e=>setScoreB(e.target.value)} disabled={woA || woB} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-3 text-white text-center text-3xl font-bold focus:border-emerald-500 outline-none disabled:opacity-50" required />
+                    
+                    {isCup && isTie && !woA && !woB && (
+                      <div className="mt-2">
+                        <label className="text-[10px] text-amber-400 uppercase tracking-widest font-bold text-right block">Pênaltis B</label>
+                        <input type="number" inputMode="numeric" pattern="[0-9]*" required value={penaltiesB} onChange={e=>setPenaltiesB(e.target.value)} className="w-full bg-blue-900 border border-amber-500/50 text-center font-bold text-lg text-amber-400 rounded p-2 outline-none focus:border-amber-500" />
+                      </div>
+                    )}
+
+                    <div className="space-y-2 pt-2">
+                      <span className="text-[10px] text-blue-500 uppercase font-bold block text-right">Gols</span>
+                      {goalsB.map((g, i) => (
+                        <div key={i} className="flex flex-col gap-1 bg-blue-800 p-2 rounded">
+                          <input type="text" value={g.player} onChange={e=>handleGoalChange('B', i, 'player', e.target.value)} placeholder="Goleador" className="w-full bg-blue-950 text-xs text-white px-2 py-1 rounded border border-blue-700 outline-none text-right" required />
+                          <div className="flex gap-1">
+                            <button type="button" onClick={()=>handleRemoveGoal('B', i)} className="text-red-400 p-1 hover:text-red-300"><X size={12}/></button>
+                            <input type="number" inputMode="numeric" pattern="[0-9]*" value={g.minute} onChange={e=>handleGoalChange('B', i, 'minute', e.target.value)} placeholder="Min" className="w-12 bg-blue-950 text-xs text-emerald-400 text-center px-1 py-1 rounded border border-blue-700 outline-none" required />
+                            <input type="text" value={g.assist || ''} onChange={e=>handleGoalChange('B', i, 'assist', e.target.value)} placeholder="Assistência" className="flex-1 bg-blue-950 text-[10px] text-blue-400 px-2 py-1 rounded border border-blue-700 outline-none text-right" />
+                          </div>
+                        </div>
+                      ))}
+                      {!woA && !woB && <div className="flex justify-end"><button type="button" onClick={()=>handleAddGoal('B')} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar Gol</button></div>}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              );
+            })()}
 
             <div className="space-y-1">
               <label className="text-sm font-medium text-blue-400 block">Observações (Opcional)</label>
