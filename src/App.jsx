@@ -2124,6 +2124,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [newTeamToAdd, setNewTeamToAdd] = useState('');
   const [selectedDuplaMatchup, setSelectedDuplaMatchup] = useState(null);
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const [viewType, setViewType] = useState(comp?.format === 'league' ? 'table' : 'bracket');
 
@@ -2428,6 +2429,8 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     
     if (comp.category === 'copa_flash_dupla') {
         try {
+            // Nota: As funções de utilidade (generateDuplasCupBracket, etc) devem estar 
+            // declaradas fora do componente ou importadas corretamente.
             const res = generateDuplasCupBracket(comp.teams, comp.id, teams, matches, competitions);
             finalRounds = res.rounds;
             groupsData = res.duplas;
@@ -2854,89 +2857,89 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
 
                                 <div className="flex flex-col flex-1 h-full py-2">
                                   {comp.category === 'copa_flash_dupla' ? (
-  
-  Array.from({ length: round.matches.length / 2 }).map((_, idx) => {
-    const mIda = round.matches[idx * 2];
-    const mVolta = round.matches[idx * 2 + 1];
-    const isLocked = round.status === 'locked';
-    const sIda = getMatchStatusDisplay(mIda.id);
-    const sVolta = getMatchStatusDisplay(mVolta.id);
-    
-    let aggScoreA = '?'; let aggScoreB = '?';
-    let isPlayed = false; let statusText = 'Aguardando'; let statusColor = 'text-blue-500';
-    let teamALost = false; let teamBLost = false;
+                                    Array.from({ length: Math.ceil(round.matches.length / 2) }).map((_, idx) => {
+                                      const mIda = round.matches[idx * 2];
+                                      const mVolta = round.matches[idx * 2 + 1];
+                                      if (!mIda || !mVolta) return null;
+                                      
+                                      const isLocked = round.status === 'locked';
+                                      const sIda = getMatchStatusDisplay(mIda.id);
+                                      const sVolta = getMatchStatusDisplay(mVolta.id);
+                                      
+                                      let aggScoreA = '?'; let aggScoreB = '?';
+                                      let isPlayed = false; let statusText = 'Aguardando'; let statusColor = 'text-blue-500';
+                                      let teamALost = false; let teamBLost = false;
 
-    if (sIda.isPlayed && sIda.text === 'Oficial' && sVolta.isPlayed && sVolta.text === 'Oficial') {
-      isPlayed = true; statusText = 'Oficializado'; statusColor = 'text-emerald-400';
-      aggScoreA = Number(sIda.scoreA||0) + Number(sVolta.scoreB||0);
-      aggScoreB = Number(sIda.scoreB||0) + Number(sVolta.scoreA||0);
-      const aggPenA = Number(sIda.penaltiesA||0) + Number(sVolta.penaltiesB||0);
-      const aggPenB = Number(sIda.penaltiesB||0) + Number(sVolta.penaltiesA||0);
-      if (aggScoreA < aggScoreB) teamALost = true; else if (aggScoreB < aggScoreA) teamBLost = true;
-      else { if (aggPenA < aggPenB) teamALost = true; if (aggPenB < aggPenA) teamBLost = true; }
-    } else if (sIda.isPlayed || sVolta.isPlayed) {
-      statusText = 'Em Andamento'; statusColor = 'text-amber-400';
-    }
+                                      if (sIda.isPlayed && sIda.text === 'Oficial' && sVolta.isPlayed && sVolta.text === 'Oficial') {
+                                        isPlayed = true; statusText = 'Oficializado'; statusColor = 'text-emerald-400';
+                                        aggScoreA = Number(sIda.scoreA||0) + Number(sVolta.scoreB||0);
+                                        aggScoreB = Number(sIda.scoreB||0) + Number(sVolta.scoreA||0);
+                                        const aggPenA = Number(sIda.penaltiesA||0) + Number(sVolta.penaltiesB||0);
+                                        const aggPenB = Number(sIda.penaltiesB||0) + Number(sVolta.penaltiesA||0);
+                                        if (aggScoreA < aggScoreB) teamALost = true; else if (aggScoreB < aggScoreA) teamBLost = true;
+                                        else { if (aggPenA < aggPenB) teamALost = true; if (aggPenB < aggPenA) teamBLost = true; }
+                                      } else if (sIda.isPlayed || sVolta.isPlayed) {
+                                        statusText = 'Em Andamento'; statusColor = 'text-amber-400';
+                                      }
 
-    const realDuplaA = (comp.groups || []).find(d => d.id === mIda.duplaA?.id) || mIda.duplaA;
-    const realDuplaB = (comp.groups || []).find(d => d.id === mIda.duplaB?.id) || mIda.duplaB;
-    const isTop = idx % 2 === 0; const isFirstRound = roundIndex === 0; const isLastRound = roundIndex === knockoutRounds.length - 1;
+                                      const realDuplaA = (comp.groups || []).find(d => d.id === mIda.duplaA?.id) || mIda.duplaA;
+                                      const realDuplaB = (comp.groups || []).find(d => d.id === mIda.duplaB?.id) || mIda.duplaB;
+                                      const isTop = idx % 2 === 0; const isFirstRound = roundIndex === 0; const isLastRound = roundIndex === knockoutRounds.length - 1;
 
-    return (
-      <div key={`dupla_${idx}`} className="relative flex-1 flex flex-col justify-center py-3 group">
-        {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
-        <div className="relative z-10 w-full">
-          <div onClick={() => setSelectedDuplaMatchup({ mIda, mVolta, duplaA: realDuplaA, duplaB: realDuplaB, aggScoreA, aggScoreB, isLocked, roundId: round.id })} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm cursor-pointer hover:-translate-y-1 ${isPlayed ? 'bg-blue-900/90 border-emerald-500/50 shadow-emerald-500/20' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-60' : 'bg-blue-900/40 border-blue-700 hover:border-amber-500/50'}`}>
-            <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
-               <span className="text-amber-400 flex items-center gap-1">👥 Confronto Duplo</span>
-               <span className={statusColor}>{statusText}</span>
-            </div>
-            <div className={`flex items-center justify-between gap-2 min-w-0 mt-1 transition-all ${teamALost ? 'grayscale opacity-50 line-through' : ''}`}>
-              <span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400' : 'text-blue-100'}`}>{realDuplaA?.name || 'A Definir'}</span>
-              <span className={`w-7 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${isPlayed ? statusColor : 'text-blue-700'}`}>{aggScoreA}</span>
-            </div>
-            <div className={`flex items-center justify-between gap-2 min-w-0 transition-all ${teamBLost ? 'grayscale opacity-50 line-through' : ''}`}>
-              <span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400' : 'text-blue-100'}`}>{realDuplaB?.name || 'A Definir'}</span>
-              <span className={`w-7 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${isPlayed ? statusColor : 'text-blue-700'}`}>{aggScoreB}</span>
-            </div>
-          </div>
-        </div>
-        {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
-      </div>
-    );
-  })
-) : (
-  // ======= RENDERIZAÇÃO NORMAL SINGLE PLAYER =======
-  round.matches.map((m, matchIndex) => {
-    const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
-    const isLocked = round.status === 'locked'; const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
-    let teamALost = false; let teamBLost = false;
-    if (isPlayed) {
-      const scoreA = Number(sUI.scoreA || 0); const scoreB = Number(sUI.scoreB || 0); 
-      if (scoreA < scoreB) teamALost = true; else if (scoreB < scoreA) teamBLost = true; 
-      else { const penA = Number(sUI.penaltiesA||0); const penB = Number(sUI.penaltiesB||0); if (penA < penB) teamALost = true; if (penB < penA) teamBLost = true; }
-    }
-    const isFirstRound = roundIndex === 0; const isLastRound = roundIndex === knockoutRounds.length - 1; const isTop = matchIndex % 2 === 0;
+                                      return (
+                                        <div key={`dupla_${idx}`} className="relative flex-1 flex flex-col justify-center py-3 group">
+                                          {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
+                                          <div className="relative z-10 w-full">
+                                            <div onClick={() => setSelectedDuplaMatchup({ mIda, mVolta, duplaA: realDuplaA, duplaB: realDuplaB, aggScoreA, aggScoreB, isLocked, roundId: round.id })} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm cursor-pointer hover:-translate-y-1 ${isPlayed ? 'bg-blue-900/90 border-emerald-500/50 shadow-emerald-500/20' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-60' : 'bg-blue-900/40 border-blue-700 hover:border-amber-500/50'}`}>
+                                              <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
+                                                <span className="text-amber-400 flex items-center gap-1">👥 Confronto Duplo</span>
+                                                <span className={statusColor}>{statusText}</span>
+                                              </div>
+                                              <div className={`flex items-center justify-between gap-2 min-w-0 mt-1 transition-all ${teamALost ? 'grayscale opacity-50 line-through' : ''}`}>
+                                                <span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400' : 'text-blue-100'}`}>{realDuplaA?.name || 'A Definir'}</span>
+                                                <span className={`w-7 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${isPlayed ? statusColor : 'text-blue-700'}`}>{aggScoreA}</span>
+                                              </div>
+                                              <div className={`flex items-center justify-between gap-2 min-w-0 transition-all ${teamBLost ? 'grayscale opacity-50 line-through' : ''}`}>
+                                                <span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400' : 'text-blue-100'}`}>{realDuplaB?.name || 'A Definir'}</span>
+                                                <span className={`w-7 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${isPlayed ? statusColor : 'text-blue-700'}`}>{aggScoreB}</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    round.matches.map((m, matchIndex) => {
+                                      const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                                      const isLocked = round.status === 'locked'; const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
+                                      let teamALost = false; let teamBLost = false;
+                                      if (isPlayed) {
+                                        const scoreA = Number(sUI.scoreA || 0); const scoreB = Number(sUI.scoreB || 0); 
+                                        if (scoreA < scoreB) teamALost = true; else if (scoreB < scoreA) teamBLost = true; 
+                                        else { const penA = Number(sUI.penaltiesA||0); const penB = Number(sUI.penaltiesB||0); if (penA < penB) teamALost = true; if (penB < penA) teamBLost = true; }
+                                      }
+                                      const isFirstRound = roundIndex === 0; const isLastRound = roundIndex === knockoutRounds.length - 1; const isTop = matchIndex % 2 === 0;
 
-    return (
-      <div key={m.id} className="relative flex-1 flex flex-col justify-center py-3 group">
-        {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
-        <div className="relative z-10 w-full">
-          <div onClick={() => { if(sUI.isPlayed && onSelectMatch){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} cursor-pointer relative overflow-hidden`}>
-            <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
-               <span className="text-blue-500">{m.id.includes('_f1') && round.matches.length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' : m.id.includes('_f2') ? '🏆 Final (Volta)' : m.id.includes('_3rd') ? '🥉 Disputa 3º Lugar' : 'Confronto'}</span>
-               <span className={sUI.color}>{sUI.text}</span>
-            </div>
-            <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tA?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreA : '-'}</span></div></div>
-            <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tB?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreB : '-'}</span></div></div>
-          </div>
-          {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
-        </div>
-        {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
-      </div>
-    );
-  })
-)}
+                                      return (
+                                        <div key={m.id} className="relative flex-1 flex flex-col justify-center py-3 group">
+                                          {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
+                                          <div className="relative z-10 w-full">
+                                            <div onClick={() => { if(sUI.isPlayed && onSelectMatch){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} cursor-pointer relative overflow-hidden`}>
+                                              <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
+                                                <span className="text-blue-500">{m.id.includes('_f1') && round.matches.length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' : m.id.includes('_f2') ? '🏆 Final (Volta)' : m.id.includes('_3rd') ? '🥉 Disputa 3º Lugar' : 'Confronto'}</span>
+                                                <span className={sUI.color}>{sUI.text}</span>
+                                              </div>
+                                              <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tA?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreA : '-'}</span></div></div>
+                                              <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tB?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreB : '-'}</span></div></div>
+                                            </div>
+                                            {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
+                                          </div>
+                                          {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
+                                        </div>
+                                      );
+                                    })
+                                  )}
                                 </div>
                               </div>
                             );
@@ -2946,6 +2949,9 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                     </div>
                   </div>
                 )}
+
+              </div>
+            )}
             
             {subTab === 'stats' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
@@ -3032,7 +3038,77 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
         </>
       )}
 
-                                              {/* 👥 MODAL DETALHES DA DUPLA */}
+      {showEditGroups && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setShowEditGroups(false)}>
+          <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2"><Users size={18} className="text-purple-400"/> Gerenciar Equipes nos Grupos</h3>
+            <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1 my-2">
+              {(comp.teams || []).map(tId => {
+                const t = getTeam(tId); if (!t) return null;
+                return (
+                  <div key={tId} className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0"><ShieldDisplay shield={t.shield} size="small" /><span className="font-bold text-xs text-white truncate">{t.name}</span></div>
+                    <div className="flex items-center gap-1 shrink-0"><span className="text-[10px] font-bold text-blue-400 uppercase">Grupo:</span><select value={teamGroupMapping[tId] || 'A'} onChange={e => setTeamGroupMapping({...teamGroupMapping, [tId]: e.target.value})} className="bg-blue-900 border border-purple-500/50 rounded-lg p-1.5 text-purple-300 text-xs font-bold outline-none">{Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (<option key={gName} value={gName}>Grupo {gName}</option>))}</select></div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-blue-800"><Button variant="outline" onClick={() => setShowEditGroups(false)} className="py-2 text-xs">Cancelar</Button><Button onClick={handleSaveGroups} className="py-2 text-xs bg-purple-600 hover:bg-purple-500 border-0 shadow-md text-white">Salvar Grupos</Button></div>
+          </div>
+        </div>
+      )}
+
+      {editMatchData && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setEditMatchData(null)}>
+          <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-md p-6 shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Edit size={18} className="text-amber-400"/> Editar Partida</h3>
+            <div className="space-y-4">
+              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 space-y-3">
+                  <p className="text-xs font-bold text-blue-400 uppercase tracking-widest">Alterar Times do Confronto</p>
+                  {comp.format === 'groups' && (<div className="pb-2 border-b border-blue-800/50 mb-3"><label className="text-[10px] font-bold text-purple-400 uppercase tracking-widest block mb-1">Pertencente ao Grupo</label><select value={editMatchData.group || 'A'} onChange={e => { setEditMatchData({ ...editMatchData, group: e.target.value, teamA: '', teamB: '' }); }} className="w-full bg-blue-900 border border-purple-500/40 rounded p-2 text-purple-300 text-xs font-bold outline-none">{Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (<option key={gName} value={gName}>Grupo {gName}</option>))}</select></div>)}
+                  <div className="space-y-2">
+                      <select value={editMatchData.teamA} onChange={e => setEditMatchData({...editMatchData, teamA: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none"><option value="">A Definir / Sorteio</option>{availableTeamsForEdit.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{t.name}</option> : null; })}</select>
+                      <div className="text-center text-blue-500 font-bold text-xs">X</div>
+                      <select value={editMatchData.teamB} onChange={e => setEditMatchData({...editMatchData, teamB: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none"><option value="">A Definir / Sorteio</option>{availableTeamsForEdit.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{t.name}</option> : null; })}</select>
+                  </div>
+              </div>
+              {editMatchData.hasPlayed && (
+                  <div className="bg-emerald-900/20 p-4 rounded-xl border border-emerald-500/30">
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Ajustar Placar Validado</p>
+                        <div className="flex gap-2">
+                          <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20"><input type="checkbox" checked={editMatchData.woA} onChange={e => { const isWo = e.target.checked; const otherWo = editMatchData.woB; let sA = editMatchData.scoreA; let sB = editMatchData.scoreB; if (isWo && !otherWo) { sA = 0; sB = 3; } else if (!isWo && otherWo) { sA = 3; sB = 0; } else if (isWo && otherWo) { sA = '?'; sB = '?'; } else { sA = ''; sB = ''; } setEditMatchData({...editMatchData, woA: isWo, scoreA: sA, scoreB: sB}); }} className="accent-red-500 w-3 h-3" /> W.O. Equipe A</label>
+                          <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20"><input type="checkbox" checked={editMatchData.woB} onChange={e => { const isWo = e.target.checked; const otherWo = editMatchData.woA; let sA = editMatchData.scoreA; let sB = editMatchData.scoreB; if (isWo && !otherWo) { sB = 0; sA = 3; } else if (!isWo && otherWo) { sB = 3; sA = 0; } else if (isWo && otherWo) { sA = '?'; sB = '?'; } else { sA = ''; sB = ''; } setEditMatchData({...editMatchData, woB: isWo, scoreA: sA, scoreB: sB}); }} className="accent-red-500 w-3 h-3" /> W.O. Equipe B</label>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-center gap-3">
+                          <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreA} onChange={e => setEditMatchData({...editMatchData, scoreA: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none disabled:opacity-50" />
+                          <span className="font-bold text-blue-500">X</span>
+                          <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreB} onChange={e => setEditMatchData({...editMatchData, scoreB: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none disabled:opacity-50" />
+                      </div>
+                      {comp.format !== 'league' && (
+                          <div className="mt-3 flex items-center justify-center gap-3">
+                              <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="Pên A" value={editMatchData.penaltiesA} onChange={e => setEditMatchData({...editMatchData, penaltiesA: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
+                              <span className="text-[10px] text-amber-500 font-bold uppercase">Pênaltis</span>
+                              <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="Pên B" value={editMatchData.penaltiesB} onChange={e => setEditMatchData({...editMatchData, penaltiesB: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
+                          </div>
+                      )}
+                      <p className="text-[10px] text-emerald-500/70 text-center mt-3 leading-tight">Ao salvar, a tabela será recalculada automaticamente.</p>
+                  </div>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row justify-between items-center sm:items-end gap-4 mt-5 pt-4 border-t border-blue-800">
+              <div className="flex flex-col gap-2 w-full sm:w-auto items-start">
+                {editMatchData.hasPlayed && (<button type="button" onClick={() => { if(window.confirm('Excluir apenas o resultado?')) { if (onDeleteMatch && editMatchData.playedMatchId) { onDeleteMatch(editMatchData.playedMatchId); setEditMatchData(null); } } }} className="flex items-center gap-1.5 text-[11px] text-amber-400 hover:text-amber-300 font-bold transition-colors">Excluir apenas Placar Validado</button>)}
+                <button type="button" onClick={handleDeleteMatchCompletely} className="flex items-center gap-1.5 text-[11px] text-red-400 hover:text-red-300 font-bold transition-colors bg-red-500/10 px-2 py-1 rounded border border-red-500/20"><Trash2 size={12} /> Excluir Partida Inteira do Calendário</button>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end"><Button variant="outline" onClick={() => setEditMatchData(null)} className="py-2 text-xs">Cancelar</Button><Button onClick={saveMatchEdit} className="py-2 text-xs bg-amber-600 hover:bg-amber-500 border-0 shadow-md text-white">Salvar</Button></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 👥 MODAL DETALHES DA DUPLA */}
       {selectedDuplaMatchup && (() => {
         const { mIda, mVolta, duplaA, duplaB, aggScoreA, aggScoreB, isLocked, roundId } = selectedDuplaMatchup;
         const sIda = getMatchStatusDisplay(mIda.id);
@@ -3115,76 +3191,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
           </div>
         );
       })()}
-
-      {showEditGroups && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setShowEditGroups(false)}>
-          <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2"><Users size={18} className="text-purple-400"/> Gerenciar Equipes nos Grupos</h3>
-            <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1 my-2">
-              {(comp.teams || []).map(tId => {
-                const t = getTeam(tId); if (!t) return null;
-                return (
-                  <div key={tId} className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0"><ShieldDisplay shield={t.shield} size="small" /><span className="font-bold text-xs text-white truncate">{t.name}</span></div>
-                    <div className="flex items-center gap-1 shrink-0"><span className="text-[10px] font-bold text-blue-400 uppercase">Grupo:</span><select value={teamGroupMapping[tId] || 'A'} onChange={e => setTeamGroupMapping({...teamGroupMapping, [tId]: e.target.value})} className="bg-blue-900 border border-purple-500/50 rounded-lg p-1.5 text-purple-300 text-xs font-bold outline-none">{Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (<option key={gName} value={gName}>Grupo {gName}</option>))}</select></div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-blue-800"><Button variant="outline" onClick={() => setShowEditGroups(false)} className="py-2 text-xs">Cancelar</Button><Button onClick={handleSaveGroups} className="py-2 text-xs bg-purple-600 hover:bg-purple-500 border-0 shadow-md text-white">Salvar Grupos</Button></div>
-          </div>
-        </div>
-      )}
-
-      {editMatchData && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setEditMatchData(null)}>
-          <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-md p-6 shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Edit size={18} className="text-amber-400"/> Editar Partida</h3>
-            <div className="space-y-4">
-              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 space-y-3">
-                  <p className="text-xs font-bold text-blue-400 uppercase tracking-widest">Alterar Times do Confronto</p>
-                  {comp.format === 'groups' && (<div className="pb-2 border-b border-blue-800/50 mb-3"><label className="text-[10px] font-bold text-purple-400 uppercase tracking-widest block mb-1">Pertencente ao Grupo</label><select value={editMatchData.group || 'A'} onChange={e => { setEditMatchData({ ...editMatchData, group: e.target.value, teamA: '', teamB: '' }); }} className="w-full bg-blue-900 border border-purple-500/40 rounded p-2 text-purple-300 text-xs font-bold outline-none">{Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (<option key={gName} value={gName}>Grupo {gName}</option>))}</select></div>)}
-                  <div className="space-y-2">
-                      <select value={editMatchData.teamA} onChange={e => setEditMatchData({...editMatchData, teamA: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none"><option value="">A Definir / Sorteio</option>{availableTeamsForEdit.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{t.name}</option> : null; })}</select>
-                      <div className="text-center text-blue-500 font-bold text-xs">X</div>
-                      <select value={editMatchData.teamB} onChange={e => setEditMatchData({...editMatchData, teamB: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none"><option value="">A Definir / Sorteio</option>{availableTeamsForEdit.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{t.name}</option> : null; })}</select>
-                  </div>
-              </div>
-              {editMatchData.hasPlayed && (
-                  <div className="bg-emerald-900/20 p-4 rounded-xl border border-emerald-500/30">
-                      <div className="flex justify-between items-center mb-2">
-                        <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Ajustar Placar Validado</p>
-                        <div className="flex gap-2">
-                          <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20"><input type="checkbox" checked={editMatchData.woA} onChange={e => { const isWo = e.target.checked; const otherWo = editMatchData.woB; let sA = editMatchData.scoreA; let sB = editMatchData.scoreB; if (isWo && !otherWo) { sA = 0; sB = 3; } else if (!isWo && otherWo) { sA = 3; sB = 0; } else if (isWo && otherWo) { sA = '?'; sB = '?'; } else { sA = ''; sB = ''; } setEditMatchData({...editMatchData, woA: isWo, scoreA: sA, scoreB: sB}); }} className="accent-red-500 w-3 h-3" /> W.O. Equipe A</label>
-                          <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20"><input type="checkbox" checked={editMatchData.woB} onChange={e => { const isWo = e.target.checked; const otherWo = editMatchData.woA; let sA = editMatchData.scoreA; let sB = editMatchData.scoreB; if (isWo && !otherWo) { sB = 0; sA = 3; } else if (!isWo && otherWo) { sB = 3; sA = 0; } else if (isWo && otherWo) { sA = '?'; sB = '?'; } else { sA = ''; sB = ''; } setEditMatchData({...editMatchData, woB: isWo, scoreA: sA, scoreB: sB}); }} className="accent-red-500 w-3 h-3" /> W.O. Equipe B</label>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-center gap-3">
-                          <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreA} onChange={e => setEditMatchData({...editMatchData, scoreA: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none disabled:opacity-50" />
-                          <span className="font-bold text-blue-500">X</span>
-                          <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreB} onChange={e => setEditMatchData({...editMatchData, scoreB: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none disabled:opacity-50" />
-                      </div>
-                      {comp.format !== 'league' && (
-                          <div className="mt-3 flex items-center justify-center gap-3">
-                              <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="Pên A" value={editMatchData.penaltiesA} onChange={e => setEditMatchData({...editMatchData, penaltiesA: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
-                              <span className="text-[10px] text-amber-500 font-bold uppercase">Pênaltis</span>
-                              <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="Pên B" value={editMatchData.penaltiesB} onChange={e => setEditMatchData({...editMatchData, penaltiesB: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
-                          </div>
-                      )}
-                      <p className="text-[10px] text-emerald-500/70 text-center mt-3 leading-tight">Ao salvar, a tabela será recalculada automaticamente.</p>
-                  </div>
-              )}
-            </div>
-            <div className="flex flex-col sm:flex-row justify-between items-center sm:items-end gap-4 mt-5 pt-4 border-t border-blue-800">
-              <div className="flex flex-col gap-2 w-full sm:w-auto items-start">
-                {editMatchData.hasPlayed && (<button type="button" onClick={() => { if(window.confirm('Excluir apenas o resultado?')) { if (onDeleteMatch && editMatchData.playedMatchId) { onDeleteMatch(editMatchData.playedMatchId); setEditMatchData(null); } } }} className="flex items-center gap-1.5 text-[11px] text-amber-400 hover:text-amber-300 font-bold transition-colors">Excluir apenas Placar Validado</button>)}
-                <button type="button" onClick={handleDeleteMatchCompletely} className="flex items-center gap-1.5 text-[11px] text-red-400 hover:text-red-300 font-bold transition-colors bg-red-500/10 px-2 py-1 rounded border border-red-500/20"><Trash2 size={12} /> Excluir Partida Inteira do Calendário</button>
-              </div>
-              <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end"><Button variant="outline" onClick={() => setEditMatchData(null)} className="py-2 text-xs">Cancelar</Button><Button onClick={saveMatchEdit} className="py-2 text-xs bg-amber-600 hover:bg-amber-500 border-0 shadow-md text-white">Salvar</Button></div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
