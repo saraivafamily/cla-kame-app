@@ -1213,10 +1213,10 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               const isIda = m.id.includes('_ida');
               const isVolta = m.id.includes('_volta');
               
-              // Trava a Volta se a Ida não tiver sido jogada
+              // Trava a Volta se a Ida não tiver sido jogada E APROVADA
               if (isDupla && isVolta) {
                  const idaMatchId = m.id.replace('_volta', '_ida');
-                 const idaPlayed = (matches || []).some(sub => sub.matchId === idaMatchId && sub.compId === m.compId && sub.status !== 'rejected');
+                 const idaPlayed = (matches || []).some(sub => sub.matchId === idaMatchId && sub.compId === m.compId && sub.status === 'approved');
                  if (!idaPlayed) return null; 
               }
 
@@ -1338,6 +1338,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                   </div>
                   
                   <div className="mt-5 pt-4 border-t border-blue-800">
+                    
                     {(comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla') && comp.deadline && (
                       <div className="bg-blue-950 p-2.5 rounded-xl border border-amber-500/40 text-center mb-4">
                         <p className="text-[9px] text-amber-400 font-bold uppercase tracking-widest mb-0.5 flex items-center justify-center gap-1"><Activity size={12}/> Inicia em</p>
@@ -1346,6 +1347,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                         </p>
                       </div>
                     )}
+
                     {alreadyJoined ? (
                        <div className="text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20"><CheckCircle size={16}/> Você já está dentro!</div>
                     ) : isPending ? (
