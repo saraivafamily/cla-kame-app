@@ -2287,6 +2287,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   };
 
   const getMatchStatusDisplay = (matchId) => {
+    if(!matchId) return { isPlayed: false, text: 'Aguardando', color: 'text-blue-500', bg: 'bg-blue-950 border-blue-800' };
     const ms = (matches || []).filter(m => m && m.matchId === matchId && m.compId === comp.id && m.status !== 'rejected');
     if(ms.length === 0) return { isPlayed: false, text: 'Aguardando', color: 'text-blue-500', bg: 'bg-blue-950 border-blue-800' };
     const sm = ms.find(m => m.status === 'approved') || ms.find(m => m.status === 'pending');
@@ -2477,7 +2478,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   };
 
   const handleForceAdvanceDupla = (roundId, mIda, winnerDupla) => {
-    if (!isAdmin) return;
+    if (!isAdmin || typeof winnerDupla === 'string') return;
     if (!window.confirm(`Tem certeza que deseja avançar a dupla ${winnerDupla.name} para a próxima fase?`)) return;
 
     const rIndex = comp.rounds.findIndex(r => r.id === roundId);
@@ -2954,7 +2955,18 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                         <div key={`dupla_${idx}`} className="relative flex-1 flex flex-col justify-center py-3 group">
                                           {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
                                           <div className="relative z-10 w-full">
-                                            <div onClick={() => setSelectedDuplaMatchup({ mIda, mVolta, duplaA: realDuplaA, duplaB: realDuplaB, aggScoreA, aggScoreB, isLocked, roundId: round.id, idaIsFinished })} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm cursor-pointer hover:-translate-y-1 ${isPlayed ? 'bg-blue-900/90 border-emerald-500/50 shadow-emerald-500/20' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-60' : 'bg-blue-900/40 border-blue-700 hover:border-amber-500/50'}`}>
+                                            <div 
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                e.preventDefault();
+                                                try {
+                                                  setSelectedDuplaMatchup({ mIda, mVolta, duplaA: realDuplaA, duplaB: realDuplaB, aggScoreA, aggScoreB, isLocked, roundId: round.id, idaIsFinished });
+                                                } catch(err) {
+                                                  console.error("Erro ao selecionar a dupla", err);
+                                                }
+                                              }} 
+                                              className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm cursor-pointer hover:-translate-y-1 ${isPlayed ? 'bg-blue-900/90 border-emerald-500/50 shadow-emerald-500/20' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-60' : 'bg-blue-900/40 border-blue-700 hover:border-amber-500/50'}`}
+                                            >
                                               <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
                                                 <span className="text-amber-400 flex items-center gap-1">👥 Confronto Duplo</span>
                                                 <span className={statusColor}>{statusText}</span>
@@ -3104,99 +3116,114 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
 
       {/* 👥 MODAL DETALHES DA DUPLA */}
       {selectedDuplaMatchup && (() => {
-        const { mIda, mVolta, duplaA, duplaB, aggScoreA, aggScoreB, isLocked, roundId, idaIsFinished } = selectedDuplaMatchup;
-        const sIda = getMatchStatusDisplay(mIda.id);
-        const sVolta = getMatchStatusDisplay(mVolta.id);
-        const isPlayed = sIda.isPlayed && sIda.text === 'Oficial' && sVolta.isPlayed && sVolta.text === 'Oficial';
-        
-        return (
-          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setSelectedDuplaMatchup(null)}>
-            <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-md p-6 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-              
-              <div className="flex justify-between items-center mb-6 border-b border-blue-800 pb-4">
-                <h3 className="text-lg font-black text-amber-400 uppercase tracking-widest flex items-center gap-2">👥 Confronto</h3>
-                <button onClick={() => setSelectedDuplaMatchup(null)} className="text-blue-400 hover:text-white bg-blue-800 p-1.5 rounded-full"><X size={16}/></button>
-              </div>
-
-              {/* Nomes das Duplas Editáveis (se admin) */}
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-1">Dupla 1 (Mandante Ida)</label>
-                  <input type="text" value={duplaA?.name || ''} disabled={!isAdmin}
-                     onChange={(e) => {
-                        const newGroups = comp.groups.map(d => d.id === duplaA.id ? {...d, name: e.target.value} : d);
-                        onEditComp({...comp, groups: newGroups});
-                        setSelectedDuplaMatchup({...selectedDuplaMatchup, duplaA: {...duplaA, name: e.target.value}});
-                     }}
-                     className="w-full bg-blue-950 border border-blue-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500 disabled:opacity-70" 
-                  />
-                  <p className="text-[9px] text-emerald-400 mt-1">Formação: {getTeam(duplaA?.p1)?.name} & {getTeam(duplaA?.p2)?.name}</p>
+        try {
+          const { mIda, mVolta, duplaA, duplaB, aggScoreA, aggScoreB, isLocked, roundId, idaIsFinished } = selectedDuplaMatchup;
+          
+          const sIda = mIda ? getMatchStatusDisplay(mIda.id) : { isPlayed: false, text: '' };
+          const sVolta = mVolta ? getMatchStatusDisplay(mVolta.id) : { isPlayed: false, text: '' };
+          const isPlayed = sIda.isPlayed && sIda.text === 'Oficial' && sVolta.isPlayed && sVolta.text === 'Oficial';
+          
+          return (
+            <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setSelectedDuplaMatchup(null)}>
+              <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-md p-6 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+                
+                <div className="flex justify-between items-center mb-6 border-b border-blue-800 pb-4">
+                  <h3 className="text-lg font-black text-amber-400 uppercase tracking-widest flex items-center gap-2">👥 Confronto</h3>
+                  <button onClick={() => setSelectedDuplaMatchup(null)} className="text-blue-400 hover:text-white bg-blue-800 p-1.5 rounded-full"><X size={16}/></button>
                 </div>
-                <div className="text-center font-black text-blue-500 text-lg">X</div>
-                <div>
-                  <label className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-1">Dupla 2 (Mandante Volta)</label>
-                  <input type="text" value={duplaB?.name || ''} disabled={!isAdmin}
-                     onChange={(e) => {
-                        const newGroups = comp.groups.map(d => d.id === duplaB.id ? {...d, name: e.target.value} : d);
-                        onEditComp({...comp, groups: newGroups});
-                        setSelectedDuplaMatchup({...selectedDuplaMatchup, duplaB: {...duplaB, name: e.target.value}});
-                     }}
-                     className="w-full bg-blue-950 border border-blue-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500 disabled:opacity-70" 
-                  />
-                  <p className="text-[9px] text-emerald-400 mt-1">Formação: {getTeam(duplaB?.p1)?.name} & {getTeam(duplaB?.p2)?.name}</p>
+
+                {/* Nomes das Duplas Editáveis (se admin) */}
+                <div className="space-y-4 mb-6">
+                  <div>
+                    <label className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-1">Dupla 1 (Mandante Ida)</label>
+                    <input type="text" value={duplaA?.name || ''} disabled={!isAdmin || typeof duplaA === 'string'}
+                      onChange={(e) => {
+                          const newGroups = Array.isArray(comp.groups) ? comp.groups.map(d => d.id === duplaA?.id ? {...d, name: e.target.value} : d) : [];
+                          onEditComp({...comp, groups: newGroups});
+                          setSelectedDuplaMatchup({...selectedDuplaMatchup, duplaA: {...duplaA, name: e.target.value}});
+                      }}
+                      className="w-full bg-blue-950 border border-blue-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500 disabled:opacity-70" 
+                    />
+                    <p className="text-[9px] text-emerald-400 mt-1">Formação: {getTeam(duplaA?.p1)?.name || 'Oculto'} & {getTeam(duplaA?.p2)?.name || 'Oculto'}</p>
+                  </div>
+                  <div className="text-center font-black text-blue-500 text-lg">X</div>
+                  <div>
+                    <label className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-1">Dupla 2 (Mandante Volta)</label>
+                    <input type="text" value={duplaB?.name || ''} disabled={!isAdmin || typeof duplaB === 'string'}
+                      onChange={(e) => {
+                          const newGroups = Array.isArray(comp.groups) ? comp.groups.map(d => d.id === duplaB?.id ? {...d, name: e.target.value} : d) : [];
+                          onEditComp({...comp, groups: newGroups});
+                          setSelectedDuplaMatchup({...selectedDuplaMatchup, duplaB: {...duplaB, name: e.target.value}});
+                      }}
+                      className="w-full bg-blue-950 border border-blue-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500 disabled:opacity-70" 
+                    />
+                    <p className="text-[9px] text-emerald-400 mt-1">Formação: {getTeam(duplaB?.p1)?.name || 'Oculto'} & {getTeam(duplaB?.p2)?.name || 'Oculto'}</p>
+                  </div>
                 </div>
+
+                {/* Status dos Jogos Individuais */}
+                <div className="bg-blue-950/50 p-4 rounded-xl border border-blue-800 space-y-4">
+                  <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-white uppercase tracking-wider mb-1">Jogo de Ida (Pote 1)</p>
+                        <p className="text-[9px] text-blue-300">{mIda?.teamA ? getTeam(mIda.teamA)?.name : '?'} x {mIda?.teamB ? getTeam(mIda.teamB)?.name : '?'}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-lg font-black bg-blue-900 px-3 py-1 rounded border border-blue-700 ${sIda.isPlayed ? 'text-emerald-400' : 'text-blue-500'}`}>
+                          {sIda.isPlayed ? `${sIda.scoreA} x ${sIda.scoreB}` : '-'}
+                        </span>
+                        {isAdmin && (<button onClick={() => { setSelectedDuplaMatchup(null); handleOpenEditModal(mIda, roundId); }} className="p-2 bg-blue-800 text-blue-300 hover:text-white rounded transition-colors" title="Editar Placar"><Edit size={14}/></button>)}
+                      </div>
+                  </div>
+                  <div className="h-px bg-blue-800/50 w-full"></div>
+                  <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-white uppercase tracking-wider mb-1">Jogo de Volta (Pote 2)</p>
+                        <p className="text-[9px] text-blue-300">
+                          {idaIsFinished || isAdmin ? `${mVolta?.teamA ? getTeam(mVolta.teamA)?.name : '?'} x ${mVolta?.teamB ? getTeam(mVolta.teamB)?.name : '?'}` : '🕵️ Adversário Oculto'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-lg font-black bg-blue-900 px-3 py-1 rounded border border-blue-700 ${sVolta.isPlayed ? 'text-emerald-400' : 'text-blue-500'}`}>
+                          {sVolta.isPlayed ? `${sVolta.scoreA} x ${sVolta.scoreB}` : '-'}
+                        </span>
+                        {isAdmin && (<button onClick={() => { setSelectedDuplaMatchup(null); handleOpenEditModal(mVolta, roundId); }} className="p-2 bg-blue-800 text-blue-300 hover:text-white rounded transition-colors" title="Editar Placar"><Edit size={14}/></button>)}
+                      </div>
+                  </div>
+                </div>
+
+                {/* AGREGADO */}
+                <div className="mt-4 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30 text-center">
+                  <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-1">Placar Agregado</p>
+                  <p className="text-xl font-black text-white">{aggScoreA} x {aggScoreB}</p>
+                </div>
+
+                {/* BOTOES DE AVANÇO MANUAL (APARECEM QUANDO O JOGO ACABA) */}
+                {isAdmin && isPlayed && (comp.rounds.findIndex(r => r.id === roundId) < comp.rounds.length - 1) && (
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                      <button onClick={() => handleForceAdvanceDupla(roundId, mIda, duplaA)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg shadow-md transition-colors truncate px-2">
+                        Avançar {duplaA && typeof duplaA.name === 'string' ? duplaA.name.split(' ')[0] : (duplaA?.name || 'Dupla 1')}
+                      </button>
+                      <button onClick={() => handleForceAdvanceDupla(roundId, mIda, duplaB)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg shadow-md transition-colors truncate px-2">
+                        Avançar {duplaB && typeof duplaB.name === 'string' ? duplaB.name.split(' ')[0] : (duplaB?.name || 'Dupla 2')}
+                      </button>
+                  </div>
+                )}
+
               </div>
-
-              {/* Status dos Jogos Individuais */}
-              <div className="bg-blue-950/50 p-4 rounded-xl border border-blue-800 space-y-4">
-                 <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-white uppercase tracking-wider mb-1">Jogo de Ida (Pote 1)</p>
-                      <p className="text-[9px] text-blue-300">{mIda.teamA ? getTeam(mIda.teamA)?.name : '?'} x {mIda.teamB ? getTeam(mIda.teamB)?.name : '?'}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                       <span className={`text-lg font-black bg-blue-900 px-3 py-1 rounded border border-blue-700 ${sIda.isPlayed ? 'text-emerald-400' : 'text-blue-500'}`}>
-                         {sIda.isPlayed ? `${sIda.scoreA} x ${sIda.scoreB}` : '-'}
-                       </span>
-                       {isAdmin && (<button onClick={() => { setSelectedDuplaMatchup(null); handleOpenEditModal(mIda, roundId); }} className="p-2 bg-blue-800 text-blue-300 hover:text-white rounded transition-colors" title="Editar Placar"><Edit size={14}/></button>)}
-                    </div>
-                 </div>
-                 <div className="h-px bg-blue-800/50 w-full"></div>
-                 <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-white uppercase tracking-wider mb-1">Jogo de Volta (Pote 2)</p>
-                      <p className="text-[9px] text-blue-300">{idaIsFinished || isAdmin ? `${mVolta.teamA ? getTeam(mVolta.teamA)?.name : '?'} x ${mVolta.teamB ? getTeam(mVolta.teamB)?.name : '?'}` : '🕵️ Adversário Oculto'}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                       <span className={`text-lg font-black bg-blue-900 px-3 py-1 rounded border border-blue-700 ${sVolta.isPlayed ? 'text-emerald-400' : 'text-blue-500'}`}>
-                         {sVolta.isPlayed ? `${sVolta.scoreA} x ${sVolta.scoreB}` : '-'}
-                       </span>
-                       {isAdmin && (<button onClick={() => { setSelectedDuplaMatchup(null); handleOpenEditModal(mVolta, roundId); }} className="p-2 bg-blue-800 text-blue-300 hover:text-white rounded transition-colors" title="Editar Placar"><Edit size={14}/></button>)}
-                    </div>
-                 </div>
-              </div>
-
-              {/* AGREGADO */}
-              <div className="mt-4 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30 text-center">
-                 <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-1">Placar Agregado</p>
-                 <p className="text-xl font-black text-white">{aggScoreA} x {aggScoreB}</p>
-              </div>
-
-              {/* BOTOES DE AVANÇO MANUAL (APARECEM QUANDO O JOGO ACABA) */}
-              {isAdmin && isPlayed && (comp.rounds.findIndex(r => r.id === roundId) < comp.rounds.length - 1) && (
-                 <div className="mt-4 grid grid-cols-2 gap-3">
-                    <button onClick={() => handleForceAdvanceDupla(roundId, mIda, duplaA)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg shadow-md transition-colors truncate px-2">
-                       Avançar {duplaA && typeof duplaA.name === 'string' ? duplaA.name.split(' ')[0] : 'Dupla 1'}
-                    </button>
-                    <button onClick={() => handleForceAdvanceDupla(roundId, mIda, duplaB)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg shadow-md transition-colors truncate px-2">
-                       Avançar {duplaB && typeof duplaB.name === 'string' ? duplaB.name.split(' ')[0] : 'Dupla 2'}
-                    </button>
-                 </div>
-              )}
-
             </div>
-          </div>
-        );
+          );
+        } catch (error) {
+          console.error(error);
+          return (
+            <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setSelectedDuplaMatchup(null)}>
+              <div className="bg-red-900 border border-red-500 p-8 rounded-xl text-center">
+                <p className="text-white font-bold mb-4">Erro ao carregar os dados desta partida. Avise os líderes.</p>
+                <button className="bg-white text-red-900 px-4 py-2 rounded font-bold">Fechar</button>
+              </div>
+            </div>
+          );
+        }
       })()}
     </div>
   );
