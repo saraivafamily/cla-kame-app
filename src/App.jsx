@@ -7278,6 +7278,8 @@ export default function App() {
           }
         }
       }
+    }
+  };
   
   const handleEditUser = async (userId, updatedData) => {
     await updateDoc(getPublicDocPath('users', userId), { name: updatedData.name, whatsapp: updatedData.whatsapp });
