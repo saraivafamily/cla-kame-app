@@ -2454,6 +2454,43 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     onEditComp({ ...comp, status: 'active', rounds: finalRounds, groups: groupsData || comp.groups || null }); 
     showToast("Tabela gerada com sucesso!", "success"); 
   };
+
+  const handleForceAdvanceDupla = (roundId, mIda, winnerDupla) => {
+    if (!isAdmin) return;
+    if (!window.confirm(`Tem certeza que deseja avançar a dupla ${winnerDupla.name} para a próxima fase?`)) return;
+
+    const rIndex = comp.rounds.findIndex(r => r.id === roundId);
+    if (rIndex >= 0 && rIndex < comp.rounds.length - 1) {
+        const mIndex = comp.rounds[rIndex].matches.findIndex(m => m.id === mIda.id);
+        const nextRIndex = rIndex + 1;
+        const nextMIndex = Math.floor(mIndex / 4) * 2;
+        const isTeamA = (Math.floor(mIndex / 2) % 2) === 0;
+
+        const newRounds = JSON.parse(JSON.stringify(comp.rounds));
+
+        if (isTeamA) {
+            newRounds[nextRIndex].matches[nextMIndex].duplaA = winnerDupla;
+            newRounds[nextRIndex].matches[nextMIndex].teamA = winnerDupla.p1;
+            newRounds[nextRIndex].matches[nextMIndex].placeholderA = `${winnerDupla.name} (Téc 1)`;
+
+            newRounds[nextRIndex].matches[nextMIndex + 1].duplaB = winnerDupla;
+            newRounds[nextRIndex].matches[nextMIndex + 1].teamB = winnerDupla.p2;
+            newRounds[nextRIndex].matches[nextMIndex + 1].placeholderB = `${winnerDupla.name} (Téc 2)`;
+        } else {
+            newRounds[nextRIndex].matches[nextMIndex].duplaB = winnerDupla;
+            newRounds[nextRIndex].matches[nextMIndex].teamB = winnerDupla.p1;
+            newRounds[nextRIndex].matches[nextMIndex].placeholderB = `${winnerDupla.name} (Téc 1)`;
+
+            newRounds[nextRIndex].matches[nextMIndex + 1].duplaA = winnerDupla;
+            newRounds[nextRIndex].matches[nextMIndex + 1].teamA = winnerDupla.p2;
+            newRounds[nextRIndex].matches[nextMIndex + 1].placeholderA = `${winnerDupla.name} (Téc 2)`;
+        }
+
+        onEditComp({ ...comp, rounds: newRounds });
+        showToast("Dupla avançada com sucesso!", "success");
+        setSelectedDuplaMatchup(null);
+    }
+  };
   
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
   const knockoutRounds = (comp.rounds || []).filter(r => r.id.includes('ko') || comp.format === 'cup' || comp.category === 'copa_flash_dupla');
@@ -3191,6 +3228,18 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                  <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-1">Placar Agregado</p>
                  <p className="text-xl font-black text-white">{aggScoreA} x {aggScoreB}</p>
               </div>
+
+              {/* BOTOES DE AVANÇO MANUAL (APARECEM QUANDO O JOGO ACABA) */}
+              {isAdmin && isPlayed && (comp.rounds.findIndex(r => r.id === roundId) < comp.rounds.length - 1) && (
+                 <div className="mt-4 grid grid-cols-2 gap-3">
+                    <button onClick={() => handleForceAdvanceDupla(roundId, mIda, duplaA)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg shadow-md transition-colors">
+                       Avançar {duplaA?.name?.split(' ')[0] || 'Dupla 1'}
+                    </button>
+                    <button onClick={() => handleForceAdvanceDupla(roundId, mIda, duplaB)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg shadow-md transition-colors">
+                       Avançar {duplaB?.name?.split(' ')[0] || 'Dupla 2'}
+                    </button>
+                 </div>
+              )}
 
             </div>
           </div>
