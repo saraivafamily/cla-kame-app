@@ -261,9 +261,12 @@ const generateDuplasCupBracket = (teamIds, compId, teamsData, matchesData, compe
 
   const duplas = [];
   for (let i = 0; i < pote1.length; i++) {
+    // Pega a primeira palavra do nome de cada time para formar a dupla
+    const nameP1 = pote1[i].name.split(' ')[0];
+    const nameP2 = pote2[i].name.split(' ')[0];
     duplas.push({
       id: `dp_${i+1}`,
-      name: `Dupla ${i+1}`,
+      name: `${nameP1} & ${nameP2}`, // Nome mesclado gerado automaticamente
       p1: pote1[i],
       p2: pote2[i]
     });
@@ -2120,7 +2123,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const [editMatchData, setEditMatchData] = useState(null);
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [newTeamToAdd, setNewTeamToAdd] = useState('');
-  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedDuplaMatchup, setSelectedDuplaMatchup] = useState(null);
 
   const [viewType, setViewType] = useState(comp?.format === 'league' ? 'table' : 'bracket');
 
@@ -2850,85 +2853,90 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                 </div>
 
                                 <div className="flex flex-col flex-1 h-full py-2">
-                                  {round.matches.map((m, matchIndex) => {
-                                    const isDuplaFormat = comp.category === 'copa_flash_dupla';
-                                    const tA = getTeam(m.teamA); 
-                                    const tB = getTeam(m.teamB); 
-                                    const sUI = getMatchStatusDisplay(m.id);
-                                    const isLocked = round.status === 'locked'; 
-                                    const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
-                                    
-                                    let teamALost = false; 
-                                    let teamBLost = false;
+                                  {comp.category === 'copa_flash_dupla' ? (
+  // ======= RENDERIZAÇÃO AGRUPADA PARA DUPLAS =======
+  Array.from({ length: round.matches.length / 2 }).map((_, idx) => {
+    const mIda = round.matches[idx * 2];
+    const mVolta = round.matches[idx * 2 + 1];
+    const isLocked = round.status === 'locked';
+    const sIda = getMatchStatusDisplay(mIda.id);
+    const sVolta = getMatchStatusDisplay(mVolta.id);
+    
+    let aggScoreA = '?'; let aggScoreB = '?';
+    let isPlayed = false; let statusText = 'Aguardando'; let statusColor = 'text-blue-500';
+    let teamALost = false; let teamBLost = false;
 
-                                    if (isPlayed) {
-                                      if (isDuplaFormat) {
-                                         const isIda = m.id.includes('_ida');
-                                         const partnerMatchId = m.id.replace(isIda ? '_ida' : '_volta', isIda ? '_volta' : '_ida');
-                                         const partnerSUI = getMatchStatusDisplay(partnerMatchId);
-                                         
-                                         if (partnerSUI.isPlayed && partnerSUI.text === 'Oficial') {
-                                             let aggScoreA = 0; let aggScoreB = 0; let aggPenA = 0; let aggPenB = 0;
-                                             
-                                             if (isIda) {
-                                               aggScoreA = Number(sUI.scoreA||0) + Number(partnerSUI.scoreB||0); 
-                                               aggScoreB = Number(sUI.scoreB||0) + Number(partnerSUI.scoreA||0);
-                                               aggPenA = Number(sUI.penaltiesA||0) + Number(partnerSUI.penaltiesB||0);
-                                               aggPenB = Number(sUI.penaltiesB||0) + Number(partnerSUI.penaltiesA||0);
-                                             } else {
-                                               aggScoreA = Number(partnerSUI.scoreA||0) + Number(sUI.scoreB||0);
-                                               aggScoreB = Number(partnerSUI.scoreB||0) + Number(sUI.scoreA||0);
-                                               aggPenA = Number(partnerSUI.penaltiesA||0) + Number(sUI.penaltiesB||0);
-                                               aggPenB = Number(partnerSUI.penaltiesB||0) + Number(sUI.penaltiesA||0);
-                                             }
+    if (sIda.isPlayed && sIda.text === 'Oficial' && sVolta.isPlayed && sVolta.text === 'Oficial') {
+      isPlayed = true; statusText = 'Oficializado'; statusColor = 'text-emerald-400';
+      aggScoreA = Number(sIda.scoreA||0) + Number(sVolta.scoreB||0);
+      aggScoreB = Number(sIda.scoreB||0) + Number(sVolta.scoreA||0);
+      const aggPenA = Number(sIda.penaltiesA||0) + Number(sVolta.penaltiesB||0);
+      const aggPenB = Number(sIda.penaltiesB||0) + Number(sVolta.penaltiesA||0);
+      if (aggScoreA < aggScoreB) teamALost = true; else if (aggScoreB < aggScoreA) teamBLost = true;
+      else { if (aggPenA < aggPenB) teamALost = true; if (aggPenB < aggPenA) teamBLost = true; }
+    } else if (sIda.isPlayed || sVolta.isPlayed) {
+      statusText = 'Em Andamento'; statusColor = 'text-amber-400';
+    }
 
-                                             if (aggScoreA < aggScoreB) { teamALost = true; } 
-                                             else if (aggScoreB < aggScoreA) { teamBLost = true; } 
-                                             else { 
-                                               if (aggPenA < aggPenB) teamALost = true; 
-                                               if (aggPenB < aggPenA) teamBLost = true; 
-                                             }
-                                         }
-                                      } else {
-                                         const scoreA = Number(sUI.scoreA || 0); const scoreB = Number(sUI.scoreB || 0); 
-                                         if (scoreA < scoreB) { teamALost = true; } 
-                                         else if (scoreB < scoreA) { teamBLost = true; } 
-                                         else { 
-                                           const penA = Number(sUI.penaltiesA || 0); const penB = Number(sUI.penaltiesB || 0); 
-                                           if (penA < penB) teamALost = true; if (penB < penA) teamBLost = true; 
-                                         }
-                                      }
-                                    }
-                                    
-                                    const isFirstRound = roundIndex === 0; const isLastRound = roundIndex === knockoutRounds.length - 1; const isTop = matchIndex % 2 === 0;
+    const realDuplaA = (comp.groups || []).find(d => d.id === mIda.duplaA?.id) || mIda.duplaA;
+    const realDuplaB = (comp.groups || []).find(d => d.id === mIda.duplaB?.id) || mIda.duplaB;
+    const isTop = idx % 2 === 0; const isFirstRound = roundIndex === 0; const isLastRound = roundIndex === knockoutRounds.length - 1;
 
-                                    return (
-                                      <div key={m.id} className="relative flex-1 flex flex-col justify-center py-3 group">
-                                        {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
-                                        <div className="relative z-10 w-full">
-                                          <div onClick={() => { if(sUI.isPlayed && onSelectMatch){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} cursor-pointer relative overflow-hidden`}>
-                                            <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
-                                               <span className="text-blue-500">{isDuplaFormat ? (m.id.includes('_ida') ? '🎯 Ida (Pote 1)' : '🎯 Volta (Pote 2)') : (m.id.includes('_f1') && round.matches.length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' : m.id.includes('_f2') ? '🏆 Final (Volta)' : m.id.includes('_3rd') ? '🥉 Disputa 3º Lugar' : 'Confronto')}</span>
-                                               <span className={sUI.color}>{sUI.text}</span>
-                                            </div>
-                                            <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tA?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreA : '-'}</span></div></div>
-                                            <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tB?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreB : '-'}</span></div></div>
-                                          </div>
-                                          {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
-                                        </div>
-                                        {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+    return (
+      <div key={`dupla_${idx}`} className="relative flex-1 flex flex-col justify-center py-3 group">
+        {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
+        <div className="relative z-10 w-full">
+          <div onClick={() => setSelectedDuplaMatchup({ mIda, mVolta, duplaA: realDuplaA, duplaB: realDuplaB, aggScoreA, aggScoreB, isLocked, roundId: round.id })} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm cursor-pointer hover:-translate-y-1 ${isPlayed ? 'bg-blue-900/90 border-emerald-500/50 shadow-emerald-500/20' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-60' : 'bg-blue-900/40 border-blue-700 hover:border-amber-500/50'}`}>
+            <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
+               <span className="text-amber-400 flex items-center gap-1">👥 Confronto Duplo</span>
+               <span className={statusColor}>{statusText}</span>
+            </div>
+            <div className={`flex items-center justify-between gap-2 min-w-0 mt-1 transition-all ${teamALost ? 'grayscale opacity-50 line-through' : ''}`}>
+              <span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400' : 'text-blue-100'}`}>{realDuplaA?.name || 'A Definir'}</span>
+              <span className={`w-7 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${isPlayed ? statusColor : 'text-blue-700'}`}>{aggScoreA}</span>
+            </div>
+            <div className={`flex items-center justify-between gap-2 min-w-0 transition-all ${teamBLost ? 'grayscale opacity-50 line-through' : ''}`}>
+              <span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400' : 'text-blue-100'}`}>{realDuplaB?.name || 'A Definir'}</span>
+              <span className={`w-7 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${isPlayed ? statusColor : 'text-blue-700'}`}>{aggScoreB}</span>
+            </div>
+          </div>
+        </div>
+        {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
+      </div>
+    );
+  })
+) : (
+  // ======= RENDERIZAÇÃO NORMAL SINGLE PLAYER =======
+  round.matches.map((m, matchIndex) => {
+    const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+    const isLocked = round.status === 'locked'; const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
+    let teamALost = false; let teamBLost = false;
+    if (isPlayed) {
+      const scoreA = Number(sUI.scoreA || 0); const scoreB = Number(sUI.scoreB || 0); 
+      if (scoreA < scoreB) teamALost = true; else if (scoreB < scoreA) teamBLost = true; 
+      else { const penA = Number(sUI.penaltiesA||0); const penB = Number(sUI.penaltiesB||0); if (penA < penB) teamALost = true; if (penB < penA) teamBLost = true; }
+    }
+    const isFirstRound = roundIndex === 0; const isLastRound = roundIndex === knockoutRounds.length - 1; const isTop = matchIndex % 2 === 0;
+
+    return (
+      <div key={m.id} className="relative flex-1 flex flex-col justify-center py-3 group">
+        {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
+        <div className="relative z-10 w-full">
+          <div onClick={() => { if(sUI.isPlayed && onSelectMatch){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} cursor-pointer relative overflow-hidden`}>
+            <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
+               <span className="text-blue-500">{m.id.includes('_f1') && round.matches.length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' : m.id.includes('_f2') ? '🏆 Final (Volta)' : m.id.includes('_3rd') ? '🥉 Disputa 3º Lugar' : 'Confronto'}</span>
+               <span className={sUI.color}>{sUI.text}</span>
+            </div>
+            <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tA?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreA : '-'}</span></div></div>
+            <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tB?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreB : '-'}</span></div></div>
+          </div>
+          {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
+        </div>
+        {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
+      </div>
+    );
+  })
+)}
 
               </div>
             )}
@@ -3017,6 +3025,90 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
           </div>
         </>
       )}
+
+                                              {/* 👥 MODAL DETALHES DA DUPLA */}
+      {selectedDuplaMatchup && (() => {
+        const { mIda, mVolta, duplaA, duplaB, aggScoreA, aggScoreB, isLocked, roundId } = selectedDuplaMatchup;
+        const sIda = getMatchStatusDisplay(mIda.id);
+        const sVolta = getMatchStatusDisplay(mVolta.id);
+        
+        return (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setSelectedDuplaMatchup(null)}>
+            <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-md p-6 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+              
+              <div className="flex justify-between items-center mb-6 border-b border-blue-800 pb-4">
+                <h3 className="text-lg font-black text-amber-400 uppercase tracking-widest flex items-center gap-2">👥 Confronto</h3>
+                <button onClick={() => setSelectedDuplaMatchup(null)} className="text-blue-400 hover:text-white bg-blue-800 p-1.5 rounded-full"><X size={16}/></button>
+              </div>
+
+              {/* Nomes das Duplas Editáveis (se admin) */}
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-1">Dupla 1 (Mandante Ida)</label>
+                  <input type="text" value={duplaA?.name || ''} disabled={!isAdmin}
+                     onChange={(e) => {
+                        const newGroups = comp.groups.map(d => d.id === duplaA.id ? {...d, name: e.target.value} : d);
+                        onEditComp({...comp, groups: newGroups});
+                        setSelectedDuplaMatchup({...selectedDuplaMatchup, duplaA: {...duplaA, name: e.target.value}});
+                     }}
+                     className="w-full bg-blue-950 border border-blue-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500 disabled:opacity-70" 
+                  />
+                  <p className="text-[9px] text-emerald-400 mt-1">Formação: {duplaA?.p1?.name} & {duplaA?.p2?.name}</p>
+                </div>
+                <div className="text-center font-black text-blue-500 text-lg">X</div>
+                <div>
+                  <label className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-1">Dupla 2 (Mandante Volta)</label>
+                  <input type="text" value={duplaB?.name || ''} disabled={!isAdmin}
+                     onChange={(e) => {
+                        const newGroups = comp.groups.map(d => d.id === duplaB.id ? {...d, name: e.target.value} : d);
+                        onEditComp({...comp, groups: newGroups});
+                        setSelectedDuplaMatchup({...selectedDuplaMatchup, duplaB: {...duplaB, name: e.target.value}});
+                     }}
+                     className="w-full bg-blue-950 border border-blue-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500 disabled:opacity-70" 
+                  />
+                  <p className="text-[9px] text-emerald-400 mt-1">Formação: {duplaB?.p1?.name} & {duplaB?.p2?.name}</p>
+                </div>
+              </div>
+
+              {/* Status dos Jogos Individuais */}
+              <div className="bg-blue-950/50 p-4 rounded-xl border border-blue-800 space-y-4">
+                 <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-white uppercase tracking-wider mb-1">Jogo de Ida (Pote 1)</p>
+                      <p className="text-[9px] text-blue-300">{mIda.teamA ? getTeam(mIda.teamA)?.name : '?'} x {mIda.teamB ? getTeam(mIda.teamB)?.name : '?'}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <span className={`text-lg font-black bg-blue-900 px-3 py-1 rounded border border-blue-700 ${sIda.isPlayed ? 'text-emerald-400' : 'text-blue-500'}`}>
+                         {sIda.isPlayed ? `${sIda.scoreA} x ${sIda.scoreB}` : '-'}
+                       </span>
+                       {isAdmin && (<button onClick={() => { setSelectedDuplaMatchup(null); handleOpenEditModal(mIda, roundId); }} className="p-2 bg-blue-800 text-blue-300 hover:text-white rounded transition-colors" title="Editar Placar"><Edit size={14}/></button>)}
+                    </div>
+                 </div>
+                 <div className="h-px bg-blue-800/50 w-full"></div>
+                 <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-white uppercase tracking-wider mb-1">Jogo de Volta (Pote 2)</p>
+                      <p className="text-[9px] text-blue-300">{mVolta.teamA ? getTeam(mVolta.teamA)?.name : '?'} x {mVolta.teamB ? getTeam(mVolta.teamB)?.name : '?'}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <span className={`text-lg font-black bg-blue-900 px-3 py-1 rounded border border-blue-700 ${sVolta.isPlayed ? 'text-emerald-400' : 'text-blue-500'}`}>
+                         {sVolta.isPlayed ? `${sVolta.scoreA} x ${sVolta.scoreB}` : '-'}
+                       </span>
+                       {isAdmin && (<button onClick={() => { setSelectedDuplaMatchup(null); handleOpenEditModal(mVolta, roundId); }} className="p-2 bg-blue-800 text-blue-300 hover:text-white rounded transition-colors" title="Editar Placar"><Edit size={14}/></button>)}
+                    </div>
+                 </div>
+              </div>
+
+              {/* AGREGADO */}
+              <div className="mt-4 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30 text-center">
+                 <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-1">Placar Agregado</p>
+                 <p className="text-xl font-black text-white">{aggScoreA} x {aggScoreB}</p>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
 
       {showEditGroups && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setShowEditGroups(false)}>
