@@ -237,40 +237,81 @@ const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2, i
   return { groups, rounds };
 };
 
-const generateCupBracket = (teamIds, compId, isFinalDouble = false) => {
-  const sh = [...teamIds].sort(() => 0.5 - Math.random());
-  let p2 = 1; while (p2 < sh.length) p2 *= 2; const tkr = Math.log2(p2);
+const generateDuplasCupBracket = (teamIds, compId, teamsData, matchesData, competitionsData) => {
+  if (teamIds.length % 2 !== 0) {
+    throw new Error("Para gerar uma Copa em Duplas, o número de times inscritos precisa ser par.");
+  }
+
+  // 1. Puxar o Ranking Global para separar os Potes
+  const globalRanking = calculateStandings(matchesData, teamsData, null) || []; 
+  // Usa a mesma função de classificação, ou a calculateGlobalRanking se você extraiu ela globalmente.
+  // Vamos assumir que você tem um array `rankingData` ordenado do 1º ao último.
+  // Para evitar dependências complexas aqui, vamos ordenar os inscritos apenas pelo número de vitórias/pontos que eles já tem:
+  const getTeamScore = (tId) => {
+      const t = teamsData.find(x => x.id === tId);
+      return t ? (t.globalPoints || 0) : 0;
+  };
+
+  const sortedInscritos = [...teamIds].sort((a, b) => getTeamScore(b) - getTeamScore(a));
+
+  // 2. Separar em Potes e Formar as Duplas
+  const half = Math.ceil(sortedInscritos.length / 2);
+  let pote1 = sortedInscritos.slice(0, half);
+  let pote2 = sortedInscritos.slice(half).sort(() => 0.5 - Math.random()); // Pote 2 embaralhado
+
+  const duplas = [];
+  for (let i = 0; i < pote1.length; i++) {
+    duplas.push({
+      id: `dp_${i+1}`,
+      name: `Dupla ${i+1}`,
+      p1: pote1[i],
+      p2: pote2[i]
+    });
+  }
+
+  // 3. Embaralha as Duplas formadas para jogar nas chaves
+  const sh = [...duplas].sort(() => 0.5 - Math.random());
+  
+  // 4. Lógica de Chaveamento (Mata-Mata)
+  let p2_count = 1; while (p2_count < sh.length) p2_count *= 2; const tkr = Math.log2(p2_count);
   const rounds = []; let mc = 1;
 
   for (let kr = 0; kr < tkr; kr++) {
-    const rm = []; const nm = p2 / Math.pow(2, kr + 1); const fmc = mc;
-    let rl = 'Mata-Mata'; if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas'; else if (nm === 8) rl = 'Oitavas';
+    const rm = []; const nm = p2_count / Math.pow(2, kr + 1); const fmc = mc;
+    let rl = 'Mata-Mata (Duplas)'; if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas'; else if (nm === 8) rl = 'Oitavas';
 
     for (let i = 0; i < nm; i++) {
-      let tA = ''; let tB = ''; let pA = 'A Definir'; let pB = 'A Definir';
+      let dA = null; let dB = null; let pA = 'A Definir'; let pB = 'A Definir';
+      
       if (kr === 0) {
-        tA = sh[i * 2] || ''; tB = sh[i * 2 + 1] || '';
-        pA = tA ? 'Sorteado' : 'Vaga Aberta'; pB = tB ? 'Sorteado' : 'Vaga Aberta';
+        dA = sh[i * 2] || null; dB = sh[i * 2 + 1] || null;
+        pA = dA ? dA.name : 'Vaga Aberta'; pB = dB ? dB.name : 'Vaga Aberta';
       } else {
         pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
       }
 
-      if (nm === 1) { 
-          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f1`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
-          if (isFinalDouble) {
-             rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f2`, teamA: tB, teamB: tA, placeholderA: pB, placeholderB: pA, status: 'pending_play' }); mc++;
-          }
-          if (kr > 0) {
-             let p3A = `Perd. Jogo ${fmc - (nm * 2) + (i * 2)}`; let p3B = `Perd. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
-             rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_3rd`, teamA: '', teamB: '', placeholderA: `🥉 ${p3A}`, placeholderB: `🥉 ${p3B}`, status: 'pending_play' }); mc++;
-          }
-      } else {
-          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
-      }
+      // Jogo de IDA (Jogador 1 da Dupla A x Jogador 1 da Dupla B)
+      rm.push({ 
+        id: `${compId}_ko_m${mc}_kr${kr}_ida`, 
+        isDupla: true, duplaA: dA, duplaB: dB, 
+        teamA: dA ? dA.p1 : '', teamB: dB ? dB.p1 : '', 
+        placeholderA: `${pA} (Técnico 1)`, placeholderB: `${pB} (Técnico 1)`, 
+        status: 'pending_play' 
+      }); mc++;
+
+      // Jogo de VOLTA (Jogador 2 da Dupla B x Jogador 2 da Dupla A) -> Invertemos o mando
+      rm.push({ 
+        id: `${compId}_ko_m${mc}_kr${kr}_volta`, 
+        isDupla: true, duplaA: dB, duplaB: dA, 
+        teamA: dB ? dB.p2 : '', teamB: dA ? dA.p2 : '', 
+        placeholderA: `${pB} (Técnico 2)`, placeholderB: `${pA} (Técnico 2)`, 
+        status: 'pending_play' 
+      }); mc++;
     }
     rounds.push({ id: `ko_${kr}`, number: rl, status: kr === 0 ? 'released' : 'locked', releasedAt: kr === 0 ? Date.now() : null, matches: rm });
   }
-  return rounds;
+  
+  return { rounds, duplas };
 };
 
 const LoginScreen = ({ onLogin, onRegister, onGoogleLogin }) => {
@@ -799,7 +840,7 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
   const CATEGORY_NAMES = {
     liga_a: '🥇 Liga Kame A', liga_b: '🥈 Liga Kame B', liga_c: '🥉 Liga Kame C', liga_d: '🎖️ Liga Kame D',
     liga_acesso: '⬆️ Liga de Acesso', copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia',
-    copa_main: '🏆 Copas Oficiais', copa_flash: '⚡ Copa Flash', outros: '🏅 Outros Torneios'
+    copa_main: '🏆 Copas Oficiais', copa_flash: '⚡ Copa Flash', copa_flash_dupla: '👥 Copa Flash (Dupla)', outros: '🏅 Outros Torneios'
   };
 
   // Ordem de importância na hora de exibir
@@ -2441,7 +2482,18 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1"><label className="text-xs font-bold text-blue-400">Edição (Apenas Número)</label><input type="number" min="1" value={settingsData.edition} onChange={e => setSettingsData({...settingsData, edition: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" placeholder="Ex: 1, 2, 3..." /></div>
             <div className="space-y-1"><label className="text-xs font-bold text-blue-400">Categoria (Ranking)</label>
-              <select value={settingsData.category} onChange={e => setSettingsData({...settingsData, category: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500"><option value="liga_a">🥇 Liga Kame A (Série A)</option><option value="liga_b">🥈 Liga Kame B (Série B)</option><option value="liga_c">🥉 Liga Kame C (Série C)</option><option value="liga_d">🎖️ Liga Kame D (Série D)</option><option value="liga_acesso">⬆️ Liga de Acesso</option><option value="copa_main">🏆 Copas Oficiais (Ex: Copa do Clã)</option><option value="copa_do_rei">👑 Copa do Rei</option><option value="copa_amazonia">🌳 Copa da Amazônia</option><option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option></select>
+              <select value={settingsData.category} onChange={e => setSettingsData({...settingsData, category: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500">
+                <option value="liga_a">🥇 Liga Kame A (Série A)</option>
+                <option value="liga_b">🥈 Liga Kame B (Série B)</option>
+                <option value="liga_c">🥉 Liga Kame C (Série C)</option>
+                <option value="liga_d">🎖️ Liga Kame D (Série D)</option>
+                <option value="liga_acesso">⬆️ Liga de Acesso</option>
+                <option value="copa_main">🏆 Copas Oficiais (Ex: Copa do Clã)</option>
+                <option value="copa_do_rei">👑 Copa do Rei</option>
+                <option value="copa_amazonia">🌳 Copa da Amazônia</option>
+                <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
+                <option value="copa_flash_dupla">👥 Copa Flash (Duplas)</option>
+              </select>
             </div>
             <div className="space-y-1"><label className="text-xs font-bold text-blue-400">Estilo de Jogo</label>
               <select value={settingsData.playStyle} onChange={e => setSettingsData({...settingsData, playStyle: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500"><option value="Livre">Livre (Qualquer Estilo)</option><option value="Full Razz">Full Razz (Sem Balão)</option><option value="Personalizado">Regras Personalizadas</option></select>
@@ -3180,11 +3232,11 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const CAT_NAMES = {
     liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D',
     liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial', copa_do_rei: 'Copa do Rei',
-    copa_amazonia: 'Copa da Amazônia', copa_flash: 'Copa Flash'
+    copa_amazonia: 'Copa da Amazônia', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash em Duplas'
   };
 
   useEffect(() => {
-    if (category === 'copa_flash') { setFormat('cup'); }
+    if (category === 'copa_flash' || category === 'copa_flash_dupla') { setFormat('cup'); }
     const compsOfCategory = (competitions || []).filter(c => c.category === category);
     const nextEditionNumber = compsOfCategory.length + 1;
     setName(`${CAT_NAMES[category] || 'Competição'} - Edição ${nextEditionNumber}`);
@@ -3286,7 +3338,11 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
     if (!isAutoJoin) {
       try {
-        if (format === 'groups') {
+        if (category === 'copa_flash_dupla') {
+           const res = generateDuplasCupBracket(selectedTeams, compId, teams, matches, competitions);
+           finalRounds = res.rounds;
+           groupsData = res.duplas; // Vamos salvar a estrutura das duplas dentro do objeto 'groups' para reaproveitar o banco de dados
+        } else if (format === 'groups') {
           const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound, isFinalDouble);
           finalRounds = res.rounds; groupsData = res.groups;
         } else if (format === 'cup') {
@@ -3294,7 +3350,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
         } else {
           finalRounds = generateRoundRobin(selectedTeams, compId, isDoubleRound);
         }
-      } catch (err) { setError('Erro ao gerar o chaveamento. Verifique a quantidade de times.'); return; }
+      } catch (err) { setError(err.message || 'Erro ao gerar o chaveamento. Verifique a quantidade de times.'); return; }
     }
 
     const newComp = { 
@@ -3330,7 +3386,16 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Nome do Campeonato</label><input type="text" value={name} readOnly className="w-full bg-blue-950/50 border border-blue-800 rounded-xl p-3 text-blue-400 font-bold outline-none cursor-not-allowed" /></div>
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Categoria (Divisão)</label>
               <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full bg-blue-950 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner">
-                <option value="liga_a">🥇 Liga Kame A (Série A)</option><option value="liga_b">🥈 Liga Kame B (Série B)</option><option value="liga_c">🥉 Liga Kame C (Série C)</option><option value="liga_d">🎖️ Liga Kame D (Série D)</option><option value="liga_acesso">⬆️ Liga de Acesso</option><option value="copa_main">🏆 Copas Oficiais</option><option value="copa_do_rei">👑 Copa do Rei</option><option value="copa_amazonia">🌳 Copa da Amazônia</option><option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
+                <option value="liga_a">🥇 Liga Kame A (Série A)</option>
+                <option value="liga_b">🥈 Liga Kame B (Série B)</option>
+                <option value="liga_c">🥉 Liga Kame C (Série C)</option>
+                <option value="liga_d">🎖️ Liga Kame D (Série D)</option>
+                <option value="liga_acesso">⬆️ Liga de Acesso</option>
+                <option value="copa_main">🏆 Copas Oficiais</option>
+                <option value="copa_do_rei">👑 Copa do Rei</option>
+                <option value="copa_amazonia">🌳 Copa da Amazônia</option>
+                <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
+                <option value="copa_flash_dupla">👥 Copa Flash (Duplas)</option>              
               </select>
             </div>
             
