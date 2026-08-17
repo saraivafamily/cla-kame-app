@@ -261,13 +261,18 @@ const generateDuplasCupBracket = (teamIds, compId, teamsData, matchesData, compe
 
   const duplas = [];
   for (let i = 0; i < pote1.length; i++) {
-    // Pega a primeira palavra do nome de cada time para formar a dupla
-    const nameP1 = pote1[i].name.split(' ')[0];
-    const nameP2 = pote2[i].name.split(' ')[0];
+    // Busca os dados completos dos times a partir do ID
+    const time1 = teamsData.find(t => t.id === pote1[i]);
+    const time2 = teamsData.find(t => t.id === pote2[i]);
+
+    // Pega a primeira palavra do nome de cada time (com proteção caso dê erro)
+    const nameP1 = time1 && time1.name ? time1.name.split(' ')[0] : 'Time 1';
+    const nameP2 = time2 && time2.name ? time2.name.split(' ')[0] : 'Time 2';
+
     duplas.push({
       id: `dp_${i+1}`,
-      name: `${nameP1} & ${nameP2}`, // Nome mesclado gerado automaticamente
-      p1: pote1[i],
+      name: `${nameP1} & ${nameP2}`, // Nome mesclado gerado
+      p1: pote1[i], // Mantém os IDs salvos
       p2: pote2[i]
     });
   }
