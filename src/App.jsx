@@ -2810,6 +2810,8 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     // Adicionado dlsCode no salvamento para o Firebase
     const updatedRounds = comp.rounds.map(r => r.id === editMatchData.roundId ? { ...r, matches: r.matches.map(m => m.id === editMatchData.id ? { ...m, teamA: editMatchData.teamA, teamB: editMatchData.teamB, group: editMatchData.group, dlsCode: editMatchData.dlsCode } : m) } : r);
     onEditComp({ ...comp, rounds: updatedRounds });
+    setEditMatchData(null);
+    showToast("Confronto salvo!", "success");
 
   const handleSavePrizes = () => { onEditComp({ ...comp, prizes: { first: prizeData.first.trim(), second: prizeData.second.trim(), third: prizeData.third.trim(), extra: prizeData.extra.trim() } }); setShowEditPrizes(false); showToast("Quadro de premiações atualizado!", "success"); };
   
