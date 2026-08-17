@@ -3232,11 +3232,11 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
               {/* BOTOES DE AVANÇO MANUAL (APARECEM QUANDO O JOGO ACABA) */}
               {isAdmin && isPlayed && (comp.rounds.findIndex(r => r.id === roundId) < comp.rounds.length - 1) && (
                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <button onClick={() => handleForceAdvanceDupla(roundId, mIda, duplaA)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg shadow-md transition-colors">
-                       Avançar {duplaA?.name?.split(' ')[0] || 'Dupla 1'}
+                    <button onClick={() => handleForceAdvanceDupla(roundId, mIda, duplaA)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg shadow-md transition-colors truncate px-2">
+                       Avançar {duplaA && typeof duplaA.name === 'string' ? duplaA.name.split(' ')[0] : 'Dupla 1'}
                     </button>
-                    <button onClick={() => handleForceAdvanceDupla(roundId, mIda, duplaB)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg shadow-md transition-colors">
-                       Avançar {duplaB?.name?.split(' ')[0] || 'Dupla 2'}
+                    <button onClick={() => handleForceAdvanceDupla(roundId, mIda, duplaB)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg shadow-md transition-colors truncate px-2">
+                       Avançar {duplaB && typeof duplaB.name === 'string' ? duplaB.name.split(' ')[0] : 'Dupla 2'}
                     </button>
                  </div>
               )}
