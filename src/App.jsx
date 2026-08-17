@@ -2419,7 +2419,30 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     }
   };
   
-  const handleGenerateBracket = () => { if (comp.teams.length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times!`, "error"); return; } let finalRounds = []; let groupsData = null; if (comp.format === 'groups') { const res = generateGroupsAndKnockout(comp.teams, comp.id, comp.numGroups, comp.qualifiersPerGroup, comp.isDoubleRound, comp.isFinalDouble); finalRounds = res.rounds; groupsData = res.groups; } else if (comp.format === 'cup') { finalRounds = generateCupBracket(comp.teams, comp.id, comp.isFinalDouble); } else { finalRounds = generateRoundRobin(comp.teams, comp.id, comp.isDoubleRound); } onEditComp({ ...comp, status: 'active', rounds: finalRounds, groups: groupsData || comp.groups || null }); showToast("Tabela gerada!", "success"); };
+  const handleGenerateBracket = () => { 
+    if (comp.teams.length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times!`, "error"); return; } 
+    let finalRounds = []; let groupsData = null; 
+    
+    if (comp.category === 'copa_flash_dupla') {
+        try {
+            const res = generateDuplasCupBracket(comp.teams, comp.id, teams, matches, competitions);
+            finalRounds = res.rounds;
+            groupsData = res.duplas;
+        } catch (err) {
+            showToast(err.message, "error");
+            return;
+        }
+    } else if (comp.format === 'groups') { 
+        const res = generateGroupsAndKnockout(comp.teams, comp.id, comp.numGroups, comp.qualifiersPerGroup, comp.isDoubleRound, comp.isFinalDouble); 
+        finalRounds = res.rounds; groupsData = res.groups; 
+    } else if (comp.format === 'cup') { 
+        finalRounds = generateCupBracket(comp.teams, comp.id, comp.isFinalDouble); 
+    } else { 
+        finalRounds = generateRoundRobin(comp.teams, comp.id, comp.isDoubleRound); 
+    } 
+    onEditComp({ ...comp, status: 'active', rounds: finalRounds, groups: groupsData || comp.groups || null }); 
+    showToast("Tabela gerada com sucesso!", "success"); 
+  };
   
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
   const knockoutRounds = (comp.rounds || []).filter(r => r.id.includes('ko') || comp.format === 'cup' || comp.category === 'copa_flash_dupla');
