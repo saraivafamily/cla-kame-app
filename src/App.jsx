@@ -3228,6 +3228,8 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     </div>
   );
 };
+
+// Há algo novo
           
 const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onBack, showToast }) => {
   const [receipt, setReceipt] = useState(null);
