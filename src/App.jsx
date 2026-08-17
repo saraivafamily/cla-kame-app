@@ -2887,7 +2887,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                   </div>
                 )}
 
-                {viewType === 'bracket' && (
+               {viewType === 'bracket' && (
                   <div className="space-y-4 animate-in fade-in">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 pl-2">
                       <h3 className="text-lg font-bold text-white">Chaves do Mata-Mata</h3>
@@ -2960,56 +2960,11 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                                 <span className={statusColor}>{statusText}</span>
                                               </div>
                                               <div className={`flex items-center justify-between gap-2 min-w-0 mt-1 transition-all ${teamALost ? 'grayscale opacity-50 line-through' : ''}`}>
-                                                <span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400' : 'text-blue-100'}`}>{idaIsFinished || isFirstRound ? (realDuplaA?.name || 'A Definir') : 'Dupla Oculta 🕵️'}</span>
+                                                <span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400' : 'text-blue-100'}`}>{idaIsFinished || isFirstRound || isAdmin ? (realDuplaA?.name || 'A Definir') : 'Dupla Oculta 🕵️'}</span>
                                                 <span className={`w-7 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${isPlayed ? statusColor : 'text-blue-700'}`}>{aggScoreA}</span>
                                               </div>
                                               <div className={`flex items-center justify-between gap-2 min-w-0 transition-all ${teamBLost ? 'grayscale opacity-50 line-through' : ''}`}>
-                                                <span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400' : 'text-blue-100'}`}>{idaIsFinished || isFirstRound ? (realDuplaB?.name || 'A Definir') : 'Dupla Oculta 🕵️'}</span>
-                                                <span className={`w-7 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${isPlayed ? statusColor : 'text-blue-700'}`}>{aggScoreB}</span>
-                                              </div>
-                                            </div>
-                                          </div>
-                                          {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
-                                        </div>
-                                      );
-                                    })
-                                  ) : (
-                                      
-                                      let aggScoreA = '?'; let aggScoreB = '?';
-                                      let isPlayed = false; let statusText = 'Aguardando'; let statusColor = 'text-blue-500';
-                                      let teamALost = false; let teamBLost = false;
-
-                                      if (sIda.isPlayed && sIda.text === 'Oficial' && sVolta.isPlayed && sVolta.text === 'Oficial') {
-                                        isPlayed = true; statusText = 'Oficializado'; statusColor = 'text-emerald-400';
-                                        aggScoreA = Number(sIda.scoreA||0) + Number(sVolta.scoreB||0);
-                                        aggScoreB = Number(sIda.scoreB||0) + Number(sVolta.scoreA||0);
-                                        const aggPenA = Number(sIda.penaltiesA||0) + Number(sVolta.penaltiesB||0);
-                                        const aggPenB = Number(sIda.penaltiesB||0) + Number(sVolta.penaltiesA||0);
-                                        if (aggScoreA < aggScoreB) teamALost = true; else if (aggScoreB < aggScoreA) teamBLost = true;
-                                        else { if (aggPenA < aggPenB) teamALost = true; if (aggPenB < aggPenA) teamBLost = true; }
-                                      } else if (sIda.isPlayed || sVolta.isPlayed) {
-                                        statusText = 'Em Andamento'; statusColor = 'text-amber-400';
-                                      }
-
-                                      const realDuplaA = (comp.groups || []).find(d => d.id === mIda.duplaA?.id) || mIda.duplaA;
-                                      const realDuplaB = (comp.groups || []).find(d => d.id === mIda.duplaB?.id) || mIda.duplaB;
-                                      const isTop = idx % 2 === 0; const isFirstRound = roundIndex === 0; const isLastRound = roundIndex === knockoutRounds.length - 1;
-
-                                      return (
-                                        <div key={`dupla_${idx}`} className="relative flex-1 flex flex-col justify-center py-3 group">
-                                          {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
-                                          <div className="relative z-10 w-full">
-                                            <div onClick={() => setSelectedDuplaMatchup({ mIda, mVolta, duplaA: realDuplaA, duplaB: realDuplaB, aggScoreA, aggScoreB, isLocked, roundId: round.id })} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm cursor-pointer hover:-translate-y-1 ${isPlayed ? 'bg-blue-900/90 border-emerald-500/50 shadow-emerald-500/20' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-60' : 'bg-blue-900/40 border-blue-700 hover:border-amber-500/50'}`}>
-                                              <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
-                                                <span className="text-amber-400 flex items-center gap-1">👥 Confronto Duplo</span>
-                                                <span className={statusColor}>{statusText}</span>
-                                              </div>
-                                              <div className={`flex items-center justify-between gap-2 min-w-0 mt-1 transition-all ${teamALost ? 'grayscale opacity-50 line-through' : ''}`}>
-                                                <span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400' : 'text-blue-100'}`}>{realDuplaA?.name || 'A Definir'}</span>
-                                                <span className={`w-7 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${isPlayed ? statusColor : 'text-blue-700'}`}>{aggScoreA}</span>
-                                              </div>
-                                              <div className={`flex items-center justify-between gap-2 min-w-0 transition-all ${teamBLost ? 'grayscale opacity-50 line-through' : ''}`}>
-                                                <span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400' : 'text-blue-100'}`}>{realDuplaB?.name || 'A Definir'}</span>
+                                                <span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400' : 'text-blue-100'}`}>{idaIsFinished || isFirstRound || isAdmin ? (realDuplaB?.name || 'A Definir') : 'Dupla Oculta 🕵️'}</span>
                                                 <span className={`w-7 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${isPlayed ? statusColor : 'text-blue-700'}`}>{aggScoreB}</span>
                                               </div>
                                             </div>
@@ -3058,9 +3013,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                     </div>
                   </div>
                 )}
-
-              </div>
-            )}
             
             {subTab === 'stats' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
