@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where, initializeFirestore } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where, initializeFirestore, getDocs } from 'firebase/firestore';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart } from 'lucide-react';
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
@@ -7286,20 +7286,26 @@ export default function App() {
            // LÓGICA DE PLACAR AGREGADO PARA DUPLAS
            const isIda = match.matchId.includes('_ida');
            const partnerMatchId = match.matchId.replace(isIda ? '_ida' : '_volta', isIda ? '_volta' : '_ida');
-           const partnerMatch = matches.find(m => m.matchId === partnerMatchId && m.compId === comp.id && m.status === 'approved');
            
-           if (partnerMatch) {
-               // A outra perna já foi jogada! Hora de somar o agregado.
-               // Descobrindo quem é a Dupla A e a Dupla B inteira a partir da estrutura salva no match.
+           // BUSCA O PARCEIRO DIRETAMENTE NO BANCO DE DADOS EM TEMPO REAL (Corta o atraso do clique rápido)
+           const qPartner = query(getPublicPath('matches'), where('matchId', '==', partnerMatchId), where('compId', '==', comp.id), where('status', '==', 'approved'));
+           const snapPartner = await getDocs(qPartner);
+           
+           if (!snapPartner.empty) {
+               const partnerMatch = snapPartner.docs[0].data();
+               
+               // GARANTE A LEITURA CORRETA DAS DUPLAS SEMPRE PELO JOGO DE IDA
                const currentRoundUI = comp.rounds.find(r => r.id === match.roundId);
-               const thisMatchUI = currentRoundUI.matches.find(x => x.id === match.matchId);
-               const duplaA = thisMatchUI.duplaA; 
-               const duplaB = thisMatchUI.duplaB;
+               const idaMatchId = isIda ? match.matchId : partnerMatchId;
+               const idaMatchUI = currentRoundUI.matches.find(x => x.id === idaMatchId);
+               
+               const duplaA = idaMatchUI.duplaA; 
+               const duplaB = idaMatchUI.duplaB;
 
                let aggScoreA = 0; let aggScoreB = 0; let aggPenA = 0; let aggPenB = 0;
                
                if (isIda) {
-                 aggScoreA = finalScoreA + Number(partnerMatch.scoreB||0); // Na volta, a Dupla A jogou fora de casa
+                 aggScoreA = finalScoreA + Number(partnerMatch.scoreB||0); 
                  aggScoreB = finalScoreB + Number(partnerMatch.scoreA||0);
                  aggPenA = (finalPenaltiesA||0) + Number(partnerMatch.penaltiesB||0);
                  aggPenB = (finalPenaltiesB||0) + Number(partnerMatch.penaltiesA||0);
@@ -7310,12 +7316,11 @@ export default function App() {
                  aggPenB = Number(partnerMatch.penaltiesB||0) + (finalPenaltiesA||0);
                }
 
-               if (aggScoreA > aggScoreB) winnerId = duplaA; // Passamos o objeto inteiro da dupla
+               if (aggScoreA > aggScoreB) winnerId = duplaA; 
                else if (aggScoreB > aggScoreA) winnerId = duplaB;
                else if (aggPenA > aggPenB) winnerId = duplaA;
                else if (aggPenB > aggPenA) winnerId = duplaB;
                else {
-                   // Se incrivelmente empatar no agregado e ninguém botar pênalti, randomiza.
                    winnerId = Math.random() < 0.5 ? duplaA : duplaB;
                }
            }
