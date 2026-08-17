@@ -3135,7 +3135,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                      }}
                      className="w-full bg-blue-950 border border-blue-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500 disabled:opacity-70" 
                   />
-                  <p className="text-[9px] text-emerald-400 mt-1">Formação: {duplaA?.p1?.name} & {duplaA?.p2?.name}</p>
+                  <p className="text-[9px] text-emerald-400 mt-1">Formação: {getTeam(duplaA?.p1)?.name} & {getTeam(duplaA?.p2)?.name}</p>
                 </div>
                 <div className="text-center font-black text-blue-500 text-lg">X</div>
                 <div>
@@ -3148,7 +3148,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                      }}
                      className="w-full bg-blue-950 border border-blue-700 rounded p-2 text-white text-sm outline-none focus:border-amber-500 disabled:opacity-70" 
                   />
-                  <p className="text-[9px] text-emerald-400 mt-1">Formação: {duplaB?.p1?.name} & {duplaB?.p2?.name}</p>
+                  <p className="text-[9px] text-emerald-400 mt-1">Formação: {getTeam(duplaB?.p1)?.name} & {getTeam(duplaB?.p2)?.name}</p>
                 </div>
               </div>
 
