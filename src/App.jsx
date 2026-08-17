@@ -3114,6 +3114,57 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
         </>
       )}
 
+      {/* MODAL DE EDITAR PARTIDA (ADMIN) */}
+      {editMatchData && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setEditMatchData(null)}>
+          <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-md p-6 shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Edit size={18} className="text-amber-400"/> Editar Partida</h3>
+            <div className="space-y-4">
+              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 space-y-3">
+                  <p className="text-xs font-bold text-blue-400 uppercase tracking-widest">Alterar Times do Confronto</p>
+                  {comp.format === 'groups' && (<div className="pb-2 border-b border-blue-800/50 mb-3"><label className="text-[10px] font-bold text-purple-400 uppercase tracking-widest block mb-1">Pertencente ao Grupo</label><select value={editMatchData.group || 'A'} onChange={e => { setEditMatchData({ ...editMatchData, group: e.target.value, teamA: '', teamB: '' }); }} className="w-full bg-blue-900 border border-purple-500/40 rounded p-2 text-purple-300 text-xs font-bold outline-none">{Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (<option key={gName} value={gName}>Grupo {gName}</option>))}</select></div>)}
+                  <div className="space-y-2">
+                      <select value={editMatchData.teamA} onChange={e => setEditMatchData({...editMatchData, teamA: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none"><option value="">A Definir / Sorteio</option>{availableTeamsForEdit.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{t.name}</option> : null; })}</select>
+                      <div className="text-center text-blue-500 font-bold text-xs">X</div>
+                      <select value={editMatchData.teamB} onChange={e => setEditMatchData({...editMatchData, teamB: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none"><option value="">A Definir / Sorteio</option>{availableTeamsForEdit.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{t.name}</option> : null; })}</select>
+                  </div>
+              </div>
+              {editMatchData.hasPlayed && (
+                  <div className="bg-emerald-900/20 p-4 rounded-xl border border-emerald-500/30">
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Ajustar Placar Validado</p>
+                        <div className="flex gap-2">
+                          <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20 hover:bg-red-500/20 transition-colors"><input type="checkbox" checked={editMatchData.woA} onChange={e => { const isWo = e.target.checked; const otherWo = editMatchData.woB; let sA = editMatchData.scoreA; let sB = editMatchData.scoreB; if (isWo && !otherWo) { sA = 0; sB = 3; } else if (!isWo && otherWo) { sA = 3; sB = 0; } else if (isWo && otherWo) { sA = '?'; sB = '?'; } else { sA = ''; sB = ''; } setEditMatchData({...editMatchData, woA: isWo, scoreA: sA, scoreB: sB}); }} className="accent-red-500 w-3 h-3" /> W.O. Equipe A</label>
+                          <label className="flex items-center gap-1 text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded cursor-pointer border border-red-500/20 hover:bg-red-500/20 transition-colors"><input type="checkbox" checked={editMatchData.woB} onChange={e => { const isWo = e.target.checked; const otherWo = editMatchData.woA; let sA = editMatchData.scoreA; let sB = editMatchData.scoreB; if (isWo && !otherWo) { sB = 0; sA = 3; } else if (!isWo && otherWo) { sB = 3; sA = 0; } else if (isWo && otherWo) { sA = '?'; sB = '?'; } else { sA = ''; sB = ''; } setEditMatchData({...editMatchData, woB: isWo, scoreA: sA, scoreB: sB}); }} className="accent-red-500 w-3 h-3" /> W.O. Equipe B</label>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-center gap-3">
+                          <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreA} onChange={e => setEditMatchData({...editMatchData, scoreA: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none disabled:opacity-50" />
+                          <span className="font-bold text-blue-500">X</span>
+                          <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={editMatchData.woA || editMatchData.woB} value={editMatchData.scoreB} onChange={e => setEditMatchData({...editMatchData, scoreB: e.target.value})} className="w-16 bg-blue-950 border border-emerald-500/50 rounded-lg p-2 text-white text-center font-bold text-xl outline-none disabled:opacity-50" />
+                      </div>
+                      {comp.format !== 'league' && (
+                          <div className="mt-3 flex items-center justify-center gap-3">
+                              <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="Pên A" value={editMatchData.penaltiesA} onChange={e => setEditMatchData({...editMatchData, penaltiesA: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
+                              <span className="text-[10px] text-amber-500 font-bold uppercase">Pênaltis</span>
+                              <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="Pên B" value={editMatchData.penaltiesB} onChange={e => setEditMatchData({...editMatchData, penaltiesB: e.target.value})} className="w-16 bg-blue-950 border border-amber-500/30 rounded-lg p-1 text-amber-400 text-center font-bold text-xs outline-none" />
+                          </div>
+                      )}
+                      <p className="text-[10px] text-emerald-500/70 text-center mt-3 leading-tight">Ao salvar, a tabela será recalculada automaticamente.</p>
+                  </div>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row justify-between items-center sm:items-end gap-4 mt-5 pt-4 border-t border-blue-800">
+              <div className="flex flex-col gap-2 w-full sm:w-auto items-start">
+                {editMatchData.hasPlayed && (<button type="button" onClick={() => { if(window.confirm('Excluir apenas o resultado?')) { if (onDeleteMatch && editMatchData.playedMatchId) { onDeleteMatch(editMatchData.playedMatchId); setEditMatchData(null); } } }} className="flex items-center gap-1.5 text-[11px] text-amber-400 hover:text-amber-300 font-bold transition-colors">Excluir apenas Placar Validado</button>)}
+                <button type="button" onClick={handleDeleteMatchCompletely} className="flex items-center gap-1.5 text-[11px] text-red-400 hover:text-red-300 font-bold transition-colors bg-red-500/10 px-2 py-1 rounded border border-red-500/20"><Trash2 size={12} /> Excluir Partida Inteira do Calendário</button>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end"><Button variant="outline" onClick={() => setEditMatchData(null)} className="py-2 text-xs">Cancelar</Button><Button onClick={saveMatchEdit} className="py-2 text-xs bg-amber-600 hover:bg-amber-500 border-0 shadow-md text-white">Salvar</Button></div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 👥 MODAL DETALHES DA DUPLA */}
       {selectedDuplaMatchup && (() => {
         try {
