@@ -2452,20 +2452,18 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     }
   };
   
-  const handleGenerateBracket = () => { 
+ const handleGenerateBracket = () => { 
     if (comp.teams.length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times!`, "error"); return; } 
-    let finalRounds = []; let groupsData = null; 
     
+    // 🌟 NOVA LÓGICA DE SORTEIO AO VIVO PARA DUPLAS
     if (comp.category === 'copa_flash_dupla') {
-        try {
-            const res = generateDuplasCupBracket(comp.teams, comp.id, teams, matches, competitions);
-            finalRounds = res.rounds;
-            groupsData = res.duplas;
-        } catch (err) {
-            showToast(err.message, "error");
-            return;
-        }
-    } else if (comp.format === 'groups') { 
+        onEditComp({ ...comp, status: 'drawing' });
+        showToast("Modo Sorteio Ao Vivo Ativado!", "success");
+        return;
+    }
+
+    let finalRounds = []; let groupsData = null; 
+    if (comp.format === 'groups') { 
         const res = generateGroupsAndKnockout(comp.teams, comp.id, comp.numGroups, comp.qualifiersPerGroup, comp.isDoubleRound, comp.isFinalDouble); 
         finalRounds = res.rounds; groupsData = res.groups; 
     } else if (comp.format === 'cup') { 
@@ -2536,6 +2534,25 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
       if (totalMatches > 0 && approvedMatches === totalMatches) { const standings = calculateStandings(matches, compTeams, comp.id); return standings.length > 0 ? standings[0] : null; }
     } return null;
   }, [comp, matches, knockoutRounds, groupOrNormalRounds, teams]);
+  if (comp.status === 'drawing') {
+
+  if (comp.status === 'drawing') {
+    return (
+      <div className="space-y-6 animate-in fade-in pb-10">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
+        <div className="bg-blue-900 p-8 md:p-12 rounded-3xl border border-amber-500/50 flex flex-col items-center text-center shadow-2xl mt-8">
+            <span className="text-6xl mb-6 animate-bounce">🎲</span>
+            <h2 className="text-3xl md:text-4xl font-black text-amber-400 uppercase tracking-widest mb-4">Sorteio Ao Vivo Ativo</h2>
+            <p className="text-blue-300 md:w-2/3 leading-relaxed">As inscrições foram encerradas. A tabela e os confrontos estão bloqueados enquanto a diretoria realiza o sorteio oficial ao vivo.</p>
+            {isAdmin && (
+                <Button onClick={() => showToast("O Painel animado vai entrar aqui no Passo 2!", "info")} className="mt-8 py-4 px-8 text-lg font-black bg-amber-600 hover:bg-amber-500 shadow-xl shadow-amber-900/50 border-0">
+                    🎙️ Abrir Painel de Transmissão (OBS)
+                </Button>
+            )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
