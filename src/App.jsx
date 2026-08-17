@@ -2812,6 +2812,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     onEditComp({ ...comp, rounds: updatedRounds });
     setEditMatchData(null);
     showToast("Confronto salvo!", "success");
+  };
 
   const handleSavePrizes = () => { onEditComp({ ...comp, prizes: { first: prizeData.first.trim(), second: prizeData.second.trim(), third: prizeData.third.trim(), extra: prizeData.extra.trim() } }); setShowEditPrizes(false); showToast("Quadro de premiações atualizado!", "success"); };
   
