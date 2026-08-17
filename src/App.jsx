@@ -2147,7 +2147,7 @@ const DrawPanel = ({ comp, teams, matches, showToast }) => {
 
 // 🌟 PAINEL DE SORTEIO AO VIVO (MODO OBS COM ÁRVORE DE MATA-MATA)
 const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
-  const [step, setStep] = useState(0); // 0: Init, 1: Sortear Parceiro, 2: Nomear Dupla, 3: Sortear Chave
+  const [step, setStep] = useState(0); // 0: Init, 1: Sortear Parceiro, 2: Nomear Dupla, 3: Sortear Chave, 4: Concluído
   const [p1List, setP1List] = useState([]);
   const [p2List, setP2List] = useState([]);
   const [duplas, setDuplas] = useState([]);
@@ -2178,7 +2178,7 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
     } catch(e) {}
   };
 
-  // Passo 0: Separação automática Pote 1 x Pote 2 pelo Ranking Global
+  // Passo 0: Puxa o Ranking e Separa os Potes automaticamente
   useEffect(() => {
     if (step === 0) {
       const getTeamScore = (tId) => { const t = teams.find(x => x.id === tId); return t ? (t.globalPoints || 0) : 0; };
@@ -2207,6 +2207,7 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
         setCurrentP2(finalP2); 
         setSpinTarget(finalP2);
         
+        // Sugestão Automática de Nome
         const p1 = p1List[0];
         const n1 = p1?.name ? p1.name.split(' ')[0] : 'Time1';
         const n2 = finalP2?.name ? finalP2.name.split(' ')[0] : 'Time2';
@@ -2260,13 +2261,20 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
         clearInterval(interval);
         const selected = availableDuplas[Math.floor(Math.random() * availableDuplas.length)];
         setCurrentP2(null);
-        setBracketDuplas(prev => [...prev, selected]);
+        
+        setBracketDuplas(prev => {
+          const newBracket = [...prev, selected];
+          if (newBracket.length === duplas.length) {
+            setTimeout(() => setStep(4), 1000); // Libera o botão verde no final
+          }
+          return newBracket;
+        });
+        
         setSpinning(false);
       }
     }, 100);
   };
 
-  // 🚀 Salva os dados direto na estrutura oficial da Copa no Firebase
   const finalizeBracketAndSave = () => {
     let p2_count = 1; 
     while (p2_count < bracketDuplas.length) p2_count *= 2;
@@ -2296,41 +2304,19 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
                 pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
             }
 
-            // Jogo de IDA
             rm.push({ 
               id: `${comp.id}_ko_m${mc}_kr${kr}_ida`, 
-              isDupla: true, 
-              duplaA: dA, 
-              duplaB: dB, 
-              teamA: dA ? dA.p1 : '', 
-              teamB: dB ? dB.p1 : '', 
-              placeholderA: `${pA} (Téc 1)`, 
-              placeholderB: `${pB} (Téc 1)`, 
-              status: 'pending_play' 
-            }); 
-            mc++;
+              isDupla: true, duplaA: dA, duplaB: dB, teamA: dA ? dA.p1 : '', teamB: dB ? dB.p1 : '', 
+              placeholderA: `${pA} (Téc 1)`, placeholderB: `${pB} (Téc 1)`, status: 'pending_play' 
+            }); mc++;
 
-            // Jogo de VOLTA (mando invertido)
             rm.push({ 
               id: `${comp.id}_ko_m${mc}_kr${kr}_volta`, 
-              isDupla: true, 
-              duplaA: dB, 
-              duplaB: dA, 
-              teamA: dB ? dB.p2 : '', 
-              teamB: dA ? dA.p2 : '', 
-              placeholderA: `${pB} (Téc 2)`, 
-              placeholderB: `${pA} (Téc 2)`, 
-              status: 'pending_play' 
-            }); 
-            mc++;
+              isDupla: true, duplaA: dB, duplaB: dA, teamA: dB ? dB.p2 : '', teamB: dA ? dA.p2 : '', 
+              placeholderA: `${pB} (Téc 2)`, placeholderB: `${pA} (Téc 2)`, status: 'pending_play' 
+            }); mc++;
         }
-        rounds.push({ 
-          id: `ko_${kr}`, 
-          number: rl, 
-          status: kr === 0 ? 'released' : 'locked', 
-          releasedAt: kr === 0 ? Date.now() : null, 
-          matches: rm 
-        });
+        rounds.push({ id: `ko_${kr}`, number: rl, status: kr === 0 ? 'released' : 'locked', releasedAt: kr === 0 ? Date.now() : null, matches: rm });
     }
     
     onFinish(rounds, duplas);
@@ -2417,87 +2403,119 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
           </div>
         )}
 
-        {/* ETAPA 3: CHAVEAMENTO EM FORMATO OFICIAL DE MATA-MATA */}
-        {step === 3 && (
-          <div className="w-full animate-in zoom-in-95 duration-500 space-y-6">
-             <div className="text-center mb-6">
+        {/* ETAPA 3 e 4: CHAVEAMENTO EM FORMATO OFICIAL DE MATA-MATA */}
+        {(step === 3 || step === 4) && (
+          <div className="w-full animate-in zoom-in-95 duration-500 flex flex-col items-center">
+             
+             <div className="text-center mb-8">
                <h3 className={`text-2xl sm:text-3xl font-black uppercase tracking-widest ${chromaMode ? 'text-black' : 'text-amber-400'}`}>
-                 Chaveamento Mata-Mata
+                 Chaveamento Oficial
                </h3>
                <p className={`text-xs sm:text-sm mt-1 ${chromaMode ? 'text-green-900 font-bold' : 'text-blue-300'}`}>
                  Sorteie as duplas para definir os confrontos diretos na chave.
                </p>
              </div>
 
-             {/* ÁRVORE DE CONFRONTOS (EXATAMENTE COMO O MATA-MATA DO APP) */}
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
-               {Array.from({ length: Math.ceil(duplas.length / 2) }).map((_, matchIdx) => {
-                  const duplaA = bracketDuplas[matchIdx * 2];
-                  const duplaB = bracketDuplas[matchIdx * 2 + 1];
-
-                  return (
-                    <div key={matchIdx} className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 shadow-lg ${chromaMode ? 'bg-white border-green-600' : 'bg-blue-900/60 border-blue-800'}`}>
-                      <div className="flex justify-between items-center border-b pb-2 border-blue-800/40">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
-                          ⚔️ Confronto {matchIdx + 1}
-                        </span>
-                        <span className="text-[9px] text-blue-400 font-bold uppercase">
-                          {duplaA && duplaB ? 'Confronto Definido' : 'Aguardando Sorteio'}
-                        </span>
-                      </div>
-
-                      {/* Lado A */}
-                      <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${duplaA ? (chromaMode ? 'bg-green-50 border-green-500' : 'bg-blue-950 border-emerald-500/40') : 'bg-blue-950/40 border-blue-800/40 border-dashed'}`}>
-                        <span className="text-xs font-black truncate">{duplaA ? duplaA.name : `Slot ${matchIdx * 2 + 1} (Vazio)`}</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${duplaA ? 'bg-emerald-500/20 text-emerald-400' : 'text-blue-600'}`}>
-                          {duplaA ? 'Téc 1' : 'Pote 1'}
-                        </span>
-                      </div>
-
-                      <div className="text-center font-black text-xs text-blue-500">VERSUS</div>
-
-                      {/* Lado B */}
-                      <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${duplaB ? (chromaMode ? 'bg-green-50 border-green-500' : 'bg-blue-950 border-emerald-500/40') : 'bg-blue-950/40 border-blue-800/40 border-dashed'}`}>
-                        <span className="text-xs font-black truncate">{duplaB ? duplaB.name : `Slot ${matchIdx * 2 + 2} (Vazio)`}</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${duplaB ? 'bg-emerald-500/20 text-emerald-400' : 'text-blue-600'}`}>
-                          {duplaB ? 'Téc 2' : 'Pote 2'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-               })}
-             </div>
-
-             {/* CONTROLES E BOTÕES DE AÇÃO */}
-             <div className="flex flex-col items-center justify-center pt-4">
-               {currentP2 && !isBracketFull && (
-                 <div className="mb-4 text-center animate-in fade-in">
-                   <p className="text-xs font-bold uppercase tracking-widest text-amber-400 mb-1">Alocando na Chave...</p>
-                   <p className="text-2xl font-black text-white">{currentP2.name}</p>
+             {/* CONTROLES DO SORTEIO NO TOPO */}
+             <div className="flex flex-col items-center justify-center mb-8 w-full max-w-2xl min-h-[120px]">
+               {currentP2 && step === 3 && (
+                 <div className="text-center animate-in fade-in">
+                   <p className={`text-xs font-bold uppercase tracking-widest mb-1 ${chromaMode ? 'text-black' : 'text-amber-400'}`}>Sorteando Posição para:</p>
+                   <p className={`text-3xl font-black ${chromaMode ? 'text-black' : 'text-white'}`}>{currentP2.name}</p>
                  </div>
                )}
 
-               {!isBracketFull ? (
+               {!isBracketFull && step === 3 && !currentP2 && (
                  <button onClick={handleSpinBracket} disabled={spinning} className="bg-amber-600 hover:bg-amber-500 text-white font-black text-lg sm:text-xl py-4 px-10 rounded-full shadow-[0_0_30px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all">
                    {spinning ? 'SORTEANDO POSIÇÃO...' : `SORTEAR PRÓXIMA DUPLA (${bracketDuplas.length + 1}/${duplas.length})`}
                  </button>
-               ) : (
-                 /* 🌟 BOTÃO FINAL DE OFICIALIZAR NO APP SEMPRE EM DESTAQUE */
-                 <div className="w-full max-w-md text-center animate-in slide-in-from-bottom-6 space-y-4 pt-2">
+               )}
+
+               {isBracketFull && step === 4 && (
+                 <div className="w-full text-center animate-in slide-in-from-bottom-6 space-y-4 pt-2">
                    <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-2xl">
                      <p className="text-emerald-400 font-black uppercase text-sm flex items-center justify-center gap-1.5">
                        <CheckCircle size={18}/> Todos os confrontos foram definidos!
                      </p>
                    </div>
-
-                   <button 
-                     onClick={finalizeBracketAndSave} 
-                     className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl py-5 rounded-2xl shadow-[0_0_40px_rgba(16,185,129,0.5)] hover:-translate-y-1 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                   >
+                   <button onClick={finalizeBracketAndSave} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl py-5 rounded-2xl shadow-[0_0_40px_rgba(16,185,129,0.5)] hover:-translate-y-1 transition-all flex items-center justify-center gap-2 cursor-pointer">
                      🏆 OFICIALIZAR E GERAR TABELA NO APP
                    </button>
                  </div>
                )}
+             </div>
+
+             {/* ÁRVORE DE CONFRONTOS */}
+             <div className="w-full flex justify-center overflow-x-auto custom-scrollbar pb-8">
+                {/* Coluna da 1ª Fase */}
+                <div className="w-64 flex flex-col shrink-0 min-h-[400px]">
+                   <div className={`border rounded-xl px-4 py-2.5 text-center shadow-md relative overflow-hidden mb-6 ${chromaMode ? 'bg-green-100 border-green-600' : 'bg-blue-900 border-blue-800'}`}>
+                      <span className={`text-xs font-black uppercase tracking-widest ${chromaMode ? 'text-green-800' : 'text-amber-400'}`}>FASE INICIAL</span>
+                   </div>
+
+                   <div className="flex flex-col flex-1 h-full py-2">
+                      {Array.from({ length: Math.ceil(duplas.length / 2) }).map((_, matchIdx) => {
+                         const duplaA = bracketDuplas[matchIdx * 2];
+                         const duplaB = bracketDuplas[matchIdx * 2 + 1];
+                         const isTop = matchIdx % 2 === 0;
+
+                         return (
+                             <div key={matchIdx} className="relative flex-1 flex flex-col justify-center py-3 group">
+                                 <div className={`p-3 rounded-xl border flex flex-col gap-1.5 shadow-sm relative z-10 transition-colors ${chromaMode ? 'bg-white border-green-500' : 'bg-blue-900/80 border-blue-800'}`}>
+                                    <div className={`flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b ${chromaMode ? 'border-green-200' : 'border-blue-800/40'}`}>
+                                       <span className={chromaMode ? 'text-green-800' : 'text-blue-500'}>Confronto {matchIdx + 1}</span>
+                                       <span className={chromaMode ? 'text-gray-500' : 'text-blue-500/50'}>Sorteio</span>
+                                    </div>
+                                    
+                                    <div className="flex items-center justify-between gap-2 min-w-0 mt-0.5">
+                                       <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                          <ShieldDisplay shield="🛡️" size="small" />
+                                          <span className={`text-xs truncate font-bold ${duplaA ? (chromaMode ? 'text-black' : 'text-white') : (chromaMode ? 'text-gray-400' : 'text-blue-500/50')}`}>
+                                             {duplaA ? duplaA.name : 'Aguardando Sorteio'}
+                                          </span>
+                                       </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-2 min-w-0">
+                                       <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                          <ShieldDisplay shield="🛡️" size="small" />
+                                          <span className={`text-xs truncate font-bold ${duplaB ? (chromaMode ? 'text-black' : 'text-white') : (chromaMode ? 'text-gray-400' : 'text-blue-500/50')}`}>
+                                             {duplaB ? duplaB.name : 'Aguardando Sorteio'}
+                                          </span>
+                                       </div>
+                                    </div>
+                                 </div>
+                                 
+                                 {/* Linha conectora (Mata-mata) */}
+                                 {Math.ceil(duplas.length / 2) > 1 && (
+                                   <div className={`absolute -right-6 w-6 ${chromaMode ? 'border-green-600' : 'border-blue-600/60'} ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>
+                                 )}
+                             </div>
+                         );
+                      })}
+                   </div>
+                </div>
+                
+                {/* Coluna Visual Mockada da 2ª Fase (Apenas para estética de árvore) */}
+                {Math.ceil(duplas.length / 2) > 1 && (
+                  <div className="w-64 flex flex-col shrink-0 min-h-[400px] ml-6 opacity-60">
+                     <div className={`border rounded-xl px-4 py-2.5 text-center shadow-md relative overflow-hidden mb-6 ${chromaMode ? 'bg-green-100 border-green-600' : 'bg-blue-900 border-blue-800'}`}>
+                        <span className={`text-xs font-black uppercase tracking-widest ${chromaMode ? 'text-green-800' : 'text-blue-400'}`}>PRÓXIMA FASE</span>
+                     </div>
+                     <div className="flex flex-col flex-1 h-full py-2">
+                        {Array.from({ length: Math.ceil(duplas.length / 4) }).map((_, matchIdx) => (
+                            <div key={matchIdx} className="relative flex-1 flex flex-col justify-center py-3 group">
+                               <div className={`p-3 rounded-xl border flex flex-col gap-1.5 shadow-sm relative z-10 ${chromaMode ? 'bg-white border-green-500' : 'bg-blue-900/80 border-blue-800'}`}>
+                                   <div className={`flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b ${chromaMode ? 'border-green-200' : 'border-blue-800/40'}`}>
+                                       <span className={chromaMode ? 'text-gray-400' : 'text-blue-500/50'}>A Definir</span>
+                                   </div>
+                                   <div className="h-10"></div>
+                               </div>
+                            </div>
+                        ))}
+                     </div>
+                  </div>
+                )}
              </div>
           </div>
         )}
