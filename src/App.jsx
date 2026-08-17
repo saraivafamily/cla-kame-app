@@ -1208,12 +1208,27 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {matchesToPlay.map(m => {
+              const compForMatch = competitions.find(c => c.id === m.compId);
+              const isDupla = compForMatch?.category === 'copa_flash_dupla';
+              const isIda = m.id.includes('_ida');
+              const isVolta = m.id.includes('_volta');
+              
+              // Trava a Volta se a Ida não tiver sido jogada
+              if (isDupla && isVolta) {
+                 const idaMatchId = m.id.replace('_volta', '_ida');
+                 const idaPlayed = (matches || []).some(sub => sub.matchId === idaMatchId && sub.compId === m.compId && sub.status !== 'rejected');
+                 if (!idaPlayed) return null; 
+              }
+
               const tA = getTeam(m.teamA);
               const tB = getTeam(m.teamB);
               
-              // Define quem é o adversário do usuário logado
               const isUserTeamA = userTeamIds.includes(m.teamA);
               const opponentTeam = isUserTeamA ? tB : tA;
+              const myTeamObj = isUserTeamA ? tA : tB;
+
+              const hideOpponent = isDupla && isIda;
+              const dlsCode = "KAM" + ((m.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 90) + 10);
 
               return (
                 <div key={m.id} className="bg-blue-900/80 border border-emerald-500/40 hover:border-emerald-400/80 rounded-2xl p-4 shadow-lg transition-all flex flex-col justify-between group">
@@ -1226,28 +1241,37 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                   
                   <div className="flex items-center justify-between gap-2 mb-5 px-2">
                     <div className="flex flex-col items-center flex-1 min-w-0">
-                      <ShieldDisplay shield={tA?.shield} size="small" />
-                      <span className={`text-xs font-bold mt-2 truncate w-full text-center ${isUserTeamA ? 'text-emerald-400 drop-shadow-md' : 'text-blue-100'}`}>{tA?.name}</span>
+                      <ShieldDisplay shield={myTeamObj?.shield} size="small" />
+                      <span className={`text-xs font-bold mt-2 truncate w-full text-center text-emerald-400 drop-shadow-md`}>{myTeamObj?.name}</span>
                     </div>
                     <span className="text-blue-600 font-black text-lg px-2 shrink-0">X</span>
                     <div className="flex flex-col items-center flex-1 min-w-0">
-                      <ShieldDisplay shield={tB?.shield} size="small" />
-                      <span className={`text-xs font-bold mt-2 truncate w-full text-center ${!isUserTeamA ? 'text-emerald-400 drop-shadow-md' : 'text-blue-100'}`}>{tB?.name}</span>
+                      <ShieldDisplay shield={hideOpponent ? "❓" : opponentTeam?.shield} size="small" />
+                      <span className={`text-xs font-bold mt-2 truncate w-full text-center text-blue-100`}>{hideOpponent ? "Adversário Oculto" : opponentTeam?.name}</span>
                     </div>
                   </div>
                   
-                  <button 
-                    onClick={() => {
-                      if (opponentTeam?.whatsapp) {
-                        window.open(`https://wa.me/${String(opponentTeam.whatsapp).replace(/\D/g, '')}`, '_blank');
-                      }
-                    }} 
-                    disabled={!opponentTeam?.whatsapp}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-blue-800 disabled:text-blue-500 text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wide transition-colors shadow-md flex items-center justify-center gap-2"
-                  >
-                    <MessageCircle size={14}/> 
-                    {opponentTeam?.whatsapp ? 'Chamar Adversário' : 'Adversário sem Zap'}
-                  </button>
+                  {hideOpponent ? (
+                    <button 
+                      onClick={() => alert(`CÓDIGO DA PARTIDA: ${dlsCode}\n\nEntre no DLS, vá em "Amistoso", digite este código exato e busque a partida ao mesmo tempo que o adversário!`)} 
+                      className="w-full bg-amber-600 hover:bg-amber-500 text-blue-950 font-black py-2.5 rounded-xl text-xs uppercase tracking-wide transition-colors shadow-md flex items-center justify-center gap-2"
+                    >
+                      <Dices size={14}/> Gerar Código DLS
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => {
+                        if (opponentTeam?.whatsapp) {
+                          window.open(`https://wa.me/${String(opponentTeam.whatsapp).replace(/\D/g, '')}`, '_blank');
+                        }
+                      }} 
+                      disabled={!opponentTeam?.whatsapp}
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-blue-800 disabled:text-blue-500 text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wide transition-colors shadow-md flex items-center justify-center gap-2"
+                    >
+                      <MessageCircle size={14}/> 
+                      {opponentTeam?.whatsapp ? 'Chamar Adversário' : 'Adversário sem Zap'}
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -2905,6 +2929,52 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                       const isLocked = round.status === 'locked';
                                       const sIda = getMatchStatusDisplay(mIda.id);
                                       const sVolta = getMatchStatusDisplay(mVolta.id);
+                                      const idaIsFinished = sIda.isPlayed;
+                                      
+                                      let aggScoreA = '?'; let aggScoreB = '?';
+                                      let isPlayed = false; let statusText = 'Aguardando'; let statusColor = 'text-blue-500';
+                                      let teamALost = false; let teamBLost = false;
+
+                                      if (sIda.isPlayed && sIda.text === 'Oficial' && sVolta.isPlayed && sVolta.text === 'Oficial') {
+                                        isPlayed = true; statusText = 'Oficializado'; statusColor = 'text-emerald-400';
+                                        aggScoreA = Number(sIda.scoreA||0) + Number(sVolta.scoreB||0);
+                                        aggScoreB = Number(sIda.scoreB||0) + Number(sVolta.scoreA||0);
+                                        const aggPenA = Number(sIda.penaltiesA||0) + Number(sVolta.penaltiesB||0);
+                                        const aggPenB = Number(sIda.penaltiesB||0) + Number(sVolta.penaltiesA||0);
+                                        if (aggScoreA < aggScoreB) teamALost = true; else if (aggScoreB < aggScoreA) teamBLost = true;
+                                        else { if (aggPenA < aggPenB) teamALost = true; if (aggPenB < aggPenA) teamBLost = true; }
+                                      } else if (sIda.isPlayed || sVolta.isPlayed) {
+                                        statusText = 'Em Andamento'; statusColor = 'text-amber-400';
+                                      }
+
+                                      const realDuplaA = (comp.groups || []).find(d => d.id === mIda.duplaA?.id) || mIda.duplaA;
+                                      const realDuplaB = (comp.groups || []).find(d => d.id === mIda.duplaB?.id) || mIda.duplaB;
+                                      const isTop = idx % 2 === 0; const isFirstRound = roundIndex === 0; const isLastRound = roundIndex === knockoutRounds.length - 1;
+
+                                      return (
+                                        <div key={`dupla_${idx}`} className="relative flex-1 flex flex-col justify-center py-3 group">
+                                          {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
+                                          <div className="relative z-10 w-full">
+                                            <div onClick={() => setSelectedDuplaMatchup({ mIda, mVolta, duplaA: realDuplaA, duplaB: realDuplaB, aggScoreA, aggScoreB, isLocked, roundId: round.id, idaIsFinished })} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm cursor-pointer hover:-translate-y-1 ${isPlayed ? 'bg-blue-900/90 border-emerald-500/50 shadow-emerald-500/20' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-60' : 'bg-blue-900/40 border-blue-700 hover:border-amber-500/50'}`}>
+                                              <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
+                                                <span className="text-amber-400 flex items-center gap-1">👥 Confronto Duplo</span>
+                                                <span className={statusColor}>{statusText}</span>
+                                              </div>
+                                              <div className={`flex items-center justify-between gap-2 min-w-0 mt-1 transition-all ${teamALost ? 'grayscale opacity-50 line-through' : ''}`}>
+                                                <span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400' : 'text-blue-100'}`}>{idaIsFinished || isFirstRound ? (realDuplaA?.name || 'A Definir') : 'Dupla Oculta 🕵️'}</span>
+                                                <span className={`w-7 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${isPlayed ? statusColor : 'text-blue-700'}`}>{aggScoreA}</span>
+                                              </div>
+                                              <div className={`flex items-center justify-between gap-2 min-w-0 transition-all ${teamBLost ? 'grayscale opacity-50 line-through' : ''}`}>
+                                                <span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400' : 'text-blue-100'}`}>{idaIsFinished || isFirstRound ? (realDuplaB?.name || 'A Definir') : 'Dupla Oculta 🕵️'}</span>
+                                                <span className={`w-7 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${isPlayed ? statusColor : 'text-blue-700'}`}>{aggScoreB}</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
                                       
                                       let aggScoreA = '?'; let aggScoreB = '?';
                                       let isPlayed = false; let statusText = 'Aguardando'; let statusColor = 'text-blue-500';
@@ -4334,14 +4404,23 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           <div className="animate-in fade-in">
             <label className="block text-sm font-medium text-blue-400 mb-2">2. Selecione a Partida Liberada</label>
             {availableMatches.length > 0 ? (
-              <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none">
-                <option value="">Registrar qual jogo?</option>
-                {availableMatches.map(m => {
-                  const tA = (teams || []).find(t=>t.id===m.teamA)?.name;
-                  const tB = (teams || []).find(t=>t.id===m.teamB)?.name;
-                  return <option key={m.id} value={m.id}>Rodada {String(m.roundId || '').replace('r','')} - {tA} x {tB}</option>
-                })}
-              </select>
+              <select value={selectedMatchId} onChange={e => setSelectedMatchId(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500">
+            <option value="">Selecione o Confronto...</option>
+            {availableMatches.map(m => {
+              const isDupla = comp?.category === 'copa_flash_dupla';
+              const isIda = m.id.includes('_ida');
+              const amITeamA = userTeamIds.includes(m.teamA);
+              
+              const myTeamObj = amITeamA ? teams.find(t=>t.id===m.teamA) : teams.find(t=>t.id===m.teamB);
+              const oppTeamObj = amITeamA ? teams.find(t=>t.id===m.teamB) : teams.find(t=>t.id===m.teamA);
+              
+              const oppName = (isDupla && isIda) ? 'Adversário Oculto' : oppTeamObj?.name;
+
+              return (
+                <option key={m.id} value={m.id}>Rodada {m.roundName}: {myTeamObj?.name} x {oppName}</option>
+              )
+            })}
+          </select>
             ) : <div className="p-3 bg-blue-950 rounded border border-blue-800 text-blue-500 text-sm">Tudo limpo!.</div>}
           </div>
         )}
