@@ -2145,6 +2145,237 @@ const DrawPanel = ({ comp, teams, matches, showToast }) => {
   );
 };
 
+// 🌟 PAINEL DE SORTEIO AO VIVO (MODO OBS STUDIO)
+const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
+  const [step, setStep] = useState(0); // 0: Init, 1: Sortear Parceiro, 2: Nomear Dupla, 3: Sortear Chave, 4: Concluído
+  const [p1List, setP1List] = useState([]);
+  const [p2List, setP2List] = useState([]);
+  const [duplas, setDuplas] = useState([]);
+  const [bracketDuplas, setBracketDuplas] = useState([]);
+  
+  const [spinning, setSpinning] = useState(false);
+  const [currentP2, setCurrentP2] = useState(null);
+  const [spinTarget, setSpinTarget] = useState(null);
+  const [duplaName, setDuplaName] = useState('');
+
+  // Passo 0: Puxa o Ranking e Separa os Potes automaticamente
+  useEffect(() => {
+    if (step === 0) {
+      const getTeamScore = (tId) => { const t = teams.find(x => x.id === tId); return t ? (t.globalPoints || 0) : 0; };
+      const sorted = [...comp.teams].sort((a, b) => getTeamScore(b) - getTeamScore(a));
+      const half = Math.ceil(sorted.length / 2);
+      
+      setP1List(sorted.slice(0, half).map(id => teams.find(t => t.id === id)));
+      setP2List(sorted.slice(half).map(id => teams.find(t => t.id === id)));
+      setStep(1);
+    }
+  }, [comp.teams, teams, step]);
+
+  const handleSpinParceiro = () => {
+    setSpinning(true);
+    let ticks = 0;
+    const interval = setInterval(() => {
+      const randomP2 = p2List[Math.floor(Math.random() * p2List.length)];
+      setCurrentP2(randomP2);
+      ticks++;
+      if (ticks > 25) {
+        clearInterval(interval);
+        const finalP2 = p2List[Math.floor(Math.random() * p2List.length)];
+        setCurrentP2(finalP2); setSpinTarget(finalP2);
+        
+        // Sugestão Automática de Nome
+        const p1 = p1List[0];
+        const n1 = p1?.name ? p1.name.split(' ')[0] : 'Time1';
+        const n2 = finalP2?.name ? finalP2.name.split(' ')[0] : 'Time2';
+        setDuplaName(`${n1} & ${n2}`);
+        
+        setSpinning(false);
+        setTimeout(() => setStep(2), 1000);
+      }
+    }, 100);
+  };
+
+  const handleSaveDupla = () => {
+    const p1 = p1List[0]; const p2 = spinTarget;
+    if (!duplaName) return;
+
+    const novaDupla = { id: `dp_${Date.now()}_${Math.random()}`, name: duplaName.toUpperCase(), p1: p1.id, p2: p2.id };
+    setDuplas([...duplas, novaDupla]);
+    
+    const newP1List = p1List.slice(1);
+    const newP2List = p2List.filter(t => t.id !== p2.id);
+    
+    setP1List(newP1List); setP2List(newP2List);
+    setCurrentP2(null); setSpinTarget(null); setDuplaName('');
+    
+    if (newP1List.length === 0) setStep(3); else setStep(1);
+  };
+
+  const handleSpinBracket = () => {
+    setSpinning(true);
+    let ticks = 0;
+    const availableDuplas = duplas.filter(d => !bracketDuplas.find(b => b.id === d.id));
+    
+    const interval = setInterval(() => {
+      setCurrentP2(availableDuplas[Math.floor(Math.random() * availableDuplas.length)]);
+      ticks++;
+      if (ticks > 20) {
+        clearInterval(interval);
+        const selected = availableDuplas[Math.floor(Math.random() * availableDuplas.length)];
+        setCurrentP2(null);
+        setBracketDuplas([...bracketDuplas, selected]);
+        setSpinning(false);
+      }
+    }, 100);
+  };
+
+  const finalizeBracketAndSave = () => {
+    let p2_count = 1; while (p2_count < bracketDuplas.length) p2_count *= 2;
+    const tkr = Math.log2(p2_count);
+    const rounds = []; let mc = 1;
+
+    for (let kr = 0; kr < tkr; kr++) {
+        const rm = []; const nm = p2_count / Math.pow(2, kr + 1); const fmc = mc;
+        let rl = 'Mata-Mata (Duplas)'; if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas'; else if (nm === 8) rl = 'Oitavas';
+
+        for (let i = 0; i < nm; i++) {
+            let dA = null; let dB = null; let pA = 'A Definir'; let pB = 'A Definir';
+            if (kr === 0) {
+                dA = bracketDuplas[i * 2] || null; dB = bracketDuplas[i * 2 + 1] || null;
+                pA = dA ? dA.name : 'Vaga Aberta'; pB = dB ? dB.name : 'Vaga Aberta';
+            } else {
+                pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
+            }
+
+            rm.push({ id: `${comp.id}_ko_m${mc}_kr${kr}_ida`, isDupla: true, duplaA: dA, duplaB: dB, teamA: dA ? dA.p1 : '', teamB: dB ? dB.p1 : '', placeholderA: `${pA} (Téc 1)`, placeholderB: `${pB} (Téc 1)`, status: 'pending_play' }); mc++;
+            rm.push({ id: `${comp.id}_ko_m${mc}_kr${kr}_volta`, isDupla: true, duplaA: dB, duplaB: dA, teamA: dB ? dB.p2 : '', teamB: dA ? dA.p2 : '', placeholderA: `${pB} (Téc 2)`, placeholderB: `${pA} (Téc 2)`, status: 'pending_play' }); mc++;
+        }
+        rounds.push({ id: `ko_${kr}`, number: rl, status: kr === 0 ? 'released' : 'locked', releasedAt: kr === 0 ? Date.now() : null, matches: rm });
+    }
+    
+    onFinish(rounds, duplas);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-[#020617] text-white overflow-y-auto custom-scrollbar flex flex-col p-8">
+      <div className="flex justify-between items-center border-b border-blue-900 pb-4 mb-8">
+        <div>
+          <h2 className="text-3xl font-black text-amber-400 uppercase tracking-widest flex items-center gap-3">
+            <Dices size={36}/> Transmissão de Sorteio Ao Vivo
+          </h2>
+          <p className="text-blue-400 font-bold mt-1">Copa Flash em Duplas: {comp.name}</p>
+        </div>
+        <button onClick={onCancel} className="text-blue-500 hover:text-red-400 font-bold flex items-center gap-2"><XCircle size={24}/> Cancelar Sorteio</button>
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center max-w-5xl mx-auto w-full">
+        
+        {/* ETAPA 1 e 2: SORTEAR E NOMEAR DUPLAS */}
+        {(step === 1 || step === 2) && (
+          <div className="w-full text-center animate-in zoom-in-95 duration-500">
+            <h3 className="text-2xl font-black text-blue-300 uppercase tracking-widest mb-12">Formação da {duplas.length + 1}ª Dupla</h3>
+            
+            <div className="flex flex-col md:flex-row justify-center items-center gap-12 md:gap-24 mb-16">
+              <div className="flex flex-col items-center bg-blue-900/40 p-8 rounded-3xl border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.1)] min-w-[280px]">
+                 <p className="text-xs text-emerald-400 font-bold tracking-widest uppercase mb-6">Pote 1 (Cabeças de Chave)</p>
+                 <ShieldDisplay shield={p1List[0]?.shield} size="large" />
+                 <p className="text-3xl font-black mt-6 leading-tight text-white">{p1List[0]?.name}</p>
+                 <p className="text-emerald-500 font-bold mt-1 uppercase text-sm">{p1List[0]?.coach}</p>
+              </div>
+              
+              <div className="text-6xl font-black text-amber-500 animate-pulse">X</div>
+              
+              <div className="flex flex-col items-center bg-blue-900/40 p-8 rounded-3xl border border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.1)] min-w-[280px]">
+                 <p className="text-xs text-amber-400 font-bold tracking-widest uppercase mb-6">Pote 2 (Sorteado)</p>
+                 {spinning || currentP2 || spinTarget ? (
+                    <>
+                      <ShieldDisplay shield={(currentP2 || spinTarget)?.shield} size="large" />
+                      <p className={`text-3xl font-black mt-6 leading-tight text-white ${spinning ? 'opacity-50 blur-[2px]' : ''}`}>{(currentP2 || spinTarget)?.name}</p>
+                      <p className={`text-amber-500 font-bold mt-1 uppercase text-sm ${spinning ? 'opacity-50 blur-[2px]' : ''}`}>{(currentP2 || spinTarget)?.coach}</p>
+                    </>
+                 ) : (
+                    <div className="w-24 h-24 bg-blue-950 rounded-full flex items-center justify-center text-5xl border border-amber-500/50 text-amber-500 shadow-inner">?</div>
+                 )}
+              </div>
+            </div>
+
+            {step === 1 && (
+              <button onClick={handleSpinParceiro} disabled={spinning} className="bg-amber-600 hover:bg-amber-500 text-blue-950 font-black text-2xl py-6 px-16 rounded-full shadow-[0_0_40px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all">
+                {spinning ? 'SORTEANDO...' : 'GIRAR ROLETA (POTE 2)'}
+              </button>
+            )}
+
+            {step === 2 && (
+              <div className="bg-blue-950/80 p-8 rounded-3xl border border-blue-700 animate-in slide-in-from-bottom-8 max-w-xl mx-auto shadow-2xl">
+                <p className="text-emerald-400 font-black uppercase tracking-widest mb-4 flex items-center justify-center gap-2"><CheckCircle size={24}/> Dupla Formada!</p>
+                <label className="text-sm text-blue-300 font-bold uppercase tracking-widest block mb-2">Defina o nome da dupla para a live:</label>
+                <input type="text" value={duplaName} onChange={e=>setDuplaName(e.target.value)} className="w-full bg-blue-900 border-2 border-emerald-500 rounded-xl p-4 text-white font-black text-2xl text-center outline-none focus:bg-blue-800" autoFocus />
+                <button onClick={handleSaveDupla} className="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl py-4 rounded-xl shadow-lg hover:scale-105 transition-all">SALVAR E CONFIRMAR DUPLA</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ETAPA 3 e 4: SORTEAR CHAVEAMENTO */}
+        {(step === 3 || step === 4) && (
+          <div className="w-full animate-in zoom-in-95 duration-500">
+             <div className="text-center mb-10">
+               <h3 className="text-3xl font-black text-emerald-400 uppercase tracking-widest mb-2">Chaveamento Oficial</h3>
+               <p className="text-blue-300">As duplas foram formadas. Sorteie as posições na chave.</p>
+             </div>
+
+             {/* DISPLAY DAS CHAVES */}
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+               {Array.from({ length: duplas.length }).map((_, i) => {
+                  const duplaAlojada = bracketDuplas[i];
+                  const bgClass = duplaAlojada ? 'bg-gradient-to-br from-amber-600/20 to-blue-900 border-amber-500/50' : 'bg-blue-950 border-blue-800 border-dashed';
+                  
+                  return (
+                     <div key={i} className={`p-6 rounded-2xl border flex flex-col items-center justify-center h-32 transition-all ${bgClass}`}>
+                       <p className="text-[10px] text-blue-400 uppercase font-bold tracking-widest mb-2">Posição {i+1}</p>
+                       {duplaAlojada ? (
+                          <div className="text-center animate-in zoom-in-90">
+                            <p className="font-black text-white text-lg leading-tight">{duplaAlojada.name}</p>
+                          </div>
+                       ) : (
+                          <div className="text-4xl text-blue-800 font-black">?</div>
+                       )}
+                     </div>
+                  );
+               })}
+             </div>
+
+             <div className="flex flex-col items-center justify-center">
+               {currentP2 && step === 3 && (
+                 <div className="mb-8 text-center animate-in fade-in">
+                   <p className="text-sm text-amber-400 font-bold uppercase tracking-widest mb-2">Sorteando Dupla...</p>
+                   <p className="text-4xl font-black text-white">{currentP2.name}</p>
+                 </div>
+               )}
+
+               {step === 3 && (
+                 <button onClick={handleSpinBracket} disabled={spinning} className="bg-amber-600 hover:bg-amber-500 text-blue-950 font-black text-2xl py-6 px-16 rounded-full shadow-[0_0_40px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all">
+                   {spinning ? 'SORTEANDO POSIÇÃO...' : 'SORTEAR PRÓXIMA POSIÇÃO'}
+                 </button>
+               )}
+
+               {step === 4 && bracketDuplas.length === duplas.length && (
+                 <div className="text-center w-full max-w-md animate-in slide-in-from-bottom-8">
+                   <p className="text-xl text-emerald-400 font-black uppercase tracking-widest mb-6 bg-emerald-500/10 py-3 rounded-xl border border-emerald-500/30">✅ Chaveamento Concluído</p>
+                   <button onClick={finalizeBracketAndSave} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-2xl py-6 rounded-2xl shadow-[0_0_40px_rgba(16,185,129,0.4)] hover:-translate-y-2 transition-transform">
+                     SALVAR E OFICIALIZAR NO APP
+                   </button>
+                 </div>
+               )}
+             </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+};
+
 const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [], onBack, currentUser, onReleaseRound, onLockRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch, onSubmitMatch, onUpdateMatchStatus, onBatchUpdateComp }) => {
   const [subTab, setSubTab] = useState('overview'); 
   const [expandedRoundId, setExpandedRoundId] = useState(null);
@@ -2536,54 +2767,34 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   }, [comp, matches, knockoutRounds, groupOrNormalRounds, teams]);
 
   if (comp.status === 'drawing') {
+    // SE FOR O ADMIN, RENDERIZA O PAINEL DE SORTEIO GIGANTE
+    if (isAdmin) {
+      return (
+        <LiveDrawPanel 
+          comp={comp} 
+          teams={teams} 
+          matches={matches} 
+          onCancel={() => onEditComp({ ...comp, status: 'registration' })}
+          onFinish={(rounds, duplasResult) => {
+            onEditComp({ ...comp, status: 'active', rounds: rounds, groups: duplasResult });
+            showToast("Sorteio Concluído! A Tabela Oficial foi gerada.", "success");
+          }} 
+        />
+      );
+    }
+
+    // SE FOR UM JOGADOR NORMAL, ELE VÊ A TELA DE ESPERA
     return (
       <div className="space-y-6 animate-in fade-in pb-10">
         <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
         <div className="bg-blue-900 p-8 md:p-12 rounded-3xl border border-amber-500/50 flex flex-col items-center text-center shadow-2xl mt-8">
             <span className="text-6xl mb-6 animate-bounce">🎲</span>
             <h2 className="text-3xl md:text-4xl font-black text-amber-400 uppercase tracking-widest mb-4">Sorteio Ao Vivo Ativo</h2>
-            <p className="text-blue-300 md:w-2/3 leading-relaxed">As inscrições foram encerradas. A tabela e os confrontos estão bloqueados enquanto a diretoria realiza o sorteio oficial ao vivo.</p>
-            {isAdmin && (
-                <Button onClick={() => showToast("O Painel animado vai entrar aqui no Passo 2!", "info")} className="mt-8 py-4 px-8 text-lg font-black bg-amber-600 hover:bg-amber-500 shadow-xl shadow-amber-900/50 border-0">
-                    🎙️ Abrir Painel de Transmissão (OBS)
-                </Button>
-            )}
+            <p className="text-blue-300 md:w-2/3 leading-relaxed">As inscrições foram encerradas. Acompanhe a live dos líderes!<br/><br/>A tabela e os confrontos estão bloqueados enquanto a diretoria realiza o sorteio oficial ao vivo.</p>
         </div>
       </div>
     );
   }
-
-  return (
-    <div className="space-y-6 animate-in fade-in pb-10">
-      <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
-      
-      <div className="bg-blue-900 p-5 rounded-3xl border border-blue-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl">
-        <div>
-          <h2 className="text-xl font-bold text-white uppercase tracking-wider">{comp.category ? CATEGORY_NAMES[comp.category] : 'Campeonato'} - {comp.name}</h2>
-          <div className="flex items-center flex-wrap gap-2 mt-2">
-            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">{comp.category ? CATEGORY_NAMES[comp.category] : 'Sem Categoria'}</span>
-            <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">Estilo: {comp.playStyle || 'Livre'}</span>
-            {comp.status === 'finished' && (<span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-black tracking-widest uppercase flex items-center gap-1"><Lock size={10}/> Encerrado</span>)}
-            <span className="text-xs text-blue-400 font-medium ml-1">• {comp.format === 'league' ? 'Pontos Corridos' : comp.format === 'groups' ? 'Fase de Grupos + Copa' : 'Copa Mata-Mata'}</span>
-          </div>
-        </div>
-        <div className="flex gap-2 w-full md:w-auto flex-wrap">
-          {isAdmin && comp.format === 'groups' && comp.groups && (<button onClick={handleOpenEditGroups} className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-purple-700 shadow-md flex items-center gap-1">👥 Gerenciar Grupos</button>)}
-          {isAdmin && comp.status !== 'finished' && (<button onClick={() => { setShowEditSettings(!showEditSettings); setShowEditPrizes(false); }} className="bg-blue-800 hover:bg-blue-700 text-blue-200 text-xs font-bold py-2 px-3 rounded-lg border border-blue-600 shadow-md flex items-center gap-1">⚙️ Configurações</button>)}
-          {isAdmin && comp.status !== 'finished' && (<button onClick={() => { if(window.confirm("Deseja encerrar oficialmente esta competição?")) { onEditComp({ ...comp, status: 'finished' }); showToast("Competição encerrada!", "success"); } }} className="bg-red-900/80 hover:bg-red-800 text-red-200 text-xs font-bold py-2 px-3 rounded-lg border border-red-700 shadow-md flex items-center gap-1">🛑 Encerrar Torneio</button>)}
-          {isAdmin && (<button onClick={() => { setShowEditPrizes(!showEditPrizes); setShowEditSettings(false); }} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-amber-700 shadow-md flex items-center gap-1">🏆 Premiação</button>)}
-         {isAdmin && comp.status !== 'finished' && (
-            <>
-              {showAddTeam ? (
-                <div className="flex gap-2 w-full sm:w-auto animate-in fade-in">
-                  <select value={newTeamToAdd} onChange={e=>setNewTeamToAdd(e.target.value)} className="bg-blue-950 border border-blue-700 rounded-lg p-2 text-xs text-white outline-none"><option value="">Escolher time...</option>{availableTeamsToAdd.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
-                  <Button onClick={handleAddTeamToComp} className="py-1 px-3 text-xs">Salvar</Button><Button variant="outline" onClick={()=>{setShowAddTeam(false); setNewTeamToAdd('');}} className="py-1 px-2 text-xs font-bold text-blue-400">X</Button>
-                </div>
-              ) : (<Button variant="outline" onClick={()=>setShowAddTeam(true)} className="py-2 px-3 text-xs w-full sm:w-auto flex items-center justify-center gap-2"><span className="text-emerald-400 font-bold">+</span> Inserir Time</Button>)}
-            </>
-          )}
-        </div>
-      </div>
 
       {showEditSettings && (
         <div className="bg-blue-950/80 border border-blue-700 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
