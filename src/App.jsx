@@ -2887,7 +2887,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                   </div>
                 )}
 
-               {viewType === 'bracket' && (
+                {viewType === 'bracket' && (
                   <div className="space-y-4 animate-in fade-in">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 pl-2">
                       <h3 className="text-lg font-bold text-white">Chaves do Mata-Mata</h3>
@@ -3013,6 +3013,9 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                     </div>
                   </div>
                 )}
+
+              </div>
+            )}
             
             {subTab === 'stats' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
@@ -3101,11 +3104,9 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
 
       {/* 👥 MODAL DETALHES DA DUPLA */}
       {selectedDuplaMatchup && (() => {
-        const { mIda, mVolta, duplaA, duplaB, aggScoreA, aggScoreB, isLocked, roundId } = selectedDuplaMatchup;
+        const { mIda, mVolta, duplaA, duplaB, aggScoreA, aggScoreB, isLocked, roundId, idaIsFinished } = selectedDuplaMatchup;
         const sIda = getMatchStatusDisplay(mIda.id);
         const sVolta = getMatchStatusDisplay(mVolta.id);
-        
-        // A VARIÁVEL QUE FALTAVA PARA NÃO DAR TELA CINZA:
         const isPlayed = sIda.isPlayed && sIda.text === 'Oficial' && sVolta.isPlayed && sVolta.text === 'Oficial';
         
         return (
@@ -3164,7 +3165,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                  <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-bold text-white uppercase tracking-wider mb-1">Jogo de Volta (Pote 2)</p>
-                      <p className="text-[9px] text-blue-300">{mVolta.teamA ? getTeam(mVolta.teamA)?.name : '?'} x {mVolta.teamB ? getTeam(mVolta.teamB)?.name : '?'}</p>
+                      <p className="text-[9px] text-blue-300">{idaIsFinished || isAdmin ? `${mVolta.teamA ? getTeam(mVolta.teamA)?.name : '?'} x ${mVolta.teamB ? getTeam(mVolta.teamB)?.name : '?'}` : '🕵️ Adversário Oculto'}</p>
                     </div>
                     <div className="flex items-center gap-2">
                        <span className={`text-lg font-black bg-blue-900 px-3 py-1 rounded border border-blue-700 ${sVolta.isPlayed ? 'text-emerald-400' : 'text-blue-500'}`}>
@@ -3200,7 +3201,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     </div>
   );
 };
-
+          
 const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onBack, showToast }) => {
   const [receipt, setReceipt] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
