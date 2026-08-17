@@ -7675,4 +7675,4 @@ export default function App() {
       <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-blue-950"><div className="max-w-5xl mx-auto pb-20 md:pb-0">{renderContent()}</div></main>
     </div>
   );
-'}'
+}
