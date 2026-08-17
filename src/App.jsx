@@ -2158,6 +2158,28 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
   const [spinTarget, setSpinTarget] = useState(null);
   const [duplaName, setDuplaName] = useState('');
 
+  // 🟩 Controle da Tela Verde para OBS
+  const [chromaMode, setChromaMode] = useState(false);
+
+  // 🔊 Sintetizador de Som (Tick da Roleta)
+  const playTick = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const audioCtx = new AudioContext();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, audioCtx.currentTime); // Frequência do clique
+      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.05);
+    } catch(e) {}
+  };
+
   // Passo 0: Puxa o Ranking e Separa os Potes automaticamente
   useEffect(() => {
     if (step === 0) {
@@ -2177,8 +2199,10 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
     const interval = setInterval(() => {
       const randomP2 = p2List[Math.floor(Math.random() * p2List.length)];
       setCurrentP2(randomP2);
+      playTick(); // Toca o som a cada giro!
+      
       ticks++;
-      if (ticks > 25) {
+      if (ticks > 30) {
         clearInterval(interval);
         const finalP2 = p2List[Math.floor(Math.random() * p2List.length)];
         setCurrentP2(finalP2); setSpinTarget(finalP2);
@@ -2218,8 +2242,10 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
     
     const interval = setInterval(() => {
       setCurrentP2(availableDuplas[Math.floor(Math.random() * availableDuplas.length)]);
+      playTick(); // Toca o som a cada giro!
+      
       ticks++;
-      if (ticks > 20) {
+      if (ticks > 25) {
         clearInterval(interval);
         const selected = availableDuplas[Math.floor(Math.random() * availableDuplas.length)];
         setCurrentP2(null);
@@ -2257,15 +2283,20 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#020617] text-white overflow-y-auto custom-scrollbar flex flex-col p-8">
-      <div className="flex justify-between items-center border-b border-blue-900 pb-4 mb-8">
-        <div>
-          <h2 className="text-3xl font-black text-amber-400 uppercase tracking-widest flex items-center gap-3">
-            <Dices size={36}/> Transmissão de Sorteio Ao Vivo
-          </h2>
-          <p className="text-blue-400 font-bold mt-1">Copa Flash em Duplas: {comp.name}</p>
+    <div className={`fixed inset-0 z-50 overflow-y-auto custom-scrollbar flex flex-col p-8 transition-colors duration-500 ${chromaMode ? 'bg-[#00FF00] text-black' : 'bg-[#020617] text-white'}`}>
+      <div className={`flex justify-between items-center border-b pb-4 mb-8 ${chromaMode ? 'border-green-800' : 'border-blue-900'}`}>
+        <div className="flex items-center gap-6">
+          <div>
+            <h2 className={`text-3xl font-black uppercase tracking-widest flex items-center gap-3 ${chromaMode ? 'text-black' : 'text-amber-400'}`}>
+              <Dices size={36} className={chromaMode ? 'text-black' : ''} /> Transmissão de Sorteio Ao Vivo
+            </h2>
+            <p className={`font-bold mt-1 ${chromaMode ? 'text-green-900' : 'text-blue-400'}`}>Copa Flash em Duplas: {comp.name}</p>
+          </div>
+          <button onClick={() => setChromaMode(!chromaMode)} className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-xl text-white text-xs font-black uppercase tracking-wider shadow-lg flex items-center gap-2 transition-transform hover:scale-105 border border-white/20">
+             🟩 Modo OBS (Tela Verde)
+          </button>
         </div>
-        <button onClick={onCancel} className="text-blue-500 hover:text-red-400 font-bold flex items-center gap-2"><XCircle size={24}/> Cancelar Sorteio</button>
+        <button onClick={onCancel} className={`font-bold flex items-center gap-2 ${chromaMode ? 'text-red-700 hover:text-red-900' : 'text-blue-500 hover:text-red-400'}`}><XCircle size={24}/> Cancelar</button>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center max-w-5xl mx-auto w-full">
@@ -2273,43 +2304,43 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
         {/* ETAPA 1 e 2: SORTEAR E NOMEAR DUPLAS */}
         {(step === 1 || step === 2) && (
           <div className="w-full text-center animate-in zoom-in-95 duration-500">
-            <h3 className="text-2xl font-black text-blue-300 uppercase tracking-widest mb-12">Formação da {duplas.length + 1}ª Dupla</h3>
+            <h3 className={`text-2xl font-black uppercase tracking-widest mb-12 ${chromaMode ? 'text-black' : 'text-blue-300'}`}>Formação da {duplas.length + 1}ª Dupla</h3>
             
             <div className="flex flex-col md:flex-row justify-center items-center gap-12 md:gap-24 mb-16">
-              <div className="flex flex-col items-center bg-blue-900/40 p-8 rounded-3xl border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.1)] min-w-[280px]">
-                 <p className="text-xs text-emerald-400 font-bold tracking-widest uppercase mb-6">Pote 1 (Cabeças de Chave)</p>
+              <div className={`flex flex-col items-center p-8 rounded-3xl border shadow-2xl min-w-[280px] ${chromaMode ? 'bg-white/90 border-green-700' : 'bg-blue-900/40 border-emerald-500/30'}`}>
+                 <p className={`text-xs font-bold tracking-widest uppercase mb-6 ${chromaMode ? 'text-green-700' : 'text-emerald-400'}`}>Pote 1 (Cabeças de Chave)</p>
                  <ShieldDisplay shield={p1List[0]?.shield} size="large" />
-                 <p className="text-3xl font-black mt-6 leading-tight text-white">{p1List[0]?.name}</p>
-                 <p className="text-emerald-500 font-bold mt-1 uppercase text-sm">{p1List[0]?.coach}</p>
+                 <p className={`text-3xl font-black mt-6 leading-tight ${chromaMode ? 'text-black' : 'text-white'}`}>{p1List[0]?.name}</p>
+                 <p className={`font-bold mt-1 uppercase text-sm ${chromaMode ? 'text-green-800' : 'text-emerald-500'}`}>{p1List[0]?.coach}</p>
               </div>
               
-              <div className="text-6xl font-black text-amber-500 animate-pulse">X</div>
+              <div className={`text-6xl font-black animate-pulse ${chromaMode ? 'text-black' : 'text-amber-500'}`}>X</div>
               
-              <div className="flex flex-col items-center bg-blue-900/40 p-8 rounded-3xl border border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.1)] min-w-[280px]">
-                 <p className="text-xs text-amber-400 font-bold tracking-widest uppercase mb-6">Pote 2 (Sorteado)</p>
+              <div className={`flex flex-col items-center p-8 rounded-3xl border shadow-2xl min-w-[280px] ${chromaMode ? 'bg-white/90 border-green-700' : 'bg-blue-900/40 border-amber-500/30'}`}>
+                 <p className={`text-xs font-bold tracking-widest uppercase mb-6 ${chromaMode ? 'text-green-700' : 'text-amber-400'}`}>Pote 2 (Sorteado)</p>
                  {spinning || currentP2 || spinTarget ? (
                     <>
                       <ShieldDisplay shield={(currentP2 || spinTarget)?.shield} size="large" />
-                      <p className={`text-3xl font-black mt-6 leading-tight text-white ${spinning ? 'opacity-50 blur-[2px]' : ''}`}>{(currentP2 || spinTarget)?.name}</p>
-                      <p className={`text-amber-500 font-bold mt-1 uppercase text-sm ${spinning ? 'opacity-50 blur-[2px]' : ''}`}>{(currentP2 || spinTarget)?.coach}</p>
+                      <p className={`text-3xl font-black mt-6 leading-tight ${spinning ? 'opacity-50 blur-[2px]' : ''} ${chromaMode ? 'text-black' : 'text-white'}`}>{(currentP2 || spinTarget)?.name}</p>
+                      <p className={`font-bold mt-1 uppercase text-sm ${spinning ? 'opacity-50 blur-[2px]' : ''} ${chromaMode ? 'text-green-800' : 'text-amber-500'}`}>{(currentP2 || spinTarget)?.coach}</p>
                     </>
                  ) : (
-                    <div className="w-24 h-24 bg-blue-950 rounded-full flex items-center justify-center text-5xl border border-amber-500/50 text-amber-500 shadow-inner">?</div>
+                    <div className={`w-24 h-24 rounded-full flex items-center justify-center text-5xl border shadow-inner ${chromaMode ? 'bg-gray-200 border-gray-400 text-gray-500' : 'bg-blue-950 border-amber-500/50 text-amber-500'}`}>?</div>
                  )}
               </div>
             </div>
 
             {step === 1 && (
-              <button onClick={handleSpinParceiro} disabled={spinning} className="bg-amber-600 hover:bg-amber-500 text-blue-950 font-black text-2xl py-6 px-16 rounded-full shadow-[0_0_40px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all">
+              <button onClick={handleSpinParceiro} disabled={spinning} className="bg-amber-600 hover:bg-amber-500 text-white font-black text-2xl py-6 px-16 rounded-full shadow-[0_0_40px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all">
                 {spinning ? 'SORTEANDO...' : 'GIRAR ROLETA (POTE 2)'}
               </button>
             )}
 
             {step === 2 && (
-              <div className="bg-blue-950/80 p-8 rounded-3xl border border-blue-700 animate-in slide-in-from-bottom-8 max-w-xl mx-auto shadow-2xl">
-                <p className="text-emerald-400 font-black uppercase tracking-widest mb-4 flex items-center justify-center gap-2"><CheckCircle size={24}/> Dupla Formada!</p>
-                <label className="text-sm text-blue-300 font-bold uppercase tracking-widest block mb-2">Defina o nome da dupla para a live:</label>
-                <input type="text" value={duplaName} onChange={e=>setDuplaName(e.target.value)} className="w-full bg-blue-900 border-2 border-emerald-500 rounded-xl p-4 text-white font-black text-2xl text-center outline-none focus:bg-blue-800" autoFocus />
+              <div className={`p-8 rounded-3xl border animate-in slide-in-from-bottom-8 max-w-xl mx-auto shadow-2xl ${chromaMode ? 'bg-white border-green-600' : 'bg-blue-950/80 border-blue-700'}`}>
+                <p className={`font-black uppercase tracking-widest mb-4 flex items-center justify-center gap-2 ${chromaMode ? 'text-green-700' : 'text-emerald-400'}`}><CheckCircle size={24}/> Dupla Formada!</p>
+                <label className={`text-sm font-bold uppercase tracking-widest block mb-2 ${chromaMode ? 'text-black' : 'text-blue-300'}`}>Defina o nome da dupla para a live:</label>
+                <input type="text" value={duplaName} onChange={e=>setDuplaName(e.target.value)} className={`w-full border-2 rounded-xl p-4 font-black text-2xl text-center outline-none ${chromaMode ? 'bg-gray-100 border-green-500 text-black' : 'bg-blue-900 border-emerald-500 text-white focus:bg-blue-800'}`} autoFocus />
                 <button onClick={handleSaveDupla} className="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl py-4 rounded-xl shadow-lg hover:scale-105 transition-all">SALVAR E CONFIRMAR DUPLA</button>
               </div>
             )}
@@ -2320,25 +2351,27 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
         {(step === 3 || step === 4) && (
           <div className="w-full animate-in zoom-in-95 duration-500">
              <div className="text-center mb-10">
-               <h3 className="text-3xl font-black text-emerald-400 uppercase tracking-widest mb-2">Chaveamento Oficial</h3>
-               <p className="text-blue-300">As duplas foram formadas. Sorteie as posições na chave.</p>
+               <h3 className={`text-3xl font-black uppercase tracking-widest mb-2 ${chromaMode ? 'text-black' : 'text-emerald-400'}`}>Chaveamento Oficial</h3>
+               <p className={chromaMode ? 'text-gray-800 font-bold' : 'text-blue-300'}>As duplas foram formadas. Sorteie as posições na chave.</p>
              </div>
 
              {/* DISPLAY DAS CHAVES */}
              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
                {Array.from({ length: duplas.length }).map((_, i) => {
                   const duplaAlojada = bracketDuplas[i];
-                  const bgClass = duplaAlojada ? 'bg-gradient-to-br from-amber-600/20 to-blue-900 border-amber-500/50' : 'bg-blue-950 border-blue-800 border-dashed';
+                  const bgClass = duplaAlojada 
+                    ? (chromaMode ? 'bg-white border-green-600 shadow-xl' : 'bg-gradient-to-br from-amber-600/20 to-blue-900 border-amber-500/50') 
+                    : (chromaMode ? 'bg-white/50 border-green-800 border-dashed' : 'bg-blue-950 border-blue-800 border-dashed');
                   
                   return (
                      <div key={i} className={`p-6 rounded-2xl border flex flex-col items-center justify-center h-32 transition-all ${bgClass}`}>
-                       <p className="text-[10px] text-blue-400 uppercase font-bold tracking-widest mb-2">Posição {i+1}</p>
+                       <p className={`text-[10px] uppercase font-bold tracking-widest mb-2 ${chromaMode ? 'text-green-800' : 'text-blue-400'}`}>Posição {i+1}</p>
                        {duplaAlojada ? (
                           <div className="text-center animate-in zoom-in-90">
-                            <p className="font-black text-white text-lg leading-tight">{duplaAlojada.name}</p>
+                            <p className={`font-black text-lg leading-tight ${chromaMode ? 'text-black' : 'text-white'}`}>{duplaAlojada.name}</p>
                           </div>
                        ) : (
-                          <div className="text-4xl text-blue-800 font-black">?</div>
+                          <div className={`text-4xl font-black ${chromaMode ? 'text-green-800/50' : 'text-blue-800'}`}>?</div>
                        )}
                      </div>
                   );
@@ -2348,20 +2381,20 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
              <div className="flex flex-col items-center justify-center">
                {currentP2 && step === 3 && (
                  <div className="mb-8 text-center animate-in fade-in">
-                   <p className="text-sm text-amber-400 font-bold uppercase tracking-widest mb-2">Sorteando Dupla...</p>
-                   <p className="text-4xl font-black text-white">{currentP2.name}</p>
+                   <p className={`text-sm font-bold uppercase tracking-widest mb-2 ${chromaMode ? 'text-black' : 'text-amber-400'}`}>Sorteando Dupla...</p>
+                   <p className={`text-4xl font-black ${chromaMode ? 'text-black' : 'text-white'}`}>{currentP2.name}</p>
                  </div>
                )}
 
                {step === 3 && (
-                 <button onClick={handleSpinBracket} disabled={spinning} className="bg-amber-600 hover:bg-amber-500 text-blue-950 font-black text-2xl py-6 px-16 rounded-full shadow-[0_0_40px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all">
+                 <button onClick={handleSpinBracket} disabled={spinning} className="bg-amber-600 hover:bg-amber-500 text-white font-black text-2xl py-6 px-16 rounded-full shadow-[0_0_40px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all">
                    {spinning ? 'SORTEANDO POSIÇÃO...' : 'SORTEAR PRÓXIMA POSIÇÃO'}
                  </button>
                )}
 
                {step === 4 && bracketDuplas.length === duplas.length && (
                  <div className="text-center w-full max-w-md animate-in slide-in-from-bottom-8">
-                   <p className="text-xl text-emerald-400 font-black uppercase tracking-widest mb-6 bg-emerald-500/10 py-3 rounded-xl border border-emerald-500/30">✅ Chaveamento Concluído</p>
+                   <p className={`text-xl font-black uppercase tracking-widest mb-6 py-3 rounded-xl border ${chromaMode ? 'bg-white text-green-600 border-green-600 shadow-xl' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'}`}>✅ Chaveamento Concluído</p>
                    <button onClick={finalizeBracketAndSave} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-2xl py-6 rounded-2xl shadow-[0_0_40px_rgba(16,185,129,0.4)] hover:-translate-y-2 transition-transform">
                      SALVAR E OFICIALIZAR NO APP
                    </button>
