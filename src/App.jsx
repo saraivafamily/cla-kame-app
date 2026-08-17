@@ -1226,8 +1226,10 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               const opponentTeam = isUserTeamA ? tB : tA;
               const myTeamObj = isUserTeamA ? tA : tB;
 
-              const hideOpponent = isDupla && isIda;
-              const dlsCode = "KAM" + ((m.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 90) + 10);
+             const hideOpponent = isDupla && isIda;
+              
+              // 🌟 NOVO: Agora puxa o código salvo pelo Admin no banco de dados
+              const dlsCode = m.dlsCode || null;
 
               return (
                 <div key={m.id} className="bg-blue-900/80 border border-emerald-500/40 hover:border-emerald-400/80 rounded-2xl p-4 shadow-lg transition-all flex flex-col justify-between group">
@@ -1252,10 +1254,16 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                   
                   {hideOpponent ? (
                     <button 
-                      onClick={() => alert(`CÓDIGO DA PARTIDA: ${dlsCode}\n\nEntre no DLS, vá em "Amistoso", digite este código exato e busque a partida ao mesmo tempo que o adversário!`)} 
-                      className="w-full bg-amber-600 hover:bg-amber-500 text-blue-950 font-black py-2.5 rounded-xl text-xs uppercase tracking-wide transition-colors shadow-md flex items-center justify-center gap-2"
+                      onClick={() => {
+                        if (dlsCode) {
+                           alert(`CÓDIGO DA PARTIDA: ${dlsCode}\n\nEntre no DLS, vá em "Amistoso", digite este código exato e busque a partida ao mesmo tempo que o adversário!`);
+                        } else {
+                           alert("Aguarde! A diretoria ainda não definiu o código desta partida.");
+                        }
+                      }} 
+                      className={`w-full font-black py-2.5 rounded-xl text-xs uppercase tracking-wide transition-colors shadow-md flex items-center justify-center gap-2 ${dlsCode ? 'bg-amber-600 hover:bg-amber-500 text-blue-950' : 'bg-slate-700 text-slate-400 cursor-not-allowed'}`}
                     >
-                      <Dices size={14}/> Gerar Código DLS
+                      <Dices size={14}/> {dlsCode ? 'Ver Código DLS' : 'Código Pendente'}
                     </button>
                   ) : (
                     <button 
@@ -2787,7 +2795,8 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
 
   const handleOpenEditModal = (m, roundId) => {
     const playedMatch = (matches || []).find(x => x.matchId === m.id && x.compId === comp.id && x.status !== 'rejected');
-    setEditMatchData({ ...m, roundId: roundId, group: m.group || 'A', scoreA: playedMatch ? playedMatch.scoreA : '', scoreB: playedMatch ? playedMatch.scoreB : '', penaltiesA: playedMatch && playedMatch.penaltiesA !== null && playedMatch.penaltiesA !== undefined ? playedMatch.penaltiesA : '', penaltiesB: playedMatch && playedMatch.penaltiesB !== null && playedMatch.penaltiesB !== undefined ? playedMatch.penaltiesB : '', hasPlayed: !!playedMatch, playedMatchId: playedMatch ? playedMatch.id : null, woA: false, woB: false }); 
+    // Adicionado dlsCode no estado
+    setEditMatchData({ ...m, roundId: roundId, group: m.group || 'A', dlsCode: m.dlsCode || '', scoreA: playedMatch ? playedMatch.scoreA : '', scoreB: playedMatch ? playedMatch.scoreB : '', penaltiesA: playedMatch && playedMatch.penaltiesA !== null && playedMatch.penaltiesA !== undefined ? playedMatch.penaltiesA : '', penaltiesB: playedMatch && playedMatch.penaltiesB !== null && playedMatch.penaltiesB !== undefined ? playedMatch.penaltiesB : '', hasPlayed: !!playedMatch, playedMatchId: playedMatch ? playedMatch.id : null, woA: false, woB: false }); 
   };
 
   const handleDeleteMatchCompletely = () => {
@@ -2798,22 +2807,9 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   };
 
   const saveMatchEdit = () => {
-    const updatedRounds = comp.rounds.map(r => r.id === editMatchData.roundId ? { ...r, matches: r.matches.map(m => m.id === editMatchData.id ? { ...m, teamA: editMatchData.teamA, teamB: editMatchData.teamB, group: editMatchData.group } : m) } : r);
+    // Adicionado dlsCode no salvamento para o Firebase
+    const updatedRounds = comp.rounds.map(r => r.id === editMatchData.roundId ? { ...r, matches: r.matches.map(m => m.id === editMatchData.id ? { ...m, teamA: editMatchData.teamA, teamB: editMatchData.teamB, group: editMatchData.group, dlsCode: editMatchData.dlsCode } : m) } : r);
     onEditComp({ ...comp, rounds: updatedRounds });
-    if (editMatchData.hasPlayed && onUpdatePlayedMatch && editMatchData.playedMatchId) {
-      const playedMatch = matches.find(m => m.id === editMatchData.playedMatchId);
-      if (playedMatch) {
-        const oldTeamA = playedMatch.teamA; const oldTeamB = playedMatch.teamB;
-        let finalScoreA = editMatchData.scoreA; let finalScoreB = editMatchData.scoreB; let isDoubleWo = false; let winnerDoubleWo = null;
-        if (editMatchData.woA && editMatchData.woB) { isDoubleWo = true; winnerDoubleWo = Math.random() < 0.5 ? 'A' : 'B'; finalScoreA = winnerDoubleWo === 'A' ? 3 : 0; finalScoreB = winnerDoubleWo === 'A' ? 0 : 3; } else if (editMatchData.woA) { finalScoreA = 0; finalScoreB = 3; } else if (editMatchData.woB) { finalScoreA = 3; finalScoreB = 0; }
-        const updatedGoals = (playedMatch.goals || []).map(g => { if (g.teamId === oldTeamA) return { ...g, teamId: editMatchData.teamA }; if (g.teamId === oldTeamB) return { ...g, teamId: editMatchData.teamB }; return g; });
-        const newObs = isDoubleWo ? `Sorteio de Duplo W.O.! Vencedor: ${winnerDoubleWo === 'A' ? getTeam(editMatchData.teamA)?.name : getTeam(editMatchData.teamB)?.name}\n${playedMatch.observacoes || ''}` : playedMatch.observacoes;
-        onUpdatePlayedMatch({ ...playedMatch, teamA: editMatchData.teamA, teamB: editMatchData.teamB, scoreA: finalScoreA !== '' ? parseInt(finalScoreA) : playedMatch.scoreA, scoreB: finalScoreB !== '' ? parseInt(finalScoreB) : playedMatch.scoreB, penaltiesA: editMatchData.penaltiesA !== '' ? parseInt(editMatchData.penaltiesA) : null, penaltiesB: editMatchData.penaltiesB !== '' ? parseInt(editMatchData.penaltiesB) : null, goals: (editMatchData.woA || editMatchData.woB) ? [] : updatedGoals, observacoes: newObs });
-        if(isDoubleWo && showToast) showToast(`Sorteio Duplo W.O.: Vencedor gravado!`, "success");
-      }
-    }
-    setEditMatchData(null); if(showToast && !(editMatchData.woA && editMatchData.woB)) showToast("Atualizado!", "success");
-  };
 
   const handleSavePrizes = () => { onEditComp({ ...comp, prizes: { first: prizeData.first.trim(), second: prizeData.second.trim(), third: prizeData.third.trim(), extra: prizeData.extra.trim() } }); setShowEditPrizes(false); showToast("Quadro de premiações atualizado!", "success"); };
   
@@ -3531,11 +3527,21 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
               <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 space-y-3">
                   <p className="text-xs font-bold text-blue-400 uppercase tracking-widest">Alterar Times do Confronto</p>
                   {comp.format === 'groups' && (<div className="pb-2 border-b border-blue-800/50 mb-3"><label className="text-[10px] font-bold text-purple-400 uppercase tracking-widest block mb-1">Pertencente ao Grupo</label><select value={editMatchData.group || 'A'} onChange={e => { setEditMatchData({ ...editMatchData, group: e.target.value, teamA: '', teamB: '' }); }} className="w-full bg-blue-900 border border-purple-500/40 rounded p-2 text-purple-300 text-xs font-bold outline-none">{Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (<option key={gName} value={gName}>Grupo {gName}</option>))}</select></div>)}
-                  <div className="space-y-2">
+                 <div className="space-y-2">
                       <select value={editMatchData.teamA} onChange={e => setEditMatchData({...editMatchData, teamA: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none"><option value="">A Definir / Sorteio</option>{availableTeamsForEdit.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{t.name}</option> : null; })}</select>
                       <div className="text-center text-blue-500 font-bold text-xs">X</div>
                       <select value={editMatchData.teamB} onChange={e => setEditMatchData({...editMatchData, teamB: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none"><option value="">A Definir / Sorteio</option>{availableTeamsForEdit.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{t.name}</option> : null; })}</select>
                   </div>
+
+                  {/* 🌟 NOVO CAMPO DE CÓDIGO DLS */}
+                  <div className="space-y-1 mt-3 border-t border-blue-800/50 pt-3">
+                    <label className="text-[10px] font-bold text-amber-400 uppercase tracking-widest block mb-1">Código DLS (Para Sala Oculta)</label>
+                    <div className="flex gap-2">
+                       <input type="text" value={editMatchData.dlsCode || ''} onChange={e => setEditMatchData({...editMatchData, dlsCode: e.target.value.toUpperCase()})} placeholder="Ex: KAME12" className="flex-1 bg-blue-900 border border-amber-500/40 rounded p-2 text-amber-400 font-black text-sm outline-none focus:border-amber-400 uppercase placeholder:text-amber-700/50" />
+                       <button type="button" onClick={() => setEditMatchData({...editMatchData, dlsCode: "KAM" + Math.floor(Math.random() * 900 + 100)})} className="bg-amber-600 hover:bg-amber-500 text-blue-950 px-3 rounded font-bold text-xs shadow-md transition-colors">Gerar Auto.</button>
+                    </div>
+                  </div>
+
               </div>
               {editMatchData.hasPlayed && (
                   <div className="bg-emerald-900/20 p-4 rounded-xl border border-emerald-500/30">
