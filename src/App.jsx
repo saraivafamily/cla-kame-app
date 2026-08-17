@@ -2145,9 +2145,9 @@ const DrawPanel = ({ comp, teams, matches, showToast }) => {
   );
 };
 
-// 🌟 PAINEL DE SORTEIO AO VIVO (MODO OBS STUDIO)
+// 🌟 PAINEL DE SORTEIO AO VIVO (MODO OBS COM ÁRVORE DE MATA-MATA)
 const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
-  const [step, setStep] = useState(0); // 0: Init, 1: Sortear Parceiro, 2: Nomear Dupla, 3: Sortear Chave, 4: Concluído
+  const [step, setStep] = useState(0); // 0: Init, 1: Sortear Parceiro, 2: Nomear Dupla, 3: Sortear Chave
   const [p1List, setP1List] = useState([]);
   const [p2List, setP2List] = useState([]);
   const [duplas, setDuplas] = useState([]);
@@ -2157,11 +2157,9 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
   const [currentP2, setCurrentP2] = useState(null);
   const [spinTarget, setSpinTarget] = useState(null);
   const [duplaName, setDuplaName] = useState('');
-
-  // 🟩 Controle da Tela Verde para OBS
   const [chromaMode, setChromaMode] = useState(false);
 
-  // 🔊 Sintetizador de Som (Tick da Roleta)
+  // 🔊 Efeito sonoro de clique de suspense
   const playTick = () => {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -2170,7 +2168,7 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(1200, audioCtx.currentTime); // Frequência do clique
+      osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
       gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
       osc.connect(gain);
@@ -2180,7 +2178,7 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
     } catch(e) {}
   };
 
-  // Passo 0: Puxa o Ranking e Separa os Potes automaticamente
+  // Passo 0: Separação automática Pote 1 x Pote 2 pelo Ranking Global
   useEffect(() => {
     if (step === 0) {
       const getTeamScore = (tId) => { const t = teams.find(x => x.id === tId); return t ? (t.globalPoints || 0) : 0; };
@@ -2194,209 +2192,309 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
   }, [comp.teams, teams, step]);
 
   const handleSpinParceiro = () => {
+    if (p2List.length === 0) return;
     setSpinning(true);
     let ticks = 0;
     const interval = setInterval(() => {
       const randomP2 = p2List[Math.floor(Math.random() * p2List.length)];
       setCurrentP2(randomP2);
-      playTick(); // Toca o som a cada giro!
+      playTick();
       
       ticks++;
-      if (ticks > 30) {
+      if (ticks > 25) {
         clearInterval(interval);
         const finalP2 = p2List[Math.floor(Math.random() * p2List.length)];
-        setCurrentP2(finalP2); setSpinTarget(finalP2);
+        setCurrentP2(finalP2); 
+        setSpinTarget(finalP2);
         
-        // Sugestão Automática de Nome
         const p1 = p1List[0];
         const n1 = p1?.name ? p1.name.split(' ')[0] : 'Time1';
         const n2 = finalP2?.name ? finalP2.name.split(' ')[0] : 'Time2';
         setDuplaName(`${n1} & ${n2}`);
         
         setSpinning(false);
-        setTimeout(() => setStep(2), 1000);
+        setTimeout(() => setStep(2), 600);
       }
     }, 100);
   };
 
   const handleSaveDupla = () => {
-    const p1 = p1List[0]; const p2 = spinTarget;
+    const p1 = p1List[0]; 
+    const p2 = spinTarget;
     if (!duplaName) return;
 
     const novaDupla = { id: `dp_${Date.now()}_${Math.random()}`, name: duplaName.toUpperCase(), p1: p1.id, p2: p2.id };
-    setDuplas([...duplas, novaDupla]);
+    const updatedDuplas = [...duplas, novaDupla];
+    setDuplas(updatedDuplas);
     
     const newP1List = p1List.slice(1);
     const newP2List = p2List.filter(t => t.id !== p2.id);
     
-    setP1List(newP1List); setP2List(newP2List);
-    setCurrentP2(null); setSpinTarget(null); setDuplaName('');
+    setP1List(newP1List); 
+    setP2List(newP2List);
+    setCurrentP2(null); 
+    setSpinTarget(null); 
+    setDuplaName('');
     
-    if (newP1List.length === 0) setStep(3); else setStep(1);
+    if (newP1List.length === 0) {
+      setStep(3); // Vai direto para o chaveamento de mata-mata
+    } else {
+      setStep(1);
+    }
   };
 
   const handleSpinBracket = () => {
+    const availableDuplas = duplas.filter(d => !bracketDuplas.find(b => b.id === d.id));
+    if (availableDuplas.length === 0) return;
+
     setSpinning(true);
     let ticks = 0;
-    const availableDuplas = duplas.filter(d => !bracketDuplas.find(b => b.id === d.id));
     
     const interval = setInterval(() => {
-      setCurrentP2(availableDuplas[Math.floor(Math.random() * availableDuplas.length)]);
-      playTick(); // Toca o som a cada giro!
+      const randomDupla = availableDuplas[Math.floor(Math.random() * availableDuplas.length)];
+      setCurrentP2(randomDupla);
+      playTick();
       
       ticks++;
-      if (ticks > 25) {
+      if (ticks > 20) {
         clearInterval(interval);
         const selected = availableDuplas[Math.floor(Math.random() * availableDuplas.length)];
         setCurrentP2(null);
-        setBracketDuplas([...bracketDuplas, selected]);
+        setBracketDuplas(prev => [...prev, selected]);
         setSpinning(false);
       }
     }, 100);
   };
 
+  // 🚀 Salva os dados direto na estrutura oficial da Copa no Firebase
   const finalizeBracketAndSave = () => {
-    let p2_count = 1; while (p2_count < bracketDuplas.length) p2_count *= 2;
+    let p2_count = 1; 
+    while (p2_count < bracketDuplas.length) p2_count *= 2;
     const tkr = Math.log2(p2_count);
-    const rounds = []; let mc = 1;
+    const rounds = []; 
+    let mc = 1;
 
     for (let kr = 0; kr < tkr; kr++) {
-        const rm = []; const nm = p2_count / Math.pow(2, kr + 1); const fmc = mc;
-        let rl = 'Mata-Mata (Duplas)'; if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas'; else if (nm === 8) rl = 'Oitavas';
+        const rm = []; 
+        const nm = p2_count / Math.pow(2, kr + 1); 
+        const fmc = mc;
+        let rl = 'Mata-Mata (Duplas)'; 
+        if (nm === 1) rl = 'Final'; 
+        else if (nm === 2) rl = 'Semifinal'; 
+        else if (nm === 4) rl = 'Quartas'; 
+        else if (nm === 8) rl = 'Oitavas';
 
         for (let i = 0; i < nm; i++) {
             let dA = null; let dB = null; let pA = 'A Definir'; let pB = 'A Definir';
             if (kr === 0) {
-                dA = bracketDuplas[i * 2] || null; dB = bracketDuplas[i * 2 + 1] || null;
-                pA = dA ? dA.name : 'Vaga Aberta'; pB = dB ? dB.name : 'Vaga Aberta';
+                dA = bracketDuplas[i * 2] || null; 
+                dB = bracketDuplas[i * 2 + 1] || null;
+                pA = dA ? dA.name : 'Vaga Aberta'; 
+                pB = dB ? dB.name : 'Vaga Aberta';
             } else {
-                pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
+                pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; 
+                pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
             }
 
-            rm.push({ id: `${comp.id}_ko_m${mc}_kr${kr}_ida`, isDupla: true, duplaA: dA, duplaB: dB, teamA: dA ? dA.p1 : '', teamB: dB ? dB.p1 : '', placeholderA: `${pA} (Téc 1)`, placeholderB: `${pB} (Téc 1)`, status: 'pending_play' }); mc++;
-            rm.push({ id: `${comp.id}_ko_m${mc}_kr${kr}_volta`, isDupla: true, duplaA: dB, duplaB: dA, teamA: dB ? dB.p2 : '', teamB: dA ? dA.p2 : '', placeholderA: `${pB} (Téc 2)`, placeholderB: `${pA} (Téc 2)`, status: 'pending_play' }); mc++;
+            // Jogo de IDA
+            rm.push({ 
+              id: `${comp.id}_ko_m${mc}_kr${kr}_ida`, 
+              isDupla: true, 
+              duplaA: dA, 
+              duplaB: dB, 
+              teamA: dA ? dA.p1 : '', 
+              teamB: dB ? dB.p1 : '', 
+              placeholderA: `${pA} (Téc 1)`, 
+              placeholderB: `${pB} (Téc 1)`, 
+              status: 'pending_play' 
+            }); 
+            mc++;
+
+            // Jogo de VOLTA (mando invertido)
+            rm.push({ 
+              id: `${comp.id}_ko_m${mc}_kr${kr}_volta`, 
+              isDupla: true, 
+              duplaA: dB, 
+              duplaB: dA, 
+              teamA: dB ? dB.p2 : '', 
+              teamB: dA ? dA.p2 : '', 
+              placeholderA: `${pB} (Téc 2)`, 
+              placeholderB: `${pA} (Téc 2)`, 
+              status: 'pending_play' 
+            }); 
+            mc++;
         }
-        rounds.push({ id: `ko_${kr}`, number: rl, status: kr === 0 ? 'released' : 'locked', releasedAt: kr === 0 ? Date.now() : null, matches: rm });
+        rounds.push({ 
+          id: `ko_${kr}`, 
+          number: rl, 
+          status: kr === 0 ? 'released' : 'locked', 
+          releasedAt: kr === 0 ? Date.now() : null, 
+          matches: rm 
+        });
     }
     
     onFinish(rounds, duplas);
   };
 
+  const isBracketFull = duplas.length > 0 && bracketDuplas.length === duplas.length;
+
   return (
-    <div className={`fixed inset-0 z-50 overflow-y-auto custom-scrollbar flex flex-col p-8 transition-colors duration-500 ${chromaMode ? 'bg-[#00FF00] text-black' : 'bg-[#020617] text-white'}`}>
-      <div className={`flex justify-between items-center border-b pb-4 mb-8 ${chromaMode ? 'border-green-800' : 'border-blue-900'}`}>
-        <div className="flex items-center gap-6">
+    <div className={`fixed inset-0 z-50 overflow-y-auto custom-scrollbar flex flex-col p-6 sm:p-8 transition-colors duration-500 ${chromaMode ? 'bg-[#00FF00] text-black' : 'bg-[#020617] text-white'}`}>
+      
+      {/* CABEÇALHO */}
+      <div className={`flex justify-between items-center border-b pb-4 mb-6 ${chromaMode ? 'border-green-800' : 'border-blue-900'}`}>
+        <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
           <div>
-            <h2 className={`text-3xl font-black uppercase tracking-widest flex items-center gap-3 ${chromaMode ? 'text-black' : 'text-amber-400'}`}>
-              <Dices size={36} className={chromaMode ? 'text-black' : ''} /> Transmissão de Sorteio Ao Vivo
+            <h2 className={`text-2xl sm:text-3xl font-black uppercase tracking-widest flex items-center gap-3 ${chromaMode ? 'text-black' : 'text-amber-400'}`}>
+              <Dices size={32} className={chromaMode ? 'text-black' : ''} /> Transmissão de Sorteio Ao Vivo
             </h2>
-            <p className={`font-bold mt-1 ${chromaMode ? 'text-green-900' : 'text-blue-400'}`}>Copa Flash em Duplas: {comp.name}</p>
+            <p className={`font-bold mt-1 text-xs sm:text-sm ${chromaMode ? 'text-green-900' : 'text-blue-400'}`}>
+              Copa Flash em Duplas • {comp.name}
+            </p>
           </div>
           <button onClick={() => setChromaMode(!chromaMode)} className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-xl text-white text-xs font-black uppercase tracking-wider shadow-lg flex items-center gap-2 transition-transform hover:scale-105 border border-white/20">
              🟩 Modo OBS (Tela Verde)
           </button>
         </div>
-        <button onClick={onCancel} className={`font-bold flex items-center gap-2 ${chromaMode ? 'text-red-700 hover:text-red-900' : 'text-blue-500 hover:text-red-400'}`}><XCircle size={24}/> Cancelar</button>
+        <button onClick={onCancel} className={`font-bold flex items-center gap-1.5 text-xs sm:text-sm ${chromaMode ? 'text-red-700 hover:text-red-900' : 'text-blue-500 hover:text-red-400'}`}>
+          <XCircle size={20}/> Cancelar Sorteio
+        </button>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center max-w-5xl mx-auto w-full">
         
-        {/* ETAPA 1 e 2: SORTEAR E NOMEAR DUPLAS */}
+        {/* ETAPA 1 e 2: FORMAR AS DUPLAS (POTE 1 x POTE 2) */}
         {(step === 1 || step === 2) && (
           <div className="w-full text-center animate-in zoom-in-95 duration-500">
-            <h3 className={`text-2xl font-black uppercase tracking-widest mb-12 ${chromaMode ? 'text-black' : 'text-blue-300'}`}>Formação da {duplas.length + 1}ª Dupla</h3>
+            <h3 className={`text-xl sm:text-2xl font-black uppercase tracking-widest mb-8 sm:mb-12 ${chromaMode ? 'text-black' : 'text-blue-300'}`}>
+              Formação da {duplas.length + 1}ª Dupla ({duplas.length + 1} de {comp.teams.length / 2})
+            </h3>
             
-            <div className="flex flex-col md:flex-row justify-center items-center gap-12 md:gap-24 mb-16">
-              <div className={`flex flex-col items-center p-8 rounded-3xl border shadow-2xl min-w-[280px] ${chromaMode ? 'bg-white/90 border-green-700' : 'bg-blue-900/40 border-emerald-500/30'}`}>
-                 <p className={`text-xs font-bold tracking-widest uppercase mb-6 ${chromaMode ? 'text-green-700' : 'text-emerald-400'}`}>Pote 1 (Cabeças de Chave)</p>
+            <div className="flex flex-col md:flex-row justify-center items-center gap-6 md:gap-16 mb-12">
+              <div className={`flex flex-col items-center p-6 sm:p-8 rounded-3xl border shadow-2xl min-w-[260px] ${chromaMode ? 'bg-white/95 border-green-700' : 'bg-blue-900/40 border-emerald-500/30'}`}>
+                 <p className={`text-xs font-bold tracking-widest uppercase mb-4 ${chromaMode ? 'text-green-700' : 'text-emerald-400'}`}>Pote 1 (Cabeça de Chave)</p>
                  <ShieldDisplay shield={p1List[0]?.shield} size="large" />
-                 <p className={`text-3xl font-black mt-6 leading-tight ${chromaMode ? 'text-black' : 'text-white'}`}>{p1List[0]?.name}</p>
-                 <p className={`font-bold mt-1 uppercase text-sm ${chromaMode ? 'text-green-800' : 'text-emerald-500'}`}>{p1List[0]?.coach}</p>
+                 <p className={`text-2xl font-black mt-4 leading-tight ${chromaMode ? 'text-black' : 'text-white'}`}>{p1List[0]?.name}</p>
+                 <p className={`font-bold mt-1 uppercase text-xs ${chromaMode ? 'text-green-800' : 'text-emerald-500'}`}>{p1List[0]?.coach}</p>
               </div>
               
-              <div className={`text-6xl font-black animate-pulse ${chromaMode ? 'text-black' : 'text-amber-500'}`}>X</div>
+              <div className={`text-4xl sm:text-6xl font-black animate-pulse ${chromaMode ? 'text-black' : 'text-amber-500'}`}>X</div>
               
-              <div className={`flex flex-col items-center p-8 rounded-3xl border shadow-2xl min-w-[280px] ${chromaMode ? 'bg-white/90 border-green-700' : 'bg-blue-900/40 border-amber-500/30'}`}>
-                 <p className={`text-xs font-bold tracking-widest uppercase mb-6 ${chromaMode ? 'text-green-700' : 'text-amber-400'}`}>Pote 2 (Sorteado)</p>
+              <div className={`flex flex-col items-center p-6 sm:p-8 rounded-3xl border shadow-2xl min-w-[260px] ${chromaMode ? 'bg-white/95 border-green-700' : 'bg-blue-900/40 border-amber-500/30'}`}>
+                 <p className={`text-xs font-bold tracking-widest uppercase mb-4 ${chromaMode ? 'text-green-700' : 'text-amber-400'}`}>Pote 2 (Sorteado)</p>
                  {spinning || currentP2 || spinTarget ? (
                     <>
                       <ShieldDisplay shield={(currentP2 || spinTarget)?.shield} size="large" />
-                      <p className={`text-3xl font-black mt-6 leading-tight ${spinning ? 'opacity-50 blur-[2px]' : ''} ${chromaMode ? 'text-black' : 'text-white'}`}>{(currentP2 || spinTarget)?.name}</p>
-                      <p className={`font-bold mt-1 uppercase text-sm ${spinning ? 'opacity-50 blur-[2px]' : ''} ${chromaMode ? 'text-green-800' : 'text-amber-500'}`}>{(currentP2 || spinTarget)?.coach}</p>
+                      <p className={`text-2xl font-black mt-4 leading-tight ${spinning ? 'opacity-50 blur-[2px]' : ''} ${chromaMode ? 'text-black' : 'text-white'}`}>{(currentP2 || spinTarget)?.name}</p>
+                      <p className={`font-bold mt-1 uppercase text-xs ${spinning ? 'opacity-50 blur-[2px]' : ''} ${chromaMode ? 'text-green-800' : 'text-amber-500'}`}>{(currentP2 || spinTarget)?.coach}</p>
                     </>
                  ) : (
-                    <div className={`w-24 h-24 rounded-full flex items-center justify-center text-5xl border shadow-inner ${chromaMode ? 'bg-gray-200 border-gray-400 text-gray-500' : 'bg-blue-950 border-amber-500/50 text-amber-500'}`}>?</div>
+                    <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl border shadow-inner ${chromaMode ? 'bg-gray-200 border-gray-400 text-gray-500' : 'bg-blue-950 border-amber-500/50 text-amber-500'}`}>?</div>
                  )}
               </div>
             </div>
 
             {step === 1 && (
-              <button onClick={handleSpinParceiro} disabled={spinning} className="bg-amber-600 hover:bg-amber-500 text-white font-black text-2xl py-6 px-16 rounded-full shadow-[0_0_40px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all">
-                {spinning ? 'SORTEANDO...' : 'GIRAR ROLETA (POTE 2)'}
+              <button onClick={handleSpinParceiro} disabled={spinning} className="bg-amber-600 hover:bg-amber-500 text-white font-black text-xl sm:text-2xl py-5 px-12 sm:px-16 rounded-full shadow-[0_0_40px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all">
+                {spinning ? 'SORTEANDO PARCEIRO...' : '🎲 GIRAR ROLETA (POTE 2)'}
               </button>
             )}
 
             {step === 2 && (
-              <div className={`p-8 rounded-3xl border animate-in slide-in-from-bottom-8 max-w-xl mx-auto shadow-2xl ${chromaMode ? 'bg-white border-green-600' : 'bg-blue-950/80 border-blue-700'}`}>
-                <p className={`font-black uppercase tracking-widest mb-4 flex items-center justify-center gap-2 ${chromaMode ? 'text-green-700' : 'text-emerald-400'}`}><CheckCircle size={24}/> Dupla Formada!</p>
-                <label className={`text-sm font-bold uppercase tracking-widest block mb-2 ${chromaMode ? 'text-black' : 'text-blue-300'}`}>Defina o nome da dupla para a live:</label>
-                <input type="text" value={duplaName} onChange={e=>setDuplaName(e.target.value)} className={`w-full border-2 rounded-xl p-4 font-black text-2xl text-center outline-none ${chromaMode ? 'bg-gray-100 border-green-500 text-black' : 'bg-blue-900 border-emerald-500 text-white focus:bg-blue-800'}`} autoFocus />
-                <button onClick={handleSaveDupla} className="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl py-4 rounded-xl shadow-lg hover:scale-105 transition-all">SALVAR E CONFIRMAR DUPLA</button>
+              <div className={`p-6 sm:p-8 rounded-3xl border animate-in slide-in-from-bottom-8 max-w-xl mx-auto shadow-2xl ${chromaMode ? 'bg-white border-green-600' : 'bg-blue-950/90 border-blue-700'}`}>
+                <p className={`font-black uppercase tracking-widest mb-3 flex items-center justify-center gap-2 text-sm sm:text-base ${chromaMode ? 'text-green-700' : 'text-emerald-400'}`}>
+                  <CheckCircle size={20}/> Dupla Formada!
+                </p>
+                <label className={`text-xs font-bold uppercase tracking-widest block mb-2 ${chromaMode ? 'text-black' : 'text-blue-300'}`}>
+                  Nome oficial da dupla na competição:
+                </label>
+                <input type="text" value={duplaName} onChange={e=>setDuplaName(e.target.value)} className={`w-full border-2 rounded-xl p-3 sm:p-4 font-black text-xl sm:text-2xl text-center outline-none ${chromaMode ? 'bg-gray-100 border-green-500 text-black' : 'bg-blue-900 border-emerald-500 text-white focus:bg-blue-800'}`} autoFocus />
+                <button onClick={handleSaveDupla} className="w-full mt-5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg py-3.5 rounded-xl shadow-lg hover:scale-105 transition-all">
+                  SALVAR E PROSSEGUIR
+                </button>
               </div>
             )}
           </div>
         )}
 
-        {/* ETAPA 3 e 4: SORTEAR CHAVEAMENTO */}
-        {(step === 3 || step === 4) && (
-          <div className="w-full animate-in zoom-in-95 duration-500">
-             <div className="text-center mb-10">
-               <h3 className={`text-3xl font-black uppercase tracking-widest mb-2 ${chromaMode ? 'text-black' : 'text-emerald-400'}`}>Chaveamento Oficial</h3>
-               <p className={chromaMode ? 'text-gray-800 font-bold' : 'text-blue-300'}>As duplas foram formadas. Sorteie as posições na chave.</p>
+        {/* ETAPA 3: CHAVEAMENTO EM FORMATO OFICIAL DE MATA-MATA */}
+        {step === 3 && (
+          <div className="w-full animate-in zoom-in-95 duration-500 space-y-6">
+             <div className="text-center mb-6">
+               <h3 className={`text-2xl sm:text-3xl font-black uppercase tracking-widest ${chromaMode ? 'text-black' : 'text-amber-400'}`}>
+                 Chaveamento Mata-Mata
+               </h3>
+               <p className={`text-xs sm:text-sm mt-1 ${chromaMode ? 'text-green-900 font-bold' : 'text-blue-300'}`}>
+                 Sorteie as duplas para definir os confrontos diretos na chave.
+               </p>
              </div>
 
-             {/* DISPLAY DAS CHAVES */}
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-               {Array.from({ length: duplas.length }).map((_, i) => {
-                  const duplaAlojada = bracketDuplas[i];
-                  const bgClass = duplaAlojada 
-                    ? (chromaMode ? 'bg-white border-green-600 shadow-xl' : 'bg-gradient-to-br from-amber-600/20 to-blue-900 border-amber-500/50') 
-                    : (chromaMode ? 'bg-white/50 border-green-800 border-dashed' : 'bg-blue-950 border-blue-800 border-dashed');
-                  
+             {/* ÁRVORE DE CONFRONTOS (EXATAMENTE COMO O MATA-MATA DO APP) */}
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+               {Array.from({ length: Math.ceil(duplas.length / 2) }).map((_, matchIdx) => {
+                  const duplaA = bracketDuplas[matchIdx * 2];
+                  const duplaB = bracketDuplas[matchIdx * 2 + 1];
+
                   return (
-                     <div key={i} className={`p-6 rounded-2xl border flex flex-col items-center justify-center h-32 transition-all ${bgClass}`}>
-                       <p className={`text-[10px] uppercase font-bold tracking-widest mb-2 ${chromaMode ? 'text-green-800' : 'text-blue-400'}`}>Posição {i+1}</p>
-                       {duplaAlojada ? (
-                          <div className="text-center animate-in zoom-in-90">
-                            <p className={`font-black text-lg leading-tight ${chromaMode ? 'text-black' : 'text-white'}`}>{duplaAlojada.name}</p>
-                          </div>
-                       ) : (
-                          <div className={`text-4xl font-black ${chromaMode ? 'text-green-800/50' : 'text-blue-800'}`}>?</div>
-                       )}
-                     </div>
+                    <div key={matchIdx} className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 shadow-lg ${chromaMode ? 'bg-white border-green-600' : 'bg-blue-900/60 border-blue-800'}`}>
+                      <div className="flex justify-between items-center border-b pb-2 border-blue-800/40">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                          ⚔️ Confronto {matchIdx + 1}
+                        </span>
+                        <span className="text-[9px] text-blue-400 font-bold uppercase">
+                          {duplaA && duplaB ? 'Confronto Definido' : 'Aguardando Sorteio'}
+                        </span>
+                      </div>
+
+                      {/* Lado A */}
+                      <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${duplaA ? (chromaMode ? 'bg-green-50 border-green-500' : 'bg-blue-950 border-emerald-500/40') : 'bg-blue-950/40 border-blue-800/40 border-dashed'}`}>
+                        <span className="text-xs font-black truncate">{duplaA ? duplaA.name : `Slot ${matchIdx * 2 + 1} (Vazio)`}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${duplaA ? 'bg-emerald-500/20 text-emerald-400' : 'text-blue-600'}`}>
+                          {duplaA ? 'Téc 1' : 'Pote 1'}
+                        </span>
+                      </div>
+
+                      <div className="text-center font-black text-xs text-blue-500">VERSUS</div>
+
+                      {/* Lado B */}
+                      <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${duplaB ? (chromaMode ? 'bg-green-50 border-green-500' : 'bg-blue-950 border-emerald-500/40') : 'bg-blue-950/40 border-blue-800/40 border-dashed'}`}>
+                        <span className="text-xs font-black truncate">{duplaB ? duplaB.name : `Slot ${matchIdx * 2 + 2} (Vazio)`}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${duplaB ? 'bg-emerald-500/20 text-emerald-400' : 'text-blue-600'}`}>
+                          {duplaB ? 'Téc 2' : 'Pote 2'}
+                        </span>
+                      </div>
+                    </div>
                   );
                })}
              </div>
 
-             <div className="flex flex-col items-center justify-center">
-               {currentP2 && step === 3 && (
-                 <div className="mb-8 text-center animate-in fade-in">
-                   <p className={`text-sm font-bold uppercase tracking-widest mb-2 ${chromaMode ? 'text-black' : 'text-amber-400'}`}>Sorteando Dupla...</p>
-                   <p className={`text-4xl font-black ${chromaMode ? 'text-black' : 'text-white'}`}>{currentP2.name}</p>
+             {/* CONTROLES E BOTÕES DE AÇÃO */}
+             <div className="flex flex-col items-center justify-center pt-4">
+               {currentP2 && !isBracketFull && (
+                 <div className="mb-4 text-center animate-in fade-in">
+                   <p className="text-xs font-bold uppercase tracking-widest text-amber-400 mb-1">Alocando na Chave...</p>
+                   <p className="text-2xl font-black text-white">{currentP2.name}</p>
                  </div>
                )}
 
-               {step === 3 && (
-                 <button onClick={handleSpinBracket} disabled={spinning} className="bg-amber-600 hover:bg-amber-500 text-white font-black text-2xl py-6 px-16 rounded-full shadow-[0_0_40px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all">
-                   {spinning ? 'SORTEANDO POSIÇÃO...' : 'SORTEAR PRÓXIMA POSIÇÃO'}
+               {!isBracketFull ? (
+                 <button onClick={handleSpinBracket} disabled={spinning} className="bg-amber-600 hover:bg-amber-500 text-white font-black text-lg sm:text-xl py-4 px-10 rounded-full shadow-[0_0_30px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all">
+                   {spinning ? 'SORTEANDO POSIÇÃO...' : `SORTEAR PRÓXIMA DUPLA (${bracketDuplas.length + 1}/${duplas.length})`}
                  </button>
-               )}
+               ) : (
+                 /* 🌟 BOTÃO FINAL DE OFICIALIZAR NO APP SEMPRE EM DESTAQUE */
+                 <div className="w-full max-w-md text-center animate-in slide-in-from-bottom-6 space-y-4 pt-2">
+                   <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-2xl">
+                     <p className="text-emerald-400 font-black uppercase text-sm flex items-center justify-center gap-1.5">
+                       <CheckCircle size={18}/> Todos os confrontos foram definidos!
+                     </p>
+                   </div>
 
-               {step === 4 && bracketDuplas.length === duplas.length && (
-                 <div className="text-center w-full max-w-md animate-in slide-in-from-bottom-8">
-                   <p className={`text-xl font-black uppercase tracking-widest mb-6 py-3 rounded-xl border ${chromaMode ? 'bg-white text-green-600 border-green-600 shadow-xl' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'}`}>✅ Chaveamento Concluído</p>
-                   <button onClick={finalizeBracketAndSave} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-2xl py-6 rounded-2xl shadow-[0_0_40px_rgba(16,185,129,0.4)] hover:-translate-y-2 transition-transform">
-                     SALVAR E OFICIALIZAR NO APP
+                   <button 
+                     onClick={finalizeBracketAndSave} 
+                     className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl py-5 rounded-2xl shadow-[0_0_40px_rgba(16,185,129,0.5)] hover:-translate-y-1 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                   >
+                     🏆 OFICIALIZAR E GERAR TABELA NO APP
                    </button>
                  </div>
                )}
