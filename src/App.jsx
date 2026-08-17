@@ -2827,28 +2827,81 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                 </div>
 
                                 <div className="flex flex-col flex-1 h-full py-2">
-                                  {round.matches.map((m, matchIndex) => {
-                                    const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
-                                    const isLocked = round.status === 'locked'; const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
-                                    let teamALost = false; let teamBLost = false;
-                                    if (isPlayed) { const scoreA = Number(sUI.scoreA || 0); const scoreB = Number(sUI.scoreB || 0); if (scoreA < scoreB) { teamALost = true; } else if (scoreB < scoreA) { teamBLost = true; } else { const penA = Number(sUI.penaltiesA || 0); const penB = Number(sUI.penaltiesB || 0); if (penA < penB) teamALost = true; if (penB < penA) teamBLost = true; } }
-                                    const isFirstRound = roundIndex === 0; const isLastRound = roundIndex === knockoutRounds.length - 1; const isTop = matchIndex % 2 === 0;
+                                  // Substitua o trecho a partir do 'round.matches.map((m, matchIndex) => {' até o fim do 'return ( ... )'
+{round.matches.map((m, matchIndex) => {
+  const isDuplaFormat = comp.category === 'copa_flash_dupla';
+  const tA = getTeam(m.teamA); 
+  const tB = getTeam(m.teamB); 
+  const sUI = getMatchStatusDisplay(m.id);
+  const isLocked = round.status === 'locked'; 
+  const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
+  
+  let teamALost = false; 
+  let teamBLost = false;
 
-                                    return (
-                                      <div key={m.id} className="relative flex-1 flex flex-col justify-center py-3 group">
-                                        {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
-                                        <div className="relative z-10 w-full">
-                                          <div onClick={() => { if(sUI.isPlayed && onSelectMatch){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} cursor-pointer relative overflow-hidden`}>
-                                            <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40"><span className="text-blue-500">{m.id.includes('_f1') && round.matches.length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' : m.id.includes('_f2') ? '🏆 Final (Volta)' : m.id.includes('_3rd') ? '🥉 Disputa 3º Lugar' : 'Confronto'}</span><span className={sUI.color}>{sUI.text}</span></div>
-                                            <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tA?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreA : '-'}</span></div></div>
-                                            <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tB?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreB : '-'}</span></div></div>
-                                          </div>
-                                          {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
-                                        </div>
-                                        {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
-                                      </div>
-                                    );
-                                  })}
+  // Se for formato de Dupla, precisamos buscar o placar agregado para pintar de cinza quem perdeu a rodada toda
+  if (isPlayed) {
+    if (isDuplaFormat) {
+       // Pega o jogo parceiro (se esse for ida, pega a volta. Se for volta, pega a ida)
+       const isIda = m.id.includes('_ida');
+       const partnerMatchId = m.id.replace(isIda ? '_ida' : '_volta', isIda ? '_volta' : '_ida');
+       const partnerSUI = getMatchStatusDisplay(partnerMatchId);
+       
+       if (partnerSUI.isPlayed && partnerSUI.text === 'Oficial') {
+           // Soma os placares (Lembrando que na volta os mandantes foram invertidos na geração)
+           let aggScoreA = 0; let aggScoreB = 0; let aggPenA = 0; let aggPenB = 0;
+           
+           if (isIda) {
+             aggScoreA = Number(sUI.scoreA||0) + Number(partnerSUI.scoreB||0); // Time A da Ida é o Time B da Volta
+             aggScoreB = Number(sUI.scoreB||0) + Number(partnerSUI.scoreA||0);
+             aggPenA = Number(sUI.penaltiesA||0) + Number(partnerSUI.penaltiesB||0);
+             aggPenB = Number(sUI.penaltiesB||0) + Number(partnerSUI.penaltiesA||0);
+           } else {
+             aggScoreA = Number(partnerSUI.scoreA||0) + Number(sUI.scoreB||0);
+             aggScoreB = Number(partnerSUI.scoreB||0) + Number(sUI.scoreA||0);
+             aggPenA = Number(partnerSUI.penaltiesA||0) + Number(sUI.penaltiesB||0);
+             aggPenB = Number(partnerSUI.penaltiesB||0) + Number(sUI.penaltiesA||0);
+           }
+
+           if (aggScoreA < aggScoreB) { teamALost = true; } 
+           else if (aggScoreB < aggScoreA) { teamBLost = true; } 
+           else { 
+             if (aggPenA < aggPenB) teamALost = true; 
+             if (aggPenB < aggPenA) teamBLost = true; 
+           }
+       }
+    } else {
+       // Lógica tradicional de partida única
+       const scoreA = Number(sUI.scoreA || 0); const scoreB = Number(sUI.scoreB || 0); 
+       if (scoreA < scoreB) { teamALost = true; } 
+       else if (scoreB < scoreA) { teamBLost = true; } 
+       else { 
+         const penA = Number(sUI.penaltiesA || 0); const penB = Number(sUI.penaltiesB || 0); 
+         if (penA < penB) teamALost = true; if (penB < penA) teamBLost = true; 
+       }
+    }
+  }
+  
+  const isFirstRound = roundIndex === 0; const isLastRound = roundIndex === knockoutRounds.length - 1; const isTop = matchIndex % 2 === 0;
+
+  return (
+    <div key={m.id} className="relative flex-1 flex flex-col justify-center py-3 group">
+      {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
+      <div className="relative z-10 w-full">
+        <div onClick={() => { if(sUI.isPlayed && onSelectMatch){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} cursor-pointer relative overflow-hidden`}>
+          <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
+             <span className="text-blue-500">{isDuplaFormat ? (m.id.includes('_ida') ? '🎯 Ida (Pote 1)' : '🎯 Volta (Pote 2)') : (m.id.includes('_f1') && round.matches.length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' : m.id.includes('_f2') ? '🏆 Final (Volta)' : m.id.includes('_3rd') ? '🥉 Disputa 3º Lugar' : 'Confronto')}</span>
+             <span className={sUI.color}>{sUI.text}</span>
+          </div>
+          <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tA?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreA : '-'}</span></div></div>
+          <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tB?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreB : '-'}</span></div></div>
+        </div>
+        {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
+      </div>
+      {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
+    </div>
+  );
+})}
                                 </div>
                               </div>
                             );
@@ -7122,48 +7175,117 @@ export default function App() {
         });
       }
 
-      if (comp && (comp.format === 'cup' || comp.format === 'groups')) {
+      if (comp && (comp.format === 'cup' || comp.format === 'groups' || comp.category === 'copa_flash_dupla')) {
         let winnerId = null; 
-        if (finalScoreA > finalScoreB) winnerId = match.teamA; else if (finalScoreB > finalScoreA) winnerId = match.teamB; else if (finalPenaltiesA !== null && finalPenaltiesA !== undefined) { if (finalPenaltiesA > finalPenaltiesB) winnerId = match.teamA; else if (finalPenaltiesB > finalPenaltiesA) winnerId = match.teamB; }
+        
+        if (comp.category === 'copa_flash_dupla') {
+           // LÓGICA DE PLACAR AGREGADO PARA DUPLAS
+           const isIda = match.matchId.includes('_ida');
+           const partnerMatchId = match.matchId.replace(isIda ? '_ida' : '_volta', isIda ? '_volta' : '_ida');
+           const partnerMatch = matches.find(m => m.matchId === partnerMatchId && m.compId === comp.id && m.status === 'approved');
+           
+           if (partnerMatch) {
+               // A outra perna já foi jogada! Hora de somar o agregado.
+               // Descobrindo quem é a Dupla A e a Dupla B inteira a partir da estrutura salva no match.
+               const currentRoundUI = comp.rounds.find(r => r.id === match.roundId);
+               const thisMatchUI = currentRoundUI.matches.find(x => x.id === match.matchId);
+               const duplaA = thisMatchUI.duplaA; 
+               const duplaB = thisMatchUI.duplaB;
+
+               let aggScoreA = 0; let aggScoreB = 0; let aggPenA = 0; let aggPenB = 0;
+               
+               if (isIda) {
+                 aggScoreA = finalScoreA + Number(partnerMatch.scoreB||0); // Na volta, a Dupla A jogou fora de casa
+                 aggScoreB = finalScoreB + Number(partnerMatch.scoreA||0);
+                 aggPenA = (finalPenaltiesA||0) + Number(partnerMatch.penaltiesB||0);
+                 aggPenB = (finalPenaltiesB||0) + Number(partnerMatch.penaltiesA||0);
+               } else {
+                 aggScoreA = Number(partnerMatch.scoreA||0) + finalScoreB;
+                 aggScoreB = Number(partnerMatch.scoreB||0) + finalScoreA;
+                 aggPenA = Number(partnerMatch.penaltiesA||0) + (finalPenaltiesB||0);
+                 aggPenB = Number(partnerMatch.penaltiesB||0) + (finalPenaltiesA||0);
+               }
+
+               if (aggScoreA > aggScoreB) winnerId = duplaA; // Passamos o objeto inteiro da dupla
+               else if (aggScoreB > aggScoreA) winnerId = duplaB;
+               else if (aggPenA > aggPenB) winnerId = duplaA;
+               else if (aggPenB > aggPenA) winnerId = duplaB;
+               else {
+                   // Se incrivelmente empatar no agregado e ninguém botar pênalti, randomiza.
+                   winnerId = Math.random() < 0.5 ? duplaA : duplaB;
+               }
+           }
+        } else {
+           // Lógica Tradicional Single Player
+           if (finalScoreA > finalScoreB) winnerId = match.teamA; 
+           else if (finalScoreB > finalScoreA) winnerId = match.teamB; 
+           else if (finalPenaltiesA !== null && finalPenaltiesA !== undefined) { 
+             if (finalPenaltiesA > finalPenaltiesB) winnerId = match.teamA; 
+             else if (finalPenaltiesB > finalPenaltiesA) winnerId = match.teamB; 
+           }
+        }
         
         if (winnerId) {
           const rIndex = comp.rounds.findIndex(r => r && r.id === match.roundId); 
-          const isKnockoutMatch = match.matchId.includes('_ko_') || comp.format === 'cup';
+          const isKnockoutMatch = match.matchId.includes('_ko_') || comp.format === 'cup' || comp.category === 'copa_flash_dupla';
           
+          // No formato de dupla, avançamos dois blocos na frente (porque pula as 2 pernas)
+          const divisorIndex = comp.category === 'copa_flash_dupla' ? 4 : 2;
+
           if (rIndex >= 0 && rIndex < comp.rounds.length - 1 && isKnockoutMatch) {
             const mIndex = comp.rounds[rIndex].matches.findIndex(m => m && m.id === match.matchId);
             if (mIndex >= 0) {
                const nextRIndex = rIndex + 1; 
-               const nextMIndex = Math.floor(mIndex / 2); 
-               const isTeamA = mIndex % 2 === 0; 
+               const nextMIndex = Math.floor(mIndex / divisorIndex) * (comp.category === 'copa_flash_dupla' ? 2 : 1); 
+               const isTeamA = (Math.floor(mIndex / (comp.category === 'copa_flash_dupla' ? 2 : 1)) % 2) === 0; 
                const newRounds = JSON.parse(JSON.stringify(comp.rounds)); 
-               const loserId = winnerId === match.teamA ? match.teamB : match.teamA;
 
-               const isNextRoundFinal = newRounds[nextRIndex].matches.some(x => x.id.includes('_f1') || x.id.includes('_3rd'));
+               if (comp.category === 'copa_flash_dupla') {
+                   // Avançando a Dupla Inteira nos dois jogos da próxima fase
+                   if (isTeamA) {
+                       newRounds[nextRIndex].matches[nextMIndex].duplaA = winnerId;
+                       newRounds[nextRIndex].matches[nextMIndex].teamA = winnerId.p1;
+                       newRounds[nextRIndex].matches[nextMIndex].placeholderA = `${winnerId.name} (Téc 1)`;
+                       
+                       newRounds[nextRIndex].matches[nextMIndex + 1].duplaB = winnerId;
+                       newRounds[nextRIndex].matches[nextMIndex + 1].teamB = winnerId.p2;
+                       newRounds[nextRIndex].matches[nextMIndex + 1].placeholderB = `${winnerId.name} (Téc 2)`;
+                   } else {
+                       newRounds[nextRIndex].matches[nextMIndex].duplaB = winnerId;
+                       newRounds[nextRIndex].matches[nextMIndex].teamB = winnerId.p1;
+                       newRounds[nextRIndex].matches[nextMIndex].placeholderB = `${winnerId.name} (Téc 1)`;
 
-               if (isNextRoundFinal) {
-                  newRounds[nextRIndex].matches.forEach(nextMatch => {
-                     if (nextMatch.id.includes('_3rd')) {
-                        if (isTeamA) nextMatch.teamA = loserId; else nextMatch.teamB = loserId;
-                     } else {
-                        if (nextMatch.id.includes('_f2')) {
-                           if (isTeamA) nextMatch.teamB = winnerId; else nextMatch.teamA = winnerId;
-                        } else {
-                           if (isTeamA) nextMatch.teamA = winnerId; else nextMatch.teamB = winnerId;
-                        }
-                     }
-                  });
+                       newRounds[nextRIndex].matches[nextMIndex + 1].duplaA = winnerId;
+                       newRounds[nextRIndex].matches[nextMIndex + 1].teamA = winnerId.p2;
+                       newRounds[nextRIndex].matches[nextMIndex + 1].placeholderA = `${winnerId.name} (Téc 2)`;
+                   }
                } else {
-                  if (isTeamA) newRounds[nextRIndex].matches[nextMIndex].teamA = winnerId; 
-                  else newRounds[nextRIndex].matches[nextMIndex].teamB = winnerId;
+                   // Avanço Normal Single Player
+                   const loserId = winnerId === match.teamA ? match.teamB : match.teamA;
+                   const isNextRoundFinal = newRounds[nextRIndex].matches.some(x => x.id.includes('_f1') || x.id.includes('_3rd'));
+
+                   if (isNextRoundFinal) {
+                      newRounds[nextRIndex].matches.forEach(nextMatch => {
+                         if (nextMatch.id.includes('_3rd')) {
+                            if (isTeamA) nextMatch.teamA = loserId; else nextMatch.teamB = loserId;
+                         } else {
+                            if (nextMatch.id.includes('_f2')) {
+                               if (isTeamA) nextMatch.teamB = winnerId; else nextMatch.teamA = winnerId;
+                            } else {
+                               if (isTeamA) nextMatch.teamA = winnerId; else nextMatch.teamB = winnerId;
+                            }
+                         }
+                      });
+                   } else {
+                      if (isTeamA) newRounds[nextRIndex].matches[nextMIndex].teamA = winnerId; 
+                      else newRounds[nextRIndex].matches[nextMIndex].teamB = winnerId;
+                   }
                }
                await updateDoc(getPublicDocPath('competitions', comp.id), { rounds: newRounds });
             }
           }
         }
       }
-    }
-  };
   
   const handleEditUser = async (userId, updatedData) => {
     await updateDoc(getPublicDocPath('users', userId), { name: updatedData.name, whatsapp: updatedData.whatsapp });
