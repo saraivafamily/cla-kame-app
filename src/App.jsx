@@ -2534,7 +2534,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
       if (totalMatches > 0 && approvedMatches === totalMatches) { const standings = calculateStandings(matches, compTeams, comp.id); return standings.length > 0 ? standings[0] : null; }
     } return null;
   }, [comp, matches, knockoutRounds, groupOrNormalRounds, teams]);
-  if (comp.status === 'drawing') {
 
   if (comp.status === 'drawing') {
     return (
