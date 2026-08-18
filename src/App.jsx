@@ -4950,17 +4950,24 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             {availableMatches.map(m => {
               const isDupla = selectedComp?.category === 'copa_flash_dupla';
               const isIda = m.id.includes('_ida');
-              const amITeamA = userTeamIds.includes(m.teamA);
               
-              const myTeamObj = amITeamA ? teams.find(t=>t.id===m.teamA) : teams.find(t=>t.id===m.teamB);
-              const oppTeamObj = amITeamA ? teams.find(t=>t.id===m.teamB) : teams.find(t=>t.id===m.teamA);
+              const tA = teams.find(t => t.id === m.teamA);
+              const tB = teams.find(t => t.id === m.teamB);
               
-              const oppName = (isDupla && isIda && !isAdmin) ? 'Adversário Oculto 🕵️' : oppTeamObj?.name;
-              const myName = myTeamObj?.name || (isAdmin ? teams.find(t=>t.id===m.teamA)?.name : 'A Definir');
-              const secondName = isAdmin ? teams.find(t=>t.id===m.teamB)?.name : oppName;
+              let nameA = tA?.name || 'A Definir';
+              let nameB = tB?.name || 'A Definir';
+
+              // Esconde o adversário no jogo de ida das duplas (apenas para jogadores normais)
+              if (isDupla && isIda && !isAdmin) {
+                  if (userTeamIds.includes(m.teamA)) {
+                      nameB = 'Adversário Oculto 🕵️';
+                  } else if (userTeamIds.includes(m.teamB)) {
+                      nameA = 'Adversário Oculto 🕵️';
+                  }
+              }
 
               return (
-                <option key={m.id} value={m.id}>Rodada {m.roundName}: {myName} x {secondName}</option>
+                <option key={m.id} value={m.id}>Rodada {m.roundName}: {nameA} x {nameB}</option>
               )
             })}
           </select>
