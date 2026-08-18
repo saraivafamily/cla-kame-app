@@ -775,7 +775,8 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
     (matches || []).forEach(m => {
       if (m.status === 'approved') {
         const c = (competitions || []).find(comp => comp.id === m.compId);
-        const isFlash = c?.category === 'copa_flash';
+        if (!c) return; // 👈 Ignora partidas de torneios excluídos
+        const isFlash = c.category === 'copa_flash';
         const ptsPlay = isFlash ? 1 : 2; const ptsWin = isFlash ? 1 : 3; const ptsDraw = isFlash ? 0 : 1;
 
         const tA = stats[m.teamA]; const tB = stats[m.teamB];
@@ -945,7 +946,10 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
 
       <div className="space-y-8">
         {userTeams.map(team => {
-          const teamMatches = matches.filter(m => m.status === 'approved' && (m.teamA === team.id || m.teamB === team.id));
+          const teamMatches = matches.filter(m => {
+            if (m.status !== 'approved' || (m.teamA !== team.id && m.teamB !== team.id)) return false;
+            return !!competitions.find(comp => comp.id === m.compId); // 👈 Filtra apagados
+          });
           let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0; let biggestWin = null; let maxGd = -1;
 
           teamMatches.forEach(m => {
@@ -1434,7 +1438,10 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
 const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
   if (!team) return null;
   
-  const teamMatches = (matches || []).filter(m => m.status === 'approved' && (m.teamA === team.id || m.teamB === team.id));
+  const teamMatches = (matches || []).filter(m => {
+    if (m.status !== 'approved' || (m.teamA !== team.id && m.teamB !== team.id)) return false;
+    return !!competitions.find(c => c.id === m.compId); // 👈 Filtra apagados
+  });
   let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0; 
   let biggestWin = null; let maxGd = -1;
   let biggestLoss = null; let minGd = 1;
@@ -5598,7 +5605,8 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       (matches || []).forEach(m => {
         if (m.status === 'approved') {
           const c = (competitions || []).find(comp => comp.id === m.compId);
-          const isFlash = c?.category === 'copa_flash';
+          if (!c) return; // 👈 Ignora partidas de torneios excluídos
+          const isFlash = c.category === 'copa_flash';
           const ptsPlay = isFlash ? 1 : 2; const ptsWin = isFlash ? 1 : 3; const ptsDraw = isFlash ? 0 : 1;
 
           const tA = stats[m.teamA]; const tB = stats[m.teamB];
@@ -5779,7 +5787,8 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     (matches || []).forEach(m => {
         if (m.status === 'approved' && (m.teamA === myTeam.id || m.teamB === myTeam.id)) {
             const c = competitions.find(comp => comp.id === m.compId);
-            const isFlash = c?.category === 'copa_flash';
+            if (!c) return; // 👈 Oculta do extrato
+            const isFlash = c.category === 'copa_flash';
             const ptsPlay = isFlash ? 1 : 2; 
             const ptsWin = isFlash ? 1 : 3; 
             const ptsDraw = isFlash ? 0 : 1;
