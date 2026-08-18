@@ -2929,24 +2929,10 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const knockoutRounds = (comp.rounds || []).filter(r => r.id.includes('ko') || comp.format === 'cup' || comp.category === 'copa_flash_dupla');
   const groupOrNormalRounds = (comp.rounds || []).filter(r => !r.id.includes('ko') && comp.format !== 'cup' && comp.category !== 'copa_flash_dupla');
   
-  const championTeam = useMemo(() => {
-    if (!comp.rounds || comp.rounds.length === 0) return null;
-    if (comp.format === 'cup' || comp.format === 'groups' || comp.category === 'copa_flash_dupla') {
-      if (knockoutRounds.length === 0) return null;
-      const lastRound = knockoutRounds[knockoutRounds.length - 1]; const finalMatches = lastRound.matches.filter(m => !m.id.includes('_3rd'));
-      if (finalMatches.length === 0) return null; let allApproved = true; let totalScoreA = 0; let totalScoreB = 0; let lastPenA = null; let lastPenB = null; let tA = finalMatches[0].teamA; let tB = finalMatches[0].teamB;
-      if(!tA || !tB) return null;
-      for (let fm of finalMatches) {
-         const sUI = matches.find(m => m.matchId === fm.id && m.compId === comp.id && m.status === 'approved');
-         if (!sUI) { allApproved = false; break; }
-         if (fm.teamA === tA) { totalScoreA += Number(sUI.scoreA || 0); totalScoreB += Number(sUI.scoreB || 0); if (sUI.penaltiesA !== null && sUI.penaltiesA !== undefined) { lastPenA = Number(sUI.penaltiesA); lastPenB = Number(sUI.penaltiesB); } } else { totalScoreA += Number(sUI.scoreB || 0); totalScoreB += Number(sUI.scoreA || 0); if (sUI.penaltiesB !== null && sUI.penaltiesB !== undefined) { lastPenA = Number(sUI.penaltiesB); lastPenB = Number(sUI.penaltiesA); } }
-      }
-      if (allApproved) { if (totalScoreA > totalScoreB) return getTeam(tA); if (totalScoreB > totalScoreA) return getTeam(tB); if (lastPenA !== null && lastPenB !== null) { if (lastPenA > lastPenB) return getTeam(tA); if (lastPenB > lastPenA) return getTeam(tB); } }
-    } else if (comp.format === 'league') {
-      const totalMatches = groupOrNormalRounds.reduce((acc, r) => acc + r.matches.length, 0); const approvedMatches = matches.filter(m => m.compId === comp.id && m.status === 'approved').length;
-      if (totalMatches > 0 && approvedMatches === totalMatches) { const standings = calculateStandings(matches, compTeams, comp.id); return standings.length > 0 ? standings[0] : null; }
-    } return null;
-  }, [comp, matches, knockoutRounds, groupOrNormalRounds, teams]);
+  const championTeams = useMemo(() => {
+    const ids = getChampionIds(comp, matches, teams);
+    return ids.map(id => getTeam(id)).filter(Boolean);
+  }, [comp, matches, teams]);
 
   if (comp.status === 'drawing') {
     // SE FOR O ADMIN, RENDERIZA O PAINEL DE SORTEIO GIGANTE
