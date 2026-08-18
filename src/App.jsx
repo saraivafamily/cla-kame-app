@@ -90,23 +90,42 @@ const calculateStandings = (matches, teams, compId) => {
   return Object.values(table).map(t => ({ ...t, gd: t.gf - t.ga })).sort((a, b) => { if (b.pts !== a.pts) return b.pts - a.pts; if (b.w !== a.w) return b.w - a.w; if (b.gd !== a.gd) return b.gd - a.gd; return b.gf - a.gf; });
 };
 
-const getChampionId = (comp, matches, teams) => {
-  if (!comp || !comp.rounds || comp.rounds.length === 0) return null;
-  if (comp.format === 'cup' || comp.format === 'groups') {
-    const knockoutRounds = comp.rounds.filter(r => r.id.includes('ko') || comp.format === 'cup');
-    if (knockoutRounds.length === 0) return null;
+const getChampionIds = (comp, matches, teams) => {
+  if (!comp || !comp.rounds || comp.rounds.length === 0) return [];
+  if (comp.format === 'cup' || comp.format === 'groups' || comp.category === 'copa_flash_dupla') {
+    const knockoutRounds = comp.rounds.filter(r => r.id.includes('ko') || comp.format === 'cup' || comp.category === 'copa_flash_dupla');
+    if (knockoutRounds.length === 0) return [];
     const lastRound = knockoutRounds[knockoutRounds.length - 1];
-    
-    // Ignora a disputa de 3º lugar para calcular o campeão
     const finalMatches = lastRound.matches.filter(m => !m.id.includes('_3rd'));
-    if (finalMatches.length === 0) return null;
+    if (finalMatches.length === 0) return [];
+
+    if (comp.category === 'copa_flash_dupla') {
+        const mIda = finalMatches[0];
+        const mVolta = finalMatches[1];
+        if (!mIda || !mVolta) return [];
+        
+        const sIda = matches.find(m => m.matchId === mIda.id && m.compId === comp.id && m.status === 'approved');
+        const sVolta = matches.find(m => m.matchId === mVolta.id && m.compId === comp.id && m.status === 'approved');
+        if (!sIda || !sVolta) return [];
+        
+        const scoreDuplaA = Number(sIda.scoreA || 0) + Number(sVolta.scoreB || 0);
+        const scoreDuplaB = Number(sIda.scoreB || 0) + Number(sVolta.scoreA || 0);
+        const penDuplaA = Number(sIda.penaltiesA || 0) + Number(sVolta.penaltiesB || 0);
+        const penDuplaB = Number(sIda.penaltiesB || 0) + Number(sVolta.penaltiesA || 0);
+        
+        if (scoreDuplaA > scoreDuplaB) return [mIda.duplaA?.p1, mIda.duplaA?.p2].filter(Boolean);
+        if (scoreDuplaB > scoreDuplaA) return [mIda.duplaB?.p1, mIda.duplaB?.p2].filter(Boolean);
+        if (penDuplaA > penDuplaB) return [mIda.duplaA?.p1, mIda.duplaA?.p2].filter(Boolean);
+        if (penDuplaB > penDuplaA) return [mIda.duplaB?.p1, mIda.duplaB?.p2].filter(Boolean);
+        return [];
+    }
 
     let allApproved = true;
     let totalScoreA = 0; let totalScoreB = 0;
     let lastPenA = null; let lastPenB = null;
     let tA = finalMatches[0].teamA; let tB = finalMatches[0].teamB;
 
-    if(!tA || !tB) return null;
+    if(!tA || !tB) return [];
 
     for (let fm of finalMatches) {
        const sUI = matches.find(m => m.matchId === fm.id && m.compId === comp.id && m.status === 'approved');
@@ -122,11 +141,11 @@ const getChampionId = (comp, matches, teams) => {
     }
 
     if (allApproved) {
-       if (totalScoreA > totalScoreB) return tA;
-       if (totalScoreB > totalScoreA) return tB;
+       if (totalScoreA > totalScoreB) return [tA];
+       if (totalScoreB > totalScoreA) return [tB];
        if (lastPenA !== null && lastPenB !== null) {
-          if (lastPenA > lastPenB) return tA;
-          if (lastPenB > lastPenA) return tB;
+          if (lastPenA > lastPenB) return [tA];
+          if (lastPenB > lastPenA) return [tB];
        }
     }
   } else if (comp.format === 'league') {
@@ -136,10 +155,10 @@ const getChampionId = (comp, matches, teams) => {
     if (totalMatches > 0 && approvedMatches === totalMatches) {
       const compTeams = teams.filter(t => comp.teams?.includes(t.id));
       const standings = calculateStandings(matches, compTeams, comp.id);
-      return standings.length > 0 ? standings[0].id : null;
+      return standings.length > 0 ? [standings[0].id] : [];
     }
   }
-  return null;
+  return [];
 };
 
 const generateRoundRobin = (teams, compId, isDoubleRound = false) => {
@@ -816,14 +835,30 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
         });
       });
       
-      const champId = getChampionId(c, matches, teams);
-      if (champId) {
-         if (stats[champId]) { stats[champId].points += ptsChamp; stats[champId].titles += 1; }
-         const finalMatch = koRounds[koRounds.length - 1]?.matches.find(m => !m.id.includes('_3rd'));
-         if (finalMatch) {
-            const viceId = finalMatch.teamA === champId ? finalMatch.teamB : finalMatch.teamA;
-            if (viceId && stats[viceId]) stats[viceId].points += ptsVice;
+      const champIds = getChampionIds(c, matches, teams);
+      if (champIds.length > 0) {
+         champIds.forEach(id => {
+            if (stats[id]) { stats[id].points += ptsChamp; stats[id].titles += 1; }
+         });
+
+         const finalMatches = koRounds[koRounds.length - 1]?.matches.filter(m => !m.id.includes('_3rd')) || [];
+         let viceIds = [];
+         
+         if (c.category === 'copa_flash_dupla' && finalMatches.length >= 2) {
+             const mIda = finalMatches[0];
+             if (champIds.includes(mIda.duplaA?.p1)) {
+                 viceIds = [mIda.duplaB?.p1, mIda.duplaB?.p2].filter(Boolean);
+             } else {
+                 viceIds = [mIda.duplaA?.p1, mIda.duplaA?.p2].filter(Boolean);
+             }
+         } else if (finalMatches.length > 0) {
+             const viceId = finalMatches[0].teamA === champIds[0] ? finalMatches[0].teamB : finalMatches[0].teamA;
+             if (viceId) viceIds.push(viceId);
          }
+         
+         viceIds.forEach(id => {
+            if (stats[id]) stats[id].points += ptsVice;
+         });
       } else {
          const hasThirdPlaceMatch = koRounds.length > 0 && koRounds[koRounds.length - 1].matches.some(m => m.id.includes('_3rd'));
          if (!hasThirdPlaceMatch) {
@@ -1428,26 +1463,25 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
     }
   });
 
-  // 🌟 LEITURA DINÂMICA DE TÍTULOS (Com Nomes Reais para Copas)
-  let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0;
-  let copasFlash = 0;
-  let customTitles = {};
-  
-  (competitions || []).forEach(c => {
-     const champId = getChampionId(c, matches, teams);
-     if (champId === team.id) {
-         if (c.category === 'liga_a' || c.category === 'liga_main') ligaA++;
-         else if (c.category === 'liga_b') ligaB++;
-         else if (c.category === 'liga_c') ligaC++;
-         else if (c.category === 'liga_d') ligaD++;
-         else if (c.category === 'copa_flash') copasFlash++;
-         else {
-             // Qualquer outro torneio (Copas Oficiais ou torneios antigos) pega o nome exato!
-             const compName = c.name || 'Torneio Oficial';
-             customTitles[compName] = (customTitles[compName] || 0) + 1;
-         }
-     }
-  });
+  // 🌟 LEITURA DINÂMICA DE TÍTULOS
+          let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0;
+          let copasFlash = 0;
+          let customTitles = {};
+          
+          (competitions || []).forEach(c => {
+             const champIds = getChampionIds(c, matches, teams);
+             if (champIds.includes(team.id)) {
+                 if (c.category === 'liga_a' || c.category === 'liga_main') ligaA++;
+                 else if (c.category === 'liga_b') ligaB++;
+                 else if (c.category === 'liga_c') ligaC++;
+                 else if (c.category === 'liga_d') ligaD++;
+                 else if (c.category === 'copa_flash' || c.category === 'copa_flash_dupla') copasFlash++;
+                 else {
+                     const compName = c.name || 'Torneio Oficial';
+                     customTitles[compName] = (customTitles[compName] || 0) + 1;
+                 }
+             }
+          });
 
   const conquistas = [];
   
@@ -3068,11 +3102,30 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
         </div>
       )}
 
-      {championTeam && (
+      {championTeams && championTeams.length > 0 && (
         <div className="bg-gradient-to-r from-amber-500 via-yellow-600 to-amber-700 p-6 rounded-3xl border border-amber-400 shadow-[0_0_30px_rgba(245,158,11,0.4)] text-blue-950 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
           <div className="absolute -inset-10 bg-white/10 blur-2xl rounded-full transform -rotate-45 animate-pulse"></div>
-          <div className="flex items-center gap-5 relative z-10"><div className="bg-blue-950/20 p-2.5 rounded-full shadow-inner transform hover:rotate-12"><ShieldDisplay shield={championTeam.shield} size="large" /></div><div><span className="text-[10px] bg-blue-950 text-amber-400 px-2.5 py-0.5 rounded-full uppercase font-black">🏆 GRANDE CAMPEÃO 🏆</span><h3 className="text-2xl font-black text-white mt-1.5 uppercase tracking-wide">{championTeam.name}</h3><p className="text-xs font-bold text-blue-950 uppercase mt-0.5 tracking-wider">Técnico Glorioso: <span className="text-white">{championTeam.coach}</span></p></div></div>
-          <div className="flex items-center gap-3 bg-blue-950/20 px-5 py-3 rounded-2xl relative z-10 w-full md:w-auto"><Trophy className="text-white animate-bounce" size={44} style={{ animationDuration: '3s' }} /><div className="text-left"><p className="text-[9px] uppercase font-black tracking-widest text-blue-950">Troféu de Elite</p><p className="text-sm font-black text-white leading-tight uppercase max-w-[180px] truncate">{comp.name}</p></div></div>
+          
+          {championTeams.length === 1 ? (
+             <div className="flex items-center gap-5 relative z-10"><div className="bg-blue-950/20 p-2.5 rounded-full shadow-inner transform hover:rotate-12"><ShieldDisplay shield={championTeams[0].shield} size="large" /></div><div><span className="text-[10px] bg-blue-950 text-amber-400 px-2.5 py-0.5 rounded-full uppercase font-black">🏆 GRANDE CAMPEÃO 🏆</span><h3 className="text-2xl font-black text-white mt-1.5 uppercase tracking-wide">{championTeams[0].name}</h3><p className="text-xs font-bold text-blue-950 uppercase mt-0.5 tracking-wider">Técnico Glorioso: <span className="text-white">{championTeams[0].coach}</span></p></div></div>
+          ) : (
+             <div className="flex items-center gap-5 relative z-10 w-full md:w-auto justify-center">
+                 <div className="flex flex-col items-center gap-2">
+                    <ShieldDisplay shield={championTeams[0]?.shield} size="large" />
+                    <span className="font-black text-white text-sm uppercase">{championTeams[0]?.name}</span>
+                 </div>
+                 <div className="text-center mx-2 mt-4 md:mt-0">
+                    <span className="text-[10px] bg-blue-950 text-amber-400 px-2.5 py-0.5 rounded-full uppercase font-black tracking-widest block mb-2 shadow-lg">🏆 DUPLA CAMPEÃ 🏆</span>
+                    <span className="text-3xl font-black text-blue-950 drop-shadow-md">&</span>
+                 </div>
+                 <div className="flex flex-col items-center gap-2">
+                    <ShieldDisplay shield={championTeams[1]?.shield} size="large" />
+                    <span className="font-black text-white text-sm uppercase">{championTeams[1]?.name}</span>
+                 </div>
+             </div>
+          )}
+
+          <div className="flex items-center gap-3 bg-blue-950/20 px-5 py-3 rounded-2xl relative z-10 w-full md:w-auto mt-4 md:mt-0"><Trophy className="text-white animate-bounce" size={44} style={{ animationDuration: '3s' }} /><div className="text-left"><p className="text-[9px] uppercase font-black tracking-widest text-blue-950">Troféu de Elite</p><p className="text-sm font-black text-white leading-tight uppercase max-w-[180px] truncate">{comp.name}</p></div></div>
         </div>
       )}
 
