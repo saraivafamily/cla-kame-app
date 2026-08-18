@@ -5044,7 +5044,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
             {(() => {
               const m = availableMatches.find(x=>x.id===selectedMatchId);
               const isDupla = selectedComp?.category === 'copa_flash_dupla';
-              const isIda = m?.id.includes('_ida');
+              const isIda = m?.id?.includes('_ida'); // 👈 O segredo está neste ponto de interrogação extra!
               const hideOpponent = isDupla && isIda && !isAdmin;
 
               const teamAObj = teams.find(t=>t.id===m?.teamA);
