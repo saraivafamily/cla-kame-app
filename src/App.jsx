@@ -964,13 +964,13 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
           let customTitles = {};
           
           (competitions || []).forEach(c => {
-             const champId = getChampionId(c, matches, teams);
-             if (champId === team.id) {
+             const champIds = getChampionIds(c, matches, teams);
+             if (champIds.includes(team.id)) {
                  if (c.category === 'liga_a' || c.category === 'liga_main') ligaA++;
                  else if (c.category === 'liga_b') ligaB++;
                  else if (c.category === 'liga_c') ligaC++;
                  else if (c.category === 'liga_d') ligaD++;
-                 else if (c.category === 'copa_flash') copasFlash++;
+                 else if (c.category === 'copa_flash' || c.category === 'copa_flash_dupla') copasFlash++;
                  else {
                      const compName = c.name || 'Torneio Oficial';
                      customTitles[compName] = (customTitles[compName] || 0) + 1;
