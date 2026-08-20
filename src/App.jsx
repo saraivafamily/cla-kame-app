@@ -4659,21 +4659,14 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
         const safeKey = userApiKey.trim();
         
-        const endpoints = [
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`
-        ];
-        
+       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`;
         let resultJson;
-        let lastErrorMsg = "Erro desconhecido";
-
-        for (const url of endpoints) {
-          if (resultJson) break;
-          try {
-            const response = await fetch(url, { 
-              method: 'POST', 
-              headers: { 'Content-Type': 'application/json' }, 
-              body: JSON.stringify(payload) 
-            });
+        
+        const response = await fetch(endpoint, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(payload) 
+        });
             
             if (!response.ok) {
                const errData = await response.json().catch(() => null);
