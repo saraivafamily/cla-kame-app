@@ -4659,8 +4659,13 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
         const safeKey = userApiKey.trim();
         
-        // CÓDIGO BLINDADO: Tenta os 3 modelos de imagem do Google. Se um estiver fora do ar (404), ele pula pro próximo!
-        const modelsToTry = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"];
+        // 🌟 LISTA ATUALIZADA (2026): Tenta os modelos modernos e genéricos do Google.
+        const modelsToTry = [
+          "gemini-2.5-flash",
+          "gemini-2.0-flash",
+          "gemini-flash",
+          "gemini-1.5-flash"
+        ];
         
         let resultJson = null;
         let lastErrorMsg = "";
@@ -4682,7 +4687,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
                 const errorMsg = errData?.error?.message || `Erro ${response.status}`;
                 lastErrorMsg = errorMsg;
                 
-                // Se a chave for inválida, aborta na hora
+                // Se a chave for inválida, aborta na hora e limpa a chave errada
                 if (response.status === 403 || (response.status === 400 && errorMsg.includes("API key not valid"))) {
                   try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
                   setUserApiKey(''); setShowKeyInput(true);
