@@ -4658,7 +4658,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         };
 
         const safeKey = userApiKey.trim();
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${safeKey}`;
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`;
         
         // Chamada limpa e direta para o modelo mais recente e rápido
         const response = await fetch(endpoint, { 
