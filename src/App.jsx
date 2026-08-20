@@ -4621,7 +4621,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
 
     if (!userApiKey) {
       setShowKeyInput(true);
-      showToast("Por favor, cole a sua chave do Gemini primeiro.", "error");
+      showToast("Por favor, cole a sua chave da Groq primeiro.", "error");
       return;
     }
 
@@ -4639,53 +4639,62 @@ REGRAS:
 4. CARTÕES possuem um ícone retangular (🟨/🟥). IGNORE COMPLETAMENTE os jogadores com cartões.
 5. Liste os jogadores e minutos agrupando por quem está no lado esquerdo ou direito. Remova os parênteses dos minutos.
 
-Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e não escreva mais nada.
+Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e não escreva mais nada além do JSON:
 {
-  "leftTeamName": "nome lido no escudo da esquerda",
+  "leftTeamName": "nome",
   "leftScore": 0,
-  "leftGoals": [{"player": "Nome do Goleador", "assist": "Nome da Assistência ou vazio", "minute": "90"}],
-  "rightTeamName": "nome lido no escudo da direita",
+  "leftGoals": [{"player": "Nome", "assist": "Nome ou vazio", "minute": "90"}],
+  "rightTeamName": "nome",
   "rightScore": 0,
-  "rightGoals": [{"player": "Nome do Goleador", "assist": "", "minute": "90"}]
+  "rightGoals": [{"player": "Nome", "assist": "", "minute": "90"}]
 }`;
-        
-        const mimeType = base64.match(/data:(.*?);base64/)[1];
-        const base64ImageData = base64.split(',')[1];
 
         const payload = {
-          contents: [{ role: "user", parts: [ { text: prompt }, { inlineData: { mimeType: mimeType, data: base64ImageData } } ] }],
-          generationConfig: { responseMimeType: "application/json" }
+          model: "llama-3.2-90b-vision-preview",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: prompt },
+                { type: "image_url", image_url: { url: base64 } }
+              ]
+            }
+          ],
+          max_tokens: 1000,
+          temperature: 0.2
         };
 
-        const safeKey = userApiKey.trim();
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`;
-        
-        // Chamada limpa e direta para o modelo mais recente e rápido
-        const response = await fetch(endpoint, { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify(payload) 
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${userApiKey.trim()}`
+          },
+          body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
            const errData = await response.json().catch(() => null);
-           const errorMsg = errData?.error?.message || `Erro ${response.status}`;
+           const errorMsg = errData?.error?.message || `Erro HTTP ${response.status}`;
            
-           if (response.status === 403 || response.status === 401 || errorMsg.includes("API key not valid")) {
+           if (response.status === 401 || errorMsg.includes("invalid_api_key")) {
              try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
              setUserApiKey(''); setShowKeyInput(true);
-             throw new Error("Sua chave do Gemini é inválida ou foi recusada. Cole uma chave nova.");
+             throw new Error("Sua chave da Groq é inválida. Verifique se copiou corretamente.");
+           }
+           if (response.status === 429) {
+             throw new Error("Limite temporário de envios da conta gratuita atingido. Tente em instantes.");
            }
            throw new Error(errorMsg);
         }
         
         const resultJson = await response.json();
 
-        if (!resultJson || !resultJson.candidates) {
-           throw new Error(`Falha do Google ao processar a imagem.`);
+        if (!resultJson.choices || resultJson.choices.length === 0) {
+           throw new Error("Falha da IA ao processar a imagem.");
         }
 
-        let textResponse = resultJson.candidates[0].content.parts[0].text.trim();
+        let textResponse = resultJson.choices[0].message.content.trim();
         textResponse = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
         
         const data = JSON.parse(textResponse);
@@ -4709,11 +4718,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
           setGoalsA(data.rightGoals || []); setGoalsB(data.leftGoals || []);
         }
 
-        if (showToast) showToast("Dados extraídos do Print pela IA!", "success");
+        if (showToast) showToast("Dados extraídos do Print com sucesso!", "success");
         setImageUploaded(true);
 
       } catch (error) {
-        console.error("Erro IA:", error);
+        console.error("Erro Groq:", error);
         if (showToast) { showToast(`Falha: ${error.message.substring(0, 100)}`, "error"); } else { alert(`Falha na IA: ${error.message}`); }
         setMatchImageBase64(null); 
       } finally {
@@ -4910,13 +4919,13 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         
         {showKeyInput && (
           <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl animate-in slide-in-from-top-4">
-            <h3 className="text-sm font-bold text-amber-400 mb-2 flex items-center gap-2"><Key size={16}/> Chave de Ativação do Gemini</h3>
-            <p className="text-xs text-blue-400 mb-3">Para usar a leitura inteligente de Prints, cole a sua chave exclusiva do <b>Google AI Studio</b>. Ela ficará salva apenas no seu navegador.</p>
+            <h3 className="text-sm font-bold text-amber-400 mb-2 flex items-center gap-2"><Key size={16}/> Chave de Ativação Gratuita (Groq)</h3>
+            <p className="text-xs text-blue-400 mb-3">Para usar a leitura inteligente de Prints sem pagar nada, usaremos a IA da <b>Groq (Llama 3)</b>. Cole a sua chave abaixo.</p>
             <div className="flex gap-2">
-              <input type="password" value={tempKey} onChange={e=>setTempKey(e.target.value)} placeholder="Ex: AIzaSy... ou AQAQ..." className="flex-1 bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
+              <input type="password" value={tempKey} onChange={e=>setTempKey(e.target.value)} placeholder="Ex: gsk_..." className="flex-1 bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-sm outline-none focus:border-amber-500" />
               <button onClick={handleSaveApiKey} className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-amber-900/50">Salvar</button>
             </div>
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] text-emerald-400 hover:underline mt-2 inline-block">Clique aqui para gerar uma chave grátis ➔</a>
+            <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="text-[10px] text-emerald-400 hover:underline mt-2 inline-block">Clique aqui para ir à Groq, faça login e gere sua chave gratuita ➔</a>
           </div>
         )}
 
