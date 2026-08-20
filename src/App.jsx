@@ -4661,9 +4661,9 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         
         // 🌟 LISTA BLINDADA (2026): Nomes exatos dos modelos que o Google não deletou.
         const modelsToTry = [
-          "gemini-1.5-flash-8b",  // O modelo mais leve e rápido do Google atualmente
-          "gemini-1.5-flash-002", // O modelo mais estável (se o de cima falhar)
-          "gemini-1.5-flash",
+          "gemini-3.7-flash",
+          "gemini-3.5-flash",
+          "gemini-1.5-flash-002",
           "gemini-1.5-pro-002"
         ];
         
