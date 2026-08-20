@@ -4658,38 +4658,31 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
         };
 
         const safeKey = userApiKey.trim();
-        
-       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`;
-        let resultJson;
-        
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`;
+
+        // Chamada limpa e direta para o modelo mais recente e rápido
         const response = await fetch(endpoint, { 
           method: 'POST', 
           headers: { 'Content-Type': 'application/json' }, 
           body: JSON.stringify(payload) 
         });
-            
-            if (!response.ok) {
-               const errData = await response.json().catch(() => null);
-               const errorMsg = errData?.error?.message || `Erro ${response.status}`;
-               lastErrorMsg = errorMsg;
-               
-               if (response.status === 403 || response.status === 401 || errorMsg.includes("API key not valid")) {
-                 try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
-                 setUserApiKey(''); setShowKeyInput(true);
-                 throw new Error("Sua chave do Gemini é inválida ou foi recusada. Cole uma chave nova.");
-               }
-               
-               throw new Error(errorMsg);
-            }
-            resultJson = await response.json();
-          } catch (error) {
-            lastErrorMsg = error.message;
-            if (error.message.includes("inválida")) throw error;
-          }
+
+        if (!response.ok) {
+           const errData = await response.json().catch(() => null);
+           const errorMsg = errData?.error?.message || `Erro ${response.status}`;
+           
+           if (response.status === 403 || response.status === 401 || errorMsg.includes("API key not valid")) {
+             try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
+             setUserApiKey(''); setShowKeyInput(true);
+             throw new Error("Sua chave do Gemini é inválida ou foi recusada. Cole uma chave nova.");
+           }
+           throw new Error(errorMsg);
         }
+        
+        const resultJson = await response.json();
 
         if (!resultJson || !resultJson.candidates) {
-           throw new Error(`Falha do Google: ${lastErrorMsg}`);
+           throw new Error(`Falha do Google ao processar a imagem.`);
         }
 
         let textResponse = resultJson.candidates[0].content.parts[0].text.trim();
@@ -4728,7 +4721,7 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
       }
     });
   };
-
+  
   const handleImageUpload = (e) => {
     runAIOnFile(e.target.files[0]);
   };
