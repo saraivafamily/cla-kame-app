@@ -4659,34 +4659,49 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
         const safeKey = userApiKey.trim();
         
-        // Usando o modelo de produção mais rápido e estável do Google
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${safeKey}`;
+        // 🌟 LISTA BLINDADA (2026): Nomes exatos dos modelos que o Google não deletou.
+        const modelsToTry = [
+          "gemini-3.7-flash",
+          "gemini-3.5-flash",
+          "gemini-1.5-flash-002",
+          "gemini-1.5-pro-002"
+        ];
         
-        const response = await fetch(endpoint, { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify(payload) 
-        });
+        let resultJson = null;
+        let lastErrorMsg = "";
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => null);
-          const errorMsg = errData?.error?.message || `Erro HTTP ${response.status}`;
-          
-          // Tratamento específico para chave inválida/vencida
-          if (response.status === 403 || errorMsg.toLowerCase().includes("api key") || errorMsg.toLowerCase().includes("key not valid")) {
-            try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
-            setUserApiKey(''); 
-            setShowKeyInput(true);
-            throw new Error("A chave do Google está inválida ou vencida. Gere e cole uma NOVA CHAVE.");
-          }
-          
-          throw new Error(errorMsg);
+        for (const modelName of modelsToTry) {
+           const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${safeKey}`;
+           try {
+             const response = await fetch(endpoint, { 
+               method: 'POST', 
+               headers: { 'Content-Type': 'application/json' }, 
+               body: JSON.stringify(payload) 
+             });
+
+             if (response.ok) {
+                resultJson = await response.json();
+                break; // Achou um modelo vivo! Sai do loop.
+             } else {
+                const errData = await response.json().catch(() => null);
+                const errorMsg = errData?.error?.message || `Erro ${response.status}`;
+                lastErrorMsg = errorMsg;
+                
+                // Se a chave for inválida de fato, aborta imediatamente
+                if (response.status === 403 || (response.status === 400 && errorMsg.includes("API key not valid"))) {
+                  try { localStorage.removeItem('gemini_api_key'); } catch(e) {}
+                  setUserApiKey(''); setShowKeyInput(true);
+                  throw new Error("Sua chave do Gemini é inválida. Cole uma nova.");
+                }
+             }
+           } catch (err) {
+             if (err.message.includes('inválida')) throw err;
+             lastErrorMsg = err.message;
+           }
         }
 
-        const resultJson = await response.json();
-
         if (!resultJson || !resultJson.candidates) {
-           throw new Error("Falha do Google ao retornar os dados da imagem.");
+           throw new Error(`Falha do Google. Último erro: ${lastErrorMsg}`);
         }
 
         let textResponse = resultJson.candidates[0].content.parts[0].text.trim();
