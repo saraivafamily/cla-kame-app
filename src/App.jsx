@@ -1205,10 +1205,10 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
       <div className="bg-gradient-to-r from-emerald-900/50 to-blue-900 p-6 rounded-2xl border border-emerald-900/50 shadow-xl">
         <h2 className="text-2xl font-bold text-white mb-2">QG Clã Kame</h2>
-        <p className="text-blue-400">Gerencie e acompanhe seus resultados do DLS.</p>
+        <p className="text-blue-400">Um app para guardar a sua história!</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {hasAdminAccess && (
           <button onClick={() => onChangeTab('competitions')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
             <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
@@ -1217,18 +1217,28 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
             <span className="text-xs font-bold text-blue-200">Registrar/Validar</span>
           </button>
         )}
+        
+        <button onClick={() => onChangeTab('predictions')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
+          <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
+            <Dices size={20} className="text-amber-500" />
+          </div>
+          <span className="text-xs font-bold text-blue-200">KameBet</span>
+        </button>
+
         <button onClick={() => onChangeTab('profile')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
           <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
             <Shield size={20} className="text-amber-400" />
           </div>
           <span className="text-xs font-bold text-blue-200">Meu Perfil</span>
         </button>
+
         <button onClick={() => onChangeTab('ranking')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
           <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
             <Trophy size={20} className="text-purple-400" />
           </div>
           <span className="text-xs font-bold text-blue-200">Ranking Xclã</span>
         </button>
+
         <button onClick={() => onChangeTab('rules')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
           <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
             <BookOpen size={20} className="text-sky-400" />
@@ -2044,7 +2054,11 @@ const DrawPanel = ({ comp, teams, matches, showToast }) => {
   const [winners, setWinners] = useState([]);
 
   // 1. Pega a Classificação Atual
-  const standings = useMemo(() => calculateStandings(matches, teams, comp.id), [matches, teams, comp.id]);
+  const standings = useMemo(() => {
+    // Filtra para manter APENAS os times que estão inscritos nesta competição
+    const compTeams = (teams || []).filter(t => comp.teams?.includes(t.id));
+    return calculateStandings(matches, compTeams, comp.id);
+  }, [matches, teams, comp]);
 
   // 2. Identifica os perdedores por W.O.
   const woLosers = useMemo(() => {
@@ -4547,7 +4561,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
         round.matches.forEach(rm => {
           const alreadySubmitted = matches.some(m => m.matchId === rm.id && m.compId === comp.id && (m.status === 'pending' || m.status === 'approved'));
           if (!alreadySubmitted && rm.teamA && rm.teamB && (amIAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
-            toPlay.push({ ...rm, roundId: round.id });
+            toPlay.push({ ...rm, roundId: round.id, rounName:round.number});
           }
         });
       });
