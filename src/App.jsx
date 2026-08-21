@@ -4563,7 +4563,7 @@ const SubmitMatch = ({ teams, competitions, matches, onSubmit, currentUser, show
         round.matches.forEach(rm => {
           const alreadySubmitted = matches.some(m => m.matchId === rm.id && m.compId === comp.id && (m.status === 'pending' || m.status === 'approved'));
           if (!alreadySubmitted && rm.teamA && rm.teamB && (amIAdmin || userTeamIds.includes(rm.teamA) || userTeamIds.includes(rm.teamB))) {
-            toPlay.push({ ...rm, roundId: round.id, rounName:round.number});
+            toPlay.push({ ...rm, roundId: round.id, roundName: round.number }); // 👈 AQUI!
           }
         });
       });
