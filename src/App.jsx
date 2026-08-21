@@ -2818,6 +2818,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
          qualifiers[`${idx + 1}º do Grupo ${gName}`] = row.id; 
          qualifiers[`${idx + 1}º Gr.${gName}`] = row.id; // 👈 Faltava essa nomenclatura para o link funcionar!
       });
+      
     const updatedRounds = comp.rounds.map(round => {
       const newMatches = round.matches.map(m => {
         let newA = m.teamA; let newB = m.teamB;
