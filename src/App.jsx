@@ -3080,7 +3080,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setShowEditSettings(false)} className="px-4 py-2 bg-blue-900 border border-blue-700 rounded-lg text-xs text-blue-300 hover:text-white">Cancelar</button>
             <button onClick={() => { 
-              const CAT_NAMES = { liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D', liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash (Duplas)', copa_do_rei: 'Copa do Rei', copa_estrela: 'Copa das estrelas', copa_amazonia: 'Copa da Amazônia' }; 
+              const CAT_NAMES = { liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D', liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash (Duplas)', copa_do_rei: 'Copa do Rei', copa_estrelas: 'Copa das Estrelas', copa_amazonia: 'Copa da Amazônia' }; 
               const cleanCatName = CAT_NAMES[settingsData.category] || 'Competição'; 
               
               onEditComp({ 
