@@ -2609,8 +2609,10 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     excludedCompIds: comp?.excludedCompIds || [] 
   });
 
+  // 🌟 ESTADOS PARA O GERENCIADOR DE GRUPOS
   const [showEditGroups, setShowEditGroups] = useState(false);
   const [teamGroupMapping, setTeamGroupMapping] = useState({});
+  const [newGroupName, setNewGroupName] = useState('');
 
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -3101,6 +3103,60 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
         </div>
       )}
 
+              {/* 👥 GERENCIADOR DE GRUPOS */}
+      {showEditGroups && (
+        <div className="bg-purple-900/30 border border-purple-500/50 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4 shadow-xl mb-6">
+          <h3 className="text-sm font-black text-purple-400 uppercase tracking-wider flex items-center gap-2">
+            <Users size={16}/> Gerenciar Divisão de Grupos
+          </h3>
+          <p className="text-xs text-blue-300">Escolha a qual grupo cada time pertence. Isso vai reorganizar a tabela de classificação.</p>
+          
+          <div className="flex flex-col sm:flex-row gap-2 mt-4 pb-4 border-b border-purple-800/50">
+             <input type="text" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="Letra/Nome de um Novo Grupo (Opcional)" className="flex-1 bg-blue-950 border border-purple-700/50 rounded-lg p-2 text-white text-xs outline-none focus:border-purple-400 uppercase" />
+             <button onClick={() => {
+                if(!newGroupName) return;
+                const gn = newGroupName.trim().toUpperCase();
+                if(Object.values(teamGroupMapping).includes(gn)) { showToast("Esse grupo já existe!", "warning"); return; }
+                const currentUnassigned = Object.keys(teamGroupMapping).find(k => !teamGroupMapping[k]);
+                if (currentUnassigned) setTeamGroupMapping({...teamGroupMapping, [currentUnassigned]: gn});
+                setNewGroupName('');
+                showToast(`Grupo ${gn} disponibilizado para marcação!`, "success");
+             }} className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-md shrink-0">Criar Nova Coluna de Grupo</button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+            {compTeams.map(t => {
+              const currentGroup = teamGroupMapping[t.id] || 'A';
+              const uniqueGroups = Array.from(new Set(Object.values(teamGroupMapping)));
+              if (!uniqueGroups.includes('A')) uniqueGroups.push('A');
+              
+              return (
+                <div key={t.id} className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex flex-col gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ShieldDisplay shield={t.shield} size="small" />
+                    <span className="font-bold text-xs text-blue-100 truncate">{t.name}</span>
+                  </div>
+                  <select 
+                    value={currentGroup} 
+                    onChange={e => setTeamGroupMapping({...teamGroupMapping, [t.id]: e.target.value})}
+                    className="w-full bg-blue-900 border border-purple-500/30 rounded p-1.5 text-purple-300 text-xs font-bold outline-none cursor-pointer"
+                  >
+                    {uniqueGroups.sort((a,b)=>a.localeCompare(b)).map(g => (
+                      <option key={g} value={g}>Grupo {g}</option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-purple-800/50 mt-4">
+            <button onClick={() => setShowEditGroups(false)} className="px-4 py-2 bg-blue-950 border border-purple-700/50 rounded-lg text-xs text-purple-300 hover:text-white transition-colors">Cancelar</button>
+            <button onClick={handleSaveGroups} className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow-md transition-colors">💾 Salvar Divisão</button>
+          </div>
+        </div>
+      )}
+              
       {showEditPrizes && (
         <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
           <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">💰 Atualizar Prêmios</h3>
@@ -4000,9 +4056,10 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const [qualifiers, setQualifiers] = useState('2');
   const [isDoubleRound, setIsDoubleRound] = useState(false);
   const [isFinalDouble, setIsFinalDouble] = useState(false);
-  const [deadline, setDeadline] = useState('');
-  
-  const [startTime, setStartTime] = useState(''); 
+  const [registrationStartDate, setRegistrationStartDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [deadline, setDeadline] = useState(''); // Funciona como a Data Final
+  const [startTime, setStartTime] = useState('');
   
   const [flashDuration, setFlashDuration] = useState('60');
   const [isAutoJoin, setIsAutoJoin] = useState(true);
@@ -4119,7 +4176,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name || !format || !teamCount || !deadline || !startTime) { setError('Preencha os dados básicos do torneio (incluindo datas e horários).'); return; }
+    if (!name || !format || !teamCount || !registrationStartDate || !startDate || !deadline || !startTime) { setError('Preencha os dados básicos do torneio (incluindo todas as datas e horários).'); return; }
     const parsedTeamCount = parseInt(teamCount, 10);
     if (!isAutoJoin && selectedTeams.length !== parsedTeamCount) { setError(`Atenção: Você selecionou ${selectedTeams.length} times, mas o limite é ${parsedTeamCount}.`); return; }
     if (isAutoJoin && selectedTeams.length > parsedTeamCount) { setError(`Atenção: Você pré-confirmou mais times (${selectedTeams.length}) que o limite.`); return; }
@@ -4146,6 +4203,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
     const newComp = { 
       id: compId, name, format, deadline, startTime, category, playStyle, rules,
+      registrationStartDate, startDate, // 👈 Novas datas adicionadas aqui
       teamCount: parsedTeamCount,
       status: isAutoJoin ? 'registration' : 'active', 
       teams: selectedTeams, pendingTeams: [], rounds: finalRounds,
@@ -4207,8 +4265,10 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
             </div>
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Qtd. Total de Vagas (Times)</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-emerald-400 font-black text-lg focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Data Final/Prazo</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Início das Inscrições</label><input type="date" value={registrationStartDate} onChange={e=>setRegistrationStartDate(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Início da Competição</label><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Data Final / Prazo</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
               <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Horário de Início</label><input type="time" value={startTime} onChange={e=>setStartTime(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             </div>
             
