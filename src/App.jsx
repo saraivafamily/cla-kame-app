@@ -5331,6 +5331,8 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', whatsapp: '' });
 
+  const [searchTerm, setSearchTerm] = useState('');
+
   const startEdit = (u) => {
     setEditingId(u.id);
     setEditData({ name: u.name, whatsapp: u.whatsapp });
@@ -5343,6 +5345,27 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
     }
     onEditUser(u.id, editData);
     setEditingId(null);
+  };
+
+  const processedUsers = activeUsers
+    .filter(u => (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                 (teams.find(t => t.ownerId === u.id)?.name || '').toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+      const priorityA = getRolePriority(a.role);
+      const priorityB = getRolePriority(b.role);
+      
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB; // Menor número (maior patente) sobe
+      }
+      return (a.name || '').localeCompare(b.name || ''); // Ordem alfabética para mesma patente
+    });
+
+  const getRolePriority = (role) => {
+    if (role === 'leader') return 1;
+    if (role === 'kaioh') return 2;
+    if (role === 'organizer') return 3;
+    if (role === 'member') return 4;
+    return 5;
   };
 
   return (
