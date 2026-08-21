@@ -934,7 +934,7 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
           return (
             <div key={`rank_${team.id}`} className="shrink-0 w-full md:w-auto bg-gradient-to-br from-amber-600 to-amber-900 p-6 rounded-2xl border border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)] flex flex-col justify-center items-center md:items-end text-center md:text-right">
                <div className="flex items-center gap-2 mb-1">
-                 <span className="text-2xl drop-shadow-md">{dragon.icon}</span>
+                 <span className="text-2xl drop-shadow-md">{badge.icon}</span>
                  <p className="text-xs text-amber-100 uppercase font-black tracking-widest">Ranking Xclã</p>
                </div>
                <p className="text-4xl font-black text-white drop-shadow-md">{myRank}º <span className="text-lg font-bold text-amber-200">Lugar</span></p>
