@@ -5330,7 +5330,6 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
   
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', whatsapp: '' });
-
   const [searchTerm, setSearchTerm] = useState('');
 
   const startEdit = (u) => {
@@ -5347,26 +5346,29 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
     setEditingId(null);
   };
 
+  // 🌟 CÓDIGO BLINDADO: A lógica de pesos foi movida para DENTRO do sort 
+  // para não sofrer problemas de "initialization" (Tela Preta) no Vercel.
   const processedUsers = activeUsers
     .filter(u => (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
                  (teams.find(t => t.ownerId === u.id)?.name || '').toLowerCase().includes(searchTerm.toLowerCase()))
     .sort((a, b) => {
-      const priorityA = getRolePriority(a.role);
-      const priorityB = getRolePriority(b.role);
+      // O peso fica embutido aqui dentro, impossível dar erro de escopo!
+      const getPrio = (r) => {
+        if (r === 'leader') return 1;
+        if (r === 'kaioh') return 2;
+        if (r === 'organizer') return 3;
+        if (r === 'member') return 4;
+        return 5;
+      };
+      
+      const priorityA = getPrio(a.role);
+      const priorityB = getPrio(b.role);
       
       if (priorityA !== priorityB) {
-        return priorityA - priorityB; // Menor número (maior patente) sobe
+        return priorityA - priorityB; // Menor número sobe
       }
-      return (a.name || '').localeCompare(b.name || ''); // Ordem alfabética para mesma patente
+      return (a.name || '').localeCompare(b.name || ''); // Desempata no nome
     });
-
-  const getRolePriority = (role) => {
-    if (role === 'leader') return 1;
-    if (role === 'kaioh') return 2;
-    if (role === 'organizer') return 3;
-    if (role === 'member') return 4;
-    return 5;
-  };
 
   return (
     <div className="space-y-6 animate-in fade-in">
@@ -5399,7 +5401,7 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
             <Award className="text-emerald-500"/>
             <h2 className="font-bold text-white text-base">Gestão de Elenco / Técnicos</h2>
           </div>
-          {/* 🌟 NOVO: Barra de pesquisa embutida no cabeçalho */}
+          {/* Barra de pesquisa inteligente */}
           <input
             type="text"
             value={searchTerm}
@@ -5433,7 +5435,7 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
                   );
                 }
 
-                // Visualização Normal
+                // Visualização Normal (Ordenada por Hierarquia!)
                 return(
                   <tr key={u.id} className="hover:bg-blue-950/40">
                     <td className="p-3 font-bold text-blue-200">{u.name}</td><td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-blue-400">{u.whatsapp}</td>
