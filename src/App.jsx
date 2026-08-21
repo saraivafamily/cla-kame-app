@@ -884,7 +884,7 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
   const CATEGORY_NAMES = {
     liga_a: '🥇 Liga Kame A', liga_b: '🥈 Liga Kame B', liga_c: '🥉 Liga Kame C', liga_d: '🎖️ Liga Kame D',
     liga_acesso: '⬆️ Liga de Acesso', copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia',
-    copa_main: '🏆 Copas Oficiais', copa_flash: '⚡ Copa Flash', copa_flash_dupla: '👥 Copa Flash (Dupla)', outros: '🏅 Outros Torneios'
+    copa_main: '🏆 Copas Oficiais', copa_estrelas: '⭐ Copa das Estrelas', copa_flash: '⚡ Copa Flash', copa_flash_dupla: '👥 Copa Flash (Dupla)',  outros: '🏅 Outros Torneios'
   };
 
   // Ordem de importância na hora de exibir
@@ -2626,7 +2626,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const isAdmin = isLeader || comp?.creatorId === currentUser?.id || (comp?.admins || []).includes(currentUser?.id);
   
-  const CATEGORY_NAMES = { liga_a: '🥇 Liga Kame A', liga_b: '🥈 Liga Kame B', liga_c: '🥉 Liga Kame C', liga_d: '🎖️ Liga Kame D', liga_acesso: ' ⬆️ Liga de acesso', copa_main: '🏆 Copa Oficial', copa_flash: '⚡ Copa Flash', copa_flash_dupla: '👥 Copa Flash (Dupla)', copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia' };
+  const CATEGORY_NAMES = { liga_a: '🥇 Liga Kame A', liga_b: '🥈 Liga Kame B', liga_c: '🥉 Liga Kame C', liga_d: '🎖️ Liga Kame D', liga_acesso: ' ⬆️ Liga de acesso', copa_estrelas: '⭐ Copa das Estrelas', copa_main: '🏆 Copa Oficial', copa_flash: '⚡ Copa Flash', copa_flash_dupla: '👥 Copa Flash (Dupla)', copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia' };
 
   const activeRound = comp?.rounds?.find(r => r.status === 'released');
   const isFlash = comp?.category === 'copa_flash' || comp?.category === 'copa_flash_dupla';
@@ -3031,6 +3031,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                 <option value="liga_acesso">⬆️ Liga de Acesso</option>
                 <option value="copa_main">🏆 Copas Oficiais (Ex: Copa do Clã)</option>
                 <option value="copa_do_rei">👑 Copa do Rei</option>
+                <option value="copa_estrela"> ⭐ Copa das Estrelas</option>
                 <option value="copa_amazonia">🌳 Copa da Amazônia</option>
                 <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
                 <option value="copa_flash_dupla">👥 Copa Flash (Duplas)</option>
@@ -3079,7 +3080,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setShowEditSettings(false)} className="px-4 py-2 bg-blue-900 border border-blue-700 rounded-lg text-xs text-blue-300 hover:text-white">Cancelar</button>
             <button onClick={() => { 
-              const CAT_NAMES = { liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D', liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash (Duplas)', copa_do_rei: 'Copa do Rei', copa_amazonia: 'Copa da Amazônia' }; 
+              const CAT_NAMES = { liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D', liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash (Duplas)', copa_do_rei: 'Copa do Rei', copa_estrela: 'Copa das estrelas', copa_amazonia: 'Copa da Amazônia' }; 
               const cleanCatName = CAT_NAMES[settingsData.category] || 'Competição'; 
               
               onEditComp({ 
@@ -4021,7 +4022,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
   const CAT_NAMES = {
     liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D',
-    liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial', copa_do_rei: 'Copa do Rei',
+    liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial',copa_estrela: 'Copa das estrelas', copa_do_rei: 'Copa do Rei',
     copa_amazonia: 'Copa da Amazônia', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash em Duplas'
   };
 
@@ -4182,6 +4183,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
                 <option value="liga_d">🎖️ Liga Kame D (Série D)</option>
                 <option value="liga_acesso">⬆️ Liga de Acesso</option>
                 <option value="copa_main">🏆 Copas Oficiais</option>
+                <option value="copa_estrelas">⭐ Copa das Estrelas</option>
                 <option value="copa_do_rei">👑 Copa do Rei</option>
                 <option value="copa_amazonia">🌳 Copa da Amazônia</option>
                 <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
