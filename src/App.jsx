@@ -5394,48 +5394,65 @@ const MembersList = ({ users = [], teams = [], currentUser, onUpdateUserRole, on
       )}
 
       <div className="bg-blue-900 border border-blue-800 rounded-2xl overflow-hidden shadow-xl">
-        <div className="p-4 border-b border-blue-800 flex items-center gap-2"><Award className="text-emerald-500"/><h2 className="font-bold text-white text-base">Gestão de Elenco / Técnicos</h2></div>
+        <div className="p-4 border-b border-blue-800 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Award className="text-emerald-500"/>
+            <h2 className="font-bold text-white text-base">Gestão de Elenco / Técnicos</h2>
+          </div>
+          {/* 🌟 NOVO: Barra de pesquisa embutida no cabeçalho */}
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Pesquisar técnico ou clube..."
+            className="bg-blue-950 border border-blue-700 rounded-lg p-2 text-white text-xs outline-none focus:border-emerald-500 w-full sm:w-64"
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs whitespace-nowrap"><thead className="bg-blue-950/60 text-blue-400 font-bold border-b border-blue-800"><tr><th className="p-3">Técnico</th><th className="p-3">Clube</th><th className="p-3">WhatsApp</th><th className="p-3">Cargo</th><th className="p-3 text-center">Ação</th></tr></thead>
           <tbody className="divide-y divide-blue-800/40">
-            {activeUsers.map(u=>{ 
-              const t=teams.find(x=>x.ownerId===u.id); 
-              
-              // Modo de Edição
-              if (editingId === u.id) {
-                return (
-                  <tr key={u.id} className="bg-blue-950/80">
-                    <td className="p-3"><input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} className="bg-blue-900 border border-blue-700 rounded p-1 text-white w-full outline-none focus:border-emerald-500" /></td>
-                    <td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td>
-                    <td className="p-3"><input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} className="bg-blue-900 border border-blue-700 rounded p-1 text-white w-full outline-none focus:border-emerald-500" /></td>
-                    <td className="p-3"><span className="text-blue-500 italic">Editando...</span></td>
-                    <td className="p-3 flex justify-center gap-2">
-                      <button onClick={()=>setEditingId(null)} className="bg-blue-800 text-blue-400 px-3 py-1.5 rounded hover:bg-blue-700 transition-colors">Cancelar</button>
-                      <button onClick={()=>saveEdit(u)} className="bg-emerald-600 text-white px-3 py-1.5 rounded hover:bg-emerald-500 shadow-lg transition-colors">Salvar</button>
+            {processedUsers.length === 0 ? (
+              <tr><td colSpan="5" className="p-6 text-center text-blue-500 text-sm">Nenhum membro encontrado com essa busca.</td></tr>
+            ) : (
+              processedUsers.map(u => { 
+                const t = teams.find(x => x.ownerId === u.id); 
+                
+                // Modo de Edição
+                if (editingId === u.id) {
+                  return (
+                    <tr key={u.id} className="bg-blue-950/80">
+                      <td className="p-3"><input type="text" value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} className="bg-blue-900 border border-blue-700 rounded p-1 text-white w-full outline-none focus:border-emerald-500" /></td>
+                      <td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td>
+                      <td className="p-3"><input type="text" value={editData.whatsapp} onChange={e=>setEditData({...editData, whatsapp: e.target.value})} className="bg-blue-900 border border-blue-700 rounded p-1 text-white w-full outline-none focus:border-emerald-500" /></td>
+                      <td className="p-3"><span className="text-blue-500 italic">Editando...</span></td>
+                      <td className="p-3 flex justify-center gap-2">
+                        <button onClick={()=>setEditingId(null)} className="bg-blue-800 text-blue-400 px-3 py-1.5 rounded hover:bg-blue-700 transition-colors">Cancelar</button>
+                        <button onClick={()=>saveEdit(u)} className="bg-emerald-600 text-white px-3 py-1.5 rounded hover:bg-emerald-500 shadow-lg transition-colors">Salvar</button>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                // Visualização Normal
+                return(
+                  <tr key={u.id} className="hover:bg-blue-950/40">
+                    <td className="p-3 font-bold text-blue-200">{u.name}</td><td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-blue-400">{u.whatsapp}</td>
+                    <td className="p-3">
+                      <select disabled={!isSupremeLeader && currentUser?.id !== u.id} value={u.role || 'member'} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-blue-900 text-blue-300 border border-blue-700 rounded p-1 outline-none disabled:opacity-50">
+                        <option value="member">Membro</option>
+                        <option value="organizer">Organizador</option>
+                        <option value="kaioh">Kaioh</option>
+                        <option value="leader">Líder</option>
+                      </select>
+                    </td>
+                    <td className="p-3 flex justify-center gap-3 items-center">
+                      {isSupremeLeader && <button onClick={()=>startEdit(u)} className="text-blue-500 hover:text-emerald-400 transition-colors p-1" title="Editar Técnico"><Edit size={16}/></button>}
+                      {isLeader && <button onClick={()=>{if(window.confirm('Expulsar membro?')) onExpelUser(u.id)}} className="text-blue-500 hover:text-red-400 transition-colors p-1" title="Expulsar"><XCircle size={16}/></button>}
                     </td>
                   </tr>
                 );
-              }
-
-              // Visualização Normal
-              return(
-                <tr key={u.id} className="hover:bg-blue-950/40">
-                  <td className="p-3 font-bold text-blue-200">{u.name}</td><td className="p-3 text-emerald-400 font-medium">{t?.name || 'S/ Clube'}</td><td className="p-3 font-mono text-blue-400">{u.whatsapp}</td>
-                  <td className="p-3">
-                    <select disabled={!isSupremeLeader && currentUser?.id !== u.id} value={u.role || 'member'} onChange={e=>onUpdateUserRole(u.id, e.target.value)} className="bg-blue-900 text-blue-300 border border-blue-700 rounded p-1 outline-none disabled:opacity-50">
-                      <option value="member">Membro</option>
-                      <option value="organizer">Organizador</option>
-                      <option value="kaioh">Kaioh</option>
-                      <option value="leader">Líder</option>
-                    </select>
-                  </td>
-                  <td className="p-3 flex justify-center gap-3 items-center">
-                    {isSupremeLeader && <button onClick={()=>startEdit(u)} className="text-blue-500 hover:text-emerald-400 transition-colors p-1" title="Editar Técnico"><Edit size={16}/></button>}
-                    {isLeader && <button onClick={()=>{if(window.confirm('Expulsar membro?')) onExpelUser(u.id)}} className="text-blue-500 hover:text-red-400 transition-colors p-1" title="Expulsar"><XCircle size={16}/></button>}
-                  </td>
-                </tr>
-              );
-            })}
+              })
+            )}
           </tbody></table>
         </div>
       </div>
