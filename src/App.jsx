@@ -2813,8 +2813,11 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     Object.keys(comp.groups).forEach((gName) => {
       const gTeams = (teams || []).filter(t => comp.groups[gName].includes(t.id));
       const gTable = calculateStandings(matches, gTeams, comp.id);
-      gTable.forEach((row, idx) => { qualifiers[`${idx + 1}º Grupo ${gName}`] = row.id; qualifiers[`${idx + 1}º do Grupo ${gName}`] = row.id; });
-    });
+      gTable.forEach((row, idx) => { 
+         qualifiers[`${idx + 1}º Grupo ${gName}`] = row.id; 
+         qualifiers[`${idx + 1}º do Grupo ${gName}`] = row.id; 
+         qualifiers[`${idx + 1}º Gr.${gName}`] = row.id; // 👈 Faltava essa nomenclatura para o link funcionar!
+      });
     const updatedRounds = comp.rounds.map(round => {
       const newMatches = round.matches.map(m => {
         let newA = m.teamA; let newB = m.teamB;
@@ -2875,7 +2878,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
   const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id));
-  const availableTeamsForEdit = (comp.format === 'groups' && editMatchData?.group && comp.groups) ? (comp.groups[editMatchData.group] || []) : (comp.teams || []);
+  const availableTeamsForEdit = (comp.format === 'groups' && editMatchData?.group && comp.groups && !isKnockoutEdit) ? (comp.groups[editMatchData.group] || []) : (comp.teams || []);
   
   const handleAddTeamToComp = () => { if(!newTeamToAdd) return; const newTeams = [...(comp.teams || []), newTeamToAdd]; const newPending = (comp.pendingTeams || []).filter(p => p.teamId !== newTeamToAdd); onEditComp({ ...comp, teams: newTeams, pendingTeams: newPending }); setNewTeamToAdd(''); setShowAddTeam(false); showToast("Time inserido manualmente com sucesso!", "success"); };
   const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}/api/share?id=${comp.id}`); showToast("Link de compartilhamento especial copiado!", "success"); };
@@ -3646,7 +3649,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
             <div className="space-y-4">
               <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 space-y-3">
                   <p className="text-xs font-bold text-blue-400 uppercase tracking-widest">Alterar Times do Confronto</p>
-                  {comp.format === 'groups' && (<div className="pb-2 border-b border-blue-800/50 mb-3"><label className="text-[10px] font-bold text-purple-400 uppercase tracking-widest block mb-1">Pertencente ao Grupo</label><select value={editMatchData.group || 'A'} onChange={e => { setEditMatchData({ ...editMatchData, group: e.target.value, teamA: '', teamB: '' }); }} className="w-full bg-blue-900 border border-purple-500/40 rounded p-2 text-purple-300 text-xs font-bold outline-none">{Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (<option key={gName} value={gName}>Grupo {gName}</option>))}</select></div>)}
+                  {comp.format === 'groups' && !isKnockoutEdit && (<div className="pb-2 border-b border-blue-800/50 mb-3"><label className="text-[10px] font-bold text-purple-400 uppercase tracking-widest block mb-1">Pertencente ao Grupo</label><select value={editMatchData.group || 'A'} onChange={e => { setEditMatchData({ ...editMatchData, group: e.target.value, teamA: '', teamB: '' }); }} className="w-full bg-blue-900 border border-purple-500/40 rounded p-2 text-purple-300 text-xs font-bold outline-none">{Object.keys(comp.groups || {}).sort((a, b) => a.localeCompare(b)).map(gName => (<option key={gName} value={gName}>Grupo {gName}</option>))}</select></div>)}
                  <div className="space-y-2">
                       <select value={editMatchData.teamA} onChange={e => setEditMatchData({...editMatchData, teamA: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none"><option value="">A Definir / Sorteio</option>{availableTeamsForEdit.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{t.name}</option> : null; })}</select>
                       <div className="text-center text-blue-500 font-bold text-xs">X</div>
