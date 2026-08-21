@@ -4079,7 +4079,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
   const CAT_NAMES = {
     liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D',
-    liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial',copa_estrela: 'Copa das estrelas', copa_do_rei: 'Copa do Rei',
+    liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial',copa_estrela: 'Copa das estrelas', copa_estrelas: 'Copa das Estrelas', copa_do_rei: 'Copa do Rei',
     copa_amazonia: 'Copa da Amazônia', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash em Duplas'
   };
 
