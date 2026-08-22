@@ -3838,61 +3838,9 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
 
   if (!comp) return <div className="p-8 text-center text-slate-400">Torneio não encontrado ou encerrado.</div>;
   
-  const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
-  const isAdmin = isLeader || comp?.creatorId === currentUser?.id || (comp?.admins || []).includes(currentUser?.id);
+  // 🚫 A TRAVA DE ADMINISTRAÇÃO QUE TE BLOQUEAVA FOI REMOVIDA DAQUI! 🚫
 
-  // Se o usuário logado é o Admin organizando o campeonato, ele não vê a tela de inscrição, ele vê a tela de GESTÃO (a da sua print)
-  if (isAdmin && comp.status === 'registration') {
-    const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
-    
-    // 🌟 NOVA LÓGICA DO BOTÃO VERDE AQUI DENTRO DO PAINEL DE ADMIN
-    const handleGenerateBracket = () => { 
-        if (comp.teams.length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times!`, "error"); return; } 
-        
-        // 🛑 SE FOR DUPLAS, MANDA PRA SALA DE SORTEIO!
-        if (comp.category === 'copa_flash_dupla') {
-            onEditComp({ ...comp, status: 'drawing' });
-            showToast("Modo Sorteio Ao Vivo Ativado!", "success");
-            return;
-        }
-
-        // Lógica normal para outros campeonatos
-        let finalRounds = []; let groupsData = null; 
-        if (comp.format === 'groups') { 
-            const res = generateGroupsAndKnockout(comp.teams, comp.id, comp.numGroups, comp.qualifiersPerGroup, comp.isDoubleRound, comp.isFinalDouble); 
-            finalRounds = res.rounds; groupsData = res.groups; 
-        } else if (comp.format === 'cup') { 
-            finalRounds = generateCupBracket(comp.teams, comp.id, comp.isFinalDouble); 
-        } else { 
-            finalRounds = generateRoundRobin(comp.teams, comp.id, comp.isDoubleRound); 
-        } 
-        onEditComp({ ...comp, status: 'active', rounds: finalRounds, groups: groupsData || comp.groups || null }); 
-        showToast("Tabela gerada com sucesso!", "success"); 
-    };
-
-    return (
-      <div className="bg-blue-900 border border-blue-800 rounded-3xl p-6 md:p-8 shadow-2xl animate-in slide-in-from-bottom-4 mt-8">
-        <button onClick={onBack} className="text-xs text-blue-400 hover:text-white flex items-center gap-1 mb-6"><ArrowLeft size={14}/> Voltar</button>
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-black text-emerald-400 uppercase tracking-widest drop-shadow-md mb-2">Inscrições Abertas</h2>
-          <p className="text-blue-300">Aguardando os times se cadastrarem pelo link ou via inserção manual.</p>
-          <div className="mt-6 flex flex-col items-center justify-center gap-4">
-             <div className="bg-blue-950 px-8 py-4 rounded-2xl border border-blue-800 shadow-inner">
-               <p className="text-xs text-blue-400 uppercase font-bold mb-1">Vagas Preenchidas</p>
-               <p className="text-4xl font-black text-white">{compTeams.length} <span className="text-blue-600 text-2xl">/ {comp.teamCount}</span></p>
-             </div>
-             <Button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/share?id=${comp.id}`); showToast("Link de compartilhamento especial copiado!", "success"); }} className="py-3 px-8 text-sm font-bold bg-blue-600 shadow-xl">🔗 Copiar Link de Inscrição</Button>
-          </div>
-        </div>
-
-        <div className="mt-8 pt-8 border-t border-blue-800">
-           <Button onClick={handleGenerateBracket} disabled={compTeams.length !== comp.teamCount} className="w-full py-5 text-xl font-black rounded-2xl bg-emerald-500 text-blue-950 hover:bg-emerald-400 disabled:bg-blue-900 disabled:text-blue-700 shadow-2xl">🏆 Encerrar Inscrições e Gerar Tabela</Button>
-        </div>
-      </div>
-    );
-  }
-
-  // --- SE FOR UM JOGADOR NORMAL TENTANDO ENTRAR ---
+  // --- SE FOR UM JOGADOR (OU LÍDER) TENTANDO ENTRAR ---
   if (!userTeam) return <div className="p-8 text-center text-amber-400 font-bold bg-amber-500/10 rounded-2xl border border-amber-500/30 m-4">Você precisa ter um time cadastrado para participar. Peça a um líder para criar seu clube primeiro.</div>;
 
   const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
@@ -7688,7 +7636,7 @@ export default function App() {
     if (currentUser[taskKey] !== today) {
        const newCoins = (currentUser.kameCoins || 0) + reward;
        const updates = { kameCoins: newCoins, [taskKey]: today };
-       await updateDoc(getPublicDocPath('users', currentUser.id), updates);
+       await setDoc(getPublicDocPath('users', currentUser.id), updates, { merge: true });
        setCurrentUser(prev => ({...prev, ...updates}));
        showToast(`🎯 Missão Concluída! +${reward} kc`, "success");
     }
@@ -7719,10 +7667,10 @@ export default function App() {
        }
 
        if (hasChanges) {
-          updateDoc(getPublicDocPath('users', currentUser.id), updates);
-          setCurrentUser(prev => ({...prev, ...updates}));
-          if (msg) setTimeout(() => showToast(msg.trim(), "success"), 2000);
-       }
+              setDoc(getPublicDocPath('users', currentUser.id), updates, { merge: true });
+              setCurrentUser(prev => ({...prev, ...updates}));
+              if (msg) setTimeout(() => showToast(msg.trim(), "success"), 2000);
+           }
     }
   }, [currentUser?.id, currentUser?.lastCheckInDate, currentUser?.kameCoins]);
 
