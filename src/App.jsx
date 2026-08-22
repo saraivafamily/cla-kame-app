@@ -3820,7 +3820,59 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   );
 };
 
-// Há algo novo
+const generateCupBracket = (teamIds, compId, isFinalDouble = false) => {
+  if (!teamIds || teamIds.length === 0) return [];
+  const sh = [...teamIds].sort(() => 0.5 - Math.random()); // Sorteia os confrontos
+  let p2 = 1; while (p2 < sh.length) p2 *= 2;
+  const tkr = Math.log2(p2);
+  const rounds = [];
+  let mc = 1;
+
+  for (let kr = 0; kr < tkr; kr++) {
+    const rm = [];
+    const nm = p2 / Math.pow(2, kr + 1);
+    const fmc = mc;
+    let rl = 'Mata-Mata';
+    if (nm === 1) rl = 'Final';
+    else if (nm === 2) rl = 'Semifinal';
+    else if (nm === 4) rl = 'Quartas';
+    else if (nm === 8) rl = 'Oitavas';
+    else if (nm === 16) rl = '16 Avos';
+    else if (nm === 32) rl = '32 Avos';
+
+    for (let i = 0; i < nm; i++) {
+      let tA = ''; let tB = '';
+      let pA = 'A Definir'; let pB = 'A Definir';
+
+      if (kr === 0) {
+        tA = sh[i * 2] || '';
+        tB = sh[i * 2 + 1] || '';
+        if (!tA && !tB) { pA = 'Vaga Aberta'; pB = 'Vaga Aberta'; }
+        else if (!tA) { pA = 'Vaga Aberta'; pB = 'A Definir'; } 
+        else if (!tB) { pA = 'A Definir'; pB = 'Vaga Aberta'; }
+      } else {
+        pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`;
+        pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
+      }
+
+      if (nm === 1) {
+        rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f1`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
+        if (isFinalDouble) {
+          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f2`, teamA: tB, teamB: tA, placeholderA: pB, placeholderB: pA, status: 'pending_play' }); mc++;
+        }
+        if (kr > 0) {
+          let p3A = `Perd. Jogo ${fmc - (nm * 2) + (i * 2)}`;
+          let p3B = `Perd. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
+          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_3rd`, teamA: '', teamB: '', placeholderA: `🥉 ${p3A}`, placeholderB: `🥉 ${p3B}`, status: 'pending_play' }); mc++;
+        }
+      } else {
+        rm.push({ id: `${compId}_ko_m${mc}_kr${kr}`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
+      }
+    }
+    rounds.push({ id: `ko_${kr}`, number: rl, status: kr === 0 ? 'released' : 'locked', releasedAt: kr === 0 ? Date.now() : null, matches: rm });
+  }
+  return rounds;
+};
           
 const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onBack, showToast, onEditComp }) => {
   const [receipt, setReceipt] = useState(null);
@@ -7892,18 +7944,22 @@ export default function App() {
   const handleUpdateMatchStatus = async (id, st, updatedData = null) => {
     const updatePayload = { status: st };
     if (updatedData) {
-      if (updatedData.scoreA !== undefined) updatePayload.scoreA = parseInt(updatedData.scoreA); if (updatedData.scoreB !== undefined) updatePayload.scoreB = parseInt(updatedData.scoreB);
-      if (updatedData.penaltiesA !== undefined) updatePayload.penaltiesA = parseInt(updatedData.penaltiesA); if (updatedData.penaltiesB !== undefined) updatePayload.penaltiesB = parseInt(updatedData.penaltiesB);
+      if (updatedData.scoreA !== undefined) updatePayload.scoreA = parseInt(updatedData.scoreA); 
+      if (updatedData.scoreB !== undefined) updatePayload.scoreB = parseInt(updatedData.scoreB);
+      if (updatedData.penaltiesA !== undefined) updatePayload.penaltiesA = parseInt(updatedData.penaltiesA); 
+      if (updatedData.penaltiesB !== undefined) updatePayload.penaltiesB = parseInt(updatedData.penaltiesB);
     }
     await updateDoc(getPublicDocPath('matches', id), updatePayload);
     
     if (st === 'approved') {
-      const match = matches.find(m => m && m.id === id); if (!match) return; const comp = competitions.find(c => c && c.id === match.compId);
+      const match = matches.find(m => m && m.id === id); if (!match) return; 
+      const comp = competitions.find(c => c && c.id === match.compId);
       
-      const finalScoreA = updatedData && updatedData.scoreA !== undefined ? parseInt(updatedData.scoreA) : match.scoreA; 
-      const finalScoreB = updatedData && updatedData.scoreB !== undefined ? parseInt(updatedData.scoreB) : match.scoreB; 
-      const finalPenaltiesA = updatedData && updatedData.penaltiesA !== undefined ? parseInt(updatedData.penaltiesA) : match.penaltiesA; 
-      const finalPenaltiesB = updatedData && updatedData.penaltiesB !== undefined ? parseInt(updatedData.penaltiesB) : match.penaltiesB;
+      // 🛡️ CORREÇÃO 1: Conversão estrita para números (evita que placares de "10" percam para "2" por serem lidos como texto)
+      const finalScoreA = parseInt(updatedData && updatedData.scoreA !== undefined ? updatedData.scoreA : match.scoreA) || 0; 
+      const finalScoreB = parseInt(updatedData && updatedData.scoreB !== undefined ? updatedData.scoreB : match.scoreB) || 0; 
+      const finalPenaltiesA = updatedData && updatedData.penaltiesA !== undefined ? parseInt(updatedData.penaltiesA) : (match.penaltiesA !== null && match.penaltiesA !== undefined ? parseInt(match.penaltiesA) : null); 
+      const finalPenaltiesB = updatedData && updatedData.penaltiesB !== undefined ? parseInt(updatedData.penaltiesB) : (match.penaltiesB !== null && match.penaltiesB !== undefined ? parseInt(match.penaltiesB) : null);
       
       const matchPreds = predictions.filter(p => p.matchId === match.matchId && !p.status); 
       if (matchPreds.length > 0) {
@@ -7932,11 +7988,14 @@ export default function App() {
             await updateDoc(getPublicDocPath('predictions', pred.id), { status: isWin ? 'won' : 'lost', payout, profit });
          }
 
+         // 🛡️ CORREÇÃO 2: Busca o saldo atualizado direto do banco para evitar sobreposição (Race Condition) na validação rápida
          for (const userId of Object.keys(userPayouts)) {
-            const u = users.find(x => x.id === userId);
-            if (u) {
-               await updateDoc(getPublicDocPath('users', u.id), { 
-                 kameCoins: Number(u.kameCoins || 0) + userPayouts[userId] 
+            const uQuery = query(getPublicPath('users'), where('id', '==', userId));
+            const uSnap = await getDocs(uQuery);
+            if (!uSnap.empty) {
+               const uData = uSnap.docs[0].data();
+               await updateDoc(getPublicDocPath('users', userId), { 
+                 kameCoins: Number(uData.kameCoins || 0) + userPayouts[userId] 
                });
             }
          }
@@ -7963,13 +8022,12 @@ export default function App() {
         let winsA = 0; let winsB = 0;
         let drawsA = 0; let drawsB = 0;
 
-        // PUNIÇÃO W.O - EXTRATO
         let isWoMe = false; let isWoOpp = false;
         const obs = (match.observacoes || '').toLowerCase();
         if (obs.includes('w.o') || obs.includes('wo')) {
            if (obs.includes('duplo')) { isWoMe = true; isWoOpp = true; }
-           else if (match.scoreA === 0 && match.scoreB === 3) isWoMe = true;
-           else if (match.scoreB === 0 && match.scoreA === 3) isWoOpp = true;
+           else if (finalScoreA === 0 && finalScoreB === 3) isWoMe = true;
+           else if (finalScoreB === 0 && finalScoreA === 3) isWoOpp = true;
         }
 
         if (isWoMe) addPtsA -= 2;
@@ -7993,41 +8051,49 @@ export default function App() {
           }
         }
 
-        await updateDoc(getPublicDocPath('teams', tA.id), {
-          globalPoints: (tA.globalPoints || 0) + addPtsA,
-          playedMatches: (tA.playedMatches || 0) + 1,
-          totalWins: (tA.totalWins || 0) + winsA,
-          totalDraws: (tA.totalDraws || 0) + drawsA,
-          goalsFor: (tA.goalsFor || 0) + finalScoreA,
-          goalsAgainst: (tA.goalsAgainst || 0) + finalScoreB
-        });
+        // 🛡️ CORREÇÃO 3: Atualizando os times pegando os dados mais recentes também (evita erro no saldo de vitórias do time)
+        const tAQuery = query(getPublicPath('teams'), where('id', '==', tA.id));
+        const tBQuery = query(getPublicPath('teams'), where('id', '==', tB.id));
+        const [tASnap, tBSnap] = await Promise.all([getDocs(tAQuery), getDocs(tBQuery)]);
 
-        await updateDoc(getPublicDocPath('teams', tB.id), {
-          globalPoints: (tB.globalPoints || 0) + addPtsB,
-          playedMatches: (tB.playedMatches || 0) + 1,
-          totalWins: (tB.totalWins || 0) + winsB,
-          totalDraws: (tB.totalDraws || 0) + drawsB,
-          goalsFor: (tB.goalsFor || 0) + finalScoreB,
-          goalsAgainst: (tB.goalsAgainst || 0) + finalScoreA
-        });
+        if (!tASnap.empty) {
+           const tAData = tASnap.docs[0].data();
+           await updateDoc(getPublicDocPath('teams', tA.id), {
+             globalPoints: (tAData.globalPoints || 0) + addPtsA,
+             playedMatches: (tAData.playedMatches || 0) + 1,
+             totalWins: (tAData.totalWins || 0) + winsA,
+             totalDraws: (tAData.totalDraws || 0) + drawsA,
+             goalsFor: (tAData.goalsFor || 0) + finalScoreA,
+             goalsAgainst: (tAData.goalsAgainst || 0) + finalScoreB
+           });
+        }
+        
+        if (!tBSnap.empty) {
+           const tBData = tBSnap.docs[0].data();
+           await updateDoc(getPublicDocPath('teams', tB.id), {
+             globalPoints: (tBData.globalPoints || 0) + addPtsB,
+             playedMatches: (tBData.playedMatches || 0) + 1,
+             totalWins: (tBData.totalWins || 0) + winsB,
+             totalDraws: (tBData.totalDraws || 0) + drawsB,
+             goalsFor: (tBData.goalsFor || 0) + finalScoreB,
+             goalsAgainst: (tBData.goalsAgainst || 0) + finalScoreA
+           });
+        }
       }
 
       if (comp && (comp.format === 'cup' || comp.format === 'groups' || comp.category === 'copa_flash_dupla')) {
         let winnerId = null; 
         
         if (comp.category === 'copa_flash_dupla') {
-           // LÓGICA DE PLACAR AGREGADO PARA DUPLAS
            const isIda = match.matchId.includes('_ida');
            const partnerMatchId = match.matchId.replace(isIda ? '_ida' : '_volta', isIda ? '_volta' : '_ida');
            
-           // BUSCA O PARCEIRO DIRETAMENTE NO BANCO DE DADOS EM TEMPO REAL (Corta o atraso do clique rápido)
            const qPartner = query(getPublicPath('matches'), where('matchId', '==', partnerMatchId), where('compId', '==', comp.id), where('status', '==', 'approved'));
            const snapPartner = await getDocs(qPartner);
            
            if (!snapPartner.empty) {
                const partnerMatch = snapPartner.docs[0].data();
                
-               // GARANTE A LEITURA CORRETA DAS DUPLAS SEMPRE PELO JOGO DE IDA
                const currentRoundUI = comp.rounds.find(r => r.id === match.roundId);
                const idaMatchId = isIda ? match.matchId : partnerMatchId;
                const idaMatchUI = currentRoundUI.matches.find(x => x.id === idaMatchId);
@@ -8058,7 +8124,6 @@ export default function App() {
                }
            }
         } else {
-           // Lógica Tradicional Single Player
            if (finalScoreA > finalScoreB) winnerId = match.teamA; 
            else if (finalScoreB > finalScoreA) winnerId = match.teamB; 
            else if (finalPenaltiesA !== null && finalPenaltiesA !== undefined) { 
@@ -8071,7 +8136,6 @@ export default function App() {
           const rIndex = comp.rounds.findIndex(r => r && r.id === match.roundId); 
           const isKnockoutMatch = match.matchId.includes('_ko_') || comp.format === 'cup' || comp.category === 'copa_flash_dupla';
           
-          // No formato de dupla, avançamos dois blocos na frente (porque pula as 2 pernas)
           const divisorIndex = comp.category === 'copa_flash_dupla' ? 4 : 2;
 
           if (rIndex >= 0 && rIndex < comp.rounds.length - 1 && isKnockoutMatch) {
@@ -8083,7 +8147,6 @@ export default function App() {
                const newRounds = JSON.parse(JSON.stringify(comp.rounds)); 
 
                if (comp.category === 'copa_flash_dupla') {
-                   // Avançando a Dupla Inteira nos dois jogos da próxima fase
                    if (isTeamA) {
                        newRounds[nextRIndex].matches[nextMIndex].duplaA = winnerId;
                        newRounds[nextRIndex].matches[nextMIndex].teamA = winnerId.p1;
@@ -8095,14 +8158,13 @@ export default function App() {
                    } else {
                        newRounds[nextRIndex].matches[nextMIndex].duplaB = winnerId;
                        newRounds[nextRIndex].matches[nextMIndex].teamB = winnerId.p1;
-                       newRounds[nextRIndex].matches[nextMIndex].placeholderB = `${winnerId.name} (Téc 1)`;
+                       newRounds[nextRIndex].matches[nextMIndex].placeholderA = `${winnerId.name} (Téc 1)`;
 
                        newRounds[nextRIndex].matches[nextMIndex + 1].duplaA = winnerId;
                        newRounds[nextRIndex].matches[nextMIndex + 1].teamA = winnerId.p2;
                        newRounds[nextRIndex].matches[nextMIndex + 1].placeholderA = `${winnerId.name} (Téc 2)`;
                    }
                } else {
-                   // Avanço Normal Single Player
                    const loserId = winnerId === match.teamA ? match.teamB : match.teamA;
                    const isNextRoundFinal = newRounds[nextRIndex].matches.some(x => x.id.includes('_f1') || x.id.includes('_3rd'));
 
