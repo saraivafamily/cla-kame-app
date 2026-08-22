@@ -8247,7 +8247,8 @@ export default function App() {
         />;
 
       case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} posts={feedPosts} onTaskcompleted={handleTaskcompleted} />;
-      case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} />;
+      case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); setCurrentTab('competitions'); }} />;
+
       case 'records': return <RecordsWall showToast={showToast} currentUser={currentUser} />;
       case 'rules': return <RulesPage />;
       case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} showToast={showToast} currentUser={currentUser} />;
