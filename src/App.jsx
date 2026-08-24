@@ -6792,7 +6792,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
   const [selectedCompId, setSelectedCompId] = useState('');
   const [selectedRoundId, setSelectedRoundId] = useState('');
 
-  // 🌟 NOVO: Memória das Odds Manuais do Admin
   const [customOdds, setCustomOdds] = useState({});
 
   const getTeam = (id) => (teams || []).find(t => t.id === id);
@@ -6844,14 +6843,9 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
     return round ? round.matches : [];
   }, [bettingData, selectedCompId, selectedRoundId]);
 
-  // 🌟 MODIFICADO: Função que aceita a injeção manual das Odds
   const getOdds = (matchId, compId, tA_id, tB_id) => {
-     // Se o líder digitou algo manualmente para esta partida, usa o manual
-     if (customOdds[matchId]) {
-         return customOdds[matchId];
-     }
+     if (customOdds[matchId]) return customOdds[matchId];
 
-     // Se não, calcula o padrão matemático
      const table = calculateStandings(matches, teams, compId);
 
      const statsA = table.find(t => t.id === tA_id);
@@ -6933,6 +6927,85 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
      }, oldAmount);
      
      showToast(`Bilhete Fechado! Odd cravada em ${lockedOdd}x 🍀`, "success");
+  };
+
+  // 🚀 MOTOR DE AUDITORIA DO KAMEBET: Recalcula falsos Reds e ajusta a conta bancária
+  const handleSyncBettingHistory = async () => {
+    if (!window.confirm("Atenção! Isso vai varrer TODOS os palpites antigos do servidor, corrigir os falsos Reds causados pelo bug do placar e devolver o saldo para a conta dos jogadores corretamente. Deseja iniciar a varredura?")) return;
+    showToast("Analisando bilhetes e recalculando saldos... Isso pode levar alguns segundos.", "info");
+
+    try {
+      const balanceDiffs = {}; 
+      const predictionsToUpdate = [];
+
+      for (const pred of predictions) {
+          if (pred.type === 'deposit') continue; // Ignora as compras de KameCoins
+
+          const match = matches.find(m => m.matchId === pred.matchId && m.compId === pred.compId && m.status === 'approved');
+          if (!match) continue; 
+
+          // Lendo os placares como NUMEROS REAIS
+          const scoreA = Number(match.scoreA || 0);
+          const scoreB = Number(match.scoreB || 0);
+          const penA = match.penaltiesA !== null && match.penaltiesA !== undefined ? Number(match.penaltiesA) : null;
+          const penB = match.penaltiesB !== null && match.penaltiesB !== undefined ? Number(match.penaltiesB) : null;
+
+          let realOutcome = 'D';
+          if (scoreA > scoreB) realOutcome = 'A';
+          else if (scoreB > scoreA) realOutcome = 'B';
+          else if (penA !== null && penB !== null) {
+              if (penA > penB) realOutcome = 'A';
+              else if (penB > penA) realOutcome = 'B';
+          }
+
+          const isWin = pred.option === realOutcome;
+          const betAmount = Number(pred.amount);
+          const oddToUse = pred.lockedOdd || 1.1;
+          const correctPayout = isWin ? Math.floor(betAmount * oddToUse) : 0;
+          const correctProfit = isWin ? (correctPayout - betAmount) : -betAmount;
+          const correctStatus = isWin ? 'won' : 'lost';
+
+          const currentProfit = pred.status ? Number(pred.profit || 0) : 0;
+          
+          // Se o sistema marcou errado ou o lucro anotado for diferente do real, joga pra fila de correção
+          if (pred.status !== correctStatus || currentProfit !== correctProfit) {
+              const diff = correctProfit - currentProfit;
+              
+              if (!balanceDiffs[pred.userId]) balanceDiffs[pred.userId] = 0;
+              balanceDiffs[pred.userId] += diff;
+
+              predictionsToUpdate.push({
+                  id: pred.id,
+                  status: correctStatus,
+                  payout: correctPayout,
+                  profit: correctProfit
+              });
+          }
+      }
+
+      // Devolvendo e ajustando os BitKames dos usuários prejudicados
+      for (const userId of Object.keys(balanceDiffs)) {
+          const u = users.find(x => x.id === userId);
+          if (u) {
+              const newBalance = Math.max(0, Number(u.kameCoins || 0) + balanceDiffs[userId]);
+              await updateDoc(getPublicDocPath('users', u.id), { kameCoins: newBalance });
+          }
+      }
+
+      // Corrigindo a etiqueta dos bilhetes (de Loss para Won)
+      for (const pUpdate of predictionsToUpdate) {
+          await updateDoc(getPublicDocPath('predictions', pUpdate.id), {
+              status: pUpdate.status,
+              payout: pUpdate.payout,
+              profit: pUpdate.profit
+          });
+      }
+
+      showToast(`Auditoria concluída! ${predictionsToUpdate.length} bilhetes com erro foram consertados e os lucros pagos.`, "success");
+    } catch (error) {
+      console.error(error);
+      showToast("Erro durante a sincronização de auditoria.", "error");
+    }
   };
 
   const totalOpenMatches = useMemo(() => {
@@ -7069,9 +7142,9 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                           className="w-full bg-blue-950 border border-blue-700 text-amber-400 font-black text-lg p-2 rounded-lg outline-none focus:border-amber-500" 
                         />
                       </div>
-                      <Button onClick={() => handleSave(m)} disabled={!currentData.option || !currentData.amount} className="flex-1 py-3 text-xs bg-amber-600 hover:bg-amber-500 border-0 text-white shadow-md uppercase tracking-wider">
+                      <button onClick={() => handleSave(m)} disabled={!currentData.option || !currentData.amount} className="flex-1 py-3 px-4 text-xs font-bold bg-amber-600 hover:bg-amber-500 rounded-lg text-white shadow-md uppercase tracking-wider disabled:opacity-50 transition-colors">
                         {myPred ? 'Atualizar' : 'Fechar Palpite'}
-                      </Button>
+                      </button>
                     </div>
                     {currentData.option && currentData.amount && (
                       <p className="text-center text-[10px] text-emerald-400 mt-2 font-medium">
@@ -7090,6 +7163,20 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
 
       {activeTab === 'ranking' && (
         <div className="bg-blue-950 rounded-3xl border border-blue-800 shadow-2xl overflow-hidden animate-in slide-in-from-right-4">
+          
+          {/* 🚀 BOTÃO DA AUDITORIA MÁGICA PARA LÍDERES */}
+          {isAdmin && (
+            <div className="p-4 bg-blue-900/60 border-b border-blue-800 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Painel Administrativo</span>
+                <span className="text-[10px] text-blue-400 mt-0.5">Corrige falsos "reds" perdidos no passado.</span>
+              </div>
+              <button onClick={handleSyncBettingHistory} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-md transition-colors flex items-center gap-2">
+                🔄 Corrigir Bilhetes Antigos
+              </button>
+            </div>
+          )}
+
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="bg-blue-900 text-blue-300 font-bold border-b border-blue-800">
