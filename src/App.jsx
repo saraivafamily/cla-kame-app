@@ -6792,9 +6792,13 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
   const [selectedCompId, setSelectedCompId] = useState('');
   const [selectedRoundId, setSelectedRoundId] = useState('');
 
+  // 🌟 NOVO: Memória das Odds Manuais do Admin
+  const [customOdds, setCustomOdds] = useState({});
+
   const getTeam = (id) => (teams || []).find(t => t.id === id);
   const getMyPred = (matchId) => (predictions || []).find(p => p.matchId === matchId && p.userId === currentUser.id);
   const myTeam = (teams || []).find(t => t.ownerId === currentUser.id);
+  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
 
   const bettingData = useMemo(() => {
     const comps = [];
@@ -6840,7 +6844,14 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
     return round ? round.matches : [];
   }, [bettingData, selectedCompId, selectedRoundId]);
 
-  const getOdds = (compId, tA_id, tB_id) => {
+  // 🌟 MODIFICADO: Função que aceita a injeção manual das Odds
+  const getOdds = (matchId, compId, tA_id, tB_id) => {
+     // Se o líder digitou algo manualmente para esta partida, usa o manual
+     if (customOdds[matchId]) {
+         return customOdds[matchId];
+     }
+
+     // Se não, calcula o padrão matemático
      const table = calculateStandings(matches, teams, compId);
 
      const statsA = table.find(t => t.id === tA_id);
@@ -6860,6 +6871,17 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
 
      const clamp = (val) => Math.min(Math.max(val, 1.10), 15.00).toFixed(2);
      return { A: clamp(oddA), B: clamp(oddB), D: clamp(oddD) };
+  };
+
+  const handleCustomOddChange = (matchId, option, newValue) => {
+      const matchOdds = getOdds(matchId, displayedMatches.find(m => m.id === matchId)?.compId, displayedMatches.find(m => m.id === matchId)?.teamA, displayedMatches.find(m => m.id === matchId)?.teamB);
+      setCustomOdds({
+          ...customOdds,
+          [matchId]: {
+              ...matchOdds,
+              [option]: newValue
+          }
+      });
   };
 
   const ranking = useMemo(() => {
@@ -6896,7 +6918,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
        return;
      }
 
-     const currentOdds = getOdds(m.compId, m.teamA, m.teamB);
+     const currentOdds = getOdds(m.id, m.compId, m.teamA, m.teamB);
      const lockedOdd = Number(currentOdds[data.option]);
 
      onSavePrediction({
@@ -6992,7 +7014,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                 const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
                 const myPred = getMyPred(m.id);
                 const currentData = betData[m.id] || { option: myPred?.option || null, amount: myPred?.amount || '' };
-                const odds = getOdds(m.compId, m.teamA, m.teamB);
+                const odds = getOdds(m.id, m.compId, m.teamA, m.teamB);
 
                 const displayOddA = (myPred && myPred.option === 'A') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : odds.A;
                 const displayOddD = (myPred && myPred.option === 'D') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : odds.D;
@@ -7005,6 +7027,18 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                       {myPred && <span className="text-[10px] text-emerald-400 font-black uppercase flex items-center gap-1">✅ Bilhete Salvo</span>}
                     </div>
                     
+                    {/* 🌟 MODO ADMIN: Edição Manual das Odds */}
+                    {isAdmin && !myPred && (
+                        <div className="flex justify-between items-center mb-3 bg-blue-950/50 p-2 rounded-lg border border-blue-800/50">
+                            <span className="text-[10px] text-emerald-400 font-bold uppercase">👑 Ajuste Manual de Odd (Admin)</span>
+                            <div className="flex gap-2">
+                                <input type="number" step="0.1" value={odds.A} onChange={(e) => handleCustomOddChange(m.id, 'A', e.target.value)} className="w-12 bg-blue-900 text-[10px] text-white p-1 rounded outline-none border border-blue-700 focus:border-emerald-500 text-center" title="Editar Odd Time A" />
+                                <input type="number" step="0.1" value={odds.D} onChange={(e) => handleCustomOddChange(m.id, 'D', e.target.value)} className="w-12 bg-blue-900 text-[10px] text-white p-1 rounded outline-none border border-blue-700 focus:border-emerald-500 text-center" title="Editar Odd Empate" />
+                                <input type="number" step="0.1" value={odds.B} onChange={(e) => handleCustomOddChange(m.id, 'B', e.target.value)} className="w-12 bg-blue-900 text-[10px] text-white p-1 rounded outline-none border border-blue-700 focus:border-emerald-500 text-center" title="Editar Odd Time B" />
+                            </div>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-3 gap-2 mb-4">
                       <button onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'A'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'A' ? 'bg-emerald-600 border-emerald-500 shadow-inner scale-105' : 'bg-blue-950 border-blue-800 hover:border-emerald-500/50'}`}>
                          <ShieldDisplay shield={tA?.shield} size="small" />
