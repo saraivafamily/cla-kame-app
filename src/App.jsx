@@ -7917,7 +7917,34 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
     copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia', copa_flash: '⚡ Copa Flash', copa_flash_dupla: '👥 Copa Flash (Duplas)'
   };
 
-  // 🌟 NOVO ALGORITMO: Conta Duplas como uma única entidade
+  // 🌟 NOVO ALGORITMO: Maiores Campeões Gerais (Soma todos os títulos individuais)
+  const overallChampions = useMemo(() => {
+    const counts = {};
+    (competitions || []).forEach(c => {
+       const champs = getChampionIds(c, matches, teams);
+       if (champs && champs.length > 0) {
+          champs.forEach(tId => {
+             counts[tId] = (counts[tId] || 0) + 1;
+          });
+       }
+    });
+    
+    return Object.keys(counts)
+        .map(tId => ({
+            id: tId,
+            count: counts[tId],
+            team: teams.find(t => t.id === tId)
+        }))
+        .filter(item => item.team)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3); // Pega apenas o Top 3
+  }, [competitions, matches, teams]);
+
+  const firstOverall = overallChampions[0];
+  const secondOverall = overallChampions[1];
+  const thirdOverall = overallChampions[2];
+
+  // Algoritmo por Categoria (Mantém a lógica da Dupla unida)
   const categoryStats = useMemo(() => {
     const stats = {};
     
@@ -7928,11 +7955,9 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
           if (!stats[cat]) stats[cat] = {};
           
           if (cat === 'copa_flash_dupla' && champs.length >= 2) {
-             // Organiza os IDs para gerar uma chave única para a dupla sempre igual
              const sortedIds = [champs[0], champs[1]].sort();
              const duoKey = `dupla_${sortedIds[0]}_${sortedIds[1]}`;
              
-             // Busca o nome oficial da dupla lá nos grupos da competição
              let duoName = "Dupla Campeã";
              if (c.groups && Array.isArray(c.groups)) {
                 const duoObj = c.groups.find(d => 
@@ -7946,7 +7971,6 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
              stats[cat][duoKey].count += 1;
              
           } else {
-             // Lógica Normal Single Player
              champs.forEach(tId => {
                 stats[cat][tId] = stats[cat][tId] || { count: 0, isDupla: false, teamId: tId };
                 stats[cat][tId].count += 1;
@@ -7964,35 +7988,17 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
             if (data.isDupla) {
                const t1 = teams.find(t => t.id === data.p1);
                const t2 = teams.find(t => t.id === data.p2);
-               return {
-                  id: key,
-                  count: data.count,
-                  isDupla: true,
-                  team: {
-                     name: data.name,
-                     shield1: t1?.shield,
-                     shield2: t2?.shield
-                  }
-               };
+               return { id: key, count: data.count, isDupla: true, team: { name: data.name, shield1: t1?.shield, shield2: t2?.shield } };
             } else {
                const t = teams.find(t => t.id === data.teamId);
-               return t ? {
-                  id: key,
-                  count: data.count,
-                  isDupla: false,
-                  team: t
-               } : null;
+               return t ? { id: key, count: data.count, isDupla: false, team: t } : null;
             }
          })
          .filter(Boolean)
          .sort((a, b) => b.count - a.count); 
        
        if (sortedItems.length > 0) {
-          result.push({
-             key: catKey,
-             name: CATEGORY_NAMES[catKey] || catKey.toUpperCase(),
-             top3: sortedItems.slice(0, 3)
-          });
+          result.push({ key: catKey, name: CATEGORY_NAMES[catKey] || catKey.toUpperCase(), top3: sortedItems.slice(0, 3) });
        }
     });
     
@@ -8004,7 +8010,6 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
     });
   }, [competitions, matches, teams]);
 
-  // 🌟 NOVO COMPONENTE INTERNO: Renderiza Escudos Duplos ou Solteiros
   const RenderShields = ({ item, size }) => {
      if (item.isDupla) {
         return (
@@ -8022,7 +8027,7 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in pb-12">
+    <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in pb-12">
       {/* Cabeçalho */}
       <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 sm:p-8 rounded-3xl border border-amber-500/30 shadow-2xl flex flex-col md:flex-row items-center gap-6 relative overflow-hidden">
         <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-amber-500/20 blur-3xl rounded-full"></div>
@@ -8039,7 +8044,93 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
         </div>
       </div>
 
-      {/* Estantes / Pódios */}
+      {/* 🌟 MEGA PÓDIO GLOBAL - MAIORES DA HISTÓRIA */}
+      {overallChampions.length > 0 && (
+        <div className="bg-gradient-to-b from-amber-900/40 to-blue-950/80 rounded-3xl border border-amber-500/50 shadow-[0_0_30px_rgba(245,158,11,0.15)] overflow-hidden relative">
+          <div className="text-center pt-8 pb-4 relative z-10">
+            <h3 className="text-2xl md:text-3xl font-black text-amber-400 uppercase tracking-widest drop-shadow-md flex justify-center items-center gap-3">
+              <Crown size={28} className="text-amber-400"/> Maiores Campeões <Crown size={28} className="text-amber-400"/>
+            </h3>
+            <p className="text-amber-200/70 text-xs md:text-sm mt-1 uppercase font-bold tracking-widest">
+              Ranking Geral de Títulos da História do Clã
+            </p>
+          </div>
+
+          <div className="p-4 sm:p-6 pt-16 flex items-end justify-center h-[320px] sm:h-[360px] gap-1 sm:gap-2 relative overflow-hidden z-10">
+             {/* Luz de Fundo do Pódio */}
+             <div className="absolute bottom-0 w-full h-40 bg-amber-500/20 blur-3xl rounded-full"></div>
+
+             {/* Pódio 2º Lugar */}
+             <div className="flex flex-col items-center w-1/3 justify-end z-10 relative">
+               {secondOverall ? (
+                 <>
+                   <div className="mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={secondOverall.team.name}>
+                     <ShieldDisplay shield={secondOverall.team.shield} size="normal" />
+                   </div>
+                   <span className="text-xs sm:text-sm font-bold text-slate-300 truncate w-full text-center px-1 drop-shadow-md">{secondOverall.team.name}</span>
+                   <span className="text-[10px] sm:text-xs text-slate-400 font-black mb-2">{secondOverall.count} TÍTULO{secondOverall.count > 1 ? 'S' : ''}</span>
+                 </>
+               ) : (
+                 <div className="h-20"></div>
+               )}
+               <div className="w-full h-24 bg-gradient-to-t from-slate-600 to-slate-400 rounded-tl-xl border-t-2 border-l-2 border-slate-300 shadow-lg flex justify-center pt-2 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-white/10 w-full h-1/2"></div>
+                  <span className="text-slate-100 font-black text-3xl drop-shadow-md relative z-10">2</span>
+               </div>
+             </div>
+
+             {/* Pódio 1º Lugar */}
+             <div className="flex flex-col items-center w-1/3 justify-end z-20 relative -mx-2 sm:-mx-4">
+               {firstOverall ? (
+                 <>
+                   <Crown className="absolute -top-10 sm:-top-12 text-amber-400 drop-shadow-[0_0_15px_rgba(245,158,11,1)]" size={40} />
+                   <div className="mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={firstOverall.team.name}>
+                     <ShieldDisplay shield={firstOverall.team.shield} size="large" />
+                   </div>
+                   <span className="text-sm sm:text-base font-black text-amber-400 truncate w-full text-center px-1 drop-shadow-md">{firstOverall.team.name}</span>
+                   <span className="text-[10px] sm:text-xs text-amber-200/90 font-black mb-3 bg-amber-500/10 px-3 py-1 rounded border border-amber-500/30 shadow-inner">{firstOverall.count} TÍTULO{firstOverall.count > 1 ? 'S' : ''}</span>
+                 </>
+               ) : (
+                 <div className="h-32"></div>
+               )}
+               <div className="w-full h-36 bg-gradient-to-t from-amber-600 to-amber-400 rounded-t-xl border-t-2 border-l-2 border-r-2 border-amber-300 shadow-2xl flex justify-center pt-3 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-white/20 w-full h-1/2"></div>
+                  <span className="text-amber-100 font-black text-4xl drop-shadow-md relative z-10">1</span>
+               </div>
+             </div>
+
+             {/* Pódio 3º Lugar */}
+             <div className="flex flex-col items-center w-1/3 justify-end z-10 relative">
+               {thirdOverall ? (
+                 <>
+                   <div className="mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={thirdOverall.team.name}>
+                     <ShieldDisplay shield={thirdOverall.team.shield} size="small" />
+                   </div>
+                   <span className="text-[10px] sm:text-xs font-bold text-amber-700 truncate w-full text-center px-1 drop-shadow-md">{thirdOverall.team.name}</span>
+                   <span className="text-[9px] sm:text-[10px] text-amber-700/80 font-black mb-2">{thirdOverall.count} TÍTULO{thirdOverall.count > 1 ? 'S' : ''}</span>
+                 </>
+               ) : (
+                 <div className="h-16"></div>
+               )}
+               <div className="w-full h-16 bg-gradient-to-t from-amber-900 to-amber-700 rounded-tr-xl border-t-2 border-r-2 border-amber-600 shadow-lg flex justify-center pt-2 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-white/5 w-full h-1/2"></div>
+                  <span className="text-amber-200/50 font-black text-2xl drop-shadow-md relative z-10">3</span>
+               </div>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Título Divisório */}
+      {categoryStats.length > 0 && (
+        <div className="flex items-center gap-4 py-4">
+          <div className="h-px bg-blue-800 flex-1"></div>
+          <h3 className="text-lg font-bold text-blue-300 uppercase tracking-widest text-center">Pódios por Divisão</h3>
+          <div className="h-px bg-blue-800 flex-1"></div>
+        </div>
+      )}
+
+      {/* Estantes / Pódios por Categoria */}
       {categoryStats.length === 0 ? (
         <div className="bg-blue-950 p-12 rounded-3xl border border-blue-800 text-center border-dashed">
           <Trophy className="mx-auto text-blue-800 mb-4" size={48} />
@@ -8061,12 +8152,9 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
                    </h3>
                 </div>
                 
-                {/* 🌟 ALTURA AUMENTADA AQUI (h-[280px] e pt-16) PARA A COROA NÃO CORTAR */}
                 <div className="p-4 sm:p-6 pt-16 flex items-end justify-center h-[280px] sm:h-[300px] gap-1 relative overflow-hidden">
-                   {/* Luz de Fundo do Pódio */}
                    <div className="absolute bottom-0 w-3/4 h-32 bg-amber-500/10 blur-2xl rounded-full"></div>
 
-                   {/* Pódio 2º Lugar */}
                    <div className="flex flex-col items-center w-1/3 justify-end z-10 relative">
                      {second ? (
                        <>
@@ -8083,11 +8171,9 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
                      </div>
                    </div>
 
-                   {/* Pódio 1º Lugar */}
                    <div className="flex flex-col items-center w-1/3 justify-end z-20 relative -mx-2">
                      {first ? (
                        <>
-                         {/* 👑 COROA REPOSICIONADA */}
                          <Crown className="absolute -top-7 sm:-top-8 text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" size={28} />
                          <RenderShields item={first} size="normal" />
                          <span className="text-xs sm:text-sm font-black text-amber-400 truncate w-full text-center px-1 drop-shadow-md">{first.team.name}</span>
@@ -8102,7 +8188,6 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
                      </div>
                    </div>
 
-                   {/* Pódio 3º Lugar */}
                    <div className="flex flex-col items-center w-1/3 justify-end z-10 relative">
                      {third ? (
                        <>
