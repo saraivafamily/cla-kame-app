@@ -1415,7 +1415,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
               const compPending = Array.isArray(comp.pendingTeams) ? comp.pendingTeams : [];
               const teamCount = parseInt(comp.teamCount) || 0;
-              const isFull = compTeams.length >= teamCount;
+              const isFull = isFlash ? false : compTeams.length >= teamCount;
               const alreadyJoined = compTeams.some(tId => userTeamIds.includes(tId));
               const isPending = compPending.some(p => p && userTeamIds.includes(p.teamId));
 
@@ -8396,10 +8396,90 @@ export default function App() {
     }
   }, [currentUser, joinIdFromUrl]);
 
+  // 🚀 GATILHO AUTOMÁTICO DE ENCERRAMENTO DA COPA FLASH
+  useEffect(() => {
+    // O gatilho só roda no celular de um Líder/Kaioh para não duplicar o comando de criação
+    if (!currentUser || (currentUser.role !== 'leader' && currentUser.role !== 'kaioh')) return;
+    if (competitions.length === 0) return;
+
+    const checkAutoStart = async () => {
+       const now = Date.now();
+       
+       for (const comp of competitions) {
+          const isFlash = comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla';
+          
+          // Só atua se for Flash, se as inscrições estiverem abertas e tiver um horário definido
+          if (isFlash && comp.status === 'registration' && comp.deadline && comp.startTime) {
+             
+             // Converte o "Dia e Hora" agendados em um Timestamp numérico real
+             const targetTime = new Date(`${comp.deadline}T${comp.startTime}:00`).getTime();
+             
+             // Se o relógio bateu ou passou do horário programado:
+             if (now >= targetTime) {
+                showToast(`⏳ O tempo esgotou! Gerando tabela automática da ${comp.name}...`, "info");
+                
+                let finalRounds = []; 
+                let groupsData = null;
+                let finalTeams = [...(comp.teams || [])];
+
+                // Regra de Segurança: Precisa de pelo menos 2 times para existir um torneio
+                if (finalTeams.length < 2) {
+                   showToast(`A ${comp.name} foi cancelada por falta de times.`, "error");
+                   await updateDoc(getPublicDocPath('competitions', comp.id), { status: 'finished' });
+                   continue;
+                }
+
+                // Em torneio de Duplas, se for ímpar, o último a entrar "roda" para fechar par
+                if (comp.category === 'copa_flash_dupla' && finalTeams.length % 2 !== 0) {
+                    const kickedTeamId = finalTeams.pop(); // Remove o último inscrito
+                    const kickedTeam = teams.find(t => t.id === kickedTeamId);
+                    showToast(`Time ${kickedTeam?.name} ficou de fora (número ímpar de inscritos para dupla).`, "warning");
+                }
+
+                try {
+                    // Gera o chaveamento com os times que deram tempo de entrar!
+                    if (comp.category === 'copa_flash_dupla') {
+                       const res = generateDuplasCupBracket(finalTeams, comp.id, teams, matches, competitions);
+                       finalRounds = res.rounds;
+                       groupsData = res.duplas;
+                    } else {
+                       finalRounds = generateCupBracket(finalTeams, comp.id, comp.isFinalDouble);
+                    }
+
+                    // Grava o torneio como 'Ativo' e salva a tabela
+                    await updateDoc(getPublicDocPath('competitions', comp.id), { 
+                       status: 'active', 
+                       teams: finalTeams, 
+                       rounds: finalRounds, 
+                       ...(groupsData && { groups: groupsData })
+                    });
+                    
+                    showToast(`✅ ${comp.name} iniciada e chaves criadas!`, "success");
+
+                } catch (err) {
+                    console.error("Erro no Auto-Start:", err);
+                    showToast("Erro ao gerar tabela automática.", "error");
+                }
+             }
+          }
+       }
+    };
+
+    // Checa o relógio a cada 10 segundos silenciosamente no fundo do app
+    const interval = setInterval(checkAutoStart, 10000); 
+    return () => clearInterval(interval);
+  }, [competitions, currentUser, teams, matches]);
+
   const handleJoinComp = async (compId, teamId, receiptBase64) => {
     const comp = competitions.find(c => c.id === compId);
     if (!comp) { showToast("Erro: Campeonato não localizado no sistema.", "error"); return; }
     try {
+      // ⚡ INSCRIÇÃO IMEDIATA (COPA FLASH)
+        const newTeams = [...(comp.teams || []), teamId];
+        await updateDoc(getPublicDocPath('competitions', compId), { teams: newTeams });
+        showToast("Você foi inscrito imediatamente na Copa Flash!", "success");
+      } else {
+      // ⏳ INSCRIÇÃO TRADICIONAL (Vai para Análise dos Líderes)
       const newPending = [...(comp.pendingTeams || []), { teamId, receipt: receiptBase64, timestamp: Date.now() }];
       await updateDoc(getPublicDocPath('competitions', compId), { pendingTeams: newPending });
       showToast("Inscrição enviada com sucesso para os líderes!", "success");
