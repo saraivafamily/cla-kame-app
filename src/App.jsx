@@ -7917,44 +7917,12 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
     copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia', copa_flash: '⚡ Copa Flash', copa_flash_dupla: '👥 Copa Flash (Duplas)'
   };
 
-  // 🌟 NOVO ALGORITMO: Maiores Campeões Gerais (Com trava de Torneio Finalizado e Título Único)
-  const overallChampions = useMemo(() => {
-    const counts = {};
-    (competitions || []).forEach(c => {
-       // 🛡️ TRAVA: Conta APENAS campeonatos que já foram encerrados pelo Líder
-       if (c.status !== 'finished') return; 
-
-       const champs = getChampionIds(c, matches, teams);
-       if (champs && champs.length > 0) {
-          // 🛡️ TRAVA: Garante que cada time receba apenas 1 título, removendo duplicidades invisíveis
-          const uniqueChamps = [...new Set(champs)]; 
-          uniqueChamps.forEach(tId => {
-             counts[tId] = (counts[tId] || 0) + 1;
-          });
-       }
-    });
-    
-    return Object.keys(counts)
-        .map(tId => ({
-            id: tId,
-            count: counts[tId],
-            team: teams.find(t => t.id === tId)
-        }))
-        .filter(item => item.team)
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 3); // Pega apenas o Top 3 Supremo
-  }, [competitions, matches, teams]);
-
-  const firstOverall = overallChampions[0];
-  const secondOverall = overallChampions[1];
-  const thirdOverall = overallChampions[2];
-
-  // Algoritmo por Categoria (Mantém a lógica da Dupla unida na gaveta dela)
-  const categoryStats = useMemo(() => {
+  // 🧠 MOTOR ÚNICO: Extrai e agrupa campeões (Travado para APENAS campeonatos Finalizados)
+  const getProcessedChampions = () => {
     const stats = {};
     
     (competitions || []).forEach(c => {
-       // 🛡️ TRAVA: Conta APENAS campeonatos encerrados
+       // 🛡️ TRAVA ABSOLUTA: Ignora qualquer torneio que o Líder ainda não clicou em "Encerrar Torneio"
        if (c.status !== 'finished') return;
 
        const champs = getChampionIds(c, matches, teams);
@@ -7962,6 +7930,7 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
           const cat = c.category || 'outros';
           if (!stats[cat]) stats[cat] = {};
           
+          // 🛡️ Lógica para Agrupar as Duplas como 1 único título
           if (cat === 'copa_flash_dupla' && champs.length >= 2) {
              const sortedIds = [champs[0], champs[1]].sort();
              const duoKey = `dupla_${sortedIds[0]}_${sortedIds[1]}`;
@@ -7976,10 +7945,10 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
              }
              
              stats[cat][duoKey] = stats[cat][duoKey] || { count: 0, isDupla: true, p1: champs[0], p2: champs[1], name: duoName };
-             // 🛡️ Garante apenas +1 título para a dupla como uma entidade na prateleira dela
              stats[cat][duoKey].count += 1;
              
           } else {
+             // Lógica Normal Single Player
              const uniqueChamps = [...new Set(champs)];
              uniqueChamps.forEach(tId => {
                 stats[cat][tId] = stats[cat][tId] || { count: 0, isDupla: false, teamId: tId };
@@ -7988,10 +7957,49 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
           }
        }
     });
+    return stats;
+  };
 
+  // 🌟 MEGA PÓDIO GLOBAL - Puxa do Motor Único e soma tudo
+  const overallChampions = useMemo(() => {
+    const statsByCat = getProcessedChampions();
+    const globalStats = {};
+
+    // Junta todas as categorias em um pote só
+    Object.keys(statsByCat).forEach(cat => {
+        Object.keys(statsByCat[cat]).forEach(key => {
+            if (!globalStats[key]) {
+                globalStats[key] = { ...statsByCat[cat][key], count: 0 };
+            }
+            globalStats[key].count += statsByCat[cat][key].count;
+        });
+    });
+
+    return Object.keys(globalStats)
+        .map(key => {
+            const data = globalStats[key];
+            if (data.isDupla) {
+               const t1 = teams.find(t => t.id === data.p1);
+               const t2 = teams.find(t => t.id === data.p2);
+               return { id: key, count: data.count, isDupla: true, team: { name: data.name, shield1: t1?.shield, shield2: t2?.shield } };
+            } else {
+               const t = teams.find(t => t.id === data.teamId);
+               return t ? { id: key, count: data.count, isDupla: false, team: t } : null;
+            }
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3); // Pega apenas os 3 maiores vencedores da história do Clã
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [competitions, matches, teams]);
+
+  // 🌟 PÓDIOS DE DIVISÃO - Puxa do Motor Único e separa por categoria
+  const categoryStats = useMemo(() => {
+    const statsByCat = getProcessedChampions();
     const result = [];
-    Object.keys(stats).forEach(catKey => {
-       const items = stats[catKey];
+    
+    Object.keys(statsByCat).forEach(catKey => {
+       const items = statsByCat[catKey];
        const sortedItems = Object.keys(items)
          .map(key => {
             const data = items[key];
@@ -8018,6 +8026,7 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
        const idxB = order.indexOf(b.key);
        return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [competitions, matches, teams]);
 
   const RenderShields = ({ item, size }) => {
@@ -8067,18 +8076,15 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
           </div>
 
           <div className="p-4 sm:p-6 pt-16 flex items-end justify-center h-[320px] sm:h-[360px] gap-1 sm:gap-2 relative overflow-hidden z-10">
-             {/* Luz de Fundo do Pódio */}
              <div className="absolute bottom-0 w-full h-40 bg-amber-500/20 blur-3xl rounded-full"></div>
 
              {/* Pódio 2º Lugar */}
              <div className="flex flex-col items-center w-1/3 justify-end z-10 relative">
-               {secondOverall ? (
+               {overallChampions[1] ? (
                  <>
-                   <div className="mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={secondOverall.team.name}>
-                     <ShieldDisplay shield={secondOverall.team.shield} size="normal" />
-                   </div>
-                   <span className="text-xs sm:text-sm font-bold text-slate-300 truncate w-full text-center px-1 drop-shadow-md">{secondOverall.team.name}</span>
-                   <span className="text-[10px] sm:text-xs text-slate-400 font-black mb-2">{secondOverall.count} TÍTULO{secondOverall.count > 1 ? 'S' : ''}</span>
+                   <RenderShields item={overallChampions[1]} size="normal" />
+                   <span className="text-xs sm:text-sm font-bold text-slate-300 truncate w-full text-center px-1 drop-shadow-md">{overallChampions[1].team.name}</span>
+                   <span className="text-[10px] sm:text-xs text-slate-400 font-black mb-2">{overallChampions[1].count} TÍTULO{overallChampions[1].count > 1 ? 'S' : ''}</span>
                  </>
                ) : (
                  <div className="h-20"></div>
@@ -8091,14 +8097,12 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
 
              {/* Pódio 1º Lugar */}
              <div className="flex flex-col items-center w-1/3 justify-end z-20 relative -mx-2 sm:-mx-4">
-               {firstOverall ? (
+               {overallChampions[0] ? (
                  <>
                    <Crown className="absolute -top-10 sm:-top-12 text-amber-400 drop-shadow-[0_0_15px_rgba(245,158,11,1)]" size={40} />
-                   <div className="mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={firstOverall.team.name}>
-                     <ShieldDisplay shield={firstOverall.team.shield} size="large" />
-                   </div>
-                   <span className="text-sm sm:text-base font-black text-amber-400 truncate w-full text-center px-1 drop-shadow-md">{firstOverall.team.name}</span>
-                   <span className="text-[10px] sm:text-xs text-amber-200/90 font-black mb-3 bg-amber-500/10 px-3 py-1 rounded border border-amber-500/30 shadow-inner">{firstOverall.count} TÍTULO{firstOverall.count > 1 ? 'S' : ''}</span>
+                   <RenderShields item={overallChampions[0]} size="large" />
+                   <span className="text-sm sm:text-base font-black text-amber-400 truncate w-full text-center px-1 drop-shadow-md">{overallChampions[0].team.name}</span>
+                   <span className="text-[10px] sm:text-xs text-amber-200/90 font-black mb-3 bg-amber-500/10 px-3 py-1 rounded border border-amber-500/30 shadow-inner">{overallChampions[0].count} TÍTULO{overallChampions[0].count > 1 ? 'S' : ''}</span>
                  </>
                ) : (
                  <div className="h-32"></div>
@@ -8111,13 +8115,11 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
 
              {/* Pódio 3º Lugar */}
              <div className="flex flex-col items-center w-1/3 justify-end z-10 relative">
-               {thirdOverall ? (
+               {overallChampions[2] ? (
                  <>
-                   <div className="mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={thirdOverall.team.name}>
-                     <ShieldDisplay shield={thirdOverall.team.shield} size="small" />
-                   </div>
-                   <span className="text-[10px] sm:text-xs font-bold text-amber-700 truncate w-full text-center px-1 drop-shadow-md">{thirdOverall.team.name}</span>
-                   <span className="text-[9px] sm:text-[10px] text-amber-700/80 font-black mb-2">{thirdOverall.count} TÍTULO{thirdOverall.count > 1 ? 'S' : ''}</span>
+                   <RenderShields item={overallChampions[2]} size="small" />
+                   <span className="text-[10px] sm:text-xs font-bold text-amber-700 truncate w-full text-center px-1 drop-shadow-md">{overallChampions[2].team.name}</span>
+                   <span className="text-[9px] sm:text-[10px] text-amber-700/80 font-black mb-2">{overallChampions[2].count} TÍTULO{overallChampions[2].count > 1 ? 'S' : ''}</span>
                  </>
                ) : (
                  <div className="h-16"></div>
