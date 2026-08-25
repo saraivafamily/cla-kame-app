@@ -7917,13 +7917,18 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
     copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia', copa_flash: '⚡ Copa Flash', copa_flash_dupla: '👥 Copa Flash (Duplas)'
   };
 
-  // 🌟 NOVO ALGORITMO: Maiores Campeões Gerais (Soma todos os títulos individuais)
+  // 🌟 NOVO ALGORITMO: Maiores Campeões Gerais (Com trava de Torneio Finalizado e Título Único)
   const overallChampions = useMemo(() => {
     const counts = {};
     (competitions || []).forEach(c => {
+       // 🛡️ TRAVA: Conta APENAS campeonatos que já foram encerrados pelo Líder
+       if (c.status !== 'finished') return; 
+
        const champs = getChampionIds(c, matches, teams);
        if (champs && champs.length > 0) {
-          champs.forEach(tId => {
+          // 🛡️ TRAVA: Garante que cada time receba apenas 1 título, removendo duplicidades invisíveis
+          const uniqueChamps = [...new Set(champs)]; 
+          uniqueChamps.forEach(tId => {
              counts[tId] = (counts[tId] || 0) + 1;
           });
        }
@@ -7937,18 +7942,21 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
         }))
         .filter(item => item.team)
         .sort((a, b) => b.count - a.count)
-        .slice(0, 3); // Pega apenas o Top 3
+        .slice(0, 3); // Pega apenas o Top 3 Supremo
   }, [competitions, matches, teams]);
 
   const firstOverall = overallChampions[0];
   const secondOverall = overallChampions[1];
   const thirdOverall = overallChampions[2];
 
-  // Algoritmo por Categoria (Mantém a lógica da Dupla unida)
+  // Algoritmo por Categoria (Mantém a lógica da Dupla unida na gaveta dela)
   const categoryStats = useMemo(() => {
     const stats = {};
     
     (competitions || []).forEach(c => {
+       // 🛡️ TRAVA: Conta APENAS campeonatos encerrados
+       if (c.status !== 'finished') return;
+
        const champs = getChampionIds(c, matches, teams);
        if (champs && champs.length > 0) {
           const cat = c.category || 'outros';
@@ -7968,10 +7976,12 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
              }
              
              stats[cat][duoKey] = stats[cat][duoKey] || { count: 0, isDupla: true, p1: champs[0], p2: champs[1], name: duoName };
+             // 🛡️ Garante apenas +1 título para a dupla como uma entidade na prateleira dela
              stats[cat][duoKey].count += 1;
              
           } else {
-             champs.forEach(tId => {
+             const uniqueChamps = [...new Set(champs)];
+             uniqueChamps.forEach(tId => {
                 stats[cat][tId] = stats[cat][tId] || { count: 0, isDupla: false, teamId: tId };
                 stats[cat][tId].count += 1;
              });
@@ -8159,7 +8169,7 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
                      {second ? (
                        <>
                          <RenderShields item={second} size="small" />
-                         <span className="text-[10px] sm:text-xs font-bold text-slate-300 truncate w-full text-center px-1 drop-shadow-md">{second.team.name}</span>
+                         <span className="text-[10px] sm:text-xs font-bold text-slate-300 truncate w-full text-center px-1 drop-shadow-md">{second.team ? second.team.name : ''}</span>
                          <span className="text-[9px] sm:text-[10px] text-slate-400 font-black mb-2">{second.count} TÍTULO{second.count > 1 ? 'S' : ''}</span>
                        </>
                      ) : (
@@ -8176,7 +8186,7 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
                        <>
                          <Crown className="absolute -top-7 sm:-top-8 text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" size={28} />
                          <RenderShields item={first} size="normal" />
-                         <span className="text-xs sm:text-sm font-black text-amber-400 truncate w-full text-center px-1 drop-shadow-md">{first.team.name}</span>
+                         <span className="text-xs sm:text-sm font-black text-amber-400 truncate w-full text-center px-1 drop-shadow-md">{first.team ? first.team.name : ''}</span>
                          <span className="text-[9px] sm:text-[10px] text-amber-200/90 font-black mb-2 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30 shadow-inner">{first.count} TÍTULO{first.count > 1 ? 'S' : ''}</span>
                        </>
                      ) : (
@@ -8192,7 +8202,7 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
                      {third ? (
                        <>
                          <RenderShields item={third} size="small" />
-                         <span className="text-[10px] sm:text-xs font-bold text-amber-700 truncate w-full text-center px-1 drop-shadow-md">{third.team.name}</span>
+                         <span className="text-[10px] sm:text-xs font-bold text-amber-700 truncate w-full text-center px-1 drop-shadow-md">{third.team ? third.team.name : ''}</span>
                          <span className="text-[9px] sm:text-[10px] text-amber-700/80 font-black mb-2">{third.count} TÍTULO{third.count > 1 ? 'S' : ''}</span>
                        </>
                      ) : (
