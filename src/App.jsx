@@ -7219,16 +7219,18 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
   );
 };
 
-const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
+const KameBank = ({ currentUser, users, predictions, matches, teams, showToast }) => {
   const [bankTab, setBankTab] = useState('extrato');
   const [selectedPackage, setSelectedPackage] = useState(null);
   
   const [checkoutStep, setCheckoutStep] = useState('idle');
   const [pixPayload, setPixPayload] = useState('');
   const [initialCoins, setInitialCoins] = useState(0);
+  const [isAuditing, setIsAuditing] = useState(false);
 
   const getTeam = (id) => (teams || []).find(t => t.id === id);
   const myPreds = (predictions || []).filter(p => p.userId === currentUser?.id).sort((a,b) => b.timestamp - a.timestamp);
+  const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
 
   const BK_PACKAGES = [
     { id: 'p1', name: 'Pacote Iniciante', coins: 300, price: 5.00, bonus: 0, color: 'from-blue-600 to-blue-900', border: 'border-blue-500' },
@@ -7310,6 +7312,65 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
     }, 2000);
   };
 
+  // 🚀 O MOTOR DE AUDITORIA E RECÁLCULO GLOBAL DO BANCO
+  const handleSyncBalancesFromExtract = async () => {
+    if (!window.confirm("ATENÇÃO: O sistema vai reconstruir a carteira de TODOS os membros lendo cada linha do Extrato (Apostas + Depósitos) e salvar as correções em massa. Tem certeza?")) return;
+    
+    setIsAuditing(true);
+    showToast("⚖️ Auditoria iniciada! Recalculando todos os saldos... Aguarde.", "info");
+
+    try {
+      const BEM_VINDO_BASE = 100;
+      const BONUS_SOCIAL_COMPENSACAO = 100; // Dá 100 moedas pra cobrir os check-ins velhos que não tinham extrato
+
+      const updatePromises = (users || []).map(async (u) => {
+         let calcBalance = BEM_VINDO_BASE + BONUS_SOCIAL_COMPENSACAO;
+         
+         // Se ele colocou foto de perfil, ganha os 50
+         if (u.receivedProfileBonus) {
+             calcBalance += 50;
+         }
+
+         // Puxa o extrato inteiro da pessoa
+         const userMovements = (predictions || []).filter(p => p.userId === u.id);
+
+         // Reconstrói o saldo baseado apenas nos números matemáticos do extrato
+         userMovements.forEach(m => {
+            if (m.type === 'deposit') {
+               // É um pacote comprado ou depósito (soma)
+               calcBalance += Number(m.amount || 0);
+            } else {
+               // É um bilhete de aposta. Cobra o valor do bilhete.
+               calcBalance -= Number(m.amount || 0);
+
+               // Se o bilhete deu GREEN (Vitória), devolve o Payout pro bolso
+               if (m.status === 'won') {
+                  calcBalance += Number(m.payout || 0);
+               }
+            }
+         });
+
+         // Blindagem extra: Nenhuma conta pode ficar negativa. Se der ruim, zera.
+         calcBalance = Math.max(0, Math.floor(calcBalance));
+
+         // Só chama o banco de dados se o saldo real for diferente do que está bugado hoje
+         if (calcBalance !== (u.kameCoins || 0)) {
+             return updateDoc(getPublicDocPath('users', u.id), { kameCoins: calcBalance });
+         }
+         return Promise.resolve();
+      });
+
+      await Promise.all(updatePromises);
+      showToast("🎉 Auditoria concluída! A carteira de todo mundo bate 100% com os Extratos agora.", "success");
+      
+    } catch (err) {
+      console.error(err);
+      showToast("Falha na auditoria. Verifique sua conexão.", "error");
+    } finally {
+      setIsAuditing(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in pb-12">
       <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 rounded-3xl border border-blue-800 shadow-xl flex flex-col sm:flex-row justify-between items-center gap-6">
@@ -7328,10 +7389,42 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
         </div>
       </div>
 
-      <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800">
-        <button onClick={()=>setBankTab('extrato')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='extrato'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>📜 Extrato da Conta</button>
-        <button onClick={()=>setBankTab('deposito')} className={`flex-1 py-2.5 text-sm rounded-lg font-bold transition-all ${bankTab==='deposito'?'bg-amber-600 text-white':'text-blue-500 hover:text-white'}`}>💰 Adquirir BK</button>
+      <div className="flex gap-2 p-1 bg-blue-950 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar">
+        <button onClick={()=>setBankTab('extrato')} className={`shrink-0 flex-1 py-2.5 px-4 text-sm rounded-lg font-bold transition-all ${bankTab==='extrato'?'bg-emerald-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>📜 Extrato da Conta</button>
+        <button onClick={()=>setBankTab('deposito')} className={`shrink-0 flex-1 py-2.5 px-4 text-sm rounded-lg font-bold transition-all ${bankTab==='deposito'?'bg-amber-600 text-white shadow-md':'text-blue-500 hover:text-white'}`}>💰 Adquirir BK</button>
+        {isAdmin && (
+           <button onClick={()=>setBankTab('admin')} className={`shrink-0 flex-1 py-2.5 px-4 text-sm rounded-lg font-bold transition-all ${bankTab==='admin'?'bg-red-600 text-white shadow-md':'text-red-400 hover:text-white border border-red-500/30'}`}>👑 Central Admin</button>
+        )}
       </div>
+
+      {bankTab === 'admin' && isAdmin && (
+        <div className="bg-blue-900 rounded-3xl border border-blue-800 shadow-xl overflow-hidden animate-in slide-in-from-right-4 p-8 text-center space-y-6">
+           <div className="flex flex-col items-center justify-center">
+             <Crown size={48} className="text-amber-400 mb-4 animate-bounce" />
+             <h3 className="text-3xl font-black text-white uppercase tracking-wider mb-2">Banco Central do Clã</h3>
+             <p className="text-blue-300 max-w-lg">Painel de recálculo de saldos. Utilize esta ferramenta para auditar e corrigir as carteiras de todos os membros de forma automática.</p>
+           </div>
+           
+           <div className="bg-red-500/10 border border-red-500/30 p-6 md:p-8 rounded-2xl inline-block max-w-2xl mx-auto w-full text-left shadow-inner">
+               <div className="flex items-center gap-3 mb-4 border-b border-red-500/30 pb-4">
+                 <AlertCircle className="text-red-500 shrink-0" size={32} />
+                 <div>
+                   <h4 className="font-black text-red-400 text-lg uppercase tracking-widest">Auditoria Matemática</h4>
+                   <p className="text-xs text-red-300">Corrige bugs de saldos ausentes instantaneamente.</p>
+                 </div>
+               </div>
+               
+               <p className="text-sm text-blue-200 mb-4 leading-relaxed">
+                 Esta ferramenta varrerá todas as contas e forçará o saldo de todo mundo a bater com a conta exata dos extratos individuais.<br/><br/>
+                 O novo saldo final de todos será igual a: <b>100 BK Iniciais + 50 BK (Foto) + Bônus Fixo Social (100) + Todos Depósitos - Bilhetes Comprados + Lucro de Vitórias</b>.
+               </p>
+               
+               <button onClick={handleSyncBalancesFromExtract} disabled={isAuditing} className="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-black py-4 px-6 rounded-xl shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all w-full flex items-center justify-center gap-2 text-lg">
+                  {isAuditing ? 'Calculando saldos...' : '⚖️ Recalcular e Corrigir Contas'}
+               </button>
+           </div>
+        </div>
+      )}
 
       {bankTab === 'extrato' && (
         <div className="bg-blue-900 rounded-3xl border border-blue-800 shadow-xl overflow-hidden animate-in slide-in-from-left-4">
@@ -7401,7 +7494,6 @@ const KameBank = ({ currentUser, predictions, matches, teams, showToast }) => {
               Ao adquirir pacotes de BitKames (BK), você ajuda a financiar nossos torneios e premiações.
             </p>
             
-            {/* AVISO LEGAL BLINDADO */}
             <div className="mt-5 bg-blue-950/50 p-4 rounded-xl border border-blue-800 inline-block text-left text-xs text-blue-400 shadow-inner">
                <p className="text-amber-400 font-bold mb-1.5">⚠️ Aviso Legal</p>
                <ul className="list-disc pl-4 space-y-1">
@@ -8336,8 +8428,7 @@ export default function App() {
           showToast("Foto atualizada!" + rewardMsg, "success"); 
         }} />;
 
-        case 'bank': return <KameBank currentUser={currentUser} predictions={predictions} matches={matches} teams={teams} showToast={showToast} />;
-
+      case 'bank': return <KameBank currentUser={currentUser} users={users} predictions={predictions} matches={matches} teams={teams} showToast={showToast} />;
       case 'teams_list': return <TeamsList teams={teams} users={users} currentUser={currentUser} matches={matches} competitions={competitions} onEditTeam={handleEditTeam} onDeleteTeam={async (id) => { await deleteDoc(getPublicDocPath('teams', id)); showToast("Time excluído com sucesso!", "success"); }} />;
       case 'competitions': return <CompetitionsList competitions={competitions} teams={teams} currentUser={currentUser} onSelectComp={handleSelectComp} onDeleteComp={id => deleteDoc(getPublicDocPath('competitions', id))} />;
       case 'ranking': return <GlobalRanking teams={teams} matches={matches} competitions={competitions} currentUser={currentUser} showToast={showToast} />;
