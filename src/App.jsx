@@ -161,7 +161,96 @@ const getChampionIds = (comp, matches, teams) => {
   return [];
 };
 
+// 🌟 FUNÇÃO QUE FALTAVA COLOCADA AQUI, ANTES DO GATILHO LER ELA
+const generateCupBracket = (teamIds, compId, isFinalDouble = false) => {
+  if (!teamIds || teamIds.length === 0) return [];
+  
+  const sh = [...teamIds].sort(() => 0.5 - Math.random());
+  let p2 = 1; while (p2 < sh.length) p2 *= 2;
+  const tkr = Math.log2(p2);
+  const rounds = [];
+  
+  const firstRoundMatches = [];
+  const byes = p2 - sh.length; 
+  const playing = sh.length - byes; 
+  
+  let teamIndex = 0;
+  for (let i = 0; i < p2 / 2; i++) {
+     if (i < playing / 2) {
+         firstRoundMatches.push([sh[teamIndex++], sh[teamIndex++]]);
+     } else {
+         firstRoundMatches.push([sh[teamIndex++], null]);
+     }
+  }
+  
+  let mc = 1;
+  let prevRoundMatches = firstRoundMatches.map(m => {
+      return { tA: m[0] || '', tB: m[1] || '', isBye: (!m[0] || !m[1]) };
+  });
+
+  for (let kr = 0; kr < tkr; kr++) {
+    const rm = [];
+    const nm = p2 / Math.pow(2, kr + 1);
+    const fmc = mc;
+    let rl = 'Mata-Mata';
+    if (nm === 1) rl = 'Final';
+    else if (nm === 2) rl = 'Semifinal';
+    else if (nm === 4) rl = 'Quartas';
+    else if (nm === 8) rl = 'Oitavas';
+    else if (nm === 16) rl = '16 Avos';
+    else if (nm === 32) rl = '32 Avos';
+
+    const currentRoundMatches = [];
+
+    for (let i = 0; i < nm; i++) {
+      let tA = ''; let tB = '';
+      let pA = 'A Definir'; let pB = 'A Definir';
+
+      if (kr === 0) {
+        tA = prevRoundMatches[i].tA;
+        tB = prevRoundMatches[i].tB;
+        if (!tA && !tB) { pA = 'Vaga Aberta'; pB = 'Vaga Aberta'; }
+        else if (!tA) { pA = 'Vaga Aberta'; pB = 'A Definir'; } 
+        else if (!tB) { pA = 'A Definir'; pB = 'Vaga Aberta'; }
+        
+        currentRoundMatches.push({ advanced: tA || tB });
+      } else {
+        const prevA = prevRoundMatches[i * 2];
+        const prevB = prevRoundMatches[i * 2 + 1];
+        
+        if (prevA && prevA.advanced) { tA = prevA.advanced; pA = 'Avanço Automático'; }
+        else { pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; }
+        
+        if (prevB && prevB.advanced) { tB = prevB.advanced; pB = 'Avanço Automático'; }
+        else { pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`; }
+
+        if (tA && !tB && pB.includes('Avanço')) currentRoundMatches.push({ advanced: tA });
+        else if (!tA && tB && pA.includes('Avanço')) currentRoundMatches.push({ advanced: tB });
+        else currentRoundMatches.push({ advanced: null });
+      }
+
+      if (nm === 1) {
+        rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f1`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
+        if (isFinalDouble) {
+          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f2`, teamA: tB, teamB: tA, placeholderA: pB, placeholderB: pA, status: 'pending_play' }); mc++;
+        }
+        if (kr > 0) {
+          let p3A = `Perd. Jogo ${fmc - (nm * 2) + (i * 2)}`;
+          let p3B = `Perd. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
+          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_3rd`, teamA: '', teamB: '', placeholderA: `🥉 ${p3A}`, placeholderB: `🥉 ${p3B}`, status: 'pending_play' }); mc++;
+        }
+      } else {
+        rm.push({ id: `${compId}_ko_m${mc}_kr${kr}`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
+      }
+    }
+    prevRoundMatches = currentRoundMatches;
+    rounds.push({ id: `ko_${kr}`, number: rl, status: kr === 0 ? 'released' : 'locked', releasedAt: kr === 0 ? Date.now() : null, matches: rm });
+  }
+  return rounds;
+};
+
 const generateRoundRobin = (teams, compId, isDoubleRound = false) => {
+// ... resto do seu código
   if (!teams || teams.length === 0) return [];
   const t = [...teams];
   if (t.length % 2 !== 0) t.push(null);
