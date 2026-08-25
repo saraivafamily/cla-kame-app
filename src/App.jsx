@@ -7868,6 +7868,7 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
     copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia', copa_flash: '⚡ Copa Flash', copa_flash_dupla: '👥 Copa Flash (Duplas)'
   };
 
+  // 🌟 NOVO ALGORITMO: Conta Duplas como uma única entidade
   const categoryStats = useMemo(() => {
     const stats = {};
     
@@ -7876,30 +7877,76 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
        if (champs && champs.length > 0) {
           const cat = c.category || 'outros';
           if (!stats[cat]) stats[cat] = {};
-          champs.forEach(tId => {
-             stats[cat][tId] = (stats[cat][tId] || 0) + 1;
-          });
+          
+          if (cat === 'copa_flash_dupla' && champs.length >= 2) {
+             // Organiza os IDs para gerar uma chave única para a dupla sempre igual
+             const sortedIds = [champs[0], champs[1]].sort();
+             const duoKey = `dupla_${sortedIds[0]}_${sortedIds[1]}`;
+             
+             // Busca o nome oficial da dupla lá nos grupos da competição
+             let duoName = "Dupla Campeã";
+             if (c.groups && Array.isArray(c.groups)) {
+                const duoObj = c.groups.find(d => 
+                   (d.p1 === champs[0] && d.p2 === champs[1]) || 
+                   (d.p1 === champs[1] && d.p2 === champs[0])
+                );
+                if (duoObj && duoObj.name) duoName = duoObj.name;
+             }
+             
+             stats[cat][duoKey] = stats[cat][duoKey] || { count: 0, isDupla: true, p1: champs[0], p2: champs[1], name: duoName };
+             stats[cat][duoKey].count += 1;
+             
+          } else {
+             // Lógica Normal Single Player
+             champs.forEach(tId => {
+                stats[cat][tId] = stats[cat][tId] || { count: 0, isDupla: false, teamId: tId };
+                stats[cat][tId].count += 1;
+             });
+          }
        }
     });
 
     const result = [];
     Object.keys(stats).forEach(catKey => {
-       const teamCounts = stats[catKey];
-       const sortedTeams = Object.keys(teamCounts)
-         .map(tId => ({ id: tId, count: teamCounts[tId], team: teams.find(t => t.id === tId) }))
-         .filter(item => item.team)
-         .sort((a, b) => b.count - a.count); // Ordena por quem tem mais títulos
+       const items = stats[catKey];
+       const sortedItems = Object.keys(items)
+         .map(key => {
+            const data = items[key];
+            if (data.isDupla) {
+               const t1 = teams.find(t => t.id === data.p1);
+               const t2 = teams.find(t => t.id === data.p2);
+               return {
+                  id: key,
+                  count: data.count,
+                  isDupla: true,
+                  team: {
+                     name: data.name,
+                     shield1: t1?.shield,
+                     shield2: t2?.shield
+                  }
+               };
+            } else {
+               const t = teams.find(t => t.id === data.teamId);
+               return t ? {
+                  id: key,
+                  count: data.count,
+                  isDupla: false,
+                  team: t
+               } : null;
+            }
+         })
+         .filter(Boolean)
+         .sort((a, b) => b.count - a.count); 
        
-       if (sortedTeams.length > 0) {
+       if (sortedItems.length > 0) {
           result.push({
              key: catKey,
              name: CATEGORY_NAMES[catKey] || catKey.toUpperCase(),
-             top3: sortedTeams.slice(0, 3)
+             top3: sortedItems.slice(0, 3)
           });
        }
     });
     
-    // Organiza as categorias por ordem de importância
     const order = Object.keys(CATEGORY_NAMES);
     return result.sort((a, b) => {
        const idxA = order.indexOf(a.key);
@@ -7907,6 +7954,23 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
        return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
     });
   }, [competitions, matches, teams]);
+
+  // 🌟 NOVO COMPONENTE INTERNO: Renderiza Escudos Duplos ou Solteiros
+  const RenderShields = ({ item, size }) => {
+     if (item.isDupla) {
+        return (
+           <div className="flex items-center -space-x-3 mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={item.team.name}>
+              <ShieldDisplay shield={item.team.shield1} size={size} />
+              <ShieldDisplay shield={item.team.shield2} size={size} />
+           </div>
+        );
+     }
+     return (
+        <div className="mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={item.team.name}>
+           <ShieldDisplay shield={item.team.shield} size={size} />
+        </div>
+     );
+  };
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in pb-12">
@@ -7948,7 +8012,8 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
                    </h3>
                 </div>
                 
-                <div className="p-4 sm:p-6 pt-10 flex items-end justify-center h-64 gap-1 relative overflow-hidden">
+                {/* 🌟 ALTURA AUMENTADA AQUI (h-[280px] e pt-16) PARA A COROA NÃO CORTAR */}
+                <div className="p-4 sm:p-6 pt-16 flex items-end justify-center h-[280px] sm:h-[300px] gap-1 relative overflow-hidden">
                    {/* Luz de Fundo do Pódio */}
                    <div className="absolute bottom-0 w-3/4 h-32 bg-amber-500/10 blur-2xl rounded-full"></div>
 
@@ -7956,9 +8021,7 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
                    <div className="flex flex-col items-center w-1/3 justify-end z-10 relative">
                      {second ? (
                        <>
-                         <div className="mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={second.team.name}>
-                           <ShieldDisplay shield={second.team.shield} size="small" />
-                         </div>
+                         <RenderShields item={second} size="small" />
                          <span className="text-[10px] sm:text-xs font-bold text-slate-300 truncate w-full text-center px-1 drop-shadow-md">{second.team.name}</span>
                          <span className="text-[9px] sm:text-[10px] text-slate-400 font-black mb-2">{second.count} TÍTULO{second.count > 1 ? 'S' : ''}</span>
                        </>
@@ -7975,10 +8038,9 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
                    <div className="flex flex-col items-center w-1/3 justify-end z-20 relative -mx-2">
                      {first ? (
                        <>
-                         <Crown className="absolute -top-6 sm:-top-7 text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" size={26} />
-                         <div className="mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={first.team.name}>
-                           <ShieldDisplay shield={first.team.shield} size="normal" />
-                         </div>
+                         {/* 👑 COROA REPOSICIONADA */}
+                         <Crown className="absolute -top-7 sm:-top-8 text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" size={28} />
+                         <RenderShields item={first} size="normal" />
                          <span className="text-xs sm:text-sm font-black text-amber-400 truncate w-full text-center px-1 drop-shadow-md">{first.team.name}</span>
                          <span className="text-[9px] sm:text-[10px] text-amber-200/90 font-black mb-2 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30 shadow-inner">{first.count} TÍTULO{first.count > 1 ? 'S' : ''}</span>
                        </>
@@ -7995,9 +8057,7 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
                    <div className="flex flex-col items-center w-1/3 justify-end z-10 relative">
                      {third ? (
                        <>
-                         <div className="mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={third.team.name}>
-                           <ShieldDisplay shield={third.team.shield} size="small" />
-                         </div>
+                         <RenderShields item={third} size="small" />
                          <span className="text-[10px] sm:text-xs font-bold text-amber-700 truncate w-full text-center px-1 drop-shadow-md">{third.team.name}</span>
                          <span className="text-[9px] sm:text-[10px] text-amber-700/80 font-black mb-2">{third.count} TÍTULO{third.count > 1 ? 'S' : ''}</span>
                        </>
