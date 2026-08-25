@@ -1413,9 +1413,8 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               const opponentTeam = isUserTeamA ? tB : tA;
               const myTeamObj = isUserTeamA ? tA : tB;
 
-             const hideOpponent = isDupla && isIda;
+              const hideOpponent = isDupla && isIda;
               
-              // 🌟 NOVO: Agora puxa o código salvo pelo Admin no banco de dados
               const dlsCode = m.dlsCode || null;
 
               return (
@@ -1501,6 +1500,8 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
           <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2"><Trophy size={20} /> Inscrições Abertas</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {openCompetitions.map(comp => {
+              // 🌟 CORREÇÃO FEITA AQUI: A variável isFlash agora está declarada dentro do loop
+              const isFlash = comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla'; 
               const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
               const compPending = Array.isArray(comp.pendingTeams) ? comp.pendingTeams : [];
               const teamCount = parseInt(comp.teamCount) || 0;
@@ -1517,12 +1518,12 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               });
 
               return (
-                <div key={comp.id} className={`bg-blue-900 p-5 rounded-2xl border ${comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla' ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-amber-500/30'} shadow-lg flex flex-col justify-between group hover:border-amber-500/60 transition-all`}>
+                <div key={comp.id} className={`bg-blue-900 p-5 rounded-2xl border ${isFlash ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-amber-500/30'} shadow-lg flex flex-col justify-between group hover:border-amber-500/60 transition-all`}>
                   <div>
                     <div className="flex justify-between items-start mb-2">
-                      <h4 className={`font-black text-lg transition-colors ${comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla' ? 'text-amber-400' : 'text-white group-hover:text-amber-400'}`}>{comp.name}</h4>
+                      <h4 className={`font-black text-lg transition-colors ${isFlash ? 'text-amber-400' : 'text-white group-hover:text-amber-400'}`}>{comp.name}</h4>
                       <span className="text-xs bg-amber-500/20 text-amber-400 font-bold px-2 py-1 rounded-lg border border-amber-500/30">
-                        {compTeams.length}/{teamCount} Vagas
+                        {compTeams.length}/{isFlash ? '∞' : teamCount} Vagas
                       </span>
                     </div>
                     <p className="text-xs uppercase text-emerald-400 font-bold tracking-widest">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</p>
@@ -1530,7 +1531,7 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                   
                   <div className="mt-5 pt-4 border-t border-blue-800">
                     
-                    {(comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla') && comp.deadline && (
+                    {isFlash && comp.deadline && (
                       <div className="bg-blue-950 p-2.5 rounded-xl border border-amber-500/40 text-center mb-4">
                         <p className="text-[9px] text-amber-400 font-bold uppercase tracking-widest mb-0.5 flex items-center justify-center gap-1"><Activity size={12}/> Inicia em</p>
                         <p className="text-2xl text-amber-500 drop-shadow-md">
