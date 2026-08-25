@@ -5744,6 +5744,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
 
   // 🌟 Controle de Abas dentro do Ranking
   const [activeTab, setActiveTab] = useState('ranking');
+  const [showPointsTable, setShowPointsTable] = useState(false); // Controle da tabela de pontuação
 
   // ⚡ MODO TURBO: Puxa o ranking ordenado
   const rankingData = useMemo(() => {
@@ -5762,6 +5763,19 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
     if (pts >= 500) return { label: 'Veterano II', icon: '🛡️', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
     if (pts >= 250) return { label: 'Veterano I', icon: '🪖', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
     return { label: 'Aprendiz', icon: '🦆', color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' };
+  };
+
+  // 🌟 NOVO MOTOR: Calcula quanto falta para a PRÓXIMA patente
+  const getNextBadgeInfo = (pts) => {
+    if (pts >= 3000) return null; // Já é Monstro Sagrado (MÁXIMO)
+    if (pts >= 2000) return { next: 3000, label: 'Monstro Sagrado' };
+    if (pts >= 1900) return { next: 2000, label: 'Lenda Suprema' };
+    if (pts >= 1600) return { next: 1900, label: 'Mestre III' };
+    if (pts >= 1300) return { next: 1600, label: 'Mestre II' };
+    if (pts >= 750) return { next: 1300, label: 'Mestre I' };
+    if (pts >= 500) return { next: 750, label: 'Veterano III' };
+    if (pts >= 250) return { next: 500, label: 'Veterano II' };
+    return { next: 250, label: 'Veterano I' };
   };
 
   // 🚀 RESTAURAÇÃO DE HISTÓRICO COM REGRA DE W.O.
@@ -5787,7 +5801,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       (matches || []).forEach(m => {
         if (m.status === 'approved') {
           const c = (competitions || []).find(comp => comp.id === m.compId);
-          if (!c) return; // 👈 Ignora partidas de torneios excluídos
+          if (!c) return; 
           const isFlash = c.category === 'copa_flash';
           const ptsPlay = isFlash ? 1 : 2; const ptsWin = isFlash ? 1 : 3; const ptsDraw = isFlash ? 0 : 1;
 
@@ -5808,18 +5822,18 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
           if(tA) { 
              tA.playedMatches += 1; 
              if (isWoA) {
-                 tA.globalPoints -= 2; // Punição direta nítida
+                 tA.globalPoints -= 2; 
              } else {
-                 tA.globalPoints += ptsPlay; // Ganha participação apenas se jogou
+                 tA.globalPoints += ptsPlay; 
              }
              tA.goalsFor += scoreA; tA.goalsAgainst += scoreB; 
           }
           if(tB) { 
              tB.playedMatches += 1; 
              if (isWoB) {
-                 tB.globalPoints -= 2; // Punição direta nítida
+                 tB.globalPoints -= 2; 
              } else {
-                 tB.globalPoints += ptsPlay; // Ganha participação apenas se jogou
+                 tB.globalPoints += ptsPlay; 
              }
              tB.goalsFor += scoreB; tB.goalsAgainst += scoreA; 
           }
@@ -5887,7 +5901,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
 
       const updatePromises = Object.keys(stats).map(teamId => {
         const tStats = stats[teamId];
-        if (tStats.playedMatches > 0 || tStats.globalPoints > 0) {
+        if (tStats.playedMatches > 0 || tStats.globalPoints !== 0) {
           return updateDoc(getPublicDocPath('teams', teamId), {
             globalPoints: tStats.globalPoints,
             playedMatches: tStats.playedMatches,
@@ -5918,7 +5932,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
 
     const events = [];
 
-    // 1. Inscrições em Competições
     (competitions || []).forEach(c => {
         if (c.teams && c.teams.includes(myTeam.id)) {
             const isFlash = c.category === 'copa_flash';
@@ -5930,7 +5943,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
             });
         }
 
-        // Fases Alcançadas
         if (c.rounds) {
             const isFlash = c.category === 'copa_flash';
             const ptsOitavas = isFlash ? 0 : 5; const ptsQuartas = isFlash ? 2 : 10;
@@ -5971,11 +5983,10 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
         }
     });
 
-    // 2. Partidas Jogadas e Resultados
     (matches || []).forEach(m => {
         if (m.status === 'approved' && (m.teamA === myTeam.id || m.teamB === myTeam.id)) {
             const c = competitions.find(comp => comp.id === m.compId);
-            if (!c) return; // 👈 Oculta do extrato
+            if (!c) return; 
             const isFlash = c.category === 'copa_flash';
             const ptsPlay = isFlash ? 1 : 2; 
             const ptsWin = isFlash ? 1 : 3; 
@@ -5985,7 +5996,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
             const oppId = m.teamA === myTeam.id ? m.teamB : m.teamA;
             const oppName = teams.find(t => t.id === oppId)?.name || 'Adversário';
 
-            // Punição W.O.
             let isWoMe = false;
             const obs = (m.observacoes || '').toLowerCase();
             if (obs.includes('w.o') || obs.includes('wo')) {
@@ -6255,13 +6265,70 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                <p className="text-sm text-blue-400 mt-1">A meritocracia do Clã Kame. Jogue, avance e conquiste seu lugar no topo.</p>
              </div>
              {isAdmin && (
-               <button onClick={handleSyncHistory} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-2 transition-colors shadow-lg shrink-0">
-                 🔄 Restaurar Pontos Antigos
+               <div className="flex gap-2">
+                 <button onClick={() => setShowPointsTable(!showPointsTable)} className="bg-blue-800 hover:bg-blue-700 text-blue-300 font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-2 transition-colors border border-blue-700">
+                   📋 Tabela de Pontos
+                 </button>
+                 <button onClick={handleSyncHistory} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-2 transition-colors shadow-lg shrink-0">
+                   🔄 Restaurar Pontos Antigos
+                 </button>
+               </div>
+             )}
+             {!isAdmin && (
+               <button onClick={() => setShowPointsTable(!showPointsTable)} className="bg-blue-800 hover:bg-blue-700 text-blue-300 font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-2 transition-colors border border-blue-700">
+                 📋 Tabela de Pontos
                </button>
              )}
           </div>
         </div>
       </div>
+
+      {/* 🌟 TABELA DE PONTUAÇÃO (GAVETA) */}
+      {showPointsTable && (
+        <div className="bg-blue-900/60 p-5 rounded-2xl border border-blue-800 animate-in slide-in-from-top-2 shadow-inner">
+          <h4 className="text-amber-400 font-bold mb-4 flex items-center gap-2 text-lg"><Target size={18}/> Como ganhar Pontos Xclã?</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-blue-200">
+             
+             {/* Torneios Oficiais */}
+             <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 shadow-md">
+               <p className="font-bold text-white mb-3 pb-2 border-b border-blue-800/50 flex items-center gap-2"><Trophy size={16}/> Ligas e Copas Oficiais</p>
+               <ul className="space-y-2.5">
+                 <li className="flex justify-between items-center"><span>Inscrição Confirmada</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+10 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Partida Jogada</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+2 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Vitória na Partida</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+3 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Empate</span> <span className="font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">+1 pt</span></li>
+                 <li className="flex justify-between items-center"><span>Avanço Oitavas (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+5 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Avanço Quartas (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+10 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Avanço Semifinal (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+15 pts</span></li>
+                 <li className="flex justify-between items-center text-amber-400 font-bold mt-3 pt-3 border-t border-blue-800/50"><span>🥉 3º Lugar</span> <span>+15 pts</span></li>
+                 <li className="flex justify-between items-center text-amber-400 font-bold"><span>🥈 Vice-Campeão</span> <span>+25 pts</span></li>
+                 <li className="flex justify-between items-center text-amber-400 font-bold"><span>🥇 Campeão</span> <span>+50 pts</span></li>
+               </ul>
+             </div>
+
+             {/* Copa Flash */}
+             <div className="bg-blue-950 p-4 rounded-xl border border-amber-500/30 shadow-md">
+               <p className="font-bold text-amber-400 mb-3 pb-2 border-b border-blue-800/50 flex items-center gap-2"><Activity size={16}/> Copa Flash (Tiro Curto)</p>
+               <ul className="space-y-2.5">
+                 <li className="flex justify-between items-center"><span>Inscrição Confirmada</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+2 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Partida Jogada</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+1 pt</span></li>
+                 <li className="flex justify-between items-center"><span>Vitória na Partida</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+1 pt</span></li>
+                 <li className="flex justify-between items-center opacity-50"><span>Empate (Não há em Flash)</span> <span className="font-black text-slate-400">0 pts</span></li>
+                 <li className="flex justify-between items-center opacity-50"><span>Avanço Oitavas</span> <span className="font-black text-slate-400">0 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Avanço Quartas (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+2 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Avanço Semifinal (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+5 pts</span></li>
+                 <li className="flex justify-between items-center text-amber-400 font-bold mt-3 pt-3 border-t border-blue-800/50"><span>🥉 3º Lugar</span> <span>+5 pts</span></li>
+                 <li className="flex justify-between items-center text-amber-400 font-bold"><span>🥈 Vice-Campeão</span> <span>+10 pts</span></li>
+                 <li className="flex justify-between items-center text-amber-400 font-bold"><span>🥇 Campeão</span> <span>+20 pts</span></li>
+               </ul>
+               
+               <div className="mt-4 bg-red-500/10 p-3 rounded-lg border border-red-500/20">
+                 <p className="text-[11px] text-red-400 font-bold flex justify-between items-center"><span>🛑 Punição por W.O (Geral)</span> <span className="bg-red-500 text-white px-2 py-0.5 rounded">-2 pts</span></p>
+               </div>
+             </div>
+          </div>
+        </div>
+      )}
 
       {/* 🌟 NAVEGAÇÃO DE ABAS DO RANKING */}
       <div className="flex gap-1.5 p-1.5 bg-blue-950 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar">
@@ -6301,6 +6368,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                   rankingData.map((t, index) => {
                     const pts = t.globalPoints || 0;
                     const badge = getBadge(pts);
+                    const nextBadge = getNextBadgeInfo(pts); // 🌟 Puxa quanto falta para o próximo nível
                     const isTop3 = index < 3;
                     const rankColors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
                     
@@ -6321,8 +6389,16 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                           </div>
                         </td>
                         <td className="p-4 text-center">
-                          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${badge.color}`}>
-                            <span>{badge.icon}</span> {badge.label}
+                          <div className="flex flex-col items-center justify-center">
+                            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${badge.color}`}>
+                              <span>{badge.icon}</span> {badge.label}
+                            </div>
+                            {/* 🌟 Exibição visual dos pontos restantes */}
+                            {nextBadge && (
+                              <span className="text-[9px] text-blue-300 mt-1.5 font-medium bg-blue-900/50 px-2 py-0.5 rounded shadow-inner border border-blue-800">
+                                Faltam <b className="text-emerald-400">{nextBadge.next - pts} pts</b> para {nextBadge.label}
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="p-4 text-center">
@@ -6642,11 +6718,12 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                           type="text" 
                           value={selectedActiveXcla.oppClanName || ''} 
                           onChange={e => updateActiveXcla(selectedActiveXcla.id, {oppClanName: e.target.value})}
-                          className="font-black text-white text-lg mt-2 uppercase tracking-wide bg-blue-950 border border-blue-700 rounded text-center w-full max-w-[150px] outline-none focus:border-red-500"
+                          onClick={e => e.stopPropagation()} 
                           placeholder="Adversário"
+                          className="text-[10px] text-red-300 font-bold uppercase bg-blue-950 border border-blue-700 rounded text-center w-full outline-none focus:border-red-500 mb-1"
                         />
                       ) : (
-                        <span className="font-black text-white text-lg mt-2 uppercase tracking-wide truncate max-w-[150px]">{selectedActiveXcla.oppClanName}</span>
+                        <span className="text-[10px] text-blue-400 font-bold uppercase truncate w-full text-center mb-1">{selectedActiveXcla.oppClanName || 'Adversário'}</span>
                       )}
                       
                       {isAdmin && (
