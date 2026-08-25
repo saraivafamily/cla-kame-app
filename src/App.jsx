@@ -8417,17 +8417,24 @@ export default function App() {
   const handleJoinComp = async (compId, teamId, receiptBase64) => {
     const comp = competitions.find(c => c.id === compId);
     if (!comp) { showToast("Erro: Campeonato não localizado no sistema.", "error"); return; }
+    
     try {
-      // ⚡ INSCRIÇÃO IMEDIATA (COPA FLASH)
+      // 👇 A LINHA QUE FALTAVA ESTÁ AQUI
+      const isFlash = comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla';
+      
+      if (isFlash) {
+        // ⚡ INSCRIÇÃO IMEDIATA (COPA FLASH)
         const newTeams = [...(comp.teams || []), teamId];
         await updateDoc(getPublicDocPath('competitions', compId), { teams: newTeams });
         showToast("Você foi inscrito imediatamente na Copa Flash!", "success");
+        setCurrentTab('dashboard');
       } else {
-      // ⏳ INSCRIÇÃO TRADICIONAL (Vai para Análise dos Líderes)
-      const newPending = [...(comp.pendingTeams || []), { teamId, receipt: receiptBase64, timestamp: Date.now() }];
-      await updateDoc(getPublicDocPath('competitions', compId), { pendingTeams: newPending });
-      showToast("Inscrição enviada com sucesso para os líderes!", "success");
-      setCurrentTab('dashboard');
+        // ⏳ INSCRIÇÃO TRADICIONAL (Vai para Análise dos Líderes)
+        const newPending = [...(comp.pendingTeams || []), { teamId, receipt: receiptBase64, timestamp: Date.now() }];
+        await updateDoc(getPublicDocPath('competitions', compId), { pendingTeams: newPending });
+        showToast("Inscrição enviada com sucesso para os líderes!", "success");
+        setCurrentTab('dashboard');
+      }
     } catch (error) {
       showToast(`Falha no Servidor Cloud: ${error.message}`, "error"); throw error;
     }
