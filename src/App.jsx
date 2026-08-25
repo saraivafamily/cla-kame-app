@@ -2865,7 +2865,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
       gTable.forEach((row, idx) => { 
          qualifiers[`${idx + 1}º Grupo ${gName}`] = row.id; 
          qualifiers[`${idx + 1}º do Grupo ${gName}`] = row.id; 
-         qualifiers[`${idx + 1}º Gr.${gName}`] = row.id; // 👈 Faltava essa nomenclatura para o link funcionar!
+         qualifiers[`${idx + 1}º Gr.${gName}`] = row.id;
       });
     });
       
@@ -2906,7 +2906,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
 
   const handleOpenEditModal = (m, roundId) => {
     const playedMatch = (matches || []).find(x => x.matchId === m.id && x.compId === comp.id && x.status !== 'rejected');
-    // Adicionado dlsCode no estado
     setEditMatchData({ ...m, roundId: roundId, group: m.group || 'A', dlsCode: m.dlsCode || '', scoreA: playedMatch ? playedMatch.scoreA : '', scoreB: playedMatch ? playedMatch.scoreB : '', penaltiesA: playedMatch && playedMatch.penaltiesA !== null && playedMatch.penaltiesA !== undefined ? playedMatch.penaltiesA : '', penaltiesB: playedMatch && playedMatch.penaltiesB !== null && playedMatch.penaltiesB !== undefined ? playedMatch.penaltiesB : '', hasPlayed: !!playedMatch, playedMatchId: playedMatch ? playedMatch.id : null, woA: false, woB: false }); 
   };
 
@@ -2918,7 +2917,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   };
 
   const saveMatchEdit = () => {
-    // Adicionado dlsCode no salvamento para o Firebase
     const updatedRounds = comp.rounds.map(r => r.id === editMatchData.roundId ? { ...r, matches: r.matches.map(m => m.id === editMatchData.id ? { ...m, teamA: editMatchData.teamA, teamB: editMatchData.teamB, group: editMatchData.group, dlsCode: editMatchData.dlsCode } : m) } : r);
     onEditComp({ ...comp, rounds: updatedRounds });
     setEditMatchData(null);
@@ -2929,7 +2927,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
   const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id));
-  const isKnockoutEdit = editMatchData?.id?.includes('_ko_'); // 👈 A LINHA FALTANDO ENTRA AQUI
+  const isKnockoutEdit = editMatchData?.id?.includes('_ko_');
   const availableTeamsForEdit = (comp.format === 'groups' && editMatchData?.group && comp.groups && !isKnockoutEdit) ? (comp.groups[editMatchData.group] || []) : (comp.teams || []);
   
   const handleAddTeamToComp = () => { if(!newTeamToAdd) return; const newTeams = [...(comp.teams || []), newTeamToAdd]; const newPending = (comp.pendingTeams || []).filter(p => p.teamId !== newTeamToAdd); onEditComp({ ...comp, teams: newTeams, pendingTeams: newPending }); setNewTeamToAdd(''); setShowAddTeam(false); showToast("Time inserido manualmente com sucesso!", "success"); };
@@ -2943,10 +2941,9 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     }
   };
   
- const handleGenerateBracket = () => { 
+  const handleGenerateBracket = () => { 
     if (comp.teams.length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times!`, "error"); return; } 
     
-    // 🌟 NOVA LÓGICA DE SORTEIO AO VIVO PARA DUPLAS
     if (comp.category === 'copa_flash_dupla') {
         onEditComp({ ...comp, status: 'drawing' });
         showToast("Modo Sorteio Ao Vivo Ativado!", "success");
@@ -3013,7 +3010,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   }, [comp, matches, teams]);
 
   if (comp.status === 'drawing') {
-    // SE FOR O ADMIN, RENDERIZA O PAINEL DE SORTEIO GIGANTE
     if (isAdmin) {
       return (
         <LiveDrawPanel 
@@ -3029,52 +3025,51 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
       );
     }
 
-    // SE FOR UM JOGADOR NORMAL, ELE VÊ A TELA DE ESPERA
-            return (
-              <div className="space-y-6 animate-in fade-in pb-10">
-                <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
-                <div className="bg-blue-900 p-8 md:p-12 rounded-3xl border border-amber-500/50 flex flex-col items-center text-center shadow-2xl mt-8">
-                    <span className="text-6xl mb-6 animate-bounce">🎲</span>
-                    <h2 className="text-3xl md:text-4xl font-black text-amber-400 uppercase tracking-widest mb-4">Sorteio Ao Vivo Ativo</h2>
-                    <p className="text-blue-300 md:w-2/3 leading-relaxed">As inscrições foram encerradas. Acompanhe a live dos líderes!<br/><br/>A tabela e os confrontos estão bloqueados enquanto a diretoria realiza o sorteio oficial ao vivo.</p>
-                </div>
-              </div>
-            );
-          }
+    return (
+      <div className="space-y-6 animate-in fade-in pb-10">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
+        <div className="bg-blue-900 p-8 md:p-12 rounded-3xl border border-amber-500/50 flex flex-col items-center text-center shadow-2xl mt-8">
+            <span className="text-6xl mb-6 animate-bounce">🎲</span>
+            <h2 className="text-3xl md:text-4xl font-black text-amber-400 uppercase tracking-widest mb-4">Sorteio Ao Vivo Ativo</h2>
+            <p className="text-blue-300 md:w-2/3 leading-relaxed">As inscrições foram encerradas. Acompanhe a live dos líderes!<br/><br/>A tabela e os confrontos estão bloqueados enquanto a diretoria realiza o sorteio oficial ao vivo.</p>
+        </div>
+      </div>
+    );
+  }
 
-          return (
-            <div className="space-y-6 animate-in fade-in pb-10">
-              <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
-              
-              <div className="bg-blue-900 p-5 rounded-3xl border border-blue-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl">
-                <div>
-                  <h2 className="text-xl font-bold text-white uppercase tracking-wider">{comp.category ? CATEGORY_NAMES[comp.category] : 'Campeonato'} - {comp.name}</h2>
-                  <div className="flex items-center flex-wrap gap-2 mt-2">
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">{comp.category ? CATEGORY_NAMES[comp.category] : 'Sem Categoria'}</span>
-                    <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">Estilo: {comp.playStyle || 'Livre'}</span>
-                    {comp.status === 'finished' && (<span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-black tracking-widest uppercase flex items-center gap-1"><Lock size={10}/> Encerrado</span>)}
-                    <span className="text-xs text-blue-400 font-medium ml-1">• {comp.format === 'league' ? 'Pontos Corridos' : comp.format === 'groups' ? 'Fase de Grupos + Copa' : 'Copa Mata-Mata'}</span>
-                  </div>
+  return (
+    <div className="space-y-6 animate-in fade-in pb-10">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-white"><ArrowLeft size={16}/> Voltar</button>
+      
+      <div className="bg-blue-900 p-5 rounded-3xl border border-blue-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl">
+        <div>
+          <h2 className="text-xl font-bold text-white uppercase tracking-wider">{comp.category ? CATEGORY_NAMES[comp.category] : 'Campeonato'} - {comp.name}</h2>
+          <div className="flex items-center flex-wrap gap-2 mt-2">
+            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">{comp.category ? CATEGORY_NAMES[comp.category] : 'Sem Categoria'}</span>
+            <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">Estilo: {comp.playStyle || 'Livre'}</span>
+            {comp.status === 'finished' && (<span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-black tracking-widest uppercase flex items-center gap-1"><Lock size={10}/> Encerrado</span>)}
+            <span className="text-xs text-blue-400 font-medium ml-1">• {comp.format === 'league' ? 'Pontos Corridos' : comp.format === 'groups' ? 'Fase de Grupos + Copa' : 'Copa Mata-Mata'}</span>
+          </div>
+        </div>
+        <div className="flex gap-2 w-full md:w-auto flex-wrap">
+          {isAdmin && comp.format === 'groups' && comp.groups && (<button onClick={handleOpenEditGroups} className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-purple-700 shadow-md flex items-center gap-1">👥 Gerenciar Grupos</button>)}
+          {isAdmin && comp.status !== 'finished' && (<button onClick={() => { setShowEditSettings(!showEditSettings); setShowEditPrizes(false); }} className="bg-blue-800 hover:bg-blue-700 text-blue-200 text-xs font-bold py-2 px-3 rounded-lg border border-blue-600 shadow-md flex items-center gap-1">⚙️ Configurações</button>)}
+          {isAdmin && comp.status !== 'finished' && (<button onClick={() => { if(window.confirm("Deseja encerrar oficialmente esta competição?")) { onEditComp({ ...comp, status: 'finished' }); showToast("Competição encerrada!", "success"); } }} className="bg-red-900/80 hover:bg-red-800 text-red-200 text-xs font-bold py-2 px-3 rounded-lg border border-red-700 shadow-md flex items-center gap-1">🛑 Encerrar Torneio</button>)}
+          {isAdmin && (<button onClick={() => { setShowEditPrizes(!showEditPrizes); setShowEditSettings(false); }} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-amber-700 shadow-md flex items-center gap-1">🏆 Premiação</button>)}
+         {isAdmin && comp.status !== 'finished' && (
+            <>
+              {showAddTeam ? (
+                <div className="flex gap-2 w-full sm:w-auto animate-in fade-in">
+                  <select value={newTeamToAdd} onChange={e=>setNewTeamToAdd(e.target.value)} className="bg-blue-950 border border-blue-700 rounded-lg p-2 text-xs text-white outline-none"><option value="">Escolher time...</option>{availableTeamsToAdd.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+                  <Button onClick={handleAddTeamToComp} className="py-1 px-3 text-xs">Salvar</Button><Button variant="outline" onClick={()=>{setShowAddTeam(false); setNewTeamToAdd('');}} className="py-1 px-2 text-xs font-bold text-blue-400">X</Button>
                 </div>
-                <div className="flex gap-2 w-full md:w-auto flex-wrap">
-                  {isAdmin && comp.format === 'groups' && comp.groups && (<button onClick={handleOpenEditGroups} className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-purple-700 shadow-md flex items-center gap-1">👥 Gerenciar Grupos</button>)}
-                  {isAdmin && comp.status !== 'finished' && (<button onClick={() => { setShowEditSettings(!showEditSettings); setShowEditPrizes(false); }} className="bg-blue-800 hover:bg-blue-700 text-blue-200 text-xs font-bold py-2 px-3 rounded-lg border border-blue-600 shadow-md flex items-center gap-1">⚙️ Configurações</button>)}
-                  {isAdmin && comp.status !== 'finished' && (<button onClick={() => { if(window.confirm("Deseja encerrar oficialmente esta competição?")) { onEditComp({ ...comp, status: 'finished' }); showToast("Competição encerrada!", "success"); } }} className="bg-red-900/80 hover:bg-red-800 text-red-200 text-xs font-bold py-2 px-3 rounded-lg border border-red-700 shadow-md flex items-center gap-1">🛑 Encerrar Torneio</button>)}
-                  {isAdmin && (<button onClick={() => { setShowEditPrizes(!showEditPrizes); setShowEditSettings(false); }} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-2 px-3 rounded-lg border border-amber-700 shadow-md flex items-center gap-1">🏆 Premiação</button>)}
-                 {isAdmin && comp.status !== 'finished' && (
-                    <>
-                      {showAddTeam ? (
-                        <div className="flex gap-2 w-full sm:w-auto animate-in fade-in">
-                          <select value={newTeamToAdd} onChange={e=>setNewTeamToAdd(e.target.value)} className="bg-blue-950 border border-blue-700 rounded-lg p-2 text-xs text-white outline-none"><option value="">Escolher time...</option>{availableTeamsToAdd.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
-                          <Button onClick={handleAddTeamToComp} className="py-1 px-3 text-xs">Salvar</Button><Button variant="outline" onClick={()=>{setShowAddTeam(false); setNewTeamToAdd('');}} className="py-1 px-2 text-xs font-bold text-blue-400">X</Button>
-                        </div>
-                      ) : (<Button variant="outline" onClick={()=>setShowAddTeam(true)} className="py-2 px-3 text-xs w-full sm:w-auto flex items-center justify-center gap-2"><span className="text-emerald-400 font-bold">+</span> Inserir Time</Button>)}
-                    </>
-                  )}
-                </div>
-              </div>
+              ) : (<Button variant="outline" onClick={()=>setShowAddTeam(true)} className="py-2 px-3 text-xs w-full sm:w-auto flex items-center justify-center gap-2"><span className="text-emerald-400 font-bold">+</span> Inserir Time</Button>)}
+            </>
+          )}
+        </div>
+      </div>
 
-              {showEditSettings && (
+      {showEditSettings && (
         <div className="bg-blue-950/80 border border-blue-700 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
           <h3 className="text-sm font-bold text-blue-300 uppercase tracking-wider flex items-center gap-2">⚙️ Configurações Gerais</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3158,7 +3153,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
         </div>
       )}
 
-              {/* 👥 GERENCIADOR DE GRUPOS */}
       {showEditGroups && (
         <div className="bg-purple-900/30 border border-purple-500/50 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4 shadow-xl mb-6">
           <h3 className="text-sm font-black text-purple-400 uppercase tracking-wider flex items-center gap-2">
@@ -3606,7 +3600,9 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                     </div>
                   </div>
                 )}
-            
+              </div> {/* 👈 CORREÇÃO: Esta div do Overview finalmente está sendo fechada corretamente aqui! */}
+            )}
+
             {subTab === 'stats' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
                 
@@ -3864,213 +3860,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
           );
         }
       })()}
-    </div>
-  );
-};
-
-const generateCupBracket = (teamIds, compId, isFinalDouble = false) => {
-  if (!teamIds || teamIds.length === 0) return [];
-  
-  const sh = [...teamIds].sort(() => 0.5 - Math.random());
-  let p2 = 1; while (p2 < sh.length) p2 *= 2;
-  const tkr = Math.log2(p2);
-  const rounds = [];
-  
-  // 🌟 NOVO ALGORITMO: Trata os "Byes" (Avanços Automáticos) para times ímpares
-  const firstRoundMatches = [];
-  const byes = p2 - sh.length; 
-  const playing = sh.length - byes; 
-  
-  let teamIndex = 0;
-  for (let i = 0; i < p2 / 2; i++) {
-     if (i < playing / 2) {
-         firstRoundMatches.push([sh[teamIndex++], sh[teamIndex++]]);
-     } else {
-         firstRoundMatches.push([sh[teamIndex++], null]);
-     }
-  }
-  
-  let mc = 1;
-  let prevRoundMatches = firstRoundMatches.map(m => {
-      return { tA: m[0] || '', tB: m[1] || '', isBye: (!m[0] || !m[1]) };
-  });
-
-  for (let kr = 0; kr < tkr; kr++) {
-    const rm = [];
-    const nm = p2 / Math.pow(2, kr + 1);
-    const fmc = mc;
-    let rl = 'Mata-Mata';
-    if (nm === 1) rl = 'Final';
-    else if (nm === 2) rl = 'Semifinal';
-    else if (nm === 4) rl = 'Quartas';
-    else if (nm === 8) rl = 'Oitavas';
-    else if (nm === 16) rl = '16 Avos';
-    else if (nm === 32) rl = '32 Avos';
-
-    const currentRoundMatches = [];
-
-    for (let i = 0; i < nm; i++) {
-      let tA = ''; let tB = '';
-      let pA = 'A Definir'; let pB = 'A Definir';
-
-      if (kr === 0) {
-        tA = prevRoundMatches[i].tA;
-        tB = prevRoundMatches[i].tB;
-        if (!tA && !tB) { pA = 'Vaga Aberta'; pB = 'Vaga Aberta'; }
-        else if (!tA) { pA = 'Vaga Aberta'; pB = 'A Definir'; } 
-        else if (!tB) { pA = 'A Definir'; pB = 'Vaga Aberta'; }
-        
-        currentRoundMatches.push({ advanced: tA || tB });
-      } else {
-        const prevA = prevRoundMatches[i * 2];
-        const prevB = prevRoundMatches[i * 2 + 1];
-        
-        if (prevA && prevA.advanced) { tA = prevA.advanced; pA = 'Avanço Automático'; }
-        else { pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; }
-        
-        if (prevB && prevB.advanced) { tB = prevB.advanced; pB = 'Avanço Automático'; }
-        else { pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`; }
-
-        if (tA && !tB && pB.includes('Avanço')) currentRoundMatches.push({ advanced: tA });
-        else if (!tA && tB && pA.includes('Avanço')) currentRoundMatches.push({ advanced: tB });
-        else currentRoundMatches.push({ advanced: null });
-      }
-
-      if (nm === 1) {
-        rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f1`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
-        if (isFinalDouble) {
-          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f2`, teamA: tB, teamB: tA, placeholderA: pB, placeholderB: pA, status: 'pending_play' }); mc++;
-        }
-        if (kr > 0) {
-          let p3A = `Perd. Jogo ${fmc - (nm * 2) + (i * 2)}`;
-          let p3B = `Perd. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
-          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_3rd`, teamA: '', teamB: '', placeholderA: `🥉 ${p3A}`, placeholderB: `🥉 ${p3B}`, status: 'pending_play' }); mc++;
-        }
-      } else {
-        rm.push({ id: `${compId}_ko_m${mc}_kr${kr}`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
-      }
-    }
-    prevRoundMatches = currentRoundMatches;
-    rounds.push({ id: `ko_${kr}`, number: rl, status: kr === 0 ? 'released' : 'locked', releasedAt: kr === 0 ? Date.now() : null, matches: rm });
-  }
-  return rounds;
-};
-          
-const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onBack, showToast, onEditComp }) => {
-  const [receipt, setReceipt] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const comp = competitions.find(c => c && c.id === compId);
-  const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
-  const userTeam = teams.find(t => t && t.ownerId === currentUser?.id);
-
-  if (competitions.length === 0) return <div className="p-12 text-center text-emerald-400 font-bold animate-pulse text-sm">🛡️ Carregando detalhes...</div>;
-  if (!comp) return <div className="p-8 text-center text-slate-400">Torneio não encontrado ou encerrado.</div>;
-  
-  if (!userTeam) return <div className="p-8 text-center text-amber-400 font-bold bg-amber-500/10 rounded-2xl border border-amber-500/30 m-4">Você precisa ter um time cadastrado para participar. Peça a um líder para criar seu clube primeiro.</div>;
-
-  const isFlash = comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla';
-  const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
-  const compPending = Array.isArray(comp.pendingTeams) ? comp.pendingTeams : [];
-  const teamCount = parseInt(comp.teamCount) || 0;
-
-  // 🛡️ AQUI ESTÁ A MÁGICA: Se for Copa Flash, NUNCA fica lotado!
-  const isFull = isFlash ? false : compTeams.length >= teamCount;
-  
-  const alreadyJoined = compTeams.some(tId => userTeamIds.includes(tId));
-  const isPending = compPending.some(p => p && userTeamIds.includes(p.teamId));
-
-  const isBlockedByOtherComp = Array.isArray(comp.excludedCompIds) && comp.excludedCompIds.some(exCompId => {
-    const exComp = (competitions || []).find(c => c.id === exCompId);
-    if (!exComp) return false;
-    const inConfirmed = Array.isArray(exComp.teams) && exComp.teams.some(tId => userTeamIds.includes(tId));
-    const inPendingEx = Array.isArray(exComp.pendingTeams) && exComp.pendingTeams.some(p => p && userTeamIds.includes(p.teamId)); 
-    return inConfirmed || inPendingEx;
-  });
-
-  const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (isBlockedByOtherComp) { showToast("Acesso Negado: Seu time já disputa um torneio bloqueado para esta competição.", "error"); return; }
-    if (comp.isPaid && !receipt) { showToast("Anexe o comprovante de pagamento!", "error"); return; }
-    
-    setIsSubmitting(true);
-    try { await onJoin(comp.id, userTeam.id, receipt); } 
-    catch (error) { console.error(error); } 
-    finally { setIsSubmitting(false); }
-  };
-
-  return (
-    <div className="max-w-md mx-auto animate-in fade-in pb-12 mt-8">
-      <button onClick={onBack} className="text-xs text-blue-400 hover:text-white flex items-center gap-1 mb-6"><ArrowLeft size={14}/> Voltar ao Início</button>
-      
-      <div className={`bg-blue-900 border rounded-3xl overflow-hidden shadow-2xl ${isFlash ? 'border-amber-500/50' : 'border-blue-800'}`}>
-        <div className="bg-blue-950/80 p-8 text-center border-b border-blue-800 relative overflow-hidden">
-          <Trophy className={`${isFlash ? 'text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'text-amber-400'} mx-auto mb-4`} size={48} />
-          <h2 className="text-2xl font-black text-white uppercase tracking-wider">{comp.name}</h2>
-          <p className="text-emerald-400 font-bold mt-2 text-sm uppercase tracking-widest">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</p>
-        </div>
-
-        <div className="p-6 space-y-6">
-          {isFlash && comp.deadline && (
-            <div className="bg-amber-900/40 p-5 rounded-2xl border border-amber-500/50 text-center shadow-inner animate-in zoom-in-95">
-              <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-1.5 flex justify-center items-center gap-1.5">
-                <Activity size={14}/> Inscrições Encerram Em:
-              </p>
-              <p className="text-4xl text-amber-400 drop-shadow-md">
-                <CountdownTimer targetDateStr={`${comp.deadline}T${comp.startTime || '20:00'}:00`} />
-              </p>
-              <p className="text-[9px] text-amber-200/70 mt-2">A tabela será gerada automaticamente ao fim do cronômetro.</p>
-            </div>
-          )}
-
-          <div className="flex justify-between items-center bg-blue-950 p-4 rounded-xl border border-blue-800">
-            <div>
-              <p className="text-[10px] text-blue-400 uppercase font-bold">Vagas Preenchidas</p>
-              <p className="text-xl font-black text-white">
-                {(compTeams.length || 0)} 
-                {isFlash ? <span className="text-amber-500 text-sm ml-1">/ Ilimitado</span> : <span className="text-blue-500"> / {teamCount}</span>}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] text-blue-400 uppercase font-bold">Data do Jogo</p>
-              <p className="text-sm font-bold text-white">{new Date(comp.deadline + 'T12:00:00').toLocaleDateString()}</p>
-            </div>
-          </div>
-
-          {hasAnyPrize && (
-            <div className="bg-gradient-to-b from-amber-500/5 to-blue-950/50 border border-amber-500/20 p-4 rounded-xl space-y-3">
-              <div className="flex items-center gap-2 border-b border-blue-800 pb-2">
-                <Star className="text-amber-400" size={16} />
-                <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Premiação</span>
-              </div>
-              <div className="space-y-2 text-xs">
-                {comp.prizes?.first && (<div className="flex justify-between bg-blue-950/60 p-2 rounded border border-blue-900"><span className="text-blue-300">🥇 1º Lugar:</span><span className="font-bold text-white">{comp.prizes.first}</span></div>)}
-                {comp.prizes?.second && (<div className="flex justify-between bg-blue-950/60 p-2 rounded border border-blue-900"><span className="text-blue-400">🥈 2º Lugar:</span><span className="font-bold text-slate-300">{comp.prizes.second}</span></div>)}
-              </div>
-            </div>
-          )}
-
-          {alreadyJoined ? (
-             <div className="text-center p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl"><CheckCircle className="text-emerald-500 mx-auto mb-2" size={32}/><p className="font-bold text-emerald-400">Você já está confirmado neste torneio!</p></div>
-          ) : isPending ? (
-             <div className="text-center p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl"><Activity className="text-amber-500 mx-auto mb-2" size={32}/><p className="font-bold text-amber-400">Inscrição em Análise!</p></div>
-          ) : isFull ? (
-             <div className="text-center p-4 bg-red-500/10 border border-red-500/30 rounded-xl"><XCircle className="text-red-500 mx-auto mb-2" size={32}/><p className="font-bold text-red-400">Inscrições Esgotadas</p></div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4 pt-4 border-t border-blue-800">
-              <div className="flex items-center gap-3 bg-blue-950 p-3 rounded-xl border border-blue-800">
-                <ShieldDisplay shield={userTeam.shield} size="normal" />
-                <div><p className="text-[10px] text-blue-400 uppercase font-bold">Entrar com o time:</p><p className="font-bold text-white">{userTeam.name}</p></div>
-              </div>
-              <Button type="submit" disabled={isSubmitting} className={`w-full py-4 text-lg font-black ${isFlash ? 'bg-amber-600 hover:bg-amber-500 text-blue-950 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : ''}`}>
-                {isSubmitting ? 'Enviando...' : (isFlash ? '⚡ Inscrição Imediata' : 'Solicitar Inscrição')}
-              </Button>
-            </form>
-          )}
-        </div>
-      </div>
     </div>
   );
 };
@@ -8478,7 +8267,6 @@ export default function App() {
     if (!comp) { showToast("Erro: Campeonato não localizado no sistema.", "error"); return; }
     
     try {
-      // 👇 A LINHA QUE FALTAVA ESTÁ AQUI
       const isFlash = comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla';
       
       if (isFlash) {
