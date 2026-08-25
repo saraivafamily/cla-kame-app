@@ -5822,7 +5822,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
           if(tA) { 
              tA.playedMatches += 1; 
              if (isWoA) {
-                 tA.globalPoints -= 2; 
+                 tA.globalPoints -= 10; 
              } else {
                  tA.globalPoints += ptsPlay; 
              }
@@ -5831,7 +5831,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
           if(tB) { 
              tB.playedMatches += 1; 
              if (isWoB) {
-                 tB.globalPoints -= 2; 
+                 tB.globalPoints -= 10; 
              } else {
                  tB.globalPoints += ptsPlay; 
              }
@@ -6005,7 +6005,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
             }
 
             if (isWoMe) {
-                events.push({ id: `wo_${m.id}`, date: matchDate + 1, title: `🛑 Punição por W.O. vs ${oppName}`, pts: -2 });
+                events.push({ id: `wo_${m.id}`, date: matchDate + 1, title: `🛑 Punição por W.O. vs ${oppName}`, pts: -10 });
             } else {
                 events.push({ id: `play_${m.id}`, date: matchDate, title: `Partida Jogada vs ${oppName}`, pts: ptsPlay });
 
@@ -6323,7 +6323,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                </ul>
                
                <div className="mt-4 bg-red-500/10 p-3 rounded-lg border border-red-500/20">
-                 <p className="text-[11px] text-red-400 font-bold flex justify-between items-center"><span>🛑 Punição por W.O (Geral)</span> <span className="bg-red-500 text-white px-2 py-0.5 rounded">-2 pts</span></p>
+                 <p className="text-[11px] text-red-400 font-bold flex justify-between items-center"><span>🛑 Punição por W.O (Geral)</span> <span className="bg-red-500 text-white px-2 py-0.5 rounded">-10 pts</span></p>
                </div>
              </div>
           </div>
