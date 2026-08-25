@@ -3536,13 +3536,9 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                           <div className="relative z-10 w-full">
                                             <div 
                                               onClick={(e) => {
-                                                e.stopPropagation();
-                                                e.preventDefault();
-                                                try {
-                                                  setSelectedDuplaMatchup({ mIda, mVolta, duplaA: realDuplaA, duplaB: realDuplaB, aggScoreA, aggScoreB, isLocked, roundId: round.id, idaIsFinished });
-                                                } catch(err) {
-                                                  console.error("Erro ao selecionar a dupla", err);
-                                                }
+                                                e.stopPropagation(); e.preventDefault();
+                                                try { setSelectedDuplaMatchup({ mIda, mVolta, duplaA: realDuplaA, duplaB: realDuplaB, aggScoreA, aggScoreB, isLocked, roundId: round.id, idaIsFinished }); } 
+                                                catch(err) { console.error("Erro", err); }
                                               }} 
                                               className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm cursor-pointer hover:-translate-y-1 ${isPlayed ? 'bg-blue-900/90 border-emerald-500/50 shadow-emerald-500/20' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-60' : 'bg-blue-900/40 border-blue-700 hover:border-amber-500/50'}`}
                                             >
@@ -3568,8 +3564,12 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                     round.matches.map((m, matchIndex) => {
                                       const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                                       const isLocked = round.status === 'locked'; const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
+                                      
+                                      // 🌟 NOVA LÓGICA DE BYE: Verifica se um time avançou sozinho (ímpar)
+                                      const isBye = (m.teamA && !m.teamB && m.placeholderB.includes('Vaga')) || (!m.teamA && m.teamB && m.placeholderA.includes('Vaga'));
+
                                       let teamALost = false; let teamBLost = false;
-                                      if (isPlayed) {
+                                      if (isPlayed && !isBye) {
                                         const scoreA = Number(sUI.scoreA || 0); const scoreB = Number(sUI.scoreB || 0); 
                                         if (scoreA < scoreB) teamALost = true; else if (scoreB < scoreA) teamBLost = true; 
                                         else { const penA = Number(sUI.penaltiesA||0); const penB = Number(sUI.penaltiesB||0); if (penA < penB) teamALost = true; if (penB < penA) teamBLost = true; }
@@ -3580,15 +3580,17 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                         <div key={m.id} className="relative flex-1 flex flex-col justify-center py-3 group">
                                           {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
                                           <div className="relative z-10 w-full">
-                                            <div onClick={() => { if(sUI.isPlayed && onSelectMatch){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} cursor-pointer relative overflow-hidden`}>
+                                            <div onClick={() => { if(sUI.isPlayed && onSelectMatch && !isBye){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed || isBye ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} ${!isBye ? 'cursor-pointer' : ''} relative overflow-hidden`}>
                                               <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
                                                 <span className="text-blue-500">{m.id.includes('_f1') && round.matches.length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' : m.id.includes('_f2') ? '🏆 Final (Volta)' : m.id.includes('_3rd') ? '🥉 Disputa 3º Lugar' : 'Confronto'}</span>
-                                                <span className={sUI.color}>{sUI.text}</span>
+                                                {/* 🌟 MOSTRA SE FOI AVANÇO AUTOMÁTICO */}
+                                                <span className={isBye ? 'text-emerald-400' : sUI.color}>{isBye ? 'Avanço Direto' : sUI.text}</span>
                                               </div>
-                                              <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tA?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamALost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreA : '-'}</span></div></div>
-                                              <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tB?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamBLost ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed ? sUI.color : 'text-blue-700'}`}>{sUI.isPlayed ? sUI.scoreB : '-'}</span></div></div>
+                                              <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tA?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamALost || (isBye && tA) ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && !isBye && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed || (isBye && tA) ? 'text-emerald-400' : 'text-blue-700'}`}>{isBye ? (tA ? 'W' : '-') : sUI.isPlayed ? sUI.scoreA : '-'}</span></div></div>
+                                              <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tB?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamBLost || (isBye && tB) ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && !isBye && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed || (isBye && tB) ? 'text-emerald-400' : 'text-blue-700'}`}>{isBye ? (tB ? 'W' : '-') : sUI.isPlayed ? sUI.scoreB : '-'}</span></div></div>
                                             </div>
-                                            {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
+                                            {/* 🌟 ESCONDE O BOTÃO DE EDITAR SE FOR AVANÇO AUTOMÁTICO */}
+                                            {isAdmin && !isBye && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
                                           </div>
                                           {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
                                         </div>
@@ -3604,9 +3606,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                     </div>
                   </div>
                 )}
-
-              </div>
-            )}
             
             {subTab === 'stats' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4">
@@ -3871,11 +3870,30 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
 
 const generateCupBracket = (teamIds, compId, isFinalDouble = false) => {
   if (!teamIds || teamIds.length === 0) return [];
-  const sh = [...teamIds].sort(() => 0.5 - Math.random()); // Sorteia os confrontos
+  
+  const sh = [...teamIds].sort(() => 0.5 - Math.random());
   let p2 = 1; while (p2 < sh.length) p2 *= 2;
   const tkr = Math.log2(p2);
   const rounds = [];
+  
+  // 🌟 NOVO ALGORITMO: Trata os "Byes" (Avanços Automáticos) para times ímpares
+  const firstRoundMatches = [];
+  const byes = p2 - sh.length; 
+  const playing = sh.length - byes; 
+  
+  let teamIndex = 0;
+  for (let i = 0; i < p2 / 2; i++) {
+     if (i < playing / 2) {
+         firstRoundMatches.push([sh[teamIndex++], sh[teamIndex++]]);
+     } else {
+         firstRoundMatches.push([sh[teamIndex++], null]);
+     }
+  }
+  
   let mc = 1;
+  let prevRoundMatches = firstRoundMatches.map(m => {
+      return { tA: m[0] || '', tB: m[1] || '', isBye: (!m[0] || !m[1]) };
+  });
 
   for (let kr = 0; kr < tkr; kr++) {
     const rm = [];
@@ -3889,19 +3907,33 @@ const generateCupBracket = (teamIds, compId, isFinalDouble = false) => {
     else if (nm === 16) rl = '16 Avos';
     else if (nm === 32) rl = '32 Avos';
 
+    const currentRoundMatches = [];
+
     for (let i = 0; i < nm; i++) {
       let tA = ''; let tB = '';
       let pA = 'A Definir'; let pB = 'A Definir';
 
       if (kr === 0) {
-        tA = sh[i * 2] || '';
-        tB = sh[i * 2 + 1] || '';
+        tA = prevRoundMatches[i].tA;
+        tB = prevRoundMatches[i].tB;
         if (!tA && !tB) { pA = 'Vaga Aberta'; pB = 'Vaga Aberta'; }
         else if (!tA) { pA = 'Vaga Aberta'; pB = 'A Definir'; } 
         else if (!tB) { pA = 'A Definir'; pB = 'Vaga Aberta'; }
+        
+        currentRoundMatches.push({ advanced: tA || tB });
       } else {
-        pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`;
-        pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
+        const prevA = prevRoundMatches[i * 2];
+        const prevB = prevRoundMatches[i * 2 + 1];
+        
+        if (prevA && prevA.advanced) { tA = prevA.advanced; pA = 'Avanço Automático'; }
+        else { pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; }
+        
+        if (prevB && prevB.advanced) { tB = prevB.advanced; pB = 'Avanço Automático'; }
+        else { pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`; }
+
+        if (tA && !tB && pB.includes('Avanço')) currentRoundMatches.push({ advanced: tA });
+        else if (!tA && tB && pA.includes('Avanço')) currentRoundMatches.push({ advanced: tB });
+        else currentRoundMatches.push({ advanced: null });
       }
 
       if (nm === 1) {
@@ -3918,6 +3950,7 @@ const generateCupBracket = (teamIds, compId, isFinalDouble = false) => {
         rm.push({ id: `${compId}_ko_m${mc}_kr${kr}`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
       }
     }
+    prevRoundMatches = currentRoundMatches;
     rounds.push({ id: `ko_${kr}`, number: rl, status: kr === 0 ? 'released' : 'locked', releasedAt: kr === 0 ? Date.now() : null, matches: rm });
   }
   return rounds;
