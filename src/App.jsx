@@ -4175,10 +4175,22 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name || !format || !teamCount || !registrationStartDate || !startDate || !deadline || !startTime) { setError('Preencha os dados básicos do torneio (incluindo todas as datas e horários).'); return; }
-    const parsedTeamCount = parseInt(teamCount, 10);
-    if (!isAutoJoin && selectedTeams.length !== parsedTeamCount) { setError(`Atenção: Você selecionou ${selectedTeams.length} times, mas o limite é ${parsedTeamCount}.`); return; }
-    if (isAutoJoin && selectedTeams.length > parsedTeamCount) { setError(`Atenção: Você pré-confirmou mais times (${selectedTeams.length}) que o limite.`); return; }
+    
+    // 🌟 NOVA LÓGICA: Se for Copa Flash, a quantidade de vagas é 999 (Ilimitado)
+    const isFlashCup = category === 'copa_flash' || category === 'copa_flash_dupla';
+    const parsedTeamCount = isFlashCup ? 999 : parseInt(teamCount, 10);
+
+    if (!name || !format || (!isFlashCup && !teamCount) || !registrationStartDate || !startDate || !deadline || !startTime) { 
+      setError('Preencha os dados básicos do torneio (incluindo todas as datas e horários).'); 
+      return; 
+    }
+    
+    // 🌟 NOVA LÓGICA: Só trava erro de limite de times se NÃO for Copa Flash
+    if (!isFlashCup) {
+        if (!isAutoJoin && selectedTeams.length !== parsedTeamCount) { setError(`Atenção: Você selecionou ${selectedTeams.length} times, mas o limite é ${parsedTeamCount}.`); return; }
+        if (isAutoJoin && selectedTeams.length > parsedTeamCount) { setError(`Atenção: Você pré-confirmou mais times (${selectedTeams.length}) que o limite.`); return; }
+    }
+    
     if (isPaid && (!entryFee || !pixKey || !prize1st || !prize2nd)) { setError('Em torneios pagos, preencha a taxa, a chave PIX e os prêmios.'); return; }
 
     setError(''); const compId = `c${Date.now()}`; let finalRounds = []; let groupsData = null;
@@ -4188,7 +4200,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
         if (category === 'copa_flash_dupla') {
            const res = generateDuplasCupBracket(selectedTeams, compId, teams, matches, competitions);
            finalRounds = res.rounds;
-           groupsData = res.duplas; // Vamos salvar a estrutura das duplas dentro do objeto 'groups' para reaproveitar o banco de dados
+           groupsData = res.duplas; 
         } else if (format === 'groups') {
           const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound, isFinalDouble);
           finalRounds = res.rounds; groupsData = res.groups;
@@ -4202,14 +4214,14 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
     const newComp = { 
       id: compId, name, format, deadline, startTime, category, playStyle, rules,
-      registrationStartDate, startDate, // 👈 Novas datas adicionadas aqui
-      teamCount: parsedTeamCount,
+      registrationStartDate, startDate,
+      teamCount: parsedTeamCount, // Flash Cup salva como 999
       status: isAutoJoin ? 'registration' : 'active', 
       teams: selectedTeams, pendingTeams: [], rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido', creatorId: currentUser?.id, admins: [currentUser?.id],  
       isDoubleRound, isFinalDouble, numGroups: parseInt(numGroups || '0', 10), qualifiersPerGroup: parseInt(qualifiers || '0', 10),
-      flashDuration: category === 'copa_flash' ? parseInt(flashDuration, 10) : null,
-      excludedCompIds: excludedCompIds, // 🌟 SALVA NO BANCO OS TORNEIOS BLOQUEADOS
+      flashDuration: isFlashCup ? parseInt(flashDuration, 10) : null,
+      excludedCompIds: excludedCompIds,
       ...(groupsData && { groups: groupsData }),
       isPaid: isPaid,
       ...(isPaid && {
@@ -4244,31 +4256,42 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
                 <option value="copa_do_rei">👑 Copa do Rei</option>
                 <option value="copa_amazonia">🌳 Copa da Amazônia</option>
                 <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
-                <option value="copa_flash_dupla">👥 Copa Flash (Duplas)</option>              
+                <option value="copa_flash_dupla">👥 Copa Flash em Duplas</option>              
               </select>
             </div>
             
-            {category === 'copa_flash' && (
+            {/* 🌟 MUDANÇA AQUI: Input de Vagas vs Aviso de Ilimitado */}
+            <div className="space-y-2">
+                <label className="text-sm font-bold text-blue-300">Qtd. Total de Vagas (Times)</label>
+                {category === 'copa_flash' || category === 'copa_flash_dupla' ? (
+                   <div className="w-full bg-amber-900/20 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-black text-base text-center shadow-inner cursor-not-allowed">
+                       ⚡ Ilimitado (Auto-Start)
+                   </div>
+                ) : (
+                   <input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-emerald-400 font-black text-lg focus:ring-2 focus:ring-emerald-500 outline-none" required />
+                )}
+            </div>
+
+            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Formato</label>
+              <select value={format} onChange={e=>setFormat(e.target.value)} disabled={category === 'copa_flash' || category === 'copa_flash_dupla'} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"><option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option></select>
+            </div>
+            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Estilo de Jogo</label>
+              <select value={playStyle} onChange={e=>setPlayStyle(e.target.value)} className="w-full bg-blue-950 border border-purple-500/50 rounded-xl p-3 text-purple-300 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"><option value="Livre">Livre (Qualquer Estilo)</option><option value="Full Razz">Full Razz (Sem Balão)</option><option value="Personalizado">Regras Especiais</option></select>
+            </div>
+            
+            {(category === 'copa_flash' || category === 'copa_flash_dupla') && (
                <div className="space-y-2 animate-in slide-in-from-top-2 col-span-1 md:col-span-2 bg-amber-900/30 border border-amber-500/40 p-4 rounded-xl">
                  <label className="text-sm font-black text-amber-400 flex items-center gap-1.5"><Activity size={16}/> Tempo por Fase (Minutos)</label>
                  <p className="text-[10px] text-amber-200/70 mb-2">Quantos minutos cada rodada ficará aberta antes de realizar os sorteios duplos automáticos?</p>
                  <input type="number" min="5" value={flashDuration} onChange={e=>setFlashDuration(e.target.value)} className="w-full bg-blue-950 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-amber-500 outline-none" required />
                </div>
             )}
-
-            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Formato</label>
-              <select value={format} onChange={e=>setFormat(e.target.value)} disabled={category === 'copa_flash'} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"><option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option></select>
-            </div>
-            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Estilo de Jogo</label>
-              <select value={playStyle} onChange={e=>setPlayStyle(e.target.value)} className="w-full bg-blue-950 border border-purple-500/50 rounded-xl p-3 text-purple-300 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"><option value="Livre">Livre (Qualquer Estilo)</option><option value="Full Razz">Full Razz (Sem Balão)</option><option value="Personalizado">Regras Especiais</option></select>
-            </div>
-            <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Qtd. Total de Vagas (Times)</label><input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-emerald-400 font-black text-lg focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 col-span-1 md:col-span-2">
               <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Início das Inscrições</label><input type="date" value={registrationStartDate} onChange={e=>setRegistrationStartDate(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
               <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Início da Competição</label><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
               <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Data Final / Prazo</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Horário de Início</label><input type="time" value={startTime} onChange={e=>setStartTime(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Horário do Gatilho</label><input type="time" value={startTime} onChange={e=>setStartTime(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             </div>
             
             <div className="flex flex-col md:flex-row gap-4 mt-2 col-span-1 md:col-span-2">
@@ -4293,8 +4316,11 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
           
           <div className="flex flex-col gap-4 mb-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              {/* 🌟 MUDANÇA AQUI: Esconde a quantidade máxima se for Flash */}
               <label className="text-sm font-bold text-blue-300">
-                {isAutoJoin ? `Equipes Pré-Confirmadas (Opcional: ${selectedTeams.length}/${teamCount || '0'})` : `Marcar as Equipes Manualmente (Obrigatório: ${selectedTeams.length}/${teamCount || '0'})`}
+                {isAutoJoin 
+                  ? `Equipes Pré-Confirmadas (Opcional: ${selectedTeams.length}${category.includes('flash') ? '' : `/${teamCount || '0'}`})` 
+                  : `Marcar as Equipes Manualmente (Atualmente: ${selectedTeams.length} times selecionados)`}
               </label>
               
               {['liga_a', 'liga_b', 'liga_c', 'liga_d', 'liga_acesso'].includes(category) && (
