@@ -5748,15 +5748,20 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
   // ⚡ MODO TURBO: Puxa o ranking ordenado
   const rankingData = useMemo(() => {
     return (teams || [])
-      .filter(t => t.ownerId && t.ownerId !== 'manual' && ((t.globalPoints || 0) > 0 || (t.playedMatches || 0) > 0))
+      .filter(t => t.ownerId && t.ownerId !== 'manual' && ((t.globalPoints || 0) !== 0 || (t.playedMatches || 0) > 0))
       .sort((a, b) => (b.globalPoints || 0) - (a.globalPoints || 0) || (b.totalWins || 0) - (a.totalWins || 0));
   }, [teams]);
 
   const getBadge = (pts) => {
-    if (pts >= 1000) return { label: 'Lenda Suprema', icon: '👑', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' };
-    if (pts >= 400) return { label: 'Mestre', icon: '💎', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' };
-    if (pts >= 150) return { label: 'Veterano', icon: '🛡️', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
-    return { label: 'Novato', icon: '🔰', color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' };
+    if (pts >= 3000) return { label: 'Monstro Sagrado', icon: '🐉', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' };
+    if (pts >= 2000) return { label: 'Lenda Suprema', icon: '👑', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' };
+    if (pts >= 1900) return { label: 'Mestre III', icon: '🥋', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' };
+    if (pts >= 1600) return { label: 'Mestre II', icon: '✨', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' };
+    if (pts >= 1300) return { label: 'Mestre I', icon: '🎓', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' };
+    if (pts >= 750) return { label: 'Veterano III', icon: '🎖️', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
+    if (pts >= 500) return { label: 'Veterano II', icon: '🛡️', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
+    if (pts >= 250) return { label: 'Veterano I', icon: '🪖', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
+    return { label: 'Aprendiz', icon: '🦆', color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' };
   };
 
   // 🚀 RESTAURAÇÃO DE HISTÓRICO COM REGRA DE W.O.
@@ -5802,14 +5807,20 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
 
           if(tA) { 
              tA.playedMatches += 1; 
-             tA.globalPoints += ptsPlay; 
-             if(isWoA) tA.globalPoints -= 2; // Punição
+             if (isWoA) {
+                 tA.globalPoints -= 2; // Punição direta nítida
+             } else {
+                 tA.globalPoints += ptsPlay; // Ganha participação apenas se jogou
+             }
              tA.goalsFor += scoreA; tA.goalsAgainst += scoreB; 
           }
           if(tB) { 
              tB.playedMatches += 1; 
-             tB.globalPoints += ptsPlay; 
-             if(isWoB) tB.globalPoints -= 2; // Punição
+             if (isWoB) {
+                 tB.globalPoints -= 2; // Punição direta nítida
+             } else {
+                 tB.globalPoints += ptsPlay; // Ganha participação apenas se jogou
+             }
              tB.goalsFor += scoreB; tB.goalsAgainst += scoreA; 
           }
 
@@ -5891,7 +5902,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       });
 
       await Promise.all(updatePromises);
-      showToast("Histórico sincronizado com sucesso! Todos os pontos foram restaurados.", "success");
+      showToast("Histórico sincronizado com sucesso! Punições de W.O aplicadas.", "success");
 
     } catch (error) {
       console.error("Erro na sincronização:", error);
@@ -5984,7 +5995,6 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
             }
 
             if (isWoMe) {
-                events.push({ id: `play_${m.id}`, date: matchDate, title: `Partida vs ${oppName}`, pts: ptsPlay });
                 events.push({ id: `wo_${m.id}`, date: matchDate + 1, title: `🛑 Punição por W.O. vs ${oppName}`, pts: -2 });
             } else {
                 events.push({ id: `play_${m.id}`, date: matchDate, title: `Partida Jogada vs ${oppName}`, pts: ptsPlay });
