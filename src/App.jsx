@@ -7861,6 +7861,164 @@ const ClanManagement = ({
   );
 };
 
+const TrophyRoom = ({ competitions, matches, teams }) => {
+  const CATEGORY_NAMES = {
+    liga_a: '🥇 Liga Kame A', liga_b: '🥈 Liga Kame B', liga_c: '🥉 Liga Kame C', liga_d: '🎖️ Liga Kame D',
+    liga_acesso: '⬆️ Liga de Acesso', copa_main: '🏆 Copas Oficiais', copa_estrelas: '⭐ Copa das Estrelas',
+    copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia', copa_flash: '⚡ Copa Flash', copa_flash_dupla: '👥 Copa Flash (Duplas)'
+  };
+
+  const categoryStats = useMemo(() => {
+    const stats = {};
+    
+    (competitions || []).forEach(c => {
+       const champs = getChampionIds(c, matches, teams);
+       if (champs && champs.length > 0) {
+          const cat = c.category || 'outros';
+          if (!stats[cat]) stats[cat] = {};
+          champs.forEach(tId => {
+             stats[cat][tId] = (stats[cat][tId] || 0) + 1;
+          });
+       }
+    });
+
+    const result = [];
+    Object.keys(stats).forEach(catKey => {
+       const teamCounts = stats[catKey];
+       const sortedTeams = Object.keys(teamCounts)
+         .map(tId => ({ id: tId, count: teamCounts[tId], team: teams.find(t => t.id === tId) }))
+         .filter(item => item.team)
+         .sort((a, b) => b.count - a.count); // Ordena por quem tem mais títulos
+       
+       if (sortedTeams.length > 0) {
+          result.push({
+             key: catKey,
+             name: CATEGORY_NAMES[catKey] || catKey.toUpperCase(),
+             top3: sortedTeams.slice(0, 3)
+          });
+       }
+    });
+    
+    // Organiza as categorias por ordem de importância
+    const order = Object.keys(CATEGORY_NAMES);
+    return result.sort((a, b) => {
+       const idxA = order.indexOf(a.key);
+       const idxB = order.indexOf(b.key);
+       return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
+    });
+  }, [competitions, matches, teams]);
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in pb-12">
+      {/* Cabeçalho */}
+      <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 sm:p-8 rounded-3xl border border-amber-500/30 shadow-2xl flex flex-col md:flex-row items-center gap-6 relative overflow-hidden">
+        <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-amber-500/20 blur-3xl rounded-full"></div>
+        <div className="bg-blue-950 p-4 rounded-full border-2 border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] shrink-0 z-10">
+          <Trophy size={40} className="text-amber-400 animate-pulse" />
+        </div>
+        <div className="text-center md:text-left z-10">
+          <h2 className="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-amber-500 uppercase tracking-widest mb-1">
+            Sala de Troféus
+          </h2>
+          <p className="text-sm text-blue-300">
+            A galeria eterna dos maiores campeões de cada categoria do Clã Kame.
+          </p>
+        </div>
+      </div>
+
+      {/* Estantes / Pódios */}
+      {categoryStats.length === 0 ? (
+        <div className="bg-blue-950 p-12 rounded-3xl border border-blue-800 text-center border-dashed">
+          <Trophy className="mx-auto text-blue-800 mb-4" size={48} />
+          <p className="text-blue-500 font-bold text-lg">A estante de troféus está vazia.</p>
+          <p className="text-blue-400 text-sm mt-1">Os maiores campeões aparecerão aqui quando os torneios forem finalizados com sucesso.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {categoryStats.map((cat, idx) => {
+            const first = cat.top3[0];
+            const second = cat.top3[1];
+            const third = cat.top3[2];
+
+            return (
+              <div key={idx} className="bg-blue-900/60 rounded-3xl border border-blue-800/80 shadow-xl overflow-hidden group hover:border-amber-500/40 transition-colors">
+                <div className="bg-blue-950/80 p-4 border-b border-blue-800 flex justify-center shadow-sm">
+                   <h3 className="font-black text-white uppercase tracking-widest text-sm sm:text-base drop-shadow-md">
+                     {cat.name}
+                   </h3>
+                </div>
+                
+                <div className="p-4 sm:p-6 pt-10 flex items-end justify-center h-64 gap-1 relative overflow-hidden">
+                   {/* Luz de Fundo do Pódio */}
+                   <div className="absolute bottom-0 w-3/4 h-32 bg-amber-500/10 blur-2xl rounded-full"></div>
+
+                   {/* Pódio 2º Lugar */}
+                   <div className="flex flex-col items-center w-1/3 justify-end z-10 relative">
+                     {second ? (
+                       <>
+                         <div className="mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={second.team.name}>
+                           <ShieldDisplay shield={second.team.shield} size="small" />
+                         </div>
+                         <span className="text-[10px] sm:text-xs font-bold text-slate-300 truncate w-full text-center px-1 drop-shadow-md">{second.team.name}</span>
+                         <span className="text-[9px] sm:text-[10px] text-slate-400 font-black mb-2">{second.count} TÍTULO{second.count > 1 ? 'S' : ''}</span>
+                       </>
+                     ) : (
+                       <div className="h-16"></div>
+                     )}
+                     <div className="w-full h-20 bg-gradient-to-t from-slate-600 to-slate-400 rounded-tl-lg border-t-2 border-l-2 border-slate-300 shadow-lg flex justify-center pt-2 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-white/10 w-full h-1/2"></div>
+                        <span className="text-slate-100 font-black text-2xl drop-shadow-md relative z-10">2</span>
+                     </div>
+                   </div>
+
+                   {/* Pódio 1º Lugar */}
+                   <div className="flex flex-col items-center w-1/3 justify-end z-20 relative -mx-2">
+                     {first ? (
+                       <>
+                         <Crown className="absolute -top-6 sm:-top-7 text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" size={26} />
+                         <div className="mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={first.team.name}>
+                           <ShieldDisplay shield={first.team.shield} size="normal" />
+                         </div>
+                         <span className="text-xs sm:text-sm font-black text-amber-400 truncate w-full text-center px-1 drop-shadow-md">{first.team.name}</span>
+                         <span className="text-[9px] sm:text-[10px] text-amber-200/90 font-black mb-2 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30 shadow-inner">{first.count} TÍTULO{first.count > 1 ? 'S' : ''}</span>
+                       </>
+                     ) : (
+                       <div className="h-24"></div>
+                     )}
+                     <div className="w-full h-28 bg-gradient-to-t from-amber-600 to-amber-400 rounded-t-lg border-t-2 border-l-2 border-r-2 border-amber-300 shadow-2xl flex justify-center pt-2 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-white/20 w-full h-1/2"></div>
+                        <span className="text-amber-100 font-black text-3xl drop-shadow-md relative z-10">1</span>
+                     </div>
+                   </div>
+
+                   {/* Pódio 3º Lugar */}
+                   <div className="flex flex-col items-center w-1/3 justify-end z-10 relative">
+                     {third ? (
+                       <>
+                         <div className="mb-1.5 hover:-translate-y-2 transition-transform cursor-pointer" title={third.team.name}>
+                           <ShieldDisplay shield={third.team.shield} size="small" />
+                         </div>
+                         <span className="text-[10px] sm:text-xs font-bold text-amber-700 truncate w-full text-center px-1 drop-shadow-md">{third.team.name}</span>
+                         <span className="text-[9px] sm:text-[10px] text-amber-700/80 font-black mb-2">{third.count} TÍTULO{third.count > 1 ? 'S' : ''}</span>
+                       </>
+                     ) : (
+                       <div className="h-12"></div>
+                     )}
+                     <div className="w-full h-16 bg-gradient-to-t from-amber-900 to-amber-700 rounded-tr-lg border-t-2 border-r-2 border-amber-600 shadow-lg flex justify-center pt-2 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-white/5 w-full h-1/2"></div>
+                        <span className="text-amber-200/50 font-black text-xl drop-shadow-md relative z-10">3</span>
+                     </div>
+                   </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function App() {
   // 🛡️ BLINDAGEM TOTAL: Se a aba for anônima, o localStorage não derruba o React
   const [currentUser, setCurrentUser] = useState(() => { 
@@ -8145,6 +8303,7 @@ export default function App() {
     { id: 'ranking', label: 'Ranking Xclã', icon: Crown },
     { id: 'predictions', label: 'Kame Bet', icon: Target },
     { id: 'feed', label: 'Feed da Resenha', icon: MessageCircle },
+    { id: 'trophies', label: 'Sala de Troféus', icon: Star },
     { id: 'records', label: 'Mural de Recordes', icon: Trophy },
     { id: 'rules', label: 'Regras do Clã', icon: BookOpen },
     
@@ -8462,6 +8621,7 @@ export default function App() {
       case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); setCurrentTab('competitions'); }} />;
 
       case 'records': return <RecordsWall showToast={showToast} currentUser={currentUser} />;
+      case 'trophies': return <TrophyRoom competitions={competitions} matches={matches} teams={teams} />;
       case 'rules': return <RulesPage />;
       case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} showToast={showToast} currentUser={currentUser} />;
         
