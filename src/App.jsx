@@ -8596,7 +8596,7 @@ export default function App() {
           else if (finalPenaltiesB > finalPenaltiesA) winner = 'B';
         }
 
-        let addPtsA = ptsPlay; let addPtsB = ptsPlay;
+        let addPtsA = 0; let addPtsB = 0;
         let winsA = 0; let winsB = 0;
         let drawsA = 0; let drawsB = 0;
 
@@ -8608,12 +8608,26 @@ export default function App() {
            else if (finalScoreB === 0 && finalScoreA === 3) isWoOpp = true;
         }
 
-        if (isWoMe) addPtsA -= 2;
-        if (isWoOpp) addPtsB -= 2;
+        // 🛡️ NOVA REGRA: Punição líquida (-2) e zera os pontos de participação de quem faltou
+        if (isWoMe) addPtsA = -10;
+        else addPtsA = ptsPlay;
 
-        if (winner === 'A') { addPtsA += ptsWin; winsA = 1; }
-        else if (winner === 'B') { addPtsB += ptsWin; winsB = 1; }
-        else { addPtsA += ptsDraw; addPtsB += ptsDraw; drawsA = 1; drawsB = 1; }
+        if (isWoOpp) addPtsB = -10;
+        else addPtsB = ptsPlay;
+
+        if (winner === 'A') { 
+            if (!isWoMe) addPtsA += ptsWin; 
+            winsA = 1; 
+        }
+        else if (winner === 'B') { 
+            if (!isWoOpp) addPtsB += ptsWin; 
+            winsB = 1; 
+        }
+        else { 
+            if (!isWoMe) addPtsA += ptsDraw; 
+            if (!isWoOpp) addPtsB += ptsDraw; 
+            drawsA = 1; drawsB = 1; 
+        }
 
         const isKnockoutMatch = match.matchId.includes('_ko_') || comp?.format === 'cup';
         const roundDetails = comp?.rounds?.find(r => r.id === match.roundId);
