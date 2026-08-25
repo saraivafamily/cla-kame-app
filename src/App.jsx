@@ -3600,7 +3600,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                     </div>
                   </div>
                 )}
-              </div> {/* 👈 CORREÇÃO: Esta div do Overview finalmente está sendo fechada corretamente aqui! */}
+              </div> 
             )}
 
             {subTab === 'stats' && (
