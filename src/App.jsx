@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where, initializeFirestore, getDocs } from 'firebase/firestore';
-import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart } from 'lucide-react';
+import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart, Zap, Brain } from 'lucide-react';
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
 const firebaseConfig = { 
@@ -8326,6 +8326,162 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
   );
 };
 
+const TrainingCenter = ({ currentUser, showToast }) => {
+  const [gameState, setGameState] = useState('idle'); // idle, waiting, ready, result, early
+  const [reactionTime, setReactionTime] = useState(null);
+  const [bestTime, setBestTime] = useState(() => {
+    const saved = localStorage.getItem(`kame_reflex_${currentUser?.id}`);
+    return saved ? parseInt(saved) : null;
+  });
+  const timeoutRef = useRef(null);
+  const startTimeRef = useRef(null);
+
+  const startGame = () => {
+    setGameState('waiting');
+    setReactionTime(null);
+    // Tempo aleatório entre 2 e 5 segundos para o jogador não "decorar"
+    const delay = Math.floor(Math.random() * 3000) + 2000;
+    timeoutRef.current = setTimeout(() => {
+      setGameState('ready');
+      startTimeRef.current = Date.now();
+    }, delay);
+  };
+
+  const handleClick = () => {
+    if (gameState === 'idle' || gameState === 'result' || gameState === 'early') {
+      startGame();
+    } else if (gameState === 'waiting') {
+      clearTimeout(timeoutRef.current);
+      setGameState('early');
+    } else if (gameState === 'ready') {
+      const time = Date.now() - startTimeRef.current;
+      setReactionTime(time);
+      setGameState('result');
+      if (!bestTime || time < bestTime) {
+        setBestTime(time);
+        localStorage.setItem(`kame_reflex_${currentUser?.id}`, time);
+        showToast("Novo Recorde Pessoal Cognitivo! ⚡", "success");
+      }
+    }
+  };
+
+  useEffect(() => {
+    return () => clearTimeout(timeoutRef.current);
+  }, []);
+
+  const getBgColor = () => {
+    if (gameState === 'waiting') return 'bg-red-600 cursor-wait';
+    if (gameState === 'ready') return 'bg-emerald-500 cursor-pointer shadow-[0_0_50px_rgba(16,185,129,0.8)] scale-[1.02]';
+    return 'bg-blue-900 cursor-pointer hover:bg-blue-800';
+  };
+
+  const getMessage = () => {
+    if (gameState === 'idle') return { title: 'Teste de Reflexo', sub: 'Toque na tela para começar' };
+    if (gameState === 'waiting') return { title: 'Aguarde...', sub: 'Prepare-se para clicar quando ficar VERDE' };
+    if (gameState === 'ready') return { title: 'CLIQUE AGORA!', sub: '⚡⚡⚡' };
+    if (gameState === 'early') return { title: 'Queimou a largada!', sub: 'Você clicou antes do verde. Toque para tentar de novo.' };
+    if (gameState === 'result') return { title: `${reactionTime} ms`, sub: 'Toque para tentar de novo' };
+  };
+
+  const msg = getMessage();
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in pb-12">
+      <div className="bg-gradient-to-r from-blue-900 to-blue-950 p-6 sm:p-8 rounded-3xl border border-sky-500/30 shadow-2xl flex items-center gap-5 relative overflow-hidden">
+        <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-sky-500/20 blur-3xl rounded-full"></div>
+        <div className="bg-blue-950 p-4 rounded-full border-2 border-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.4)] z-10 shrink-0">
+          <Brain size={36} className="text-sky-400" />
+        </div>
+        <div className="z-10">
+          <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-wider">CT Kame <span className="text-sky-400">Pro</span></h2>
+          <p className="text-sm text-blue-300 mt-1">Centro de Treinamento Cognitivo. Aprimore seus reflexos e visão de jogo no DLS.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* O Jogo em si */}
+        <div className="lg:col-span-2 bg-blue-950 p-4 rounded-3xl border border-blue-800 shadow-xl flex flex-col">
+          <h3 className="text-white font-bold mb-4 px-2 flex items-center gap-2 uppercase tracking-widest text-sm"><Zap size={18} className="text-amber-400"/> Tempo de Reação</h3>
+          <div 
+            onClick={handleClick}
+            className={`flex-1 min-h-[300px] sm:min-h-[400px] rounded-2xl border-4 ${gameState === 'ready' ? 'border-white' : 'border-transparent'} flex flex-col items-center justify-center text-center transition-all duration-150 select-none ${getBgColor()}`}
+          >
+            <h1 className={`text-4xl sm:text-5xl font-black tracking-widest uppercase ${gameState === 'waiting' || gameState === 'ready' ? 'text-white' : 'text-emerald-400'}`}>
+              {msg.title}
+            </h1>
+            <p className={`mt-4 text-sm sm:text-base font-bold ${gameState === 'waiting' ? 'text-red-200' : gameState === 'ready' ? 'text-emerald-100' : 'text-blue-300'}`}>
+              {msg.sub}
+            </p>
+            
+            {gameState === 'result' && (
+              <div className="mt-8 flex gap-4 animate-in zoom-in-95 duration-300">
+                <div className="bg-blue-950/80 px-6 py-3 rounded-xl border border-blue-800 shadow-inner">
+                  <span className="block text-[10px] text-blue-400 uppercase tracking-widest font-bold mb-1">Diagnóstico</span>
+                  <span className={`text-xl font-black ${reactionTime < 220 ? 'text-amber-400' : reactionTime < 280 ? 'text-emerald-400' : 'text-blue-300'}`}>
+                    {reactionTime < 220 ? '👽 Alienígena' : reactionTime < 280 ? '⚡ Ligeiro' : reactionTime < 350 ? '🥷 Profissional' : '🐢 Zagueiro Lento'}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Painel Lateral de Status do Jogador */}
+        <div className="bg-blue-900 p-6 rounded-3xl border border-blue-800 shadow-xl flex flex-col gap-6">
+          <div>
+            <h3 className="text-sky-400 font-black uppercase tracking-widest text-sm mb-4 border-b border-blue-800 pb-2">Seus Atributos</h3>
+            <div className="space-y-5">
+              <div className="bg-blue-950 p-4 rounded-xl border border-emerald-500/30 text-center shadow-inner relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500"></div>
+                <p className="text-[10px] text-blue-400 uppercase font-bold mb-1 tracking-wider">Melhor Reflexo</p>
+                {bestTime ? (
+                  <p className="text-3xl font-black text-emerald-400 drop-shadow-md">{bestTime} <span className="text-sm text-blue-500 font-bold">ms</span></p>
+                ) : (
+                  <p className="text-sm font-bold text-blue-600 mt-2">Sem testes feitos</p>
+                )}
+              </div>
+              
+              <div>
+                <div className="flex justify-between text-[10px] font-bold uppercase mb-1">
+                  <span className="text-blue-300">Velocidade de Reação</span>
+                  <span className="text-emerald-400">{bestTime ? Math.max(0, Math.floor(100 - ((bestTime - 150) / 4))) : 0}/100</span>
+                </div>
+                <div className="w-full bg-blue-950 rounded-full h-2.5 border border-blue-800 overflow-hidden shadow-inner">
+                  <div className="bg-gradient-to-r from-emerald-600 to-emerald-400 h-2.5 rounded-full transition-all duration-1000" style={{ width: `${bestTime ? Math.max(0, Math.floor(100 - ((bestTime - 150) / 4))) : 0}%` }}></div>
+                </div>
+              </div>
+
+              <div className="opacity-40">
+                <div className="flex justify-between text-[10px] font-bold uppercase mb-1">
+                  <span className="text-blue-300">Visão Periférica (Radar)</span>
+                  <span className="text-amber-400">Em breve</span>
+                </div>
+                <div className="w-full bg-blue-950 rounded-full h-2.5 border border-blue-800 overflow-hidden">
+                  <div className="bg-gradient-to-r from-amber-600 to-amber-400 h-2.5 rounded-full" style={{ width: '0%' }}></div>
+                </div>
+              </div>
+
+              <div className="opacity-40">
+                <div className="flex justify-between text-[10px] font-bold uppercase mb-1">
+                  <span className="text-blue-300">Tomada de Decisão</span>
+                  <span className="text-purple-400">Em breve</span>
+                </div>
+                <div className="w-full bg-blue-950 rounded-full h-2.5 border border-blue-800 overflow-hidden">
+                  <div className="bg-gradient-to-r from-purple-600 to-purple-400 h-2.5 rounded-full" style={{ width: '0%' }}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-auto bg-blue-950 p-4 rounded-xl border border-blue-800/50 border-dashed text-center">
+            <p className="text-[11px] text-blue-400 font-medium">Seu tempo de reação no CT ajuda a criar memória muscular para antecipar o passe adversário e dar botes no DLS.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   // 🛡️ BLINDAGEM TOTAL: Se a aba for anônima, o localStorage não derruba o React
   const [currentUser, setCurrentUser] = useState(() => { 
@@ -8689,6 +8845,7 @@ export default function App() {
   const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home }, 
     { id: 'profile', label: 'Meu Perfil', icon: User },
+    { id: 'training', label: 'CT Kame', icon: Brain },
     { id: 'store', label: 'Kame Store', icon: ShoppingCart },
     { id: 'bank', label: 'Kame Bank', icon: Landmark },
     { id: 'teams_list', label: 'Times', icon: Shield }, 
@@ -9010,6 +9167,7 @@ export default function App() {
         
      case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} competitions={competitions} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={async (m) => { try { await setDoc(getPublicDocPath('matches', m.id), m); showToast("Resultado enviado!"); } catch(e) { showToast("Erro ao salvar no banco: " + e.message, "error"); } }} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} onBatchUpdateComp={async (updatedComp, newMatchesArray) => { await updateDoc(getPublicDocPath('competitions', updatedComp.id), updatedComp); const promises = newMatchesArray.map(m => setDoc(getPublicDocPath('matches', m.id), m)); await Promise.all(promises); showToast("Fase encerrada e chaves atualizadas!", "success"); }} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
+      case 'training': return <TrainingCenter currentUser={currentUser} showToast={showToast} />;
       case 'store': return <KameStore currentUser={currentUser} storeProducts={storeProducts} showToast={showToast} />;
       
       // 🌟 NOVA ROTA UNIFICADA DA GESTÃO CLÃ
