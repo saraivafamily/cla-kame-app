@@ -9241,13 +9241,11 @@ export default function App() {
   const TABS = [
     { id: 'dashboard', label: 'Início', icon: Home }, 
     { id: 'profile', label: 'Meu Perfil', icon: User },
-    { id: 'training', label: 'CT Kame', icon: Brain },
-    { id: 'store', label: 'Kame Store', icon: ShoppingCart },
     { id: 'bank', label: 'Kame Bank', icon: Landmark },
-    { id: 'teams_list', label: 'Times', icon: Shield }, 
-    { id: 'competitions', label: 'Competições', icon: Medal },
-    { id: 'ranking', label: 'Ranking Xclã', icon: Crown },
     { id: 'predictions', label: 'Kame Bet', icon: Target },
+    { id: 'competitions', label: 'Competições', icon: Medal },
+    { id: 'teams_list', label: 'Times', icon: Shield }, 
+    { id: 'ranking', label: 'Ranking Xclã', icon: Crown },
     { id: 'feed', label: 'Feed da Resenha', icon: MessageCircle },
     { id: 'trophies', label: 'Sala de Troféus', icon: Star },
     { id: 'records', label: 'Mural de Recordes', icon: Trophy },
@@ -9255,6 +9253,8 @@ export default function App() {
     
     // Apenas quem é da diretoria vê este botão
     ...(hasEventAccess ? [
+      { id: 'training', label: 'CT Kame', icon: Brain },
+      { id: 'store', label: 'Kame Store', icon: ShoppingCart },
       { id: 'gestao_cla', label: 'Gestão Clã', icon: Award }
     ] : []),
     ];
