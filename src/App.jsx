@@ -8327,8 +8327,8 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
 };
 
 const TrainingCenter = ({ currentUser, showToast }) => {
-  const [activeCategory, setActiveCategory] = useState('cognitivo'); // cognitivo, tatica, mecanica
-  const [activeDrill, setActiveDrill] = useState('reflex'); // reflex, radar, decision, memory, force, timing
+  const [activeCategory, setActiveCategory] = useState('mecanica'); // cognitivo, tatica, mecanica
+  const [activeDrill, setActiveDrill] = useState('force'); // reflex, radar, decision, memory, force, timing
 
   // ==========================================
   // 🧠 PILAR COGNITIVO
@@ -8343,7 +8343,6 @@ const TrainingCenter = ({ currentUser, showToast }) => {
 
   const startReflex = () => {
     setReflexState('waiting'); setReactionTime(null);
-    // 🌟 NOVA LÓGICA: Tempo 100% aleatório entre 1.000ms (1s) e 10.000ms (10s)
     const delay = Math.floor(Math.random() * 9000) + 1000;
     reflexTimeout.current = setTimeout(() => { setReflexState('ready'); reflexStart.current = Date.now(); }, delay);
   };
@@ -8451,16 +8450,16 @@ const TrainingCenter = ({ currentUser, showToast }) => {
   // 🕹️ PILAR MECÂNICA (JOGADAS REAIS)
   // ==========================================
   
-  // 🎚️ GAME 4: CONTROLE DE FORÇA (NOVA FÍSICA: PRESSIONAR PARA ENCHER)
-  const [forceState, setForceState] = useState('idle'); // idle, waiting_press, charging, success, result
+  // 🎚️ GAME 4: CONTROLE DE FORÇA (FÍSICA REAL DO DLS)
+  const [forceState, setForceState] = useState('idle'); 
   const [forceScore, setForceScore] = useState(0);
   const [bestForce, setBestForce] = useState(() => parseInt(localStorage.getItem(`kame_force_${currentUser?.id}`) || '0'));
   const [power, setPower] = useState(0);
-  const [targetZone, setTargetZone] = useState({ min: 40, max: 60 });
+  const [targetZone, setTargetZone] = useState({ min: 35, max: 45, label: 'Perto da Peq. Área' });
   
   const reqRef = useRef(null);
   const powerRef = useRef(0);
-  const speedRef = useRef(0.8); // Inicia numa velocidade controlável
+  const speedRef = useRef(0.8); 
 
   const startForceGame = () => { 
     setForceScore(0); 
@@ -8469,9 +8468,24 @@ const TrainingCenter = ({ currentUser, showToast }) => {
   };
 
   const nextForceRound = (currentScore) => {
-    const zoneWidth = Math.max(6, 25 - (currentScore * 1.5)); 
-    const min = Math.floor(Math.random() * (95 - zoneWidth)) + 2; 
-    setTargetZone({ min, max: min + zoneWidth });
+    // Alterna entre os dois cenários reais do DLS
+    const isEdgeOfBox = Math.random() > 0.5;
+    let center, width;
+
+    if (isEdgeOfBox) {
+        center = 52.5; // Gaveta da entrada da área (50-55%)
+        width = Math.max(2.5, 10 - (currentScore * 0.5)); // A zona vai encolhendo com os acertos
+    } else {
+        center = 40.0; // Gaveta perto da pequena área (35-45%)
+        width = Math.max(3.0, 12 - (currentScore * 0.5)); 
+    }
+
+    setTargetZone({ 
+        min: center - (width / 2), 
+        max: center + (width / 2), 
+        label: isEdgeOfBox ? 'Entrada da Área' : 'Perto da Peq. Área' 
+    });
+    
     powerRef.current = 0; 
     setPower(0); 
     setForceState('waiting_press'); 
@@ -8482,18 +8496,17 @@ const TrainingCenter = ({ currentUser, showToast }) => {
     if (powerRef.current >= 100) { 
        powerRef.current = 100; 
        setPower(100); 
-       evaluateForce(100); // Se estourar a barra, a jogada falha automaticamente
+       evaluateForce(100); // Se estourar a barra, isola a bola automaticamente
        return; 
     }
     setPower(powerRef.current);
     reqRef.current = requestAnimationFrame(updatePower);
   };
 
-  // Avalia o chute quando o dedo sai da tela ou a barra estoura
   const evaluateForce = (finalPower) => {
     cancelAnimationFrame(reqRef.current);
     setForceState(prev => {
-       if (prev !== 'charging') return prev; // Evita duplicação de cálculo
+       if (prev !== 'charging') return prev; 
        
        if (finalPower >= targetZone.min && finalPower <= targetZone.max) {
          const newScore = forceScore + 1; 
@@ -8502,7 +8515,7 @@ const TrainingCenter = ({ currentUser, showToast }) => {
            setBestForce(newScore); 
            localStorage.setItem(`kame_force_${currentUser?.id}`, newScore); 
          }
-         showToast("Força Perfeita! 🎯", "success");
+         showToast("Na Gaveta! 🎯", "success");
          setTimeout(() => { speedRef.current += 0.15; nextForceRound(newScore); }, 1200);
          return 'success';
        } else {
@@ -8511,9 +8524,8 @@ const TrainingCenter = ({ currentUser, showToast }) => {
     });
   };
 
-  // Eventos de Toque e Mouse
   const handlePointerDown = (e) => {
-    if (e.button !== undefined && e.button !== 0) return; // Aceita apenas toque ou clique esquerdo
+    if (e.button !== undefined && e.button !== 0) return; 
     if (forceState === 'waiting_press') {
       setForceState('charging');
       powerRef.current = 0;
@@ -8528,7 +8540,7 @@ const TrainingCenter = ({ currentUser, showToast }) => {
     }
   };
 
-  // 🛡️ GAME 6: TIMING DE BOTE (NOVO)
+  // 🛡️ GAME 6: TIMING DE BOTE
   const [timingState, setTimingState] = useState('idle'); // idle, playing, success, result_early, result_late
   const [timingScore, setTimingScore] = useState(0);
   const [bestTiming, setBestTiming] = useState(() => parseInt(localStorage.getItem(`kame_timing_${currentUser?.id}`) || '0'));
@@ -8768,8 +8780,8 @@ const TrainingCenter = ({ currentUser, showToast }) => {
           {forceState === 'idle' && (
              <div className="text-center my-auto">
                 <div className="w-20 h-20 bg-blue-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-800 shadow-lg"><Target size={36} className="text-sky-400"/></div>
-                <h2 className="text-2xl font-black text-white mb-2 uppercase">Dosagem Fina</h2>
-                <p className="text-blue-300 text-sm max-w-sm mx-auto mb-6">Pressione e segure o dedo na tela para encher a força. Solte exatamente dentro da área verde para acertar o chute.</p>
+                <h2 className="text-2xl font-black text-white mb-2 uppercase">A Física da Gaveta</h2>
+                <p className="text-blue-300 text-sm max-w-sm mx-auto mb-6">A força perfeita (botão A) no DLS fica entre 40% e 55%. Pressione e solte para encher a barra na medida certa para cada situação!</p>
                 <button onClick={startForceGame} className="bg-sky-600 hover:bg-sky-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Treino</button>
              </div>
           )}
@@ -8782,13 +8794,20 @@ const TrainingCenter = ({ currentUser, showToast }) => {
                 onPointerLeave={handlePointerUp}
                 onContextMenu={(e) => e.preventDefault()}
              >
-                <div className="flex justify-between w-full mb-3 px-2"><span className="text-blue-400 font-bold uppercase text-[10px] tracking-widest">Nível Atual</span><span className="text-sky-400 font-black text-lg">{forceScore + 1}</span></div>
+                <div className="flex justify-between w-full mb-1 px-2"><span className="text-blue-400 font-bold uppercase text-[10px] tracking-widest">Nível Atual</span><span className="text-sky-400 font-black text-lg">{forceScore + 1}</span></div>
+                
+                <div className="text-center mb-3">
+                    <span className="bg-sky-900/50 border border-sky-500/50 text-sky-300 text-[10px] px-3 py-1 rounded font-bold uppercase tracking-widest">
+                        Chute: {targetZone.label}
+                    </span>
+                </div>
+
                 <div className="w-full h-12 bg-blue-950 border-2 border-blue-700 rounded-full relative overflow-hidden shadow-inner">
                    <div className="absolute h-full bg-emerald-500/40 border-l-2 border-r-2 border-emerald-400 z-10" style={{ left: `${targetZone.min}%`, width: `${targetZone.max - targetZone.min}%` }}></div>
                    <div className={`h-full rounded-l-full transition-none ${forceState === 'success' ? 'bg-emerald-500' : (forceState === 'charging' ? 'bg-gradient-to-r from-sky-600 to-sky-400' : '')}`} style={{ width: `${power}%` }}></div>
                 </div>
                 <p className={`text-[10px] uppercase mt-4 font-bold ${forceState === 'waiting_press' ? 'text-blue-400 animate-pulse' : forceState === 'charging' ? 'text-amber-400' : 'text-emerald-400'}`}>
-                   {forceState === 'waiting_press' ? '👇 Pressione e segure a tela' : forceState === 'charging' ? '⚡ Solte na zona verde!' : '🎯 Na Gaveta!'}
+                   {forceState === 'waiting_press' ? '👇 Pressione e segure' : forceState === 'charging' ? '⚡ Solte na zona verde!' : '🎯 Na Gaveta!'}
                 </p>
              </div>
           )}
@@ -8796,8 +8815,8 @@ const TrainingCenter = ({ currentUser, showToast }) => {
              <div className="w-full max-w-sm text-center animate-in zoom-in-95">
                 <div className="w-20 h-20 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(239,68,68,0.4)]"><XCircle size={36} className="text-red-500"/></div>
                 <h2 className="text-3xl font-black text-white uppercase tracking-wider mb-2">Isolou!</h2>
-                <p className="text-blue-300 mb-6">Você soltou a barra na hora errada e perdeu a posse.</p>
-                <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Acertos Seguidos</p><p className="text-4xl font-black text-sky-400 mt-1">{forceScore}</p></div>
+                <p className="text-blue-300 mb-6">Você calculou mal a força do chute para essa situação e perdeu o gol.</p>
+                <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Gols Seguidos</p><p className="text-4xl font-black text-sky-400 mt-1">{forceScore}</p></div>
                 <button onClick={startForceGame} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 px-8 rounded-xl uppercase shadow-md w-full">Tentar Novamente</button>
              </div>
           )}
@@ -8861,14 +8880,14 @@ const TrainingCenter = ({ currentUser, showToast }) => {
 
       {/* 🌟 NAVEGAÇÃO DE CATEGORIAS */}
       <div className="flex gap-2 p-1.5 bg-blue-950/80 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar shadow-inner">
+        <button onClick={() => handleCategoryChange('mecanica')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'mecanica' ? 'bg-sky-600 text-white shadow-md' : 'text-sky-400/60 hover:text-sky-400 hover:bg-blue-900/50'}`}>
+          🕹️ Mecânica
+        </button>
         <button onClick={() => handleCategoryChange('cognitivo')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'cognitivo' ? 'bg-amber-600 text-blue-950 shadow-md' : 'text-amber-500/60 hover:text-amber-400 hover:bg-blue-900/50'}`}>
           🧠 Cognitivo
         </button>
         <button onClick={() => handleCategoryChange('tatica')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'tatica' ? 'bg-purple-600 text-white shadow-md' : 'text-purple-400/60 hover:text-purple-400 hover:bg-blue-900/50'}`}>
           🎯 Tática
-        </button>
-        <button onClick={() => handleCategoryChange('mecanica')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'mecanica' ? 'bg-sky-600 text-white shadow-md' : 'text-sky-400/60 hover:text-sky-400 hover:bg-blue-900/50'}`}>
-          🕹️ Mecânica
         </button>
       </div>
 
