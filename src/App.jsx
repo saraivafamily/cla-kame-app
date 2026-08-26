@@ -8327,8 +8327,8 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
 };
 
 const TrainingCenter = ({ currentUser, showToast }) => {
-  const [activeCategory, setActiveCategory] = useState('cognitivo'); // cognitivo, tatico, mecanica
-  const [activeDrill, setActiveDrill] = useState('reflex'); // reflex, radar, decision, force
+  const [activeCategory, setActiveCategory] = useState('tatica'); // cognitivo, tatico, mecanica
+  const [activeDrill, setActiveDrill] = useState('memory'); // reflex, radar, decision, force, memory
 
   // ==========================================
   // 🧠 PILAR COGNITIVO
@@ -8397,16 +8397,15 @@ const TrainingCenter = ({ currentUser, showToast }) => {
   const DLS_SCENARIOS = [
     { q: "Adversário ataca pela ponta e seu zagueiro está na área. O que NÃO fazer?", opts: ["Trocar cursor para o volante (C) e dobrar marcação.", "Sair puxando o zagueiro da área até a lateral.", "Acompanhar a corrida pelo meio fechando o passe."], ans: 1 },
     { q: "Aos 88 minutos, você vence por 1x0 e tem um escanteio a favor. Melhor decisão?", opts: ["Tocar curto e prender a bola na lateral.", "Cruzar na pequena área com a barra cheia.", "Bater direto pro gol fechado."], ans: 0 },
-    { q: "Seu adversário joga na 4-1-2-3 congestionando o meio de campo. Por onde atacar?", opts: ["Forçar tabela pelo meio dos volantes.", "Dar lançamentos diretos (C) do goleiro pro CA.", "Explorar as pontas com laterais e pontas pontas (W)."], ans: 2 },
+    { q: "Seu adversário joga na 4-1-2-3 congestionando o meio de campo. Por onde atacar?", opts: ["Forçar tabela pelo meio dos volantes.", "Dar lançamentos diretos (C) do goleiro pro CA.", "Explorar as pontas com laterais e pontas (W)."], ans: 2 },
     { q: "Contra-ataque 3 contra 2. Você carrega a bola pelo meio chegando na área. O que fazer?", opts: ["Tocar em profundidade no atacante que faz a ultrapassagem.", "Chutar de longe sem carregar muito a barra.", "Dar um drible (Swipe) no primeiro zagueiro."], ans: 0 },
-    { q: "O atacande adiantou muito a bola e o último zagueiro roubou a bola. O que fazer em seguida?", opts: ["Virar o cursor para o sentido oposto do gol e pressionar o A com força.", "Tocar para o goleiro em direção ao gol com força.", "Virar o cursor para uma das laterais e dar o passe rápido para o jogador mais próximo."], ans:2 },
-    { q: "Adversário é viciado em cruzar na área (Chuveirinho). Qual a melhor postura?", opts: ["Adiantar a zaga até o meio de campo.", "Recuar a defesa e focar o cursor (C) no zagueiro central.", "Segurar o botão do goleiro pra ele sair do gol na ponta."], ans: 1 }
+    { q: "Adversário cruza muita bola na área. Qual a melhor postura defensiva?", opts: ["Adiantar a zaga até o meio de campo.", "Recuar a defesa e focar o cursor (C) no zagueiro central.", "Segurar o botão do goleiro pra ele sair do gol na ponta."], ans: 1 }
   ];
 
   const [decisionState, setDecisionState] = useState('idle');
   const [decisionScore, setDecisionScore] = useState(0);
   const [currentScenario, setCurrentScenario] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(15);
+  const [timeLeft, setTimeLeft] = useState(7);
   const [bestDecision, setBestDecision] = useState(() => parseInt(localStorage.getItem(`kame_decision_${currentUser?.id}`) || '0'));
   const timerInterval = useRef(null);
 
@@ -8421,14 +8420,43 @@ const TrainingCenter = ({ currentUser, showToast }) => {
     } else { setDecisionState('result'); clearInterval(timerInterval.current); }
   };
 
-  useEffect(() => {
-    if (activeDrill === 'decision' && decisionState === 'playing') {
-      timerInterval.current = setInterval(() => {
-        setTimeLeft((prev) => { if (prev <= 1) { clearInterval(timerInterval.current); setDecisionState('result'); return 0; } return prev - 1; });
-      }, 1000);
+  // 📸 GAME 5: MEMÓRIA FOTOGRÁFICA (TRACKING DE ESPAÇOS)
+  const PITCH_ZONES = [
+    { id: 0, name: 'Ponta Esquerda' }, { id: 1, name: 'Meio Avançado' }, { id: 2, name: 'Ponta Direita' },
+    { id: 3, name: 'Defesa Esq.' }, { id: 4, name: 'Meio Defensivo' }, { id: 5, name: 'Defesa Dir.' }
+  ];
+  const [memoryState, setMemoryState] = useState('idle'); // idle, memorizing, question, result
+  const [memoryScore, setMemoryScore] = useState(0);
+  const [bestMemory, setBestMemory] = useState(() => parseInt(localStorage.getItem(`kame_memory_${currentUser?.id}`) || '0'));
+  const [emptyZone, setEmptyZone] = useState(null);
+  const memoryTimeout = useRef(null);
+
+  const startMemoryGame = () => { setMemoryScore(0); nextMemoryRound(0); };
+
+  const nextMemoryRound = (currentScore) => {
+    const target = Math.floor(Math.random() * 6);
+    setEmptyZone(target);
+    setMemoryState('memorizing');
+
+    // Tempo de memorização cai com os acertos. Mínimo 400ms.
+    const displayTime = Math.max(400, 1500 - (currentScore * 100));
+    memoryTimeout.current = setTimeout(() => { setMemoryState('question'); }, displayTime);
+  };
+
+  const handleMemoryAnswer = (zoneId) => {
+    if (zoneId === emptyZone) {
+      const newScore = memoryScore + 1;
+      setMemoryScore(newScore);
+      showToast("Visão Perfeita! +1 📸", "success");
+      if (newScore > bestMemory) {
+        setBestMemory(newScore);
+        localStorage.setItem(`kame_memory_${currentUser?.id}`, newScore);
+      }
+      nextMemoryRound(newScore);
+    } else {
+      setMemoryState('result');
     }
-    return () => clearInterval(timerInterval.current);
-  }, [activeDrill, decisionState]);
+  };
 
   // ==========================================
   // 🕹️ PILAR MECÂNICA (JOGADAS REAIS)
@@ -8446,25 +8474,13 @@ const TrainingCenter = ({ currentUser, showToast }) => {
   const dirRef = useRef(1);
   const speedRef = useRef(1.5);
 
-  const startForceGame = () => {
-    setForceScore(0);
-    speedRef.current = 1.5;
-    nextForceRound();
-  };
-
+  const startForceGame = () => { setForceScore(0); speedRef.current = 1.5; nextForceRound(); };
   const nextForceRound = () => {
-    // A zona verde diminui conforme você acerta mais
     const zoneWidth = Math.max(8, 25 - (forceScore * 1.5)); 
-    const min = Math.floor(Math.random() * (95 - zoneWidth)) + 2; // Margens seguras
+    const min = Math.floor(Math.random() * (95 - zoneWidth)) + 2; 
     setTargetZone({ min, max: min + zoneWidth });
-    
-    powerRef.current = 0;
-    dirRef.current = 1;
-    setForceState('playing');
-    cancelAnimationFrame(reqRef.current);
-    updatePower();
+    powerRef.current = 0; dirRef.current = 1; setForceState('playing'); cancelAnimationFrame(reqRef.current); updatePower();
   };
-
   const updatePower = () => {
     powerRef.current += dirRef.current * speedRef.current;
     if (powerRef.current >= 100) { powerRef.current = 100; dirRef.current = -1; }
@@ -8472,45 +8488,38 @@ const TrainingCenter = ({ currentUser, showToast }) => {
     setPower(powerRef.current);
     reqRef.current = requestAnimationFrame(updatePower);
   };
-
   const handleForceClick = () => {
-    if (forceState === 'idle' || forceState === 'result') {
-      startForceGame();
-    } else if (forceState === 'playing') {
-      cancelAnimationFrame(reqRef.current);
-      const p = powerRef.current;
-      
-      // Checa se travou dentro da área verde
+    if (forceState === 'idle' || forceState === 'result') { startForceGame(); } 
+    else if (forceState === 'playing') {
+      cancelAnimationFrame(reqRef.current); const p = powerRef.current;
       if (p >= targetZone.min && p <= targetZone.max) {
-        const newScore = forceScore + 1;
-        setForceScore(newScore);
-        if (newScore > bestForce) {
-          setBestForce(newScore);
-          localStorage.setItem(`kame_force_${currentUser?.id}`, newScore);
-        }
-        setForceState('success');
-        showToast("Força Exata! 🎯", "success");
-        
-        setTimeout(() => {
-          speedRef.current += 0.2; // Fica mais rápido a cada acerto
-          nextForceRound();
-        }, 1200);
-      } else {
-        setForceState('result'); // Errou a força
-      }
+        const newScore = forceScore + 1; setForceScore(newScore);
+        if (newScore > bestForce) { setBestForce(newScore); localStorage.setItem(`kame_force_${currentUser?.id}`, newScore); }
+        setForceState('success'); showToast("Força Exata! 🎯", "success");
+        setTimeout(() => { speedRef.current += 0.2; nextForceRound(); }, 1200);
+      } else { setForceState('result'); }
     }
   };
 
-  // Limpa os timers gerais
+  // Limpeza Global de Timers
   useEffect(() => {
-    return () => { clearTimeout(reflexTimeout.current); clearTimeout(radarTimeout.current); clearInterval(timerInterval.current); cancelAnimationFrame(reqRef.current); };
-  }, [activeDrill]);
+    if (activeDrill === 'decision' && decisionState === 'playing') {
+      timerInterval.current = setInterval(() => {
+        setTimeLeft((prev) => { if (prev <= 1) { clearInterval(timerInterval.current); setDecisionState('result'); return 0; } return prev - 1; });
+      }, 1000);
+    }
+    return () => { 
+      clearTimeout(reflexTimeout.current); clearTimeout(radarTimeout.current); 
+      clearTimeout(memoryTimeout.current); clearInterval(timerInterval.current); 
+      cancelAnimationFrame(reqRef.current); 
+    };
+  }, [activeDrill, decisionState]);
 
-  // Muda de categoria e limpa os drills
+  // Muda de categoria
   const handleCategoryChange = (cat) => {
     setActiveCategory(cat);
     if (cat === 'cognitivo') setActiveDrill('reflex');
-    if (cat === 'tatica') setActiveDrill('decision');
+    if (cat === 'tatica') setActiveDrill('memory');
     if (cat === 'mecanica') setActiveDrill('force');
   };
 
@@ -8535,13 +8544,12 @@ const TrainingCenter = ({ currentUser, showToast }) => {
     return (
       <div className="flex flex-col h-full animate-in slide-in-from-right-4">
         <h3 className="text-white font-bold mb-4 flex items-center gap-2 uppercase tracking-widest text-sm"><Zap size={18} className="text-amber-400"/> Reação e Bote</h3>
-        <p className="text-xs text-blue-400 mb-4 -mt-2">Treine sua velocidade para antecipar passes e dar o bote exato no DLS.</p>
         <div onClick={handleReflexClick} className={`flex-1 min-h-[350px] rounded-3xl border-4 ${reflexState === 'ready' ? 'border-white' : 'border-transparent'} flex flex-col items-center justify-center text-center transition-all duration-150 select-none ${getBgColor()}`}>
           <h1 className={`text-4xl sm:text-5xl font-black tracking-widest uppercase ${reflexState === 'waiting' || reflexState === 'ready' ? 'text-white' : 'text-emerald-400'}`}>{msg.title}</h1>
           <p className={`mt-4 text-sm font-bold ${reflexState === 'waiting' ? 'text-red-200' : reflexState === 'ready' ? 'text-emerald-100' : 'text-blue-300'}`}>{msg.sub}</p>
           {reflexState === 'result' && (
             <div className="mt-8 bg-blue-950/80 px-6 py-3 rounded-xl border border-blue-800 shadow-inner animate-in zoom-in-95">
-              <span className="block text-[10px] text-blue-400 uppercase tracking-widest font-bold mb-1">Diagnóstico do Lance</span>
+              <span className="block text-[10px] text-blue-400 uppercase tracking-widest font-bold mb-1">Diagnóstico</span>
               <span className={`text-xl font-black ${reactionTime < 220 ? 'text-amber-400' : reactionTime < 280 ? 'text-emerald-400' : 'text-blue-300'}`}>
                 {reactionTime < 220 ? '👽 Bote Alienígena' : reactionTime < 280 ? '⚡ Antecipação Perfeita' : reactionTime < 350 ? '🥷 Corte Padrão' : '🐢 Zagueiro Lento'}
               </span>
@@ -8556,7 +8564,6 @@ const TrainingCenter = ({ currentUser, showToast }) => {
     return (
       <div className="flex flex-col h-full animate-in slide-in-from-right-4">
         <h3 className="text-white font-bold mb-4 flex items-center gap-2 uppercase tracking-widest text-sm"><Eye size={18} className="text-emerald-400"/> Visão de Radar</h3>
-        <p className="text-xs text-blue-400 mb-4 -mt-2">O mapa vai piscar rapidamente. Conte quantos adversários (vermelhos) apareceram na tela.</p>
         <div className="flex-1 bg-blue-900 border border-blue-700 rounded-3xl p-6 flex flex-col items-center justify-center relative overflow-hidden shadow-inner min-h-[350px]">
           {radarState === 'idle' && (
              <div className="text-center">
@@ -8597,24 +8604,21 @@ const TrainingCenter = ({ currentUser, showToast }) => {
     return (
       <div className="flex flex-col h-full animate-in slide-in-from-right-4">
         <div className="flex justify-between items-center mb-4">
-          <div>
-            <h3 className="text-white font-bold flex items-center gap-2 uppercase tracking-widest text-sm"><Brain size={18} className="text-purple-400"/> Inteligência Tática</h3>
-            <p className="text-xs text-blue-400 mt-1">Tempo é tudo. Leia a situação e escolha a melhor jogada rapidamente.</p>
-          </div>
+          <h3 className="text-white font-bold flex items-center gap-2 uppercase tracking-widest text-sm"><Brain size={18} className="text-purple-400"/> Quiz de Pressão</h3>
           {decisionState === 'playing' && ( <div className={`px-4 py-2 rounded-xl font-black text-xl border ${timeLeft <= 3 ? 'bg-red-500/20 text-red-400 border-red-500/50 animate-pulse' : 'bg-blue-950 text-emerald-400 border-blue-800'}`}>⏱️ {timeLeft}s</div> )}
         </div>
         <div className="flex-1 bg-blue-900 border border-blue-700 rounded-3xl p-6 flex flex-col relative overflow-hidden shadow-inner min-h-[350px]">
           {decisionState === 'idle' && (
              <div className="text-center my-auto">
                 <div className="w-20 h-20 bg-blue-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-800 shadow-lg"><Brain size={36} className="text-purple-400"/></div>
-                <h2 className="text-2xl font-black text-white mb-2 uppercase">Quiz de Pressão</h2>
-                <p className="text-blue-300 text-sm max-w-sm mx-auto">Você terá apenas 7 segundos para tomar a decisão correta em cada situação de jogo.</p>
+                <h2 className="text-2xl font-black text-white mb-2 uppercase">Decisão Tática Rápida</h2>
+                <p className="text-blue-300 text-sm max-w-sm mx-auto">Você terá 7 segundos para decidir a jogada correta antes de perder a bola.</p>
                 <button onClick={startDecisionGame} className="mt-6 bg-purple-600 hover:bg-purple-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Começar Treino</button>
              </div>
           )}
           {decisionState === 'playing' && currentScenario && (
              <div className="flex flex-col h-full animate-in zoom-in-95 duration-200">
-                <div className="bg-blue-950 border border-purple-500/50 p-5 rounded-2xl mb-6 shadow-md"><p className="text-[10px] text-purple-400 font-bold uppercase tracking-widest mb-2 border-b border-blue-800 pb-2">Situação de Jogo | Pontos: {decisionScore}</p><p className="text-white font-medium sm:text-lg leading-relaxed">{currentScenario.q}</p></div>
+                <div className="bg-blue-950 border border-purple-500/50 p-5 rounded-2xl mb-6 shadow-md"><p className="text-[10px] text-purple-400 font-bold uppercase tracking-widest mb-2 border-b border-blue-800 pb-2">Situação de Jogo | Acertos: {decisionScore}</p><p className="text-white font-medium sm:text-lg leading-relaxed">{currentScenario.q}</p></div>
                 <div className="flex-1 flex flex-col gap-3">{currentScenario.opts.map((opt, idx) => ( <button key={idx} onClick={() => handleDecisionSubmit(idx)} className="w-full text-left bg-blue-800/50 hover:bg-purple-600/80 border border-blue-700 hover:border-purple-400 p-4 rounded-xl text-blue-100 font-medium transition-colors text-sm sm:text-base shadow-sm">{opt}</button> ))}</div>
              </div>
           )}
@@ -8622,9 +8626,70 @@ const TrainingCenter = ({ currentUser, showToast }) => {
              <div className="text-center my-auto animate-in zoom-in-95">
                 <div className="w-20 h-20 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(239,68,68,0.4)]">{timeLeft === 0 ? <Activity size={36} className="text-red-500"/> : <XCircle size={36} className="text-red-500"/>}</div>
                 <h2 className="text-3xl font-black text-white uppercase tracking-wider mb-2">{timeLeft === 0 ? 'Tempo Esgotado!' : 'Decisão Errada!'}</h2>
-                <p className="text-blue-300 mb-6">No DLS, cada segundo de hesitação custa um gol.</p>
                 <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6 inline-block w-full max-w-xs"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Tomadas Corretas</p><p className="text-4xl font-black text-purple-400 mt-1">{decisionScore}</p></div>
                 <button onClick={startDecisionGame} className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-8 rounded-xl uppercase shadow-md w-full max-w-xs block mx-auto transition-colors">Tentar Novamente</button>
+             </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderMemoryGame = () => {
+    return (
+      <div className="flex flex-col h-full animate-in slide-in-from-right-4">
+        <h3 className="text-white font-bold mb-4 flex items-center gap-2 uppercase tracking-widest text-sm"><Camera size={18} className="text-purple-400"/> Memória Fotográfica</h3>
+        
+        <div className="flex-1 bg-blue-900 border border-blue-700 rounded-3xl p-6 flex flex-col items-center justify-center relative overflow-hidden shadow-inner min-h-[350px]">
+          {memoryState === 'idle' && (
+             <div className="text-center">
+                <div className="w-20 h-20 bg-blue-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-800 shadow-lg"><Camera size={36} className="text-purple-400"/></div>
+                <h2 className="text-2xl font-black text-white mb-2 uppercase">Mapear Espaços</h2>
+                <p className="text-blue-300 text-sm max-w-sm mx-auto mb-6">A defesa vai piscar na tela. Diga rápido: <b>Qual zona do campo ficou vazia?</b></p>
+                <button onClick={startMemoryGame} className="bg-purple-600 hover:bg-purple-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Mapeamento</button>
+             </div>
+          )}
+
+          {memoryState === 'memorizing' && (
+             <div className="w-full max-w-md aspect-[4/3] bg-emerald-800 border-4 border-white/20 rounded-xl relative overflow-hidden shadow-2xl grid grid-cols-3 grid-rows-2 gap-1.5 p-2 animate-in fade-in">
+                {/* Meio campo linha */}
+                <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white/30 z-0"></div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border-2 border-white/30 z-0"></div>
+
+                {PITCH_ZONES.map(z => (
+                   <div key={z.id} className="bg-emerald-900/40 rounded flex items-center justify-center relative z-10">
+                      {emptyZone !== z.id && (
+                        <div className="w-5 h-5 bg-red-500 rounded-full border border-red-300 shadow-[0_0_15px_rgba(239,68,68,1)]"></div>
+                      )}
+                   </div>
+                ))}
+             </div>
+          )}
+
+          {memoryState === 'question' && (
+             <div className="w-full max-w-md animate-in zoom-in-95">
+                <h3 className="text-xl font-bold text-white text-center mb-4 uppercase tracking-wider">Onde estava o buraco na defesa?</h3>
+                <div className="aspect-[4/3] bg-blue-950 border-2 border-blue-800 rounded-xl grid grid-cols-3 grid-rows-2 gap-2 p-3 shadow-inner">
+                  {PITCH_ZONES.map(z => (
+                     <button 
+                       key={z.id} 
+                       onClick={() => handleMemoryAnswer(z.id)} 
+                       className="bg-blue-900 hover:bg-purple-600 text-[10px] sm:text-xs text-blue-200 hover:text-white font-bold rounded-lg flex items-center justify-center p-2 text-center transition-colors border border-blue-700 hover:border-purple-400 shadow-sm"
+                     >
+                        {z.name}
+                     </button>
+                  ))}
+                </div>
+             </div>
+          )}
+
+          {memoryState === 'result' && (
+             <div className="w-full max-w-sm text-center animate-in zoom-in-95">
+                <div className="w-20 h-20 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(239,68,68,0.4)]"><XCircle size={36} className="text-red-500"/></div>
+                <h2 className="text-3xl font-black text-white uppercase tracking-wider mb-2">Visão Bloqueada!</h2>
+                <p className="text-blue-300 mb-6">A zona livre era a <b className="text-red-400">{PITCH_ZONES.find(z => z.id === emptyZone)?.name}</b>.</p>
+                <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Leituras Seguidas</p><p className="text-2xl font-black text-purple-400 mt-1">{memoryScore}</p></div>
+                <button onClick={startMemoryGame} className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-8 rounded-xl uppercase shadow-md w-full">Tentar Novamente</button>
              </div>
           )}
         </div>
@@ -8635,11 +8700,8 @@ const TrainingCenter = ({ currentUser, showToast }) => {
   const renderForceGame = () => {
     return (
       <div className="flex flex-col h-full animate-in slide-in-from-right-4">
-        <h3 className="text-white font-bold mb-4 flex items-center gap-2 uppercase tracking-widest text-sm"><Target size={18} className="text-sky-400"/> Controle de Força</h3>
-        <p className="text-xs text-blue-400 mb-4 -mt-2">Trave a barra exatamente na zona verde para calibrar seus passes e chutes no ângulo.</p>
-        
+        <h3 className="text-white font-bold mb-4 flex items-center gap-2 uppercase tracking-widest text-sm"><Target size={18} className="text-sky-400"/> Calibragem de Chute</h3>
         <div className="flex-1 bg-blue-900 border border-blue-700 rounded-3xl p-6 flex flex-col items-center justify-center relative overflow-hidden shadow-inner min-h-[350px]">
-          
           {forceState === 'idle' && (
              <div className="text-center my-auto">
                 <div className="w-20 h-20 bg-blue-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-800 shadow-lg"><Target size={36} className="text-sky-400"/></div>
@@ -8648,37 +8710,22 @@ const TrainingCenter = ({ currentUser, showToast }) => {
                 <button onClick={handleForceClick} className="bg-sky-600 hover:bg-sky-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Treino</button>
              </div>
           )}
-
           {(forceState === 'playing' || forceState === 'success') && (
              <div className="w-full max-w-sm flex flex-col items-center animate-in zoom-in-95 cursor-pointer h-full justify-center" onClick={handleForceClick}>
-                <div className="flex justify-between w-full mb-3 px-2">
-                   <span className="text-blue-400 font-bold uppercase text-[10px] tracking-widest">Nível Atual</span>
-                   <span className="text-sky-400 font-black text-lg">{forceScore + 1}</span>
-                </div>
-                
-                {/* A Barra de Chute */}
+                <div className="flex justify-between w-full mb-3 px-2"><span className="text-blue-400 font-bold uppercase text-[10px] tracking-widest">Nível Atual</span><span className="text-sky-400 font-black text-lg">{forceScore + 1}</span></div>
                 <div className="w-full h-12 bg-blue-950 border-2 border-blue-700 rounded-full relative overflow-hidden shadow-inner">
-                   {/* Zona Verde */}
                    <div className="absolute h-full bg-emerald-500/40 border-l-2 border-r-2 border-emerald-400 z-10" style={{ left: `${targetZone.min}%`, width: `${targetZone.max - targetZone.min}%` }}></div>
-                   
-                   {/* O Preenchimento (Poder) */}
                    <div className={`h-full rounded-l-full transition-none ${forceState === 'success' ? 'bg-emerald-500' : 'bg-gradient-to-r from-sky-600 to-sky-400'}`} style={{ width: `${power}%` }}></div>
                 </div>
-
                 <p className="text-[10px] text-blue-400 uppercase mt-4 animate-pulse">Toque em qualquer lugar para travar</p>
              </div>
           )}
-
           {forceState === 'result' && (
              <div className="w-full max-w-sm text-center animate-in zoom-in-95">
                 <div className="w-20 h-20 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(239,68,68,0.4)]"><XCircle size={36} className="text-red-500"/></div>
-                <h2 className="text-3xl font-black text-white uppercase tracking-wider mb-2">Chutou pra fora!</h2>
+                <h2 className="text-3xl font-black text-white uppercase tracking-wider mb-2">Isolou!</h2>
                 <p className="text-blue-300 mb-6">Você errou a dosagem de força e perdeu a posse de bola.</p>
-                
-                <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6">
-                   <p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Acertos Seguidos</p>
-                   <p className="text-4xl font-black text-sky-400 mt-1">{forceScore}</p>
-                </div>
+                <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Acertos Seguidos</p><p className="text-4xl font-black text-sky-400 mt-1">{forceScore}</p></div>
                 <button onClick={startForceGame} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 px-8 rounded-xl uppercase shadow-md w-full">Tentar Novamente</button>
              </div>
           )}
@@ -8726,8 +8773,8 @@ const TrainingCenter = ({ currentUser, showToast }) => {
         )}
         {activeCategory === 'tatica' && (
           <>
+            <button onClick={() => setActiveDrill('memory')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'memory' ? 'bg-blue-800 text-purple-400 border border-purple-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Camera size={14}/> Tracking de Espaços</button>
             <button onClick={() => setActiveDrill('decision')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'decision' ? 'bg-blue-800 text-purple-400 border border-purple-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Brain size={14}/> Quiz de Pressão</button>
-            <button disabled className="shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold text-blue-700/50 flex items-center justify-center gap-2 cursor-not-allowed border border-transparent"><Lock size={14}/> Memória Fotográfica (Breve)</button>
           </>
         )}
         {activeCategory === 'mecanica' && (
@@ -8740,10 +8787,11 @@ const TrainingCenter = ({ currentUser, showToast }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ÁREA PRINCIPAL DO MINIGAME */}
-        <div className="lg:col-span-2 bg-blue-950 p-4 sm:p-6 rounded-3xl border border-blue-800 shadow-xl overflow-hidden min-h-[450px]">
+        <div className="lg:col-span-2 bg-blue-950 p-4 sm:p-6 rounded-3xl border border-blue-800 shadow-xl overflow-hidden min-h-[450px] flex flex-col">
           {activeDrill === 'reflex' && renderReflexGame()}
           {activeDrill === 'radar' && renderRadarGame()}
           {activeDrill === 'decision' && renderDecisionGame()}
+          {activeDrill === 'memory' && renderMemoryGame()}
           {activeDrill === 'force' && renderForceGame()}
         </div>
 
@@ -8780,6 +8828,17 @@ const TrainingCenter = ({ currentUser, showToast }) => {
                 </div>
               </div>
 
+              {/* Barra de Memória Fotográfica */}
+              <div>
+                <div className="flex justify-between items-end mb-1.5">
+                  <span className="text-[10px] font-bold uppercase text-purple-400 tracking-wider flex items-center gap-1"><Camera size={12}/> Mapeamento</span>
+                  <span className="text-xs font-black text-white">{bestMemory ? `${bestMemory} Visões` : 'N/A'}</span>
+                </div>
+                <div className="w-full bg-blue-950 rounded-full h-2.5 border border-blue-800 overflow-hidden shadow-inner relative">
+                  <div className="bg-gradient-to-r from-purple-600 to-purple-400 h-2.5 rounded-full transition-all duration-1000 ease-out" style={{ width: `${bestMemory ? Math.min(100, (bestMemory / 15) * 100) : 0}%` }}></div>
+                </div>
+              </div>
+
               {/* Barra de Tomada de Decisão */}
               <div>
                 <div className="flex justify-between items-end mb-1.5">
@@ -8809,7 +8868,7 @@ const TrainingCenter = ({ currentUser, showToast }) => {
           <div className="mt-auto bg-blue-950/60 p-4 rounded-xl border border-blue-800 text-center relative overflow-hidden group">
             <p className="text-[11px] text-blue-300 font-medium leading-relaxed">
               <b className="text-white block mb-1">Evolução Contínua</b>
-              Suas barras de atributos constroem a sua identidade como Pro Player de DLS. Tente maximizar todas para atingir a "Zona!
+              Suas barras de atributos constroem a sua identidade como Pro Player de DLS. Tente maximizar todas para atingir a zona de elite!
             </p>
           </div>
 
