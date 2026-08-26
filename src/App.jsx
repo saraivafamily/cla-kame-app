@@ -8399,7 +8399,7 @@ const TrainingCenter = ({ currentUser, showToast }) => {
     { q: "Aos 88 minutos, você vence por 1x0 e tem um escanteio a favor. Melhor decisão?", opts: ["Tocar curto e prender a bola na lateral.", "Cruzar na pequena área com a barra cheia.", "Bater direto pro gol fechado."], ans: 0 },
     { q: "Seu adversário joga na 4-1-2-3 congestionando o meio de campo. Por onde atacar?", opts: ["Forçar tabela pelo meio dos volantes.", "Dar lançamentos diretos (C) do goleiro pro CA.", "Explorar as pontas com laterais e pontas pontas (W)."], ans: 2 },
     { q: "Contra-ataque 3 contra 2. Você carrega a bola pelo meio chegando na área. O que fazer?", opts: ["Tocar em profundidade no atacante que faz a ultrapassagem.", "Chutar de longe sem carregar muito a barra.", "Dar um drible (Swipe) no primeiro zagueiro."], ans: 0 },
-    { q: "O atacande adiantou muito a bola e o último zagueiro roubou a bola. O que fazer em seguida?", opts: ["Virar o cursor para o sentido oposto do gol e pressionar o A com força.", "Tocar para o goleiro em direção ao gol com força.", "Virar o cursor para uma das laterais e dar o passe rápido para o jogador mais próximo."], ans:2
+    { q: "O atacande adiantou muito a bola e o último zagueiro roubou a bola. O que fazer em seguida?", opts: ["Virar o cursor para o sentido oposto do gol e pressionar o A com força.", "Tocar para o goleiro em direção ao gol com força.", "Virar o cursor para uma das laterais e dar o passe rápido para o jogador mais próximo."], ans:2 },
     { q: "Adversário é viciado em cruzar na área (Chuveirinho). Qual a melhor postura?", opts: ["Adiantar a zaga até o meio de campo.", "Recuar a defesa e focar o cursor (C) no zagueiro central.", "Segurar o botão do goleiro pra ele sair do gol na ponta."], ans: 1 }
   ];
 
