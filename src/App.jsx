@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where, initializeFirestore, getDocs } from 'firebase/firestore';
-import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart, Zap, Brain, Eye } from 'lucide-react';
+import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart, Zap, Brain, Eye, Flame, Calendar } from 'lucide-react';
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
 const firebaseConfig = { 
@@ -8327,14 +8327,114 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
 };
 
 const TrainingCenter = ({ currentUser, showToast }) => {
-  const [activeCategory, setActiveCategory] = useState('mecanica'); // cognitivo, tatica, mecanica
-  const [activeDrill, setActiveDrill] = useState('force'); // reflex, radar, decision, memory, force, timing
+  const [activeCategory, setActiveCategory] = useState('cognitivo'); 
+  const [activeDrill, setActiveDrill] = useState('reflex'); 
 
   // ==========================================
-  // 🧠 PILAR COGNITIVO
+  // 🗓️ SISTEMA DE ROTINAS E TREINO DIÁRIO
   // ==========================================
-  
-  // ⚡ GAME 1: TEMPO DE REAÇÃO
+  const getTodayKey = () => {
+    const date = new Date();
+    const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    return `kame_daily_${localDate}_${currentUser?.id}`;
+  };
+
+  const [activeRoutine, setActiveRoutine] = useState(null); // 'warmup' ou 'daily'
+  const [routineStep, setRoutineStep] = useState(0);
+  const [routineTimeLeft, setRoutineTimeLeft] = useState(0);
+  const [dailyProgress, setDailyProgress] = useState(() => parseInt(localStorage.getItem(getTodayKey()) || '0'));
+
+  const WARMUP_ROUTINE = [
+    { drill: 'reflex', time: 60, name: 'Reflexos (1/3)' },
+    { drill: 'force', time: 60, name: 'Controle de Força (2/3)' },
+    { drill: 'radar', time: 60, name: 'Visão de Radar (3/3)' }
+  ];
+
+  const DAILY_ROUTINE = [
+    { drill: 'reflex', time: 60, name: 'Reflexos (1/5)' },
+    { drill: 'decision', time: 60, name: 'Quiz Tático (2/5)' },
+    { drill: 'force', time: 60, name: 'Calibragem (3/5)' },
+    { drill: 'memory', time: 60, name: 'Tracking Espacial (4/5)' },
+    { drill: 'timing', time: 60, name: 'Bote (5/5)' }
+  ];
+
+  const resetAllDrillStates = () => {
+    setReflexState('idle'); setRadarState('idle'); setDecisionState('idle');
+    setMemoryState('idle'); setForceState('idle'); setTimingState('idle');
+    clearInterval(radarTimerInterval.current); clearInterval(timerInterval.current);
+    cancelAnimationFrame(reqRef.current); cancelAnimationFrame(reqTimingRef.current);
+  };
+
+  const startRoutine = (type) => {
+    if (type === 'daily' && dailyProgress >= 300) {
+       showToast("O treino obrigatório de hoje já foi concluído!", "info"); return;
+    }
+    setActiveRoutine(type);
+    setRoutineStep(0);
+    const steps = type === 'warmup' ? WARMUP_ROUTINE : DAILY_ROUTINE;
+    setRoutineTimeLeft(steps[0].time);
+    setActiveDrill(steps[0].drill);
+    resetAllDrillStates();
+  };
+
+  const cancelRoutine = () => {
+    setActiveRoutine(null);
+    resetAllDrillStates();
+    showToast("Treino rápido cancelado.", "warning");
+  };
+
+  // Motor Global das Rotinas
+  useEffect(() => {
+    let interval;
+    if (activeRoutine) {
+      interval = setInterval(() => {
+        setRoutineTimeLeft(prev => prev - 1);
+        
+        // Se for Treino Diário, avança a barrinha verde geral
+        if (activeRoutine === 'daily') {
+          setDailyProgress(p => {
+            const np = p + 1;
+            localStorage.setItem(getTodayKey(), np.toString());
+            if (np >= 300) {
+               showToast("Treino de Hoje Concluído! 🏆", "success");
+               setActiveRoutine(null);
+               resetAllDrillStates();
+            }
+            return np;
+          });
+        }
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [activeRoutine]);
+
+  // Transição Automática de Etapas
+  useEffect(() => {
+    if (activeRoutine && routineTimeLeft <= 0) {
+       const steps = activeRoutine === 'warmup' ? WARMUP_ROUTINE : DAILY_ROUTINE;
+       const nextStep = routineStep + 1;
+       if (nextStep < steps.length) {
+          setRoutineStep(nextStep);
+          setRoutineTimeLeft(steps[nextStep].time);
+          setActiveDrill(steps[nextStep].drill);
+          resetAllDrillStates();
+       } else {
+          showToast(`Sessão de ${activeRoutine === 'warmup' ? 'Aquecimento' : 'Treino'} finalizada com sucesso!`, "success");
+          setActiveRoutine(null);
+          resetAllDrillStates();
+       }
+    }
+  }, [routineTimeLeft, activeRoutine, routineStep]);
+
+  const formatTime = (secs) => {
+    const m = Math.floor(Math.max(0, secs) / 60).toString().padStart(2, '0');
+    const s = (Math.max(0, secs) % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  // ==========================================
+  // 🧠 GAME 1: TEMPO DE REAÇÃO
+  // ==========================================
   const [reflexState, setReflexState] = useState('idle'); 
   const [reactionTime, setReactionTime] = useState(null);
   const [bestReflex, setBestReflex] = useState(() => parseInt(localStorage.getItem(`kame_reflex_${currentUser?.id}`) || '0'));
@@ -8360,40 +8460,68 @@ const TrainingCenter = ({ currentUser, showToast }) => {
     }
   };
 
+  // ==========================================
   // 👁️ GAME 2: VISÃO PERIFÉRICA (RADAR)
+  // ==========================================
   const [radarState, setRadarState] = useState('idle');
-  const [radarLevel, setRadarLevel] = useState(1);
+  const [radarScore, setRadarScore] = useState(0);
+  const [radarTimeLeft, setRadarTimeLeft] = useState(45);
   const [radarDots, setRadarDots] = useState([]);
   const [targetCount, setTargetCount] = useState(0);
-  const [userAnswer, setUserAnswer] = useState('');
+  const [radarOptions, setRadarOptions] = useState([]);
   const [bestRadar, setBestRadar] = useState(() => parseInt(localStorage.getItem(`kame_radar_${currentUser?.id}`) || '0'));
-  const radarTimeout = useRef(null);
-
-  const startRadarGame = (level = 1) => {
-    setRadarLevel(level); setRadarState('memorizing'); setUserAnswer('');
-    const dotCount = Math.floor(Math.random() * 3) + level + 1; setTargetCount(dotCount);
-    const newDots = [];
-    for(let i = 0; i < dotCount; i++) { newDots.push({ top: Math.floor(Math.random() * 80) + 10 + '%', left: Math.floor(Math.random() * 80) + 10 + '%' }); }
-    setRadarDots(newDots);
-    const displayTime = Math.max(300, 1500 - (level * 150));
-    radarTimeout.current = setTimeout(() => { setRadarState('answering'); }, displayTime);
-  };
-
-  const handleRadarSubmit = (e) => {
-    e.preventDefault();
-    if (parseInt(userAnswer) === targetCount) {
-        const nextLevel = radarLevel + 1;
-        showToast(`Correto! Avançando para o Nível ${nextLevel} 🚀`, "success");
-        if (nextLevel > bestRadar) { setBestRadar(nextLevel); localStorage.setItem(`kame_radar_${currentUser?.id}`, nextLevel); }
-        startRadarGame(nextLevel);
-    } else { setRadarState('result'); }
-  };
-
-  // ==========================================
-  // 🎯 PILAR TÁTICO
-  // ==========================================
   
+  const radarTimeout = useRef(null);
+  const radarTimerInterval = useRef(null);
+  const radarScoreRef = useRef(0);
+
+  const startRadarGame = () => {
+    setRadarScore(0); radarScoreRef.current = 0;
+    const timeLimit = activeRoutine ? 60 : 45; // Se for rotina, usa o tempo da rotina
+    setRadarTimeLeft(timeLimit); 
+    
+    clearInterval(radarTimerInterval.current);
+    radarTimerInterval.current = setInterval(() => {
+      setRadarTimeLeft(prev => { if (prev <= 1) { endRadarGame(); return 0; } return prev - 1; });
+    }, 1000);
+    nextRadarRound();
+  };
+
+  const nextRadarRound = () => {
+    const enemyCount = Math.floor(Math.random() * 5) + 3;
+    const allyCount = Math.floor(Math.random() * 4) + 2; 
+    setTargetCount(enemyCount);
+
+    const dots = [];
+    for(let i=0; i<enemyCount; i++) dots.push({ type: 'enemy', top: Math.floor(Math.random() * 80) + 10 + '%', left: Math.floor(Math.random() * 80) + 10 + '%' });
+    for(let i=0; i<allyCount; i++) dots.push({ type: 'ally', top: Math.floor(Math.random() * 80) + 10 + '%', left: Math.floor(Math.random() * 80) + 10 + '%' });
+    setRadarDots(dots.sort(() => Math.random() - 0.5)); 
+
+    let opts = new Set([enemyCount]);
+    while(opts.size < 4) {
+       let wOpt = enemyCount + (Math.floor(Math.random() * 5) - 2);
+       if (wOpt > 0 && wOpt !== enemyCount) opts.add(wOpt);
+    }
+    setRadarOptions(Array.from(opts).sort((a,b) => a - b));
+
+    setRadarState('memorizing');
+    clearTimeout(radarTimeout.current);
+    radarTimeout.current = setTimeout(() => { setRadarState('answering'); }, 700); 
+  };
+
+  const handleRadarAnswer = (ans) => {
+    if (ans === targetCount) { radarScoreRef.current += 1; setRadarScore(radarScoreRef.current); } 
+    nextRadarRound();
+  };
+
+  const endRadarGame = () => {
+    clearInterval(radarTimerInterval.current); clearTimeout(radarTimeout.current); setRadarState('result');
+    if (radarScoreRef.current > bestRadar) { setBestRadar(radarScoreRef.current); localStorage.setItem(`kame_radar_${currentUser?.id}`, radarScoreRef.current); }
+  };
+
+  // ==========================================
   // 🧠 GAME 3: TOMADA DE DECISÃO
+  // ==========================================
   const DLS_SCENARIOS = [
     { q: "Adversário ataca pela ponta e seu zagueiro está na área. O que NÃO fazer?", opts: ["Trocar cursor para o volante (C) e dobrar marcação.", "Sair puxando o zagueiro da área até a lateral.", "Acompanhar a corrida pelo meio fechando o passe."], ans: 1 },
     { q: "Aos 88 minutos, você vence por 1x0 e tem um escanteio a favor. Melhor decisão?", opts: ["Tocar curto e prender a bola na lateral.", "Cruzar na pequena área com a barra cheia.", "Bater direto pro gol fechado."], ans: 0 },
@@ -8420,7 +8548,9 @@ const TrainingCenter = ({ currentUser, showToast }) => {
     } else { setDecisionState('result'); clearInterval(timerInterval.current); }
   };
 
-  // 📸 GAME 5: MEMÓRIA FOTOGRÁFICA (TRACKING DE ESPAÇOS)
+  // ==========================================
+  // 📸 GAME 5: MEMÓRIA FOTOGRÁFICA
+  // ==========================================
   const PITCH_ZONES = [
     { id: 0, name: 'Ponta Esquerda' }, { id: 1, name: 'Meio Avançado' }, { id: 2, name: 'Ponta Direita' },
     { id: 3, name: 'Defesa Esq.' }, { id: 4, name: 'Meio Defensivo' }, { id: 5, name: 'Defesa Dir.' }
@@ -8447,10 +8577,8 @@ const TrainingCenter = ({ currentUser, showToast }) => {
   };
 
   // ==========================================
-  // 🕹️ PILAR MECÂNICA (JOGADAS REAIS)
+  // 🎚️ GAME 4: CONTROLE DE FORÇA
   // ==========================================
-  
-  // 🎚️ GAME 4: CONTROLE DE FORÇA (FÍSICA REAL DO DLS)
   const [forceState, setForceState] = useState('idle'); 
   const [forceScore, setForceScore] = useState(0);
   const [bestForce, setBestForce] = useState(() => parseInt(localStorage.getItem(`kame_force_${currentUser?.id}`) || '0'));
@@ -8461,87 +8589,43 @@ const TrainingCenter = ({ currentUser, showToast }) => {
   const powerRef = useRef(0);
   const speedRef = useRef(0.8); 
 
-  const startForceGame = () => { 
-    setForceScore(0); 
-    speedRef.current = 0.8; 
-    nextForceRound(0); 
-  };
-
+  const startForceGame = () => { setForceScore(0); speedRef.current = 0.8; nextForceRound(0); };
   const nextForceRound = (currentScore) => {
-    // Alterna entre os dois cenários reais do DLS
     const isEdgeOfBox = Math.random() > 0.5;
     let center, width;
-
-    if (isEdgeOfBox) {
-        center = 52.5; // Gaveta da entrada da área (50-55%)
-        width = Math.max(2.5, 10 - (currentScore * 0.5)); // A zona vai encolhendo com os acertos
-    } else {
-        center = 40.0; // Gaveta perto da pequena área (35-45%)
-        width = Math.max(3.0, 12 - (currentScore * 0.5)); 
-    }
-
-    setTargetZone({ 
-        min: center - (width / 2), 
-        max: center + (width / 2), 
-        label: isEdgeOfBox ? 'Entrada da Área' : 'Perto da Peq. Área' 
-    });
-    
-    powerRef.current = 0; 
-    setPower(0); 
-    setForceState('waiting_press'); 
+    if (isEdgeOfBox) { center = 52.5; width = Math.max(2.5, 10 - (currentScore * 0.5)); } 
+    else { center = 40.0; width = Math.max(3.0, 12 - (currentScore * 0.5)); }
+    setTargetZone({ min: center - (width / 2), max: center + (width / 2), label: isEdgeOfBox ? 'Entrada da Área' : 'Perto da Peq. Área' });
+    powerRef.current = 0; setPower(0); setForceState('waiting_press'); 
   };
-
   const updatePower = () => {
     powerRef.current += speedRef.current;
-    if (powerRef.current >= 100) { 
-       powerRef.current = 100; 
-       setPower(100); 
-       evaluateForce(100); // Se estourar a barra, isola a bola automaticamente
-       return; 
-    }
-    setPower(powerRef.current);
-    reqRef.current = requestAnimationFrame(updatePower);
+    if (powerRef.current >= 100) { powerRef.current = 100; setPower(100); evaluateForce(100); return; }
+    setPower(powerRef.current); reqRef.current = requestAnimationFrame(updatePower);
   };
-
   const evaluateForce = (finalPower) => {
     cancelAnimationFrame(reqRef.current);
     setForceState(prev => {
        if (prev !== 'charging') return prev; 
-       
        if (finalPower >= targetZone.min && finalPower <= targetZone.max) {
-         const newScore = forceScore + 1; 
-         setForceScore(newScore);
-         if (newScore > bestForce) { 
-           setBestForce(newScore); 
-           localStorage.setItem(`kame_force_${currentUser?.id}`, newScore); 
-         }
+         const newScore = forceScore + 1; setForceScore(newScore);
+         if (newScore > bestForce) { setBestForce(newScore); localStorage.setItem(`kame_force_${currentUser?.id}`, newScore); }
          showToast("Na Gaveta! 🎯", "success");
          setTimeout(() => { speedRef.current += 0.15; nextForceRound(newScore); }, 1200);
          return 'success';
-       } else {
-         return 'result';
-       }
+       } else { return 'result'; }
     });
   };
-
   const handlePointerDown = (e) => {
     if (e.button !== undefined && e.button !== 0) return; 
-    if (forceState === 'waiting_press') {
-      setForceState('charging');
-      powerRef.current = 0;
-      setPower(0);
-      reqRef.current = requestAnimationFrame(updatePower);
-    }
+    if (forceState === 'waiting_press') { setForceState('charging'); powerRef.current = 0; setPower(0); reqRef.current = requestAnimationFrame(updatePower); }
   };
+  const handlePointerUp = () => { if (forceState === 'charging') evaluateForce(powerRef.current); };
 
-  const handlePointerUp = () => {
-    if (forceState === 'charging') {
-      evaluateForce(powerRef.current);
-    }
-  };
-
+  // ==========================================
   // 🛡️ GAME 6: TIMING DE BOTE
-  const [timingState, setTimingState] = useState('idle'); // idle, playing, success, result_early, result_late
+  // ==========================================
+  const [timingState, setTimingState] = useState('idle'); 
   const [timingScore, setTimingScore] = useState(0);
   const [bestTiming, setBestTiming] = useState(() => parseInt(localStorage.getItem(`kame_timing_${currentUser?.id}`) || '0'));
   const [attackerPos, setAttackerPos] = useState(0);
@@ -8551,48 +8635,26 @@ const TrainingCenter = ({ currentUser, showToast }) => {
   const speedTimingRef = useRef(1.0); 
 
   const startTimingGame = () => { setTimingScore(0); speedTimingRef.current = 0.8; nextTimingRound(); };
-  
-  const nextTimingRound = () => {
-    posTimingRef.current = 0;
-    setTimingState('playing');
-    cancelAnimationFrame(reqTimingRef.current);
-    updateTiming();
-  };
-
+  const nextTimingRound = () => { posTimingRef.current = 0; setTimingState('playing'); cancelAnimationFrame(reqTimingRef.current); updateTiming(); };
   const updateTiming = () => {
     posTimingRef.current += speedTimingRef.current;
-    if (posTimingRef.current > 88) {
-        cancelAnimationFrame(reqTimingRef.current);
-        setTimingState('result_late'); 
-        return; 
-    }
-    setAttackerPos(posTimingRef.current);
-    reqTimingRef.current = requestAnimationFrame(updateTiming);
+    if (posTimingRef.current > 88) { cancelAnimationFrame(reqTimingRef.current); setTimingState('result_late'); return; }
+    setAttackerPos(posTimingRef.current); reqTimingRef.current = requestAnimationFrame(updateTiming);
   };
-
   const handleTackle = () => {
-    if (timingState === 'idle' || timingState.startsWith('result')) {
-        startTimingGame();
-    } else if (timingState === 'playing') {
-        cancelAnimationFrame(reqTimingRef.current);
-        const p = posTimingRef.current;
+    if (timingState === 'idle' || timingState.startsWith('result')) { startTimingGame(); } 
+    else if (timingState === 'playing') {
+        cancelAnimationFrame(reqTimingRef.current); const p = posTimingRef.current;
         if (p >= 68 && p <= 85) {
-            const newScore = timingScore + 1;
-            setTimingScore(newScore);
-            if (newScore > bestTiming) {
-                setBestTiming(newScore);
-                localStorage.setItem(`kame_timing_${currentUser?.id}`, newScore);
-            }
-            setTimingState('success');
-            showToast("Bote Cirúrgico! 🛡️", "success");
+            const newScore = timingScore + 1; setTimingScore(newScore);
+            if (newScore > bestTiming) { setBestTiming(newScore); localStorage.setItem(`kame_timing_${currentUser?.id}`, newScore); }
+            setTimingState('success'); showToast("Bote Cirúrgico! 🛡️", "success");
             setTimeout(() => { speedTimingRef.current += 0.15; nextTimingRound(); }, 1000);
-        } else {
-            setTimingState('result_early');
-        }
+        } else { setTimingState('result_early'); }
     }
   };
 
-  // Limpeza Global de Timers
+  // Limpeza de Timers Nativos dos Minigames
   useEffect(() => {
     if (activeDrill === 'decision' && decisionState === 'playing') {
       timerInterval.current = setInterval(() => {
@@ -8600,14 +8662,14 @@ const TrainingCenter = ({ currentUser, showToast }) => {
       }, 1000);
     }
     return () => { 
-      clearTimeout(reflexTimeout.current); clearTimeout(radarTimeout.current); 
+      clearTimeout(reflexTimeout.current); clearTimeout(radarTimeout.current); clearInterval(radarTimerInterval.current);
       clearTimeout(memoryTimeout.current); clearInterval(timerInterval.current); 
       cancelAnimationFrame(reqRef.current); cancelAnimationFrame(reqTimingRef.current);
     };
   }, [activeDrill, decisionState]);
 
-  // Muda de categoria
   const handleCategoryChange = (cat) => {
+    if(activeRoutine) return; // Bloqueia mudança manual durante rotina
     setActiveCategory(cat);
     if (cat === 'cognitivo') setActiveDrill('reflex');
     if (cat === 'tatica') setActiveDrill('memory');
@@ -8615,7 +8677,7 @@ const TrainingCenter = ({ currentUser, showToast }) => {
   };
 
   // ==========================================
-  // COMPONENTES VISUAIS DOS JOGOS
+  // RENDERIZAÇÃO DOS MINIGAMES
   // ==========================================
   const renderReflexGame = () => {
     const getBgColor = () => {
@@ -8654,36 +8716,57 @@ const TrainingCenter = ({ currentUser, showToast }) => {
   const renderRadarGame = () => {
     return (
       <div className="flex flex-col h-full animate-in slide-in-from-right-4">
-        <h3 className="text-white font-bold mb-4 flex items-center gap-2 uppercase tracking-widest text-sm"><Eye size={18} className="text-emerald-400"/> Visão de Radar</h3>
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h3 className="text-white font-bold flex items-center gap-2 uppercase tracking-widest text-sm"><Eye size={18} className="text-emerald-400"/> Visão Radar Blitz</h3>
+            {!activeRoutine && <p className="text-xs text-blue-400 mt-1">Identifique apenas os pontos <b className="text-red-400">VERMELHOS</b>. Você tem 45s!</p>}
+          </div>
+          {!activeRoutine && (radarState === 'memorizing' || radarState === 'answering') && (
+             <div className={`px-4 py-2 rounded-xl font-black text-xl border ${radarTimeLeft <= 10 ? 'bg-red-500/20 text-red-400 border-red-500/50 animate-pulse' : 'bg-blue-950 text-emerald-400 border-blue-800'}`}>⏱️ {radarTimeLeft}s</div>
+          )}
+        </div>
+
         <div className="flex-1 bg-blue-900 border border-blue-700 rounded-3xl p-6 flex flex-col items-center justify-center relative overflow-hidden shadow-inner min-h-[350px]">
           {radarState === 'idle' && (
-             <div className="text-center">
+             <div className="text-center my-auto">
                 <div className="w-20 h-20 bg-blue-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-800 shadow-lg"><Eye size={36} className="text-emerald-400"/></div>
-                <h2 className="text-2xl font-black text-white mb-2 uppercase">Pronto para escanear?</h2>
-                <button onClick={() => startRadarGame(1)} className="mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Treino</button>
+                <h2 className="text-2xl font-black text-white mb-2 uppercase">{activeRoutine ? 'Treino Rápido' : 'Modo Blitz 45s'}</h2>
+                <button onClick={startRadarGame} className="mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Treino</button>
              </div>
           )}
           {radarState === 'memorizing' && (
-             <div className="w-full max-w-sm aspect-[4/3] bg-emerald-800 border-4 border-white/20 rounded-xl relative overflow-hidden shadow-2xl">
-                <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white/30"></div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border-2 border-white/30"></div>
-                {radarDots.map((dot, i) => ( <div key={i} className="absolute w-4 h-4 bg-red-500 rounded-full border border-white/50 shadow-[0_0_10px_rgba(239,68,68,0.8)]" style={{ top: dot.top, left: dot.left }}></div> ))}
+             <div className="w-full flex flex-col items-center justify-center animate-in fade-in">
+                <div className="w-full max-w-md flex justify-between px-2 mb-2">
+                   <span className="text-emerald-400 font-bold text-xs uppercase tracking-widest animate-pulse">Escaneando...</span>
+                   <span className="text-white font-black text-xs">Acertos: {radarScore}</span>
+                </div>
+                <div className="w-full max-w-md aspect-[4/3] bg-emerald-800 border-4 border-white/20 rounded-xl relative overflow-hidden shadow-2xl">
+                  <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white/30"></div>
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border-2 border-white/30"></div>
+                  {radarDots.map((dot, i) => ( 
+                     <div key={i} className={`absolute w-4 h-4 rounded-full border border-white/50 shadow-lg ${dot.type === 'enemy' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]' : 'bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.8)]'}`} style={{ top: dot.top, left: dot.left }}></div> 
+                  ))}
+               </div>
              </div>
           )}
           {radarState === 'answering' && (
-             <form onSubmit={handleRadarSubmit} className="w-full max-w-xs text-center animate-in zoom-in-95">
-                <h3 className="text-xl font-bold text-white mb-2">Quantos vermelhos?</h3>
-                <input type="number" autoFocus required value={userAnswer} onChange={e => setUserAnswer(e.target.value)} className="w-full bg-blue-950 border-2 border-blue-600 focus:border-emerald-500 text-white text-center text-4xl font-black rounded-xl p-4 outline-none mb-4 shadow-inner" placeholder="0"/>
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl uppercase tracking-widest shadow-md">Confirmar Visão</button>
-             </form>
+             <div className="w-full max-w-xs text-center animate-in zoom-in-95">
+                <h3 className="text-xl font-bold text-white mb-6 uppercase tracking-wider">Quantos Vermelhos?</h3>
+                <div className="grid grid-cols-2 gap-4">
+                   {radarOptions.map((opt, idx) => (
+                      <button key={idx} onClick={() => handleRadarAnswer(opt)} className="bg-blue-950 hover:bg-emerald-600 text-white font-black text-3xl py-6 rounded-2xl border border-blue-600 hover:border-emerald-400 transition-colors shadow-md">
+                         {opt}
+                      </button>
+                   ))}
+                </div>
+             </div>
           )}
           {radarState === 'result' && (
              <div className="w-full max-w-sm text-center animate-in zoom-in-95">
-                <div className="w-20 h-20 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(239,68,68,0.4)]"><XCircle size={36} className="text-red-500"/></div>
-                <h2 className="text-3xl font-black text-white uppercase tracking-wider mb-2">Passe Errado!</h2>
-                <p className="text-blue-300 mb-6">Eram <b className="text-red-400 text-lg">{targetCount}</b> jogadores no radar.</p>
-                <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Nível Alcançado</p><p className="text-2xl font-black text-amber-400 mt-1">{radarLevel}</p></div>
-                <button onClick={() => startRadarGame(1)} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-xl uppercase shadow-md w-full">Tentar Novamente</button>
+                <div className="w-20 h-20 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(16,185,129,0.4)]"><Trophy size={36} className="text-emerald-500"/></div>
+                <h2 className="text-3xl font-black text-white uppercase tracking-wider mb-2">Fim de Jogo!</h2>
+                <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Leituras Certas</p><p className="text-4xl font-black text-emerald-400 mt-1">{radarScore}</p></div>
+                {!activeRoutine && <button onClick={startRadarGame} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-8 rounded-xl uppercase shadow-md w-full">Jogar Novamente</button>}
              </div>
           )}
         </div>
@@ -8702,8 +8785,7 @@ const TrainingCenter = ({ currentUser, showToast }) => {
           {decisionState === 'idle' && (
              <div className="text-center my-auto">
                 <div className="w-20 h-20 bg-blue-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-800 shadow-lg"><Brain size={36} className="text-purple-400"/></div>
-                <h2 className="text-2xl font-black text-white mb-2 uppercase">Decisão Tática Rápida</h2>
-                <p className="text-blue-300 text-sm max-w-sm mx-auto">Você terá 7 segundos para decidir a jogada correta antes de perder a bola.</p>
+                <h2 className="text-2xl font-black text-white mb-2 uppercase">Decisão Rápida</h2>
                 <button onClick={startDecisionGame} className="mt-6 bg-purple-600 hover:bg-purple-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Começar Treino</button>
              </div>
           )}
@@ -8735,8 +8817,7 @@ const TrainingCenter = ({ currentUser, showToast }) => {
              <div className="text-center">
                 <div className="w-20 h-20 bg-blue-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-800 shadow-lg"><Camera size={36} className="text-purple-400"/></div>
                 <h2 className="text-2xl font-black text-white mb-2 uppercase">Mapear Espaços</h2>
-                <p className="text-blue-300 text-sm max-w-sm mx-auto mb-6">A defesa vai piscar na tela. Diga rápido: <b>Qual zona do campo ficou vazia?</b></p>
-                <button onClick={startMemoryGame} className="bg-purple-600 hover:bg-purple-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Mapeamento</button>
+                <button onClick={startMemoryGame} className="mt-4 bg-purple-600 hover:bg-purple-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Mapeamento</button>
              </div>
           )}
           {memoryState === 'memorizing' && (
@@ -8762,7 +8843,6 @@ const TrainingCenter = ({ currentUser, showToast }) => {
              <div className="w-full max-w-sm text-center animate-in zoom-in-95">
                 <div className="w-20 h-20 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(239,68,68,0.4)]"><XCircle size={36} className="text-red-500"/></div>
                 <h2 className="text-3xl font-black text-white uppercase tracking-wider mb-2">Visão Bloqueada!</h2>
-                <p className="text-blue-300 mb-6">A zona livre era a <b className="text-red-400">{PITCH_ZONES.find(z => z.id === emptyZone)?.name}</b>.</p>
                 <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Leituras Seguidas</p><p className="text-2xl font-black text-purple-400 mt-1">{memoryScore}</p></div>
                 <button onClick={startMemoryGame} className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-8 rounded-xl uppercase shadow-md w-full">Tentar Novamente</button>
              </div>
@@ -8780,9 +8860,8 @@ const TrainingCenter = ({ currentUser, showToast }) => {
           {forceState === 'idle' && (
              <div className="text-center my-auto">
                 <div className="w-20 h-20 bg-blue-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-800 shadow-lg"><Target size={36} className="text-sky-400"/></div>
-                <h2 className="text-2xl font-black text-white mb-2 uppercase">A Física da Gaveta</h2>
-                <p className="text-blue-300 text-sm max-w-sm mx-auto mb-6">A força perfeita (botão A) no DLS fica entre 40% e 55%. Pressione e solte para encher a barra na medida certa para cada situação!</p>
-                <button onClick={startForceGame} className="bg-sky-600 hover:bg-sky-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Treino</button>
+                <h2 className="text-2xl font-black text-white mb-2 uppercase">Dosagem Fina</h2>
+                <button onClick={startForceGame} className="mt-4 bg-sky-600 hover:bg-sky-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Treino</button>
              </div>
           )}
           {(forceState === 'waiting_press' || forceState === 'charging' || forceState === 'success') && (
@@ -8815,7 +8894,6 @@ const TrainingCenter = ({ currentUser, showToast }) => {
              <div className="w-full max-w-sm text-center animate-in zoom-in-95">
                 <div className="w-20 h-20 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(239,68,68,0.4)]"><XCircle size={36} className="text-red-500"/></div>
                 <h2 className="text-3xl font-black text-white uppercase tracking-wider mb-2">Isolou!</h2>
-                <p className="text-blue-300 mb-6">Você calculou mal a força do chute para essa situação e perdeu o gol.</p>
                 <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Gols Seguidos</p><p className="text-4xl font-black text-sky-400 mt-1">{forceScore}</p></div>
                 <button onClick={startForceGame} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 px-8 rounded-xl uppercase shadow-md w-full">Tentar Novamente</button>
              </div>
@@ -8834,7 +8912,6 @@ const TrainingCenter = ({ currentUser, showToast }) => {
              <div className="text-center my-auto">
                 <div className="w-20 h-20 bg-blue-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-800 shadow-lg"><Shield size={36} className="text-red-400"/></div>
                 <h2 className="text-2xl font-black text-white mb-2 uppercase">Tempo do Desarme</h2>
-                <p className="text-blue-300 text-sm max-w-sm mx-auto mb-6">O atacante vai correr na sua direção. Toque na tela quando ele estiver exatamente dentro da zona de bote.</p>
                 <button onClick={handleTackle} className="bg-red-600 hover:bg-red-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Treino</button>
              </div>
           )}
@@ -8852,7 +8929,6 @@ const TrainingCenter = ({ currentUser, showToast }) => {
              <div className="w-full max-w-sm text-center animate-in zoom-in-95">
                 <div className="w-20 h-20 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(239,68,68,0.4)]"><XCircle size={36} className="text-red-500"/></div>
                 <h2 className="text-2xl font-black text-white uppercase tracking-wider mb-2">{timingState === 'result_early' ? 'Falta Dura!' : 'Tomou o drible!'}</h2>
-                <p className="text-blue-300 mb-6">{timingState === 'result_early' ? 'Você apertou o botão antes da hora e fez falta.' : 'Você hesitou e o atacante passou direto.'}</p>
                 <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Botes Certos</p><p className="text-4xl font-black text-red-400 mt-1">{timingScore}</p></div>
                 <button onClick={startTimingGame} className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-xl uppercase shadow-md w-full">Tentar Novamente</button>
              </div>
@@ -8878,44 +8954,90 @@ const TrainingCenter = ({ currentUser, showToast }) => {
         </div>
       </div>
 
-      {/* 🌟 NAVEGAÇÃO DE CATEGORIAS */}
-      <div className="flex gap-2 p-1.5 bg-blue-950/80 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar shadow-inner">
-        <button onClick={() => handleCategoryChange('mecanica')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'mecanica' ? 'bg-sky-600 text-white shadow-md' : 'text-sky-400/60 hover:text-sky-400 hover:bg-blue-900/50'}`}>
-          🕹️ Mecânica
-        </button>
-        <button onClick={() => handleCategoryChange('cognitivo')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'cognitivo' ? 'bg-amber-600 text-blue-950 shadow-md' : 'text-amber-500/60 hover:text-amber-400 hover:bg-blue-900/50'}`}>
-          🧠 Cognitivo
-        </button>
-        <button onClick={() => handleCategoryChange('tatica')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'tatica' ? 'bg-purple-600 text-white shadow-md' : 'text-purple-400/60 hover:text-purple-400 hover:bg-blue-900/50'}`}>
-          🎯 Tática
-        </button>
+      {/* 🌟 PLANOS DE TREINO (AQUECIMENTO E DIÁRIO) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+         <button onClick={() => startRoutine('warmup')} className="bg-gradient-to-r from-orange-600 to-amber-500 p-4 rounded-2xl flex items-center gap-4 hover:scale-[1.02] transition-transform shadow-lg border border-amber-400/30 text-left">
+            <div className="bg-white/20 p-3 rounded-full shrink-0"><Flame className="text-white" size={24}/></div>
+            <div>
+               <h4 className="text-white font-black uppercase tracking-wider">Aquecimento Pré-Jogo</h4>
+               <p className="text-white/80 text-[10px] mt-0.5 uppercase tracking-widest font-bold">3 Minutos • Reflexo, Força e Radar</p>
+            </div>
+         </button>
+
+         <button onClick={() => startRoutine('daily')} className={`p-4 rounded-2xl flex items-center gap-4 transition-transform shadow-lg border text-left ${dailyProgress >= 300 ? 'bg-emerald-600 border-emerald-400/30 cursor-default' : 'bg-gradient-to-r from-blue-600 to-indigo-500 border-indigo-400/30 hover:scale-[1.02]'}`}>
+            <div className="bg-white/20 p-3 rounded-full shrink-0">
+               {dailyProgress >= 300 ? <CheckCircle className="text-white" size={24}/> : <Calendar className="text-white" size={24}/>}
+            </div>
+            <div className="flex-1">
+               <h4 className="text-white font-black uppercase tracking-wider">Treino Diário</h4>
+               {dailyProgress >= 300 ? (
+                  <p className="text-white/90 text-xs mt-0.5 font-bold uppercase tracking-widest">Concluído! Volte amanhã 🏆</p>
+               ) : (
+                  <div className="mt-1">
+                     <div className="flex justify-between text-[10px] text-white/80 mb-0.5 font-bold uppercase tracking-widest">
+                       <span>Progresso</span>
+                       <span>{Math.floor(dailyProgress/60)}/5 Min</span>
+                     </div>
+                     <div className="w-full bg-black/30 rounded-full h-1.5 overflow-hidden"><div className="bg-white h-1.5 rounded-full transition-all duration-1000" style={{width: `${Math.min(100, (dailyProgress/300)*100)}%`}}></div></div>
+                  </div>
+               )}
+            </div>
+         </button>
       </div>
 
-      {/* 🌟 NAVEGAÇÃO DOS JOGOS DENTRO DA CATEGORIA */}
-      <div className="flex gap-2 p-1 bg-blue-900/40 rounded-xl border border-blue-800/50 overflow-x-auto custom-scrollbar">
-        {activeCategory === 'cognitivo' && (
-          <>
-            <button onClick={() => setActiveDrill('reflex')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'reflex' ? 'bg-blue-800 text-amber-400 border border-amber-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Zap size={14}/> Reflexos</button>
-            <button onClick={() => setActiveDrill('radar')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'radar' ? 'bg-blue-800 text-emerald-400 border border-emerald-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Eye size={14}/> Visão Radar</button>
-          </>
-        )}
-        {activeCategory === 'tatica' && (
-          <>
-            <button onClick={() => setActiveDrill('decision')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'decision' ? 'bg-blue-800 text-purple-400 border border-purple-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Brain size={14}/> Quiz de Pressão</button>
-            <button onClick={() => setActiveDrill('memory')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'memory' ? 'bg-blue-800 text-purple-400 border border-purple-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Camera size={14}/> Tracking Espacial</button>
-          </>
-        )}
-        {activeCategory === 'mecanica' && (
-          <>
-            <button onClick={() => setActiveDrill('force')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'force' ? 'bg-blue-800 text-sky-400 border border-sky-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Target size={14}/> Controle de Força</button>
-            <button onClick={() => setActiveDrill('timing')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'timing' ? 'bg-blue-800 text-red-400 border border-red-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Shield size={14}/> Timing de Bote</button>
-          </>
-        )}
-      </div>
+      {/* 🌟 NAVEGAÇÃO DE CATEGORIAS OU BANNER DE ROTINA */}
+      {activeRoutine ? (
+         <div className={`border rounded-2xl p-4 flex items-center justify-between shadow-xl animate-in slide-in-from-top-4 ${activeRoutine === 'warmup' ? 'bg-amber-900 border-amber-500' : 'bg-indigo-900 border-indigo-500'}`}>
+            <div className="flex items-center gap-3">
+               {activeRoutine === 'warmup' ? <Flame className="text-amber-500 animate-pulse" size={28}/> : <Calendar className="text-blue-400 animate-pulse" size={28}/>}
+               <div>
+                  <h3 className="text-white font-black uppercase tracking-wider text-sm sm:text-base">
+                     {activeRoutine === 'warmup' ? 'Aquecimento em Andamento' : 'Treino Diário em Andamento'}
+                  </h3>
+                  <p className="text-white/70 text-[10px] sm:text-xs font-bold uppercase tracking-widest mt-0.5">
+                     Etapa {routineStep + 1} de {activeRoutine === 'warmup' ? 3 : 5} • <span className="text-white">{activeRoutine === 'warmup' ? WARMUP_ROUTINE[routineStep].name : DAILY_ROUTINE[routineStep].name}</span>
+                  </p>
+               </div>
+            </div>
+            <div className="text-right shrink-0">
+               <span className={`text-2xl sm:text-3xl font-black font-mono ${routineTimeLeft <= 10 ? 'text-red-400 animate-pulse' : 'text-white'}`}>{formatTime(routineTimeLeft)}</span>
+               <button onClick={cancelRoutine} className="block w-full text-right text-[9px] text-white/50 uppercase font-bold mt-1 hover:text-red-400 transition-colors">Cancelar</button>
+            </div>
+         </div>
+      ) : (
+         <>
+            <div className="flex gap-2 p-1.5 bg-blue-950/80 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar shadow-inner">
+               <button onClick={() => handleCategoryChange('cognitivo')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'cognitivo' ? 'bg-amber-600 text-blue-950 shadow-md' : 'text-amber-500/60 hover:text-amber-400 hover:bg-blue-900/50'}`}>🧠 Cognitivo</button>
+               <button onClick={() => handleCategoryChange('tatica')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'tatica' ? 'bg-purple-600 text-white shadow-md' : 'text-purple-400/60 hover:text-purple-400 hover:bg-blue-900/50'}`}>🎯 Tática</button>
+               <button onClick={() => handleCategoryChange('mecanica')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'mecanica' ? 'bg-sky-600 text-white shadow-md' : 'text-sky-400/60 hover:text-sky-400 hover:bg-blue-900/50'}`}>🕹️ Mecânica</button>
+            </div>
+
+            <div className="flex gap-2 p-1 bg-blue-900/40 rounded-xl border border-blue-800/50 overflow-x-auto custom-scrollbar">
+               {activeCategory === 'cognitivo' && (
+                 <>
+                   <button onClick={() => setActiveDrill('reflex')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'reflex' ? 'bg-blue-800 text-amber-400 border border-amber-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Zap size={14}/> Reflexos</button>
+                   <button onClick={() => setActiveDrill('radar')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'radar' ? 'bg-blue-800 text-emerald-400 border border-emerald-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Eye size={14}/> Visão Radar</button>
+                 </>
+               )}
+               {activeCategory === 'tatica' && (
+                 <>
+                   <button onClick={() => setActiveDrill('decision')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'decision' ? 'bg-blue-800 text-purple-400 border border-purple-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Brain size={14}/> Quiz de Pressão</button>
+                   <button onClick={() => setActiveDrill('memory')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'memory' ? 'bg-blue-800 text-purple-400 border border-purple-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Camera size={14}/> Tracking Espacial</button>
+                 </>
+               )}
+               {activeCategory === 'mecanica' && (
+                 <>
+                   <button onClick={() => setActiveDrill('force')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'force' ? 'bg-blue-800 text-sky-400 border border-sky-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Target size={14}/> Controle de Força</button>
+                   <button onClick={() => setActiveDrill('timing')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'timing' ? 'bg-blue-800 text-red-400 border border-red-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Shield size={14}/> Timing de Bote</button>
+                 </>
+               )}
+            </div>
+         </>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ÁREA PRINCIPAL DO MINIGAME */}
-        <div className="lg:col-span-2 bg-blue-950 p-4 sm:p-6 rounded-3xl border border-blue-800 shadow-xl overflow-hidden min-h-[450px] flex flex-col">
+        <div className={`lg:col-span-2 bg-blue-950 p-4 sm:p-6 rounded-3xl border shadow-xl overflow-hidden min-h-[450px] flex flex-col transition-colors ${activeRoutine === 'warmup' ? 'border-amber-500/50' : activeRoutine === 'daily' ? 'border-indigo-500/50' : 'border-blue-800'}`}>
           {activeDrill === 'reflex' && renderReflexGame()}
           {activeDrill === 'radar' && renderRadarGame()}
           {activeDrill === 'decision' && renderDecisionGame()}
@@ -8949,11 +9071,11 @@ const TrainingCenter = ({ currentUser, showToast }) => {
               {/* Barra de Visão Periférica */}
               <div>
                 <div className="flex justify-between items-end mb-1.5">
-                  <span className="text-[10px] font-bold uppercase text-emerald-400 tracking-wider flex items-center gap-1"><Eye size={12}/> Radar</span>
-                  <span className="text-xs font-black text-white">{bestRadar ? `Nível ${bestRadar}` : 'N/A'}</span>
+                  <span className="text-[10px] font-bold uppercase text-emerald-400 tracking-wider flex items-center gap-1"><Eye size={12}/> Radar Blitz</span>
+                  <span className="text-xs font-black text-white">{bestRadar ? `${bestRadar} Acertos` : 'N/A'}</span>
                 </div>
                 <div className="w-full bg-blue-950 rounded-full h-2.5 border border-blue-800 overflow-hidden shadow-inner relative">
-                  <div className="bg-gradient-to-r from-emerald-600 to-emerald-400 h-2.5 rounded-full transition-all duration-1000 ease-out" style={{ width: `${bestRadar ? Math.min(100, (bestRadar / 15) * 100) : 0}%` }}></div>
+                  <div className="bg-gradient-to-r from-emerald-600 to-emerald-400 h-2.5 rounded-full transition-all duration-1000 ease-out" style={{ width: `${bestRadar ? Math.min(100, (bestRadar / 25) * 100) : 0}%` }}></div>
                 </div>
               </div>
 
@@ -9002,14 +9124,6 @@ const TrainingCenter = ({ currentUser, showToast }) => {
               </div>
 
             </div>
-          </div>
-
-          {/* Banner de Dica */}
-          <div className="mt-auto bg-blue-950/60 p-4 rounded-xl border border-blue-800 text-center relative overflow-hidden group">
-            <p className="text-[11px] text-blue-300 font-medium leading-relaxed">
-              <b className="text-white block mb-1">Evolução Contínua</b>
-              Suas barras de atributos constroem a sua identidade como Pro Player de DLS. Tente maximizar todas para atingir a zona de elite!
-            </p>
           </div>
 
         </div>
