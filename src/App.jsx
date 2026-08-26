@@ -8328,7 +8328,7 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
 
 const TrainingCenter = ({ currentUser, showToast }) => {
   const [activeCategory, setActiveCategory] = useState('mecanica'); // cognitivo, tatica, mecanica
-  const [activeDrill, setActiveDrill] = useState('timing'); // reflex, radar, decision, memory, force, timing
+  const [activeDrill, setActiveDrill] = useState('force'); // reflex, radar, decision, memory, force, timing
 
   // ==========================================
   // 🧠 PILAR COGNITIVO
@@ -8450,41 +8450,80 @@ const TrainingCenter = ({ currentUser, showToast }) => {
   // 🕹️ PILAR MECÂNICA (JOGADAS REAIS)
   // ==========================================
   
-  // 🎚️ GAME 4: CONTROLE DE FORÇA
-  const [forceState, setForceState] = useState('idle');
+  // 🎚️ GAME 4: CONTROLE DE FORÇA (NOVA FÍSICA: PRESSIONAR PARA ENCHER)
+  const [forceState, setForceState] = useState('idle'); // idle, waiting_press, charging, success, result
   const [forceScore, setForceScore] = useState(0);
   const [bestForce, setBestForce] = useState(() => parseInt(localStorage.getItem(`kame_force_${currentUser?.id}`) || '0'));
   const [power, setPower] = useState(0);
   const [targetZone, setTargetZone] = useState({ min: 40, max: 60 });
+  
   const reqRef = useRef(null);
   const powerRef = useRef(0);
-  const dirRef = useRef(1);
-  const speedRef = useRef(1.5);
+  const speedRef = useRef(0.8); // Inicia numa velocidade controlável
 
-  const startForceGame = () => { setForceScore(0); speedRef.current = 1.5; nextForceRound(); };
-  const nextForceRound = () => {
-    const zoneWidth = Math.max(8, 25 - (forceScore * 1.5)); 
+  const startForceGame = () => { 
+    setForceScore(0); 
+    speedRef.current = 0.8; 
+    nextForceRound(0); 
+  };
+
+  const nextForceRound = (currentScore) => {
+    const zoneWidth = Math.max(6, 25 - (currentScore * 1.5)); 
     const min = Math.floor(Math.random() * (95 - zoneWidth)) + 2; 
     setTargetZone({ min, max: min + zoneWidth });
-    powerRef.current = 0; dirRef.current = 1; setForceState('playing'); cancelAnimationFrame(reqRef.current); updatePower();
+    powerRef.current = 0; 
+    setPower(0); 
+    setForceState('waiting_press'); 
   };
+
   const updatePower = () => {
-    powerRef.current += dirRef.current * speedRef.current;
-    if (powerRef.current >= 100) { powerRef.current = 100; dirRef.current = -1; }
-    if (powerRef.current <= 0) { powerRef.current = 0; dirRef.current = 1; }
+    powerRef.current += speedRef.current;
+    if (powerRef.current >= 100) { 
+       powerRef.current = 100; 
+       setPower(100); 
+       evaluateForce(100); // Se estourar a barra, a jogada falha automaticamente
+       return; 
+    }
     setPower(powerRef.current);
     reqRef.current = requestAnimationFrame(updatePower);
   };
-  const handleForceClick = () => {
-    if (forceState === 'idle' || forceState === 'result') { startForceGame(); } 
-    else if (forceState === 'playing') {
-      cancelAnimationFrame(reqRef.current); const p = powerRef.current;
-      if (p >= targetZone.min && p <= targetZone.max) {
-        const newScore = forceScore + 1; setForceScore(newScore);
-        if (newScore > bestForce) { setBestForce(newScore); localStorage.setItem(`kame_force_${currentUser?.id}`, newScore); }
-        setForceState('success'); showToast("Força Exata! 🎯", "success");
-        setTimeout(() => { speedRef.current += 0.2; nextForceRound(); }, 1200);
-      } else { setForceState('result'); }
+
+  // Avalia o chute quando o dedo sai da tela ou a barra estoura
+  const evaluateForce = (finalPower) => {
+    cancelAnimationFrame(reqRef.current);
+    setForceState(prev => {
+       if (prev !== 'charging') return prev; // Evita duplicação de cálculo
+       
+       if (finalPower >= targetZone.min && finalPower <= targetZone.max) {
+         const newScore = forceScore + 1; 
+         setForceScore(newScore);
+         if (newScore > bestForce) { 
+           setBestForce(newScore); 
+           localStorage.setItem(`kame_force_${currentUser?.id}`, newScore); 
+         }
+         showToast("Força Perfeita! 🎯", "success");
+         setTimeout(() => { speedRef.current += 0.15; nextForceRound(newScore); }, 1200);
+         return 'success';
+       } else {
+         return 'result';
+       }
+    });
+  };
+
+  // Eventos de Toque e Mouse
+  const handlePointerDown = (e) => {
+    if (e.button !== undefined && e.button !== 0) return; // Aceita apenas toque ou clique esquerdo
+    if (forceState === 'waiting_press') {
+      setForceState('charging');
+      powerRef.current = 0;
+      setPower(0);
+      reqRef.current = requestAnimationFrame(updatePower);
+    }
+  };
+
+  const handlePointerUp = () => {
+    if (forceState === 'charging') {
+      evaluateForce(powerRef.current);
     }
   };
 
@@ -8496,7 +8535,7 @@ const TrainingCenter = ({ currentUser, showToast }) => {
   
   const reqTimingRef = useRef(null);
   const posTimingRef = useRef(0);
-  const speedTimingRef = useRef(1.0); // Velocidade inicial da corrida
+  const speedTimingRef = useRef(1.0); 
 
   const startTimingGame = () => { setTimingScore(0); speedTimingRef.current = 0.8; nextTimingRound(); };
   
@@ -8509,7 +8548,7 @@ const TrainingCenter = ({ currentUser, showToast }) => {
 
   const updateTiming = () => {
     posTimingRef.current += speedTimingRef.current;
-    if (posTimingRef.current > 88) { // 88% é logo abaixo da zona de bote. Se passar, já era.
+    if (posTimingRef.current > 88) {
         cancelAnimationFrame(reqTimingRef.current);
         setTimingState('result_late'); 
         return; 
@@ -8524,7 +8563,6 @@ const TrainingCenter = ({ currentUser, showToast }) => {
     } else if (timingState === 'playing') {
         cancelAnimationFrame(reqTimingRef.current);
         const p = posTimingRef.current;
-        // Zona de Bote Verde definida no CSS: de 70 a 85
         if (p >= 68 && p <= 85) {
             const newScore = timingScore + 1;
             setTimingScore(newScore);
@@ -8534,12 +8572,9 @@ const TrainingCenter = ({ currentUser, showToast }) => {
             }
             setTimingState('success');
             showToast("Bote Cirúrgico! 🛡️", "success");
-            setTimeout(() => {
-                speedTimingRef.current += 0.15; // O atacante vem mais rápido a cada rodada
-                nextTimingRound();
-            }, 1000);
+            setTimeout(() => { speedTimingRef.current += 0.15; nextTimingRound(); }, 1000);
         } else {
-            setTimingState('result_early'); // Bote no vazio = Falta
+            setTimingState('result_early');
         }
     }
   };
@@ -8687,7 +8722,8 @@ const TrainingCenter = ({ currentUser, showToast }) => {
              <div className="text-center">
                 <div className="w-20 h-20 bg-blue-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-800 shadow-lg"><Camera size={36} className="text-purple-400"/></div>
                 <h2 className="text-2xl font-black text-white mb-2 uppercase">Mapear Espaços</h2>
-                <button onClick={startMemoryGame} className="mt-4 bg-purple-600 hover:bg-purple-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Mapeamento</button>
+                <p className="text-blue-300 text-sm max-w-sm mx-auto mb-6">A defesa vai piscar na tela. Diga rápido: <b>Qual zona do campo ficou vazia?</b></p>
+                <button onClick={startMemoryGame} className="bg-purple-600 hover:bg-purple-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Mapeamento</button>
              </div>
           )}
           {memoryState === 'memorizing' && (
@@ -8713,6 +8749,7 @@ const TrainingCenter = ({ currentUser, showToast }) => {
              <div className="w-full max-w-sm text-center animate-in zoom-in-95">
                 <div className="w-20 h-20 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(239,68,68,0.4)]"><XCircle size={36} className="text-red-500"/></div>
                 <h2 className="text-3xl font-black text-white uppercase tracking-wider mb-2">Visão Bloqueada!</h2>
+                <p className="text-blue-300 mb-6">A zona livre era a <b className="text-red-400">{PITCH_ZONES.find(z => z.id === emptyZone)?.name}</b>.</p>
                 <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Leituras Seguidas</p><p className="text-2xl font-black text-purple-400 mt-1">{memoryScore}</p></div>
                 <button onClick={startMemoryGame} className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-8 rounded-xl uppercase shadow-md w-full">Tentar Novamente</button>
              </div>
@@ -8731,24 +8768,34 @@ const TrainingCenter = ({ currentUser, showToast }) => {
              <div className="text-center my-auto">
                 <div className="w-20 h-20 bg-blue-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-800 shadow-lg"><Target size={36} className="text-sky-400"/></div>
                 <h2 className="text-2xl font-black text-white mb-2 uppercase">Dosagem Fina</h2>
-                <p className="text-blue-300 text-sm max-w-sm mx-auto mb-6">A barra enche e esvazia rápido. Toque na tela quando ela passar pela área verde.</p>
-                <button onClick={handleForceClick} className="bg-sky-600 hover:bg-sky-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Treino</button>
+                <p className="text-blue-300 text-sm max-w-sm mx-auto mb-6">Pressione e segure o dedo na tela para encher a força. Solte exatamente dentro da área verde para acertar o chute.</p>
+                <button onClick={startForceGame} className="bg-sky-600 hover:bg-sky-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Treino</button>
              </div>
           )}
-          {(forceState === 'playing' || forceState === 'success') && (
-             <div className="w-full max-w-sm flex flex-col items-center animate-in zoom-in-95 cursor-pointer h-full justify-center" onClick={handleForceClick}>
+          {(forceState === 'waiting_press' || forceState === 'charging' || forceState === 'success') && (
+             <div 
+                className="w-full max-w-sm flex flex-col items-center animate-in zoom-in-95 cursor-pointer h-full justify-center select-none"
+                style={{ touchAction: 'none' }}
+                onPointerDown={handlePointerDown}
+                onPointerUp={handlePointerUp}
+                onPointerLeave={handlePointerUp}
+                onContextMenu={(e) => e.preventDefault()}
+             >
                 <div className="flex justify-between w-full mb-3 px-2"><span className="text-blue-400 font-bold uppercase text-[10px] tracking-widest">Nível Atual</span><span className="text-sky-400 font-black text-lg">{forceScore + 1}</span></div>
                 <div className="w-full h-12 bg-blue-950 border-2 border-blue-700 rounded-full relative overflow-hidden shadow-inner">
                    <div className="absolute h-full bg-emerald-500/40 border-l-2 border-r-2 border-emerald-400 z-10" style={{ left: `${targetZone.min}%`, width: `${targetZone.max - targetZone.min}%` }}></div>
-                   <div className={`h-full rounded-l-full transition-none ${forceState === 'success' ? 'bg-emerald-500' : 'bg-gradient-to-r from-sky-600 to-sky-400'}`} style={{ width: `${power}%` }}></div>
+                   <div className={`h-full rounded-l-full transition-none ${forceState === 'success' ? 'bg-emerald-500' : (forceState === 'charging' ? 'bg-gradient-to-r from-sky-600 to-sky-400' : '')}`} style={{ width: `${power}%` }}></div>
                 </div>
-                <p className="text-[10px] text-blue-400 uppercase mt-4 animate-pulse">Toque em qualquer lugar para travar</p>
+                <p className={`text-[10px] uppercase mt-4 font-bold ${forceState === 'waiting_press' ? 'text-blue-400 animate-pulse' : forceState === 'charging' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                   {forceState === 'waiting_press' ? '👇 Pressione e segure a tela' : forceState === 'charging' ? '⚡ Solte na zona verde!' : '🎯 Na Gaveta!'}
+                </p>
              </div>
           )}
           {forceState === 'result' && (
              <div className="w-full max-w-sm text-center animate-in zoom-in-95">
                 <div className="w-20 h-20 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(239,68,68,0.4)]"><XCircle size={36} className="text-red-500"/></div>
                 <h2 className="text-3xl font-black text-white uppercase tracking-wider mb-2">Isolou!</h2>
+                <p className="text-blue-300 mb-6">Você soltou a barra na hora errada e perdeu a posse.</p>
                 <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Acertos Seguidos</p><p className="text-4xl font-black text-sky-400 mt-1">{forceScore}</p></div>
                 <button onClick={startForceGame} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 px-8 rounded-xl uppercase shadow-md w-full">Tentar Novamente</button>
              </div>
@@ -8797,7 +8844,7 @@ const TrainingCenter = ({ currentUser, showToast }) => {
                    {timingState === 'result_early' ? 'Falta Dura!' : 'Tomou o drible!'}
                 </h2>
                 <p className="text-blue-300 mb-6">
-                   {timingState === 'result_early' ? 'Você apertou B antes da hora e fez falta.' : 'Você hesitou e o atacante passou direto.'}
+                   {timingState === 'result_early' ? 'Você apertou o botão antes da hora e fez falta.' : 'Você hesitou e o atacante passou direto.'}
                 </p>
                 <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Botes Certos</p><p className="text-4xl font-black text-red-400 mt-1">{timingScore}</p></div>
                 <button onClick={startTimingGame} className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-xl uppercase shadow-md w-full">Tentar Novamente</button>
@@ -8853,8 +8900,8 @@ const TrainingCenter = ({ currentUser, showToast }) => {
         )}
         {activeCategory === 'mecanica' && (
           <>
-            <button onClick={() => setActiveDrill('timing')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'timing' ? 'bg-blue-800 text-red-400 border border-red-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Shield size={14}/> Timing de Bote</button>
             <button onClick={() => setActiveDrill('force')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'force' ? 'bg-blue-800 text-sky-400 border border-sky-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Target size={14}/> Controle de Força</button>
+            <button onClick={() => setActiveDrill('timing')} className={`shrink-0 flex-1 py-2 px-4 text-xs rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeDrill === 'timing' ? 'bg-blue-800 text-red-400 border border-red-500/30 shadow-md' : 'text-blue-500 hover:text-blue-300'}`}><Shield size={14}/> Timing de Bote</button>
           </>
         )}
       </div>
@@ -8911,6 +8958,17 @@ const TrainingCenter = ({ currentUser, showToast }) => {
                 </div>
                 <div className="w-full bg-blue-950 rounded-full h-2.5 border border-blue-800 overflow-hidden shadow-inner relative">
                   <div className="bg-gradient-to-r from-purple-600 to-purple-400 h-2.5 rounded-full transition-all duration-1000 ease-out" style={{ width: `${bestMemory ? Math.min(100, (bestMemory / 15) * 100) : 0}%` }}></div>
+                </div>
+              </div>
+
+              {/* Barra de Tomada de Decisão */}
+              <div>
+                <div className="flex justify-between items-end mb-1.5">
+                  <span className="text-[10px] font-bold uppercase text-purple-400 tracking-wider flex items-center gap-1"><Brain size={12}/> QI Tático</span>
+                  <span className="text-xs font-black text-white">{bestDecision ? `${bestDecision} Acertos` : 'N/A'}</span>
+                </div>
+                <div className="w-full bg-blue-950 rounded-full h-2.5 border border-blue-800 overflow-hidden shadow-inner relative">
+                  <div className="bg-gradient-to-r from-purple-600 to-purple-400 h-2.5 rounded-full transition-all duration-1000 ease-out" style={{ width: `${bestDecision ? Math.min(100, (bestDecision / 15) * 100) : 0}%` }}></div>
                 </div>
               </div>
 
