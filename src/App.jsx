@@ -8327,8 +8327,8 @@ const TrophyRoom = ({ competitions, matches, teams }) => {
 };
 
 const TrainingCenter = ({ currentUser, showToast }) => {
-  const [activeCategory, setActiveCategory] = useState('mecanica'); // cognitivo, tatica, mecanica
-  const [activeDrill, setActiveDrill] = useState('force'); // reflex, radar, decision, memory, force, timing
+  const [activeCategory, setActiveCategory] = useState('cognitivo'); // cognitivo, tatica, mecanica
+  const [activeDrill, setActiveDrill] = useState('reflex'); // reflex, radar, decision, memory, force, timing
 
   // ==========================================
   // 🧠 PILAR COGNITIVO
@@ -8343,7 +8343,8 @@ const TrainingCenter = ({ currentUser, showToast }) => {
 
   const startReflex = () => {
     setReflexState('waiting'); setReactionTime(null);
-    const delay = Math.floor(Math.random() * 3000) + 2000;
+    // 🌟 NOVA LÓGICA: Tempo 100% aleatório entre 1.000ms (1s) e 10.000ms (10s)
+    const delay = Math.floor(Math.random() * 9000) + 1000;
     reflexTimeout.current = setTimeout(() => { setReflexState('ready'); reflexStart.current = Date.now(); }, delay);
   };
 
@@ -8809,7 +8810,6 @@ const TrainingCenter = ({ currentUser, showToast }) => {
     return (
       <div className="flex flex-col h-full animate-in slide-in-from-right-4">
         <h3 className="text-white font-bold mb-4 flex items-center gap-2 uppercase tracking-widest text-sm"><Shield size={18} className="text-red-400"/> Timing de Bote</h3>
-        
         <div className="flex-1 bg-blue-900 border border-blue-700 rounded-3xl p-6 flex flex-col items-center justify-center relative overflow-hidden shadow-inner min-h-[350px]">
           {timingState === 'idle' && (
              <div className="text-center my-auto">
@@ -8819,33 +8819,21 @@ const TrainingCenter = ({ currentUser, showToast }) => {
                 <button onClick={handleTackle} className="bg-red-600 hover:bg-red-500 text-white font-black py-3 px-8 rounded-xl uppercase tracking-wider shadow-lg transition-transform hover:scale-105">Iniciar Treino</button>
              </div>
           )}
-
           {(timingState === 'playing' || timingState === 'success') && (
              <div className="w-full max-w-sm flex flex-col items-center animate-in zoom-in-95 cursor-pointer h-full justify-center" onClick={handleTackle}>
                 <div className="flex justify-between w-full mb-3 px-2"><span className="text-blue-400 font-bold uppercase text-[10px] tracking-widest">Desarmes Seguidos</span><span className="text-red-400 font-black text-lg">{timingScore}</span></div>
-                
-                {/* Pista Vertical */}
                 <div className="w-16 h-64 bg-blue-950 border-2 border-blue-700 rounded-full relative overflow-hidden shadow-inner mx-auto">
-                   {/* Zona de Bote */}
                    <div className="absolute w-full bg-emerald-500/40 border-t-2 border-b-2 border-emerald-400 z-10" style={{ top: '68%', height: '17%' }}></div>
-                   
-                   {/* Atacante (Vermelho) */}
                    <div className={`absolute w-10 h-10 left-1/2 -translate-x-1/2 rounded-full border-2 shadow-[0_0_15px_rgba(239,68,68,0.8)] z-20 transition-none ${timingState === 'success' ? 'bg-emerald-500 border-white shadow-[0_0_15px_rgba(16,185,129,0.8)]' : 'bg-red-500 border-red-300'}`} style={{ top: `${attackerPos}%` }}></div>
                 </div>
-
                 <p className="text-[10px] text-blue-400 uppercase mt-6 animate-pulse font-bold bg-blue-950 px-4 py-2 rounded-lg border border-blue-800">Toque para dar o Bote!</p>
              </div>
           )}
-
           {timingState.startsWith('result') && (
              <div className="w-full max-w-sm text-center animate-in zoom-in-95">
                 <div className="w-20 h-20 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(239,68,68,0.4)]"><XCircle size={36} className="text-red-500"/></div>
-                <h2 className="text-2xl font-black text-white uppercase tracking-wider mb-2">
-                   {timingState === 'result_early' ? 'Falta Dura!' : 'Tomou o drible!'}
-                </h2>
-                <p className="text-blue-300 mb-6">
-                   {timingState === 'result_early' ? 'Você apertou o botão antes da hora e fez falta.' : 'Você hesitou e o atacante passou direto.'}
-                </p>
+                <h2 className="text-2xl font-black text-white uppercase tracking-wider mb-2">{timingState === 'result_early' ? 'Falta Dura!' : 'Tomou o drible!'}</h2>
+                <p className="text-blue-300 mb-6">{timingState === 'result_early' ? 'Você apertou o botão antes da hora e fez falta.' : 'Você hesitou e o atacante passou direto.'}</p>
                 <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 mb-6"><p className="text-xs text-blue-400 uppercase font-bold tracking-widest">Botes Certos</p><p className="text-4xl font-black text-red-400 mt-1">{timingScore}</p></div>
                 <button onClick={startTimingGame} className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-xl uppercase shadow-md w-full">Tentar Novamente</button>
              </div>
@@ -8873,14 +8861,14 @@ const TrainingCenter = ({ currentUser, showToast }) => {
 
       {/* 🌟 NAVEGAÇÃO DE CATEGORIAS */}
       <div className="flex gap-2 p-1.5 bg-blue-950/80 rounded-xl border border-blue-800 overflow-x-auto custom-scrollbar shadow-inner">
-        <button onClick={() => handleCategoryChange('mecanica')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'mecanica' ? 'bg-sky-600 text-white shadow-md' : 'text-sky-400/60 hover:text-sky-400 hover:bg-blue-900/50'}`}>
-          🕹️ Mecânica
-        </button>
         <button onClick={() => handleCategoryChange('cognitivo')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'cognitivo' ? 'bg-amber-600 text-blue-950 shadow-md' : 'text-amber-500/60 hover:text-amber-400 hover:bg-blue-900/50'}`}>
           🧠 Cognitivo
         </button>
         <button onClick={() => handleCategoryChange('tatica')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'tatica' ? 'bg-purple-600 text-white shadow-md' : 'text-purple-400/60 hover:text-purple-400 hover:bg-blue-900/50'}`}>
           🎯 Tática
+        </button>
+        <button onClick={() => handleCategoryChange('mecanica')} className={`shrink-0 flex-1 py-3 px-4 text-xs md:text-sm rounded-lg font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeCategory === 'mecanica' ? 'bg-sky-600 text-white shadow-md' : 'text-sky-400/60 hover:text-sky-400 hover:bg-blue-900/50'}`}>
+          🕹️ Mecânica
         </button>
       </div>
 
