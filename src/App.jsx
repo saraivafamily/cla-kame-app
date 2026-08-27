@@ -8804,7 +8804,7 @@ const TrainingCenter = ({ currentUser, showToast }) => {
                 <p className="text-[10px] uppercase font-bold text-amber-400 tracking-widest mb-1.5 flex items-center gap-1"><Brain size={12}/> Análise Tática e Conselho</p>
                 <p className="text-sm font-medium text-blue-100 leading-relaxed">
                    {grade === 'S' 
-                     ? "Você está "ON FIRE"! Reflexos sobre-humanos e mecânica perfeita. Pode entrar na partida e amassar o adversário sem dó!" 
+                     ? "Você está 'ON FIRE'! Reflexos sobre-humanos e mecânica perfeita. Pode entrar na partida e amassar o adversário sem dó!" 
                      : <><b className="text-red-400 block mb-1">Ponto de Risco: {worst.name}</b> {worst.tip}</>}
                 </p>
              </div>
