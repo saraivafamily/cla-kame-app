@@ -4166,6 +4166,10 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const [qualifiers, setQualifiers] = useState('2');
   const [isDoubleRound, setIsDoubleRound] = useState(false);
   const [isFinalDouble, setIsFinalDouble] = useState(false);
+  
+  // 🌟 O ESTADO DA BILHETERIA AGORA COMEÇA AQUI TAMBÉM
+  const [registrationStartTime, setRegistrationStartTime] = useState('');
+  
   const [registrationStartDate, setRegistrationStartDate] = useState('');
   const [startDate, setStartDate] = useState('');
   const [deadline, setDeadline] = useState(''); // Funciona como a Data Final
@@ -4287,7 +4291,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    // 🌟 NOVA LÓGICA: Se for Copa Flash, a quantidade de vagas é 999 (Ilimitado)
+    // 🌟 Lógica: Se for Copa Flash, a quantidade de vagas é 999 (Ilimitado)
     const isFlashCup = category === 'copa_flash' || category === 'copa_flash_dupla';
     const parsedTeamCount = isFlashCup ? 999 : parseInt(teamCount, 10);
 
@@ -4296,7 +4300,6 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
       return; 
     }
     
-    // 🌟 NOVA LÓGICA: Só trava erro de limite de times se NÃO for Copa Flash
     if (!isFlashCup) {
         if (!isAutoJoin && selectedTeams.length !== parsedTeamCount) { setError(`Atenção: Você selecionou ${selectedTeams.length} times, mas o limite é ${parsedTeamCount}.`); return; }
         if (isAutoJoin && selectedTeams.length > parsedTeamCount) { setError(`Atenção: Você pré-confirmou mais times (${selectedTeams.length}) que o limite.`); return; }
@@ -4325,8 +4328,9 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
     const newComp = { 
       id: compId, name, format, deadline, startTime, category, playStyle, rules,
+      registrationStartTime, // 🌟 NOVO CAMPO SALVO AQUI
       registrationStartDate, startDate,
-      teamCount: parsedTeamCount, // Flash Cup salva como 999
+      teamCount: parsedTeamCount, 
       status: isAutoJoin ? 'registration' : 'active', 
       teams: selectedTeams, pendingTeams: [], rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido', creatorId: currentUser?.id, admins: [currentUser?.id],  
@@ -4367,11 +4371,10 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
                 <option value="copa_do_rei">👑 Copa do Rei</option>
                 <option value="copa_amazonia">🌳 Copa da Amazônia</option>
                 <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
-                <option value="copa_flash_dupla">👥 Copa Flash em Duplas</option>              
+                <option value="copa_flash_dupla">👥 Copa Flash em Duplas</option>             
               </select>
             </div>
             
-            {/* 🌟 MUDANÇA AQUI: Input de Vagas vs Aviso de Ilimitado */}
             <div className="space-y-2">
                 <label className="text-sm font-bold text-blue-300">Qtd. Total de Vagas (Times)</label>
                 {category === 'copa_flash' || category === 'copa_flash_dupla' ? (
@@ -4398,6 +4401,13 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
                </div>
             )}
             
+            {/* 🌟 CAMPO DE ABERTURA DE INSCRIÇÕES AQUI NO FINAL DO BLOCO */}
+            <div className="col-span-1 md:col-span-2 space-y-2 bg-emerald-900/20 border border-emerald-500/30 p-4 rounded-xl mb-2 mt-4">
+              <label className="text-sm font-bold text-emerald-400">⏰ Abertura das Inscrições (Opcional)</label>
+              <p className="text-[10px] text-emerald-200/70 mb-2">Se definir uma data e hora, os jogadores só poderão se inscrever quando o relógio zerar.</p>
+              <input type="datetime-local" value={registrationStartTime} onChange={e => setRegistrationStartTime(e.target.value)} className="w-full bg-blue-950 border border-emerald-500/50 rounded-xl p-3 text-white text-sm outline-none focus:border-emerald-500" />
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 col-span-1 md:col-span-2">
               <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Início das Inscrições</label><input type="date" value={registrationStartDate} onChange={e=>setRegistrationStartDate(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
               <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Início da Competição</label><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
