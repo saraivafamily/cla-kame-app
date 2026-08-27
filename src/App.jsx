@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where, initializeFirestore, getDocs } from 'firebase/firestore';
-import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart, Zap, Brain, Eye, Flame, Calendar } from 'lucide-react';
+import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart, Zap, Brain, Eye, Flame, Calendar, Globe } from 'lucide-react';
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
 const firebaseConfig = { 
@@ -2745,9 +2745,10 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const [settingsData, setSettingsData] = useState({
     category: comp?.category || 'liga_a', edition: comp?.name ? comp.name.replace(/\D/g, '') : '', playStyle: comp?.playStyle || 'Livre', rules: comp?.rules || '',
     promotions: comp?.promotions || 0, relegations: comp?.relegations || 0, admins: comp?.admins || [],
-    excludedCompIds: comp?.excludedCompIds || [] 
+    excludedCompIds: comp?.excludedCompIds || [],
+    registrationStartTime: comp?.registrationStartTime || '' // 👈 NOVO
   });
-
+  
   // 🌟 ESTADOS PARA O GERENCIADOR DE GRUPOS
   const [showEditGroups, setShowEditGroups] = useState(false);
   const [teamGroupMapping, setTeamGroupMapping] = useState({});
@@ -3185,7 +3186,10 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
             <div className="space-y-1"><label className="text-xs font-bold text-blue-400">Vagas de Acesso</label><input type="number" min="0" value={settingsData.promotions} onChange={e => setSettingsData({...settingsData, promotions: parseInt(e.target.value) || 0})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" placeholder="Ex: 4" /></div>
             <div className="space-y-1"><label className="text-xs font-bold text-blue-400">Vagas de Rebaixamento</label><input type="number" min="0" value={settingsData.relegations} onChange={e => setSettingsData({...settingsData, relegations: parseInt(e.target.value) || 0})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" placeholder="Ex: 4" /></div>
             <div className="space-y-1 md:col-span-2"><label className="text-xs font-bold text-blue-400">Regras da Competição</label><textarea value={settingsData.rules} onChange={e => setSettingsData({...settingsData, rules: e.target.value})} placeholder="Descreva as regras..." className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500 min-h-[80px] resize-y" /></div>
-            
+            <div className="space-y-1">
+   <label className="text-xs font-bold text-emerald-400">⏰ Abertura das Inscrições (Opcional)</label>
+   <input type="datetime-local" value={settingsData.registrationStartTime} onChange={e => setSettingsData({...settingsData, registrationStartTime: e.target.value})} className="w-full bg-blue-900 border border-emerald-500/50 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" />
+</div>
             {isLeader && (
               <div className="space-y-2 md:col-span-2 pt-2 border-t border-blue-800">
                 <label className="text-xs font-bold text-emerald-400">Adicionar Organizadores</label>
@@ -3225,7 +3229,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
               const CAT_NAMES = { liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D', liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash (Duplas)', copa_do_rei: 'Copa do Rei', copa_estrelas: 'Copa das Estrelas', copa_amazonia: 'Copa da Amazônia' }; 
               const cleanCatName = CAT_NAMES[settingsData.category] || 'Competição'; 
               
-              onEditComp({ 
+             onEditComp({ 
                 ...comp, 
                 name: settingsData.edition ? `${cleanCatName} - Edição ${settingsData.edition}` : comp.name, 
                 category: settingsData.category, 
@@ -3234,8 +3238,9 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                 promotions: settingsData.promotions, 
                 relegations: settingsData.relegations, 
                 admins: settingsData.admins,
-                excludedCompIds: settingsData.excludedCompIds
-              }); 
+                excludedCompIds: settingsData.excludedCompIds,
+                registrationStartTime: settingsData.registrationStartTime // 👈 NOVO AQUI
+              });
               setShowEditSettings(false); 
               showToast("Configurações atualizadas!", "success"); 
             }} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs shadow-md">Salvar</button>
@@ -3963,7 +3968,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
   const userTeam = teams.find(t => t && t.ownerId === currentUser?.id);
 
-  // Timer para verificar se a catraca já pode abrir
+  // Timer para verificar se a catraca já pode abrir (Tempo Universal)
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
@@ -3992,9 +3997,40 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
 
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
 
-  // 🌟 MÁGICA DA BILHETERIA AQUI: Verifica se tem horário agendado
-  const openTime = comp.registrationStartTime ? new Date(comp.registrationStartTime).getTime() : 0;
+  // 🌟 MÁGICA DOS FUSOS HORÁRIOS: Fixando tudo no fuso de Brasília (UTC-3)
+  // O -03:00 garante que a conversão seja perfeita para qualquer pessoa no mundo
+  const openTimeStr = comp.registrationStartTime ? `${comp.registrationStartTime}:00-03:00` : null;
+  const deadlineTimeStr = comp.deadline ? `${comp.deadline}T${comp.startTime || '20:00'}:00-03:00` : null;
+  
+  const openTime = openTimeStr ? new Date(openTimeStr).getTime() : 0;
   const isRegistrationOpen = !comp.registrationStartTime || now >= openTime;
+
+  // Componente interno para mostrar as bandeirinhas e horários mundiais
+  const TimezoneHelper = ({ dateStr, title }) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    
+    // Função para extrair a hora local do país selecionado
+    const formatTZ = (tz) => {
+      try { return d.toLocaleTimeString('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit' }); } 
+      catch (e) { return '--:--'; }
+    };
+
+    return (
+      <div className="mt-4 bg-blue-950/60 p-3 rounded-xl border border-blue-800 border-dashed animate-in fade-in">
+         <p className="text-[9px] text-blue-400 font-bold uppercase tracking-widest mb-3 text-center flex items-center justify-center gap-1.5">
+           <Globe size={12}/> {title}
+         </p>
+         <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-[10px] text-blue-200 font-medium">
+           <span className="flex items-center gap-1.5 bg-blue-900 px-2 py-1 rounded-md border border-blue-800 shadow-sm" title="Brasília">🇧🇷 <b className="text-emerald-400">{formatTZ('America/Sao_Paulo')}</b></span>
+           <span className="flex items-center gap-1.5 bg-blue-900 px-2 py-1 rounded-md border border-blue-800 shadow-sm" title="Amazonas">🌿 <b className="text-white">{formatTZ('America/Manaus')}</b></span>
+           <span className="flex items-center gap-1.5 bg-blue-900 px-2 py-1 rounded-md border border-blue-800 shadow-sm" title="Argentina">🇦🇷 <b className="text-sky-400">{formatTZ('America/Argentina/Buenos_Aires')}</b></span>
+           <span className="flex items-center gap-1.5 bg-blue-900 px-2 py-1 rounded-md border border-blue-800 shadow-sm" title="Angola">🇦🇴 <b className="text-red-400">{formatTZ('Africa/Luanda')}</b></span>
+           <span className="flex items-center gap-1.5 bg-blue-900 px-2 py-1 rounded-md border border-blue-800 shadow-sm" title="Canadá (Toronto)">🇨🇦 <b className="text-red-300">{formatTZ('America/Toronto')}</b></span>
+         </div>
+      </div>
+    );
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -4020,15 +4056,20 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
         </div>
 
         <div className="p-6 space-y-6">
-          {isFlash && comp.deadline && (
+          
+          {/* MURAL DE ENCERRAMENTO DA COPA FLASH */}
+          {isFlash && deadlineTimeStr && (
             <div className="bg-amber-900/40 p-5 rounded-2xl border border-amber-500/50 text-center shadow-inner animate-in zoom-in-95">
               <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-1.5 flex justify-center items-center gap-1.5">
                 <Activity size={14}/> Inscrições Encerram Em:
               </p>
               <p className="text-4xl text-amber-400 drop-shadow-md">
-                <CountdownTimer targetDateStr={`${comp.deadline}T${comp.startTime || '20:00'}:00`} />
+                <CountdownTimer targetDateStr={deadlineTimeStr} />
               </p>
               <p className="text-[9px] text-amber-200/70 mt-2">A tabela será gerada automaticamente ao fim do cronômetro.</p>
+              
+              {/* O Helper Global pro prazo da Flash */}
+              <TimezoneHelper dateStr={deadlineTimeStr} title="Encerramento Mundial" />
             </div>
           )}
 
@@ -4042,7 +4083,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
             </div>
             <div className="text-right">
               <p className="text-[10px] text-blue-400 uppercase font-bold">Data do Jogo</p>
-              <p className="text-sm font-bold text-white">{new Date(comp.deadline + 'T12:00:00').toLocaleDateString()}</p>
+              <p className="text-sm font-bold text-white">{new Date(comp.deadline + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
             </div>
           </div>
 
@@ -4059,17 +4100,21 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
             </div>
           )}
 
-          {/* 🌟 BLOCO DE RENDENRIZAÇÃO DE ESTADO */}
+          {/* 🌟 BILHETERIA E STATUS DO JOGADOR */}
           {!isRegistrationOpen ? (
             <div className="text-center p-6 bg-blue-950/80 border border-blue-800 rounded-xl shadow-inner animate-in zoom-in-95">
                <Lock className="text-blue-500 mx-auto mb-3" size={36}/>
                <h3 className="text-xl font-black text-white uppercase tracking-wider mb-2">Inscrições Fechadas</h3>
                <p className="text-blue-300 text-sm mb-4">A bilheteria deste torneio ainda não abriu.</p>
-               <div className="bg-blue-900 p-3 rounded-lg border border-blue-700 inline-block">
+               
+               <div className="bg-blue-900 p-3 rounded-lg border border-blue-700 inline-block w-full">
                  <p className="text-[10px] text-emerald-400 uppercase font-bold tracking-widest mb-1">Abre em</p>
                  <p className="text-2xl font-black text-emerald-500 drop-shadow-md">
-                   <CountdownTimer targetDateStr={`${comp.registrationStartTime}:00`} />
+                   <CountdownTimer targetDateStr={openTimeStr} />
                  </p>
+                 
+                 {/* O Helper Global pra abertura das vagas */}
+                 <TimezoneHelper dateStr={openTimeStr} title="Abertura pelo Mundo" />
                </div>
             </div>
           ) : alreadyJoined ? (
