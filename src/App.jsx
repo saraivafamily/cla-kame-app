@@ -4011,7 +4011,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
     try {
         const d = new Date(dateStr);
         const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        return `Horário local no seu celular: ${time}`;
+        return `No seu Fuso-Horário: ${time}`;
     } catch (e) { return ''; }
   };
 
