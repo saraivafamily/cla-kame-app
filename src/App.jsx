@@ -3968,7 +3968,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
   const userTeam = teams.find(t => t && t.ownerId === currentUser?.id);
 
-  // Timer para verificar se a catraca já pode abrir (Tempo Universal)
+  // Timer para verificar se a catraca já pode abrir
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
@@ -3997,39 +3997,22 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
 
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
 
-  // 🌟 MÁGICA DOS FUSOS HORÁRIOS: Fixando tudo no fuso de Brasília (UTC-3)
-  // O -03:00 garante que a conversão seja perfeita para qualquer pessoa no mundo
+  // 🌟 MÁGICA DOS FUSOS HORÁRIOS AUTOMÁTICA
+  // O -03:00 fixa o horário base no Brasil. O JS converte sozinho pro fuso do celular do membro!
   const openTimeStr = comp.registrationStartTime ? `${comp.registrationStartTime}:00-03:00` : null;
-  const deadlineTimeStr = comp.deadline ? `${comp.deadline}T${comp.startTime || '20:00'}:00-03:00` : null;
+  const deadlineTimeStr = comp.deadline && comp.startTime ? `${comp.deadline}T${comp.startTime}:00-03:00` : null;
   
   const openTime = openTimeStr ? new Date(openTimeStr).getTime() : 0;
   const isRegistrationOpen = !comp.registrationStartTime || now >= openTime;
 
-  // Componente interno para mostrar as bandeirinhas e horários mundiais
-  const TimezoneHelper = ({ dateStr, title }) => {
-    if (!dateStr) return null;
-    const d = new Date(dateStr);
-    
-    // Função para extrair a hora local do país selecionado
-    const formatTZ = (tz) => {
-      try { return d.toLocaleTimeString('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit' }); } 
-      catch (e) { return '--:--'; }
-    };
-
-    return (
-      <div className="mt-4 bg-blue-950/60 p-3 rounded-xl border border-blue-800 border-dashed animate-in fade-in">
-         <p className="text-[9px] text-blue-400 font-bold uppercase tracking-widest mb-3 text-center flex items-center justify-center gap-1.5">
-           <Globe size={12}/> {title}
-         </p>
-         <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-[10px] text-blue-200 font-medium">
-           <span className="flex items-center gap-1.5 bg-blue-900 px-2 py-1 rounded-md border border-blue-800 shadow-sm" title="Brasília">🇧🇷 <b className="text-emerald-400">{formatTZ('America/Sao_Paulo')}</b></span>
-           <span className="flex items-center gap-1.5 bg-blue-900 px-2 py-1 rounded-md border border-blue-800 shadow-sm" title="Amazonas">🌿 <b className="text-white">{formatTZ('America/Manaus')}</b></span>
-           <span className="flex items-center gap-1.5 bg-blue-900 px-2 py-1 rounded-md border border-blue-800 shadow-sm" title="Argentina">🇦🇷 <b className="text-sky-400">{formatTZ('America/Argentina/Buenos_Aires')}</b></span>
-           <span className="flex items-center gap-1.5 bg-blue-900 px-2 py-1 rounded-md border border-blue-800 shadow-sm" title="Angola">🇦🇴 <b className="text-red-400">{formatTZ('Africa/Luanda')}</b></span>
-           <span className="flex items-center gap-1.5 bg-blue-900 px-2 py-1 rounded-md border border-blue-800 shadow-sm" title="Canadá (Toronto)">🇨🇦 <b className="text-red-300">{formatTZ('America/Toronto')}</b></span>
-         </div>
-      </div>
-    );
+  // Função limpa para extrair o horário local formatado
+  const getLocalTimeMsg = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+        const d = new Date(dateStr);
+        const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `Horário local no seu celular: ${time}`;
+    } catch (e) { return ''; }
   };
 
   const handleSubmit = async (e) => {
@@ -4057,8 +4040,8 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
 
         <div className="p-6 space-y-6">
           
-          {/* MURAL DE ENCERRAMENTO DA COPA FLASH */}
-          {isFlash && deadlineTimeStr && (
+          {/* MURAL DE ENCERRAMENTO DA COPA FLASH (SÓ APARECE SE AS INSCRIÇÕES JÁ ESTIVEREM ABERTAS) */}
+          {isRegistrationOpen && isFlash && deadlineTimeStr && (
             <div className="bg-amber-900/40 p-5 rounded-2xl border border-amber-500/50 text-center shadow-inner animate-in zoom-in-95">
               <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-1.5 flex justify-center items-center gap-1.5">
                 <Activity size={14}/> Inscrições Encerram Em:
@@ -4066,10 +4049,10 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
               <p className="text-4xl text-amber-400 drop-shadow-md">
                 <CountdownTimer targetDateStr={deadlineTimeStr} />
               </p>
-              <p className="text-[9px] text-amber-200/70 mt-2">A tabela será gerada automaticamente ao fim do cronômetro.</p>
-              
-              {/* O Helper Global pro prazo da Flash */}
-              <TimezoneHelper dateStr={deadlineTimeStr} title="Encerramento Mundial" />
+              <p className="text-[10px] text-amber-300 font-bold mt-3 bg-amber-950/50 py-1.5 rounded-lg border border-amber-500/30">
+                {getLocalTimeMsg(deadlineTimeStr)}
+              </p>
+              <p className="text-[9px] text-amber-400/60 mt-2">A tabela será gerada automaticamente.</p>
             </div>
           )}
 
@@ -4113,8 +4096,10 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
                    <CountdownTimer targetDateStr={openTimeStr} />
                  </p>
                  
-                 {/* O Helper Global pra abertura das vagas */}
-                 <TimezoneHelper dateStr={openTimeStr} title="Abertura pelo Mundo" />
+                 {/* O Helper Global pra abertura convertido para a hora do celular */}
+                 <p className="text-[10px] text-emerald-300 font-bold mt-2 pt-2 border-t border-emerald-500/20">
+                    {getLocalTimeMsg(openTimeStr)}
+                 </p>
                </div>
             </div>
           ) : alreadyJoined ? (
