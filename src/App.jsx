@@ -3957,14 +3957,20 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
 const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onBack, showToast, onEditComp }) => {
   const [receipt, setReceipt] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [now, setNow] = useState(Date.now());
   
   const comp = competitions.find(c => c && c.id === compId);
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
   const userTeam = teams.find(t => t && t.ownerId === currentUser?.id);
 
+  // Timer para verificar se a catraca já pode abrir
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   if (competitions.length === 0) return <div className="p-12 text-center text-emerald-400 font-bold animate-pulse text-sm">🛡️ Carregando detalhes...</div>;
   if (!comp) return <div className="p-8 text-center text-slate-400">Torneio não encontrado ou encerrado.</div>;
-  
   if (!userTeam) return <div className="p-8 text-center text-amber-400 font-bold bg-amber-500/10 rounded-2xl border border-amber-500/30 m-4">Você precisa ter um time cadastrado para participar. Peça a um líder para criar seu clube primeiro.</div>;
 
   const isFlash = comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla';
@@ -3972,9 +3978,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   const compPending = Array.isArray(comp.pendingTeams) ? comp.pendingTeams : [];
   const teamCount = parseInt(comp.teamCount) || 0;
 
-  // 🛡️ AQUI ESTÁ A MÁGICA: Se for Copa Flash, NUNCA fica lotado!
   const isFull = isFlash ? false : compTeams.length >= teamCount;
-  
   const alreadyJoined = compTeams.some(tId => userTeamIds.includes(tId));
   const isPending = compPending.some(p => p && userTeamIds.includes(p.teamId));
 
@@ -3988,8 +3992,13 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
 
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
 
+  // 🌟 MÁGICA DA BILHETERIA AQUI: Verifica se tem horário agendado
+  const openTime = comp.registrationStartTime ? new Date(comp.registrationStartTime).getTime() : 0;
+  const isRegistrationOpen = !comp.registrationStartTime || now >= openTime;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!isRegistrationOpen) { showToast("A bilheteria ainda não abriu!", "warning"); return; }
     if (isBlockedByOtherComp) { showToast("Acesso Negado: Seu time já disputa um torneio bloqueado para esta competição.", "error"); return; }
     if (comp.isPaid && !receipt) { showToast("Anexe o comprovante de pagamento!", "error"); return; }
     
@@ -4050,7 +4059,20 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
             </div>
           )}
 
-          {alreadyJoined ? (
+          {/* 🌟 BLOCO DE RENDENRIZAÇÃO DE ESTADO */}
+          {!isRegistrationOpen ? (
+            <div className="text-center p-6 bg-blue-950/80 border border-blue-800 rounded-xl shadow-inner animate-in zoom-in-95">
+               <Lock className="text-blue-500 mx-auto mb-3" size={36}/>
+               <h3 className="text-xl font-black text-white uppercase tracking-wider mb-2">Inscrições Fechadas</h3>
+               <p className="text-blue-300 text-sm mb-4">A bilheteria deste torneio ainda não abriu.</p>
+               <div className="bg-blue-900 p-3 rounded-lg border border-blue-700 inline-block">
+                 <p className="text-[10px] text-emerald-400 uppercase font-bold tracking-widest mb-1">Abre em</p>
+                 <p className="text-2xl font-black text-emerald-500 drop-shadow-md">
+                   <CountdownTimer targetDateStr={`${comp.registrationStartTime}:00`} />
+                 </p>
+               </div>
+            </div>
+          ) : alreadyJoined ? (
              <div className="text-center p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl"><CheckCircle className="text-emerald-500 mx-auto mb-2" size={32}/><p className="font-bold text-emerald-400">Você já está confirmado neste torneio!</p></div>
           ) : isPending ? (
              <div className="text-center p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl"><Activity className="text-amber-500 mx-auto mb-2" size={32}/><p className="font-bold text-amber-400">Inscrição em Análise!</p></div>
@@ -4075,7 +4097,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
                 </div>
               )}
 
-              <Button type="submit" disabled={isSubmitting} className={`w-full py-4 text-lg font-black ${isFlash ? 'bg-amber-600 hover:bg-amber-500 text-blue-950 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : ''}`}>
+              <Button type="submit" disabled={isSubmitting} className={`w-full py-4 text-lg font-black ${isFlash ? 'bg-amber-600 hover:bg-amber-500 text-blue-950 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>
                 {isSubmitting ? 'Enviando...' : (isFlash ? '⚡ Inscrição Imediata' : 'Solicitar Inscrição')}
               </Button>
             </form>
