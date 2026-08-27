@@ -8769,7 +8769,7 @@ const TrainingCenter = ({ currentUser, showToast }) => {
        totalScore = (nReflex + nDecision + nForce + nMemory + nTiming) / 5;
        items = [
          { name: 'Reflexos', n: nReflex, raw: s.reflex ? `${s.reflex}ms` : '0ms', tip: "Seu cérebro está demorando a processar o estímulo visual. Treine mais Bote para calibrar." },
-         { name: 'Tática', n: nDecision, raw: `${s.decision} acertos`, tip: "Hesitação tática detectada. Jogue o "feijão com arroz" hoje: passe e movimentação simples." },
+         { name: 'Tática', n: nDecision, raw: `${s.decision} acertos`, tip: "Hesitação tática detectada. Jogue o 'feijão com arroz' hoje: passe e movimentação simples." },
          { name: 'Chutes', n: nForce, raw: `${s.force} acertos`, tip: "Dedos descalibrados. Você tem grandes chances de isolar a bola ou forçar passes nas mãos do goleiro." },
          { name: 'Espaços', n: nMemory, raw: `${s.memory} acertos`, tip: "Falta de visão espacial nas entrelinhas. Evite forçar a bola em profundidade no CA." },
          { name: 'Desarme', n: nTiming, raw: `${s.timing} acertos`, tip: "Tempo de bote precipitado. Faça contenção (cercar) com o cursor em vez de apertar o desarme." }
