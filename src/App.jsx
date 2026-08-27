@@ -1397,7 +1397,6 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
             {matchesToPlay.map(m => {
               const compForMatch = competitions.find(c => c.id === m.compId);
               const isDupla = compForMatch?.category === 'copa_flash_dupla';
-              const isIda = m.id.includes('_ida');
               const isVolta = m.id.includes('_volta');
               
               if (isDupla && isVolta) {
@@ -1412,10 +1411,6 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               const isUserTeamA = userTeamIds.includes(m.teamA);
               const opponentTeam = isUserTeamA ? tB : tA;
               const myTeamObj = isUserTeamA ? tA : tB;
-
-              const hideOpponent = isDupla && isIda;
-              
-              const dlsCode = m.dlsCode || null;
 
               return (
                 <div key={m.id} className="bg-blue-900/80 border border-emerald-500/40 hover:border-emerald-400/80 rounded-2xl p-4 shadow-lg transition-all flex flex-col justify-between group">
@@ -1433,38 +1428,23 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
                     </div>
                     <span className="text-blue-600 font-black text-lg px-2 shrink-0">X</span>
                     <div className="flex flex-col items-center flex-1 min-w-0">
-                      <ShieldDisplay shield={hideOpponent ? "❓" : opponentTeam?.shield} size="small" />
-                      <span className={`text-xs font-bold mt-2 truncate w-full text-center text-blue-100`}>{hideOpponent ? "Adversário Oculto" : opponentTeam?.name}</span>
+                      <ShieldDisplay shield={opponentTeam?.shield} size="small" />
+                      <span className={`text-xs font-bold mt-2 truncate w-full text-center text-blue-100`}>{opponentTeam?.name || 'Adversário'}</span>
                     </div>
                   </div>
                   
-                  {hideOpponent ? (
-                    <button 
-                      onClick={() => {
-                        if (dlsCode) {
-                           alert(`CÓDIGO DA PARTIDA: ${dlsCode}\n\nEntre no DLS, vá em "Amistoso", digite este código exato e busque a partida ao mesmo tempo que o adversário!`);
-                        } else {
-                           alert("Aguarde! A diretoria ainda não definiu o código desta partida.");
-                        }
-                      }} 
-                      className={`w-full font-black py-2.5 rounded-xl text-xs uppercase tracking-wide transition-colors shadow-md flex items-center justify-center gap-2 ${dlsCode ? 'bg-amber-600 hover:bg-amber-500 text-blue-950' : 'bg-slate-700 text-slate-400 cursor-not-allowed'}`}
-                    >
-                      <Dices size={14}/> {dlsCode ? 'Ver Código DLS' : 'Código Pendente'}
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => {
-                        if (opponentTeam?.whatsapp) {
-                          window.open(`https://wa.me/${String(opponentTeam.whatsapp).replace(/\D/g, '')}`, '_blank');
-                        }
-                      }} 
-                      disabled={!opponentTeam?.whatsapp}
-                      className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-blue-800 disabled:text-blue-500 text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wide transition-colors shadow-md flex items-center justify-center gap-2"
-                    >
-                      <MessageCircle size={14}/> 
-                      {opponentTeam?.whatsapp ? 'Chamar Adversário' : 'Adversário sem Zap'}
-                    </button>
-                  )}
+                  <button 
+                    onClick={() => {
+                      if (opponentTeam?.whatsapp) {
+                        window.open(`https://wa.me/${String(opponentTeam.whatsapp).replace(/\D/g, '')}`, '_blank');
+                      }
+                    }} 
+                    disabled={!opponentTeam?.whatsapp}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-blue-800 disabled:text-blue-500 text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wide transition-colors shadow-md flex items-center justify-center gap-2"
+                  >
+                    <MessageCircle size={14}/> 
+                    {opponentTeam?.whatsapp ? 'Chamar Adversário' : 'Adversário sem Zap'}
+                  </button>
                 </div>
               );
             })}
@@ -1500,7 +1480,6 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
           <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2"><Trophy size={20} /> Inscrições Abertas</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {openCompetitions.map(comp => {
-              // 🌟 CORREÇÃO FEITA AQUI: A variável isFlash agora está declarada dentro do loop
               const isFlash = comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla'; 
               const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
               const compPending = Array.isArray(comp.pendingTeams) ? comp.pendingTeams : [];
