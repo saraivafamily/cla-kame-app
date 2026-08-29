@@ -3947,7 +3947,6 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   const userTeamIds = (teams || []).filter(t => t && t.ownerId === currentUser?.id).map(t => t.id);
   const userTeam = teams.find(t => t && t.ownerId === currentUser?.id);
 
-  // Timer para verificar se a catraca já pode abrir
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
@@ -3957,12 +3956,16 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   if (!comp) return <div className="p-8 text-center text-slate-400">Torneio não encontrado ou encerrado.</div>;
   if (!userTeam) return <div className="p-8 text-center text-amber-400 font-bold bg-amber-500/10 rounded-2xl border border-amber-500/30 m-4">Você precisa ter um time cadastrado para participar. Peça a um líder para criar seu clube primeiro.</div>;
 
-  const isFlash = comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla';
+  // 🌟 SEPARAÇÃO CRUCIAL AQUI: Auto-Start e Sem Limite apenas para SOLO.
+  const isFlashSolo = comp.category === 'copa_flash';
+  const isFlashDupla = comp.category === 'copa_flash_dupla';
+  
   const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
   const compPending = Array.isArray(comp.pendingTeams) ? comp.pendingTeams : [];
   const teamCount = parseInt(comp.teamCount) || 0;
 
-  const isFull = isFlash ? false : compTeams.length >= teamCount;
+  // Duplas agora respeitam o limite de vagas definido pelo Líder!
+  const isFull = isFlashSolo ? false : compTeams.length >= teamCount;
   const alreadyJoined = compTeams.some(tId => userTeamIds.includes(tId));
   const isPending = compPending.some(p => p && userTeamIds.includes(p.teamId));
 
@@ -3976,21 +3979,18 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
 
   const hasAnyPrize = comp.prizes && (comp.prizes.first || comp.prizes.second || comp.prizes.third || comp.prizes.extra);
 
-  // 🌟 MÁGICA DOS FUSOS HORÁRIOS AUTOMÁTICA
-  // O -03:00 fixa o horário base no Brasil. O JS converte sozinho pro fuso do celular do membro!
   const openTimeStr = comp.registrationStartTime ? `${comp.registrationStartTime}:00-03:00` : null;
   const deadlineTimeStr = comp.deadline && comp.startTime ? `${comp.deadline}T${comp.startTime}:00-03:00` : null;
   
   const openTime = openTimeStr ? new Date(openTimeStr).getTime() : 0;
   const isRegistrationOpen = !comp.registrationStartTime || now >= openTime;
 
-  // Função limpa para extrair o horário local formatado
   const getLocalTimeMsg = (dateStr) => {
     if (!dateStr) return '';
     try {
         const d = new Date(dateStr);
         const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        return `No seu Fuso-Horário: ${time}`;
+        return `Horário local no seu celular: ${time}`;
     } catch (e) { return ''; }
   };
 
@@ -4010,17 +4010,17 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
     <div className="max-w-md mx-auto animate-in fade-in pb-12 mt-8">
       <button onClick={onBack} className="text-xs text-blue-400 hover:text-white flex items-center gap-1 mb-6"><ArrowLeft size={14}/> Voltar ao Início</button>
       
-      <div className={`bg-blue-900 border rounded-3xl overflow-hidden shadow-2xl ${isFlash ? 'border-amber-500/50' : 'border-blue-800'}`}>
+      <div className={`bg-blue-900 border rounded-3xl overflow-hidden shadow-2xl ${isFlashSolo || isFlashDupla ? 'border-amber-500/50' : 'border-blue-800'}`}>
         <div className="bg-blue-950/80 p-8 text-center border-b border-blue-800 relative overflow-hidden">
-          <Trophy className={`${isFlash ? 'text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'text-amber-400'} mx-auto mb-4`} size={48} />
+          <Trophy className={`${isFlashSolo || isFlashDupla ? 'text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'text-amber-400'} mx-auto mb-4`} size={48} />
           <h2 className="text-2xl font-black text-white uppercase tracking-wider">{comp.name}</h2>
           <p className="text-emerald-400 font-bold mt-2 text-sm uppercase tracking-widest">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</p>
         </div>
 
         <div className="p-6 space-y-6">
           
-          {/* MURAL DE ENCERRAMENTO DA COPA FLASH (SÓ APARECE SE AS INSCRIÇÕES JÁ ESTIVEREM ABERTAS) */}
-          {isRegistrationOpen && isFlash && deadlineTimeStr && (
+          {/* MURAL DE ENCERRAMENTO: AGORA SÓ APARECE NA COPA FLASH SOLO! */}
+          {isRegistrationOpen && isFlashSolo && deadlineTimeStr && (
             <div className="bg-amber-900/40 p-5 rounded-2xl border border-amber-500/50 text-center shadow-inner animate-in zoom-in-95">
               <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-1.5 flex justify-center items-center gap-1.5">
                 <Activity size={14}/> Inscrições Encerram Em:
@@ -4040,7 +4040,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
               <p className="text-[10px] text-blue-400 uppercase font-bold">Vagas Preenchidas</p>
               <p className="text-xl font-black text-white">
                 {(compTeams.length || 0)} 
-                {isFlash ? <span className="text-amber-500 text-sm ml-1">/ Ilimitado</span> : <span className="text-blue-500"> / {teamCount}</span>}
+                {isFlashSolo ? <span className="text-amber-500 text-sm ml-1">/ Ilimitado</span> : <span className="text-blue-500"> / {teamCount}</span>}
               </p>
             </div>
             <div className="text-right">
@@ -4049,6 +4049,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
             </div>
           </div>
 
+          {/* ... (O restante da renderização dos prêmios, bilheteria e formulário segue exatamente igual) */}
           {hasAnyPrize && (
             <div className="bg-gradient-to-b from-amber-500/5 to-blue-950/50 border border-amber-500/20 p-4 rounded-xl space-y-3">
               <div className="flex items-center gap-2 border-b border-blue-800 pb-2">
@@ -4062,7 +4063,6 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
             </div>
           )}
 
-          {/* 🌟 BILHETERIA E STATUS DO JOGADOR */}
           {!isRegistrationOpen ? (
             <div className="text-center p-6 bg-blue-950/80 border border-blue-800 rounded-xl shadow-inner animate-in zoom-in-95">
                <Lock className="text-blue-500 mx-auto mb-3" size={36}/>
@@ -4074,8 +4074,6 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
                  <p className="text-2xl font-black text-emerald-500 drop-shadow-md">
                    <CountdownTimer targetDateStr={openTimeStr} />
                  </p>
-                 
-                 {/* O Helper Global pra abertura convertido para a hora do celular */}
                  <p className="text-[10px] text-emerald-300 font-bold mt-2 pt-2 border-t border-emerald-500/20">
                     {getLocalTimeMsg(openTimeStr)}
                  </p>
@@ -4106,8 +4104,8 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
                 </div>
               )}
 
-              <Button type="submit" disabled={isSubmitting} className={`w-full py-4 text-lg font-black ${isFlash ? 'bg-amber-600 hover:bg-amber-500 text-blue-950 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>
-                {isSubmitting ? 'Enviando...' : (isFlash ? '⚡ Inscrição Imediata' : 'Solicitar Inscrição')}
+              <Button type="submit" disabled={isSubmitting} className={`w-full py-4 text-lg font-black ${isFlashSolo || isFlashDupla ? 'bg-amber-600 hover:bg-amber-500 text-blue-950 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>
+                {isSubmitting ? 'Enviando...' : (isFlashSolo ? '⚡ Inscrição Imediata' : 'Solicitar Inscrição')}
               </Button>
             </form>
           )}
@@ -4131,12 +4129,10 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const [isDoubleRound, setIsDoubleRound] = useState(false);
   const [isFinalDouble, setIsFinalDouble] = useState(false);
   
-  // 🌟 O ESTADO DA BILHETERIA AGORA COMEÇA AQUI TAMBÉM
   const [registrationStartTime, setRegistrationStartTime] = useState('');
-  
   const [registrationStartDate, setRegistrationStartDate] = useState('');
   const [startDate, setStartDate] = useState('');
-  const [deadline, setDeadline] = useState(''); // Funciona como a Data Final
+  const [deadline, setDeadline] = useState(''); 
   const [startTime, setStartTime] = useState('');
   
   const [flashDuration, setFlashDuration] = useState('60');
@@ -4209,6 +4205,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const displayTeams = teams.filter(t => !busyTeamIds.has(t.id));
 
   const handleSmartImport = () => {
+    // [Lógica Mantida Integralmente...]
     const HIERARCHY = ['liga_a', 'liga_b', 'liga_c', 'liga_d', 'liga_acesso'];
     const myIdx = HIERARCHY.indexOf(category);
     if (myIdx === -1) { if (showToast) showToast("A importação inteligente só funciona para Ligas oficiais.", "error"); return; }
@@ -4255,16 +4252,16 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    // 🌟 Lógica: Se for Copa Flash, a quantidade de vagas é 999 (Ilimitado)
-    const isFlashCup = category === 'copa_flash' || category === 'copa_flash_dupla';
-    const parsedTeamCount = isFlashCup ? 999 : parseInt(teamCount, 10);
+    // 🌟 CORREÇÃO VITAL: Auto Start (Ilimitado) AGORA É SÓ PARA A COPA FLASH SOLO
+    const isFlashSolo = category === 'copa_flash';
+    const parsedTeamCount = isFlashSolo ? 999 : parseInt(teamCount, 10);
 
-    if (!name || !format || (!isFlashCup && !teamCount) || !registrationStartDate || !startDate || !deadline || !startTime) { 
+    if (!name || !format || (!isFlashSolo && !teamCount) || !registrationStartDate || !startDate || !deadline || !startTime) { 
       setError('Preencha os dados básicos do torneio (incluindo todas as datas e horários).'); 
       return; 
     }
     
-    if (!isFlashCup) {
+    if (!isFlashSolo) {
         if (!isAutoJoin && selectedTeams.length !== parsedTeamCount) { setError(`Atenção: Você selecionou ${selectedTeams.length} times, mas o limite é ${parsedTeamCount}.`); return; }
         if (isAutoJoin && selectedTeams.length > parsedTeamCount) { setError(`Atenção: Você pré-confirmou mais times (${selectedTeams.length}) que o limite.`); return; }
     }
@@ -4292,14 +4289,14 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
     const newComp = { 
       id: compId, name, format, deadline, startTime, category, playStyle, rules,
-      registrationStartTime, // 🌟 NOVO CAMPO SALVO AQUI
+      registrationStartTime,
       registrationStartDate, startDate,
       teamCount: parsedTeamCount, 
       status: isAutoJoin ? 'registration' : 'active', 
       teams: selectedTeams, pendingTeams: [], rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido', creatorId: currentUser?.id, admins: [currentUser?.id],  
       isDoubleRound, isFinalDouble, numGroups: parseInt(numGroups || '0', 10), qualifiersPerGroup: parseInt(qualifiers || '0', 10),
-      flashDuration: isFlashCup ? parseInt(flashDuration, 10) : null,
+      flashDuration: isFlashSolo ? parseInt(flashDuration, 10) : null, // Só salva duração para Solo
       excludedCompIds: excludedCompIds,
       ...(groupsData && { groups: groupsData }),
       isPaid: isPaid,
@@ -4334,19 +4331,19 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
                 <option value="copa_estrelas">⭐ Copa das Estrelas</option>
                 <option value="copa_do_rei">👑 Copa do Rei</option>
                 <option value="copa_amazonia">🌳 Copa da Amazônia</option>
-                <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
-                <option value="copa_flash_dupla">👥 Copa Flash em Duplas</option>             
+                <option value="copa_flash">⚡ Copa Flash Solo (Com Auto-Start)</option>
+                <option value="copa_flash_dupla">👥 Copa Flash em Duplas (Manual)</option>             
               </select>
             </div>
             
             <div className="space-y-2">
                 <label className="text-sm font-bold text-blue-300">Qtd. Total de Vagas (Times)</label>
-                {category === 'copa_flash' || category === 'copa_flash_dupla' ? (
+                {category === 'copa_flash' ? (
                    <div className="w-full bg-amber-900/20 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-black text-base text-center shadow-inner cursor-not-allowed">
                        ⚡ Ilimitado (Auto-Start)
                    </div>
                 ) : (
-                   <input type="number" min="2" placeholder="Ex: 8" value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-emerald-400 font-black text-lg focus:ring-2 focus:ring-emerald-500 outline-none" required />
+                   <input type="number" min="2" placeholder={category === 'copa_flash_dupla' ? "Ex: 16 (precisa ser número par)" : "Ex: 8"} value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-emerald-400 font-black text-lg focus:ring-2 focus:ring-emerald-500 outline-none" required />
                 )}
             </div>
 
@@ -4357,15 +4354,14 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
               <select value={playStyle} onChange={e=>setPlayStyle(e.target.value)} className="w-full bg-blue-950 border border-purple-500/50 rounded-xl p-3 text-purple-300 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"><option value="Livre">Livre (Qualquer Estilo)</option><option value="Full Razz">Full Razz (Sem Balão)</option><option value="Personalizado">Regras Especiais</option></select>
             </div>
             
-            {(category === 'copa_flash' || category === 'copa_flash_dupla') && (
+            {category === 'copa_flash' && (
                <div className="space-y-2 animate-in slide-in-from-top-2 col-span-1 md:col-span-2 bg-amber-900/30 border border-amber-500/40 p-4 rounded-xl">
                  <label className="text-sm font-black text-amber-400 flex items-center gap-1.5"><Activity size={16}/> Tempo por Fase (Minutos)</label>
-                 <p className="text-[10px] text-amber-200/70 mb-2">Quantos minutos cada rodada ficará aberta antes de realizar os sorteios duplos automáticos?</p>
+                 <p className="text-[10px] text-amber-200/70 mb-2">Quantos minutos cada rodada ficará aberta na Copa Flash Solo antes de rodar automático?</p>
                  <input type="number" min="5" value={flashDuration} onChange={e=>setFlashDuration(e.target.value)} className="w-full bg-blue-950 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-amber-500 outline-none" required />
                </div>
             )}
             
-            {/* 🌟 CAMPO DE ABERTURA DE INSCRIÇÕES AQUI NO FINAL DO BLOCO */}
             <div className="col-span-1 md:col-span-2 space-y-2 bg-emerald-900/20 border border-emerald-500/30 p-4 rounded-xl mb-2 mt-4">
               <label className="text-sm font-bold text-emerald-400">⏰ Abertura das Inscrições (Opcional)</label>
               <p className="text-[10px] text-emerald-200/70 mb-2">Se definir uma data e hora, os jogadores só poderão se inscrever quando o relógio zerar.</p>
@@ -4401,10 +4397,9 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
           
           <div className="flex flex-col gap-4 mb-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              {/* 🌟 MUDANÇA AQUI: Esconde a quantidade máxima se for Flash */}
               <label className="text-sm font-bold text-blue-300">
                 {isAutoJoin 
-                  ? `Equipes Pré-Confirmadas (Opcional: ${selectedTeams.length}${category.includes('flash') ? '' : `/${teamCount || '0'}`})` 
+                  ? `Equipes Pré-Confirmadas (Opcional: ${selectedTeams.length}${category === 'copa_flash' ? '' : `/${teamCount || '0'}`})` 
                   : `Marcar as Equipes Manualmente (Atualmente: ${selectedTeams.length} times selecionados)`}
               </label>
               
@@ -9348,7 +9343,7 @@ export default function App() {
        const now = Date.now();
        
        for (const comp of competitions) {
-          const isFlash = comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla';
+          const isFlash = comp.category === 'copa_flash';
           
           // Só atua se for Flash, se as inscrições estiverem abertas e tiver um horário definido
           if (isFlash && comp.status === 'registration' && comp.deadline && comp.startTime) {
@@ -9371,22 +9366,10 @@ export default function App() {
                    continue;
                 }
 
-                // Em torneio de Duplas, se for ímpar, o último a entrar "roda" para fechar par
-                if (comp.category === 'copa_flash_dupla' && finalTeams.length % 2 !== 0) {
-                    const kickedTeamId = finalTeams.pop(); // Remove o último inscrito
-                    const kickedTeam = teams.find(t => t.id === kickedTeamId);
-                    showToast(`Time ${kickedTeam?.name} ficou de fora (número ímpar de inscritos para dupla).`, "warning");
-                }
-
-                try {
-                    // Gera o chaveamento com os times que deram tempo de entrar!
-                    if (comp.category === 'copa_flash_dupla') {
-                       const res = generateDuplasCupBracket(finalTeams, comp.id, teams, matches, competitions);
-                       finalRounds = res.rounds;
-                       groupsData = res.duplas;
-                    } else {
-                       finalRounds = generateCupBracket(finalTeams, comp.id, comp.isFinalDouble);
-                    }
+                  try {                           
+                   try {
+                    // Como a Flash Dupla não roda mais automático, geramos apenas a tabela da Flash Solo
+                    finalRounds = generateCupBracket(finalTeams, comp.id, comp.isFinalDouble);
 
                     // Grava o torneio como 'Ativo' e salva a tabela
                     await updateDoc(getPublicDocPath('competitions', comp.id), { 
@@ -9724,7 +9707,7 @@ export default function App() {
            else if (finalScoreB === 0 && finalScoreA === 3) isWoOpp = true;
         }
 
-        // 🛡️ NOVA REGRA: Punição líquida (-2) e zera os pontos de participação de quem faltou
+        // 🛡️ NOVA REGRA: Punição líquida (-10) e zera os pontos de participação de quem faltou
         if (isWoMe) addPtsA = -10;
         else addPtsA = ptsPlay;
 
