@@ -2725,13 +2725,15 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     category: comp?.category || 'liga_a', edition: comp?.name ? comp.name.replace(/\D/g, '') : '', playStyle: comp?.playStyle || 'Livre', rules: comp?.rules || '',
     promotions: comp?.promotions || 0, relegations: comp?.relegations || 0, admins: comp?.admins || [],
     excludedCompIds: comp?.excludedCompIds || [],
-    registrationStartTime: comp?.registrationStartTime || '' // 👈 NOVO
+    registrationStartTime: comp?.registrationStartTime || ''
   });
   
-  // 🌟 ESTADOS PARA O GERENCIADOR DE GRUPOS
   const [showEditGroups, setShowEditGroups] = useState(false);
   const [teamGroupMapping, setTeamGroupMapping] = useState({});
   const [newGroupName, setNewGroupName] = useState('');
+  
+  // 🌟 NOVO ESTADO: Controle de Desistência
+  const [withdrawTeamId, setWithdrawTeamId] = useState('');
 
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -2747,7 +2749,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const isAdmin = isLeader || comp?.creatorId === currentUser?.id || (comp?.admins || []).includes(currentUser?.id);
   
-  const CATEGORY_NAMES = { liga_a: '🥇 Liga Kame A', liga_b: '🥈 Liga Kame B', liga_c: '🥉 Liga Kame C', liga_d: '🎖️ Liga Kame D', liga_acesso: ' ⬆️ Liga de acesso', copa_estrelas: '⭐ Copa das Estrelas', copa_main: '🏆 Copa Oficial', copa_flash: '⚡ Copa Flash', copa_flash_dupla: '👥 Copa Flash (Dupla)', copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia' };
+  const CATEGORY_NAMES = { liga_a: '🥇 Liga Kame A', liga_b: '🥈 Liga Kame B', liga_c: '🥉 Liga Kame C', liga_d: '🎖️ Liga Kame D', liga_acesso: ' ⬆️ Liga de acesso', copa_estrelas: '⭐ Copa das Estrelas', copa_main: '🏆 Copa Oficial', copa_flash: '⚡ Copa Flash Solo', copa_flash_dupla: '👥 Copa Flash Duplas', copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia' };
 
   const activeRound = comp?.rounds?.find(r => r.status === 'released');
   const isFlash = comp?.category === 'copa_flash' || comp?.category === 'copa_flash_dupla';
@@ -2766,6 +2768,52 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     const m = Math.floor(totalSecs / 60).toString().padStart(2, '0');
     const s = (totalSecs % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
+  };
+
+  // 🌟 FUNÇÃO DE DESISTÊNCIA E W.O. EM MASSA
+  const handleWithdrawTeam = () => {
+    if (!withdrawTeamId) return;
+    if (!window.confirm("🚨 ATENÇÃO: O time selecionado será BANIDO desta competição e tomará W.O. (0x3) em TODOS os jogos restantes automaticamente. Confirma?")) return;
+
+    const newSuspended = [...(comp.suspendedTeams || [])];
+    if (!newSuspended.includes(withdrawTeamId)) newSuspended.push(withdrawTeamId);
+
+    const newMatchDocs = [];
+    const newRounds = JSON.parse(JSON.stringify(comp.rounds || []));
+
+    newRounds.forEach(round => {
+        round.matches.forEach(m => {
+            if (m.teamA === withdrawTeamId || m.teamB === withdrawTeamId) {
+                // Checa se já tem placar validado pra esse jogo específico
+                const isPlayed = matches.some(x => x.matchId === m.id && x.compId === comp.id && x.status !== 'rejected');
+                
+                // Se não jogou e os times já estão definidos, gera o W.O.
+                if (!isPlayed && m.teamA && m.teamB && !m.teamA.includes('Definir') && !m.teamB.includes('Definir')) {
+                    const isTeamA = m.teamA === withdrawTeamId;
+                    newMatchDocs.push({
+                        id: `m_wo_quit_${Date.now()}_${Math.floor(Math.random()*10000)}`,
+                        compId: comp.id,
+                        roundId: round.id,
+                        matchId: m.id,
+                        teamA: m.teamA,
+                        teamB: m.teamB,
+                        scoreA: isTeamA ? 0 : 3,
+                        scoreB: isTeamA ? 3 : 0,
+                        penaltiesA: null,
+                        penaltiesB: null,
+                        goals: [],
+                        observacoes: '🏳️ W.O. por Desistência / Abandono de Campeonato',
+                        status: 'pending', // 👈 Vai pra aba Validação pro admin ver e aprovar os -10 pontos
+                        submittedBy: 'Sistema Admin'
+                    });
+                }
+            }
+        });
+    });
+
+    onBatchUpdateComp({ ...comp, suspendedTeams: newSuspended, rounds: newRounds }, newMatchDocs);
+    showToast(`Desistência registrada! ${newMatchDocs.length} W.O(s) gerados para validação.`, "success");
+    setWithdrawTeamId('');
   };
 
   const handleAutoFlashRound = (round) => {
@@ -2996,7 +3044,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const handleSavePrizes = () => { onEditComp({ ...comp, prizes: { first: prizeData.first.trim(), second: prizeData.second.trim(), third: prizeData.third.trim(), extra: prizeData.extra.trim() } }); setShowEditPrizes(false); showToast("Quadro de premiações atualizado!", "success"); };
   
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
-  const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id));
+  const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id) && !(comp.suspendedTeams || []).includes(t.id));
   const isKnockoutEdit = editMatchData?.id?.includes('_ko_');
   const availableTeamsForEdit = (comp.format === 'groups' && editMatchData?.group && comp.groups && !isKnockoutEdit) ? (comp.groups[editMatchData.group] || []) : (comp.teams || []);
   
@@ -3155,8 +3203,8 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                 <option value="copa_do_rei">👑 Copa do Rei</option>
                 <option value="copa_estrela"> ⭐ Copa das Estrelas</option>
                 <option value="copa_amazonia">🌳 Copa da Amazônia</option>
-                <option value="copa_flash">⚡ Copa Flash (Tiro Curto)</option>
-                <option value="copa_flash_dupla">👥 Copa Flash (Duplas)</option>
+                <option value="copa_flash">⚡ Copa Flash Solo</option>
+                <option value="copa_flash_dupla">👥 Copa Flash Duplas</option>
               </select>
             </div>
             <div className="space-y-1"><label className="text-xs font-bold text-blue-400">Estilo de Jogo</label>
@@ -3205,7 +3253,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setShowEditSettings(false)} className="px-4 py-2 bg-blue-900 border border-blue-700 rounded-lg text-xs text-blue-300 hover:text-white">Cancelar</button>
             <button onClick={() => { 
-              const CAT_NAMES = { liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D', liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash (Duplas)', copa_do_rei: 'Copa do Rei', copa_estrelas: 'Copa das Estrelas', copa_amazonia: 'Copa da Amazônia' }; 
+              const CAT_NAMES = { liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D', liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial', copa_flash: 'Copa Flash Solo', copa_flash_dupla: 'Copa Flash Duplas', copa_do_rei: 'Copa do Rei', copa_estrelas: 'Copa das Estrelas', copa_amazonia: 'Copa da Amazônia' }; 
               const cleanCatName = CAT_NAMES[settingsData.category] || 'Competição'; 
               
              onEditComp({ 
@@ -3218,7 +3266,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                 relegations: settingsData.relegations, 
                 admins: settingsData.admins,
                 excludedCompIds: settingsData.excludedCompIds,
-                registrationStartTime: settingsData.registrationStartTime // 👈 NOVO AQUI
+                registrationStartTime: settingsData.registrationStartTime
               });
               setShowEditSettings(false); 
               showToast("Configurações atualizadas!", "success"); 
@@ -3397,6 +3445,38 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                     <p className="text-xs text-blue-200 whitespace-pre-wrap leading-relaxed">{comp.rules}</p>
                   </div>
                 )}
+
+                {/* 🌟 NOVO: PAINEL DE DESISTÊNCIA (ADMIN) */}
+                {isAdmin && comp.status === 'active' && (
+                  <div className="bg-red-950/40 p-5 rounded-xl border border-red-800 shadow-inner mb-6 animate-in slide-in-from-top-2">
+                    <h4 className="text-sm font-bold text-red-400 mb-2 flex items-center gap-2">
+                      <Trash2 size={16}/> Registrar Abandono de Equipe
+                    </h4>
+                    <p className="text-[10px] text-red-200 mb-3">O time selecionado sofrerá W.O. (0x3) em todos os jogos restantes e será <b>banido de participar de futuras edições</b> deste torneio.</p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                       <select value={withdrawTeamId} onChange={e=>setWithdrawTeamId(e.target.value)} className="flex-1 bg-blue-900 border border-red-500/50 rounded-lg p-2 text-white text-xs outline-none focus:border-red-400">
+                         <option value="">Selecione a equipe que desistiu/quitou...</option>
+                         {compTeams.filter(t => !(comp.suspendedTeams || []).includes(t.id)).map(t => (
+                           <option key={t.id} value={t.id}>{t.name}</option>
+                         ))}
+                       </select>
+                       <button onClick={handleWithdrawTeam} className="bg-red-600 hover:bg-red-500 text-white font-bold text-xs py-2 px-4 rounded-lg shadow-lg transition-colors shrink-0">
+                         Confirmar Banimento e W.O
+                       </button>
+                    </div>
+                    {(comp.suspendedTeams || []).length > 0 && (
+                       <div className="mt-4 pt-3 border-t border-red-800/50">
+                         <span className="text-[10px] text-red-400 font-bold uppercase tracking-widest block mb-2">Equipes Banidas Deste Torneio:</span>
+                         <div className="flex flex-wrap gap-2">
+                           {comp.suspendedTeams.map(id => {
+                              const t = getTeam(id);
+                              return <span key={id} className="bg-red-500/10 text-red-300 border border-red-500/30 px-2 py-1 rounded text-[10px] flex items-center gap-1"><Lock size={10}/> {t?.name || 'Desconhecido'}</span>
+                           })}
+                         </div>
+                       </div>
+                    )}
+                  </div>
+                )}
                 
                 {comp.format !== 'league' && (
                   <div className="flex justify-center"><div className="bg-blue-950 p-1 rounded-xl border border-blue-800 flex gap-1">
@@ -3422,7 +3502,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                         </div>
                         {isAdmin && (
                            <button onClick={() => handleAutoFlashRound(activeRound)} className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all shadow-lg ${isExpired ? 'bg-amber-600 hover:bg-amber-500 text-white animate-bounce' : 'bg-blue-800 hover:bg-amber-600 text-blue-300 hover:text-white border border-blue-700 hover:border-amber-500'}`}>
-                             ⚡ Encerrar Fase Automático
+                              ⚡ Encerrar Fase Automático
                            </button>
                         )}
                      </div>
@@ -3633,7 +3713,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                       const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                                       const isLocked = round.status === 'locked'; const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
                                       
-                                      // 🌟 NOVA LÓGICA DE BYE: Verifica se um time avançou sozinho (ímpar)
                                       const isBye = (m.teamA && !m.teamB && m.placeholderB.includes('Vaga')) || (!m.teamA && m.teamB && m.placeholderA.includes('Vaga'));
 
                                       let teamALost = false; let teamBLost = false;
@@ -3651,13 +3730,11 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                             <div onClick={() => { if(sUI.isPlayed && onSelectMatch && !isBye){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed || isBye ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} ${!isBye ? 'cursor-pointer' : ''} relative overflow-hidden`}>
                                               <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
                                                 <span className="text-blue-500">{m.id.includes('_f1') && round.matches.length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' : m.id.includes('_f2') ? '🏆 Final (Volta)' : m.id.includes('_3rd') ? '🥉 Disputa 3º Lugar' : 'Confronto'}</span>
-                                                {/* 🌟 MOSTRA SE FOI AVANÇO AUTOMÁTICO */}
                                                 <span className={isBye ? 'text-emerald-400' : sUI.color}>{isBye ? 'Avanço Direto' : sUI.text}</span>
                                               </div>
                                               <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tA?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamALost || (isBye && tA) ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tA?.name || m.placeholderA}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && !isBye && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed || (isBye && tA) ? 'text-emerald-400' : 'text-blue-700'}`}>{isBye ? (tA ? 'W' : '-') : sUI.isPlayed ? sUI.scoreA : '-'}</span></div></div>
                                               <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1"><ShieldDisplay shield={tB?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamBLost || (isBye && tB) ? 'text-emerald-400 font-black' : 'text-blue-200'}`}>{tB?.name || m.placeholderB}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && !isBye && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed || (isBye && tB) ? 'text-emerald-400' : 'text-blue-700'}`}>{isBye ? (tB ? 'W' : '-') : sUI.isPlayed ? sUI.scoreB : '-'}</span></div></div>
                                             </div>
-                                            {/* 🌟 ESCONDE O BOTÃO DE EDITAR SE FOR AVANÇO AUTOMÁTICO */}
                                             {isAdmin && !isBye && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
                                           </div>
                                           {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
@@ -3841,7 +3918,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                   <button onClick={() => setSelectedDuplaMatchup(null)} className="text-blue-400 hover:text-white bg-blue-800 p-1.5 rounded-full"><X size={16}/></button>
                 </div>
 
-                {/* Nomes das Duplas Editáveis (se admin) */}
                 <div className="space-y-4 mb-6">
                   <div>
                     <label className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-1">Dupla 1 (Mandante Ida)</label>
@@ -3870,7 +3946,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                   </div>
                 </div>
 
-                {/* Status dos Jogos Individuais */}
                 <div className="bg-blue-950/50 p-4 rounded-xl border border-blue-800 space-y-4">
                   <div className="flex items-center justify-between">
                       <div>
@@ -3901,13 +3976,11 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                   </div>
                 </div>
 
-                {/* AGREGADO */}
                 <div className="mt-4 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30 text-center">
                   <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-1">Placar Agregado</p>
                   <p className="text-xl font-black text-white">{aggScoreA} x {aggScoreB}</p>
                 </div>
 
-                {/* BOTOES DE AVANÇO MANUAL (APARECEM QUANDO O JOGO ACABA) */}
                 {isAdmin && isPlayed && (comp.rounds.findIndex(r => r.id === roundId) < comp.rounds.length - 1) && (
                   <div className="mt-4 grid grid-cols-2 gap-3">
                       <button onClick={() => handleForceAdvanceDupla(roundId, mIda, duplaA)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg shadow-md transition-colors truncate px-2">
@@ -3956,15 +4029,18 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   if (!comp) return <div className="p-8 text-center text-slate-400">Torneio não encontrado ou encerrado.</div>;
   if (!userTeam) return <div className="p-8 text-center text-amber-400 font-bold bg-amber-500/10 rounded-2xl border border-amber-500/30 m-4">Você precisa ter um time cadastrado para participar. Peça a um líder para criar seu clube primeiro.</div>;
 
-  // 🌟 SEPARAÇÃO CRUCIAL AQUI: Auto-Start e Sem Limite apenas para SOLO.
   const isFlashSolo = comp.category === 'copa_flash';
   const isFlashDupla = comp.category === 'copa_flash_dupla';
   
   const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
   const compPending = Array.isArray(comp.pendingTeams) ? comp.pendingTeams : [];
+  
+  // 🌟 VERIFICAÇÃO DE PUNIÇÃO DE DESISTÊNCIA
+  const compSuspended = Array.isArray(comp.suspendedTeams) ? comp.suspendedTeams : [];
+  const isSuspended = compSuspended.some(tId => userTeamIds.includes(tId));
+  
   const teamCount = parseInt(comp.teamCount) || 0;
 
-  // Duplas agora respeitam o limite de vagas definido pelo Líder!
   const isFull = isFlashSolo ? false : compTeams.length >= teamCount;
   const alreadyJoined = compTeams.some(tId => userTeamIds.includes(tId));
   const isPending = compPending.some(p => p && userTeamIds.includes(p.teamId));
@@ -3997,6 +4073,7 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isRegistrationOpen) { showToast("A bilheteria ainda não abriu!", "warning"); return; }
+    if (isSuspended) { showToast("Você está suspenso deste torneio por abandono anterior!", "error"); return; }
     if (isBlockedByOtherComp) { showToast("Acesso Negado: Seu time já disputa um torneio bloqueado para esta competição.", "error"); return; }
     if (comp.isPaid && !receipt) { showToast("Anexe o comprovante de pagamento!", "error"); return; }
     
@@ -4019,7 +4096,6 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
 
         <div className="p-6 space-y-6">
           
-          {/* MURAL DE ENCERRAMENTO: AGORA SÓ APARECE NA COPA FLASH SOLO! */}
           {isRegistrationOpen && isFlashSolo && deadlineTimeStr && (
             <div className="bg-amber-900/40 p-5 rounded-2xl border border-amber-500/50 text-center shadow-inner animate-in zoom-in-95">
               <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-1.5 flex justify-center items-center gap-1.5">
@@ -4049,7 +4125,6 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
             </div>
           </div>
 
-          {/* ... (O restante da renderização dos prêmios, bilheteria e formulário segue exatamente igual) */}
           {hasAnyPrize && (
             <div className="bg-gradient-to-b from-amber-500/5 to-blue-950/50 border border-amber-500/20 p-4 rounded-xl space-y-3">
               <div className="flex items-center gap-2 border-b border-blue-800 pb-2">
@@ -4079,6 +4154,14 @@ const JoinCompetition = ({ compId, competitions, teams, currentUser, onJoin, onB
                  </p>
                </div>
             </div>
+          ) : isSuspended ? (
+             // 🌟 A MURALHA DA PUNIÇÃO
+             <div className="text-center p-6 bg-red-950/80 border border-red-500/50 rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.2)] animate-in zoom-in-95">
+               <Lock className="text-red-500 mx-auto mb-3" size={42}/>
+               <h3 className="text-xl font-black text-red-400 uppercase tracking-wider mb-2">Conta Suspensa</h3>
+               <p className="text-red-200 text-sm font-medium">Seu time abandonou ou causou W.O. em rodadas anteriores deste torneio.</p>
+               <p className="text-[10px] text-red-400 mt-4 uppercase font-bold tracking-widest bg-red-500/10 py-1.5 rounded border border-red-500/20">Inscrição Bloqueada pela Diretoria</p>
+             </div>
           ) : alreadyJoined ? (
              <div className="text-center p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl"><CheckCircle className="text-emerald-500 mx-auto mb-2" size={32}/><p className="font-bold text-emerald-400">Você já está confirmado neste torneio!</p></div>
           ) : isPending ? (
@@ -4293,10 +4376,12 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
       registrationStartDate, startDate,
       teamCount: parsedTeamCount, 
       status: isAutoJoin ? 'registration' : 'active', 
-      teams: selectedTeams, pendingTeams: [], rounds: finalRounds,
+      teams: selectedTeams, pendingTeams: [], 
+      suspendedTeams: [], // 👈 NOVO CAMPO: Lista negra de desistentes do torneio começa vazia
+      rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido', creatorId: currentUser?.id, admins: [currentUser?.id],  
       isDoubleRound, isFinalDouble, numGroups: parseInt(numGroups || '0', 10), qualifiersPerGroup: parseInt(qualifiers || '0', 10),
-      flashDuration: isFlashSolo ? parseInt(flashDuration, 10) : null, // Só salva duração para Solo
+      flashDuration: isFlashSolo ? parseInt(flashDuration, 10) : null,
       excludedCompIds: excludedCompIds,
       ...(groupsData && { groups: groupsData }),
       isPaid: isPaid,
@@ -9707,7 +9792,23 @@ export default function App() {
            else if (finalScoreB === 0 && finalScoreA === 3) isWoOpp = true;
         }
 
-        // 🛡️ NOVA REGRA: Punição líquida (-10) e zera os pontos de participação de quem faltou
+        // 🛡️ NOVA REGRA: Punição (-10), zera pontos e SUSPENDE o infrator do torneio!
+        if (isWoMe || isWoOpp) {
+           const suspendedTeams = comp.suspendedTeams || [];
+           let newSuspended = [...suspendedTeams];
+           
+           if (isWoMe && !newSuspended.includes(tA.id)) newSuspended.push(tA.id);
+           if (isWoOpp && !newSuspended.includes(tB.id)) newSuspended.push(tB.id);
+
+           // Remove o time da lista de confirmados para limpar a chave futura se houver repescagem
+           const newTeams = (comp.teams || []).filter(tId => !newSuspended.includes(tId));
+           
+           await updateDoc(getPublicDocPath('competitions', comp.id), { 
+              suspendedTeams: newSuspended,
+              teams: newTeams
+           });
+        }
+
         if (isWoMe) addPtsA = -10;
         else addPtsA = ptsPlay;
 
