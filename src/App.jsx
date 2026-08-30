@@ -9451,8 +9451,7 @@ export default function App() {
                    continue;
                 }
 
-                  try {                           
-                   try {
+                  try {
                     // Como a Flash Dupla não roda mais automático, geramos apenas a tabela da Flash Solo
                     finalRounds = generateCupBracket(finalTeams, comp.id, comp.isFinalDouble);
 
