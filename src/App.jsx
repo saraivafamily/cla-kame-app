@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
+import { auth, db, getPublicPath, getPublicDocPath } from './utils/firebase';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where, initializeFirestore, getDocs } from 'firebase/firestore';
 import { PONTOS } from './utils/pontuacoes';
@@ -15,27 +16,8 @@ import ShieldDisplay from './components/ShieldDisplay';
 import RulesPage from './components/RulesPage';
 import TrainingCenter from './components/TrainingCenter';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart, Zap, Brain, Eye, Flame, Calendar, Globe } from 'lucide-react';
+
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
-
-const firebaseConfig = { 
-  apiKey: "AIzaSyCoZ255eUBfUsIYArCMtHflT0y_6U5fTsA", 
-  authDomain: "cla-kame.firebaseapp.com", 
-  databaseURL: "https://cla-kame-default-rtdb.firebaseio.com", 
-  projectId: "cla-kame", 
-  storageBucket: "cla-kame.firebasestorage.app", 
-  messagingSenderId: "253792062726", 
-  appId: "1:253792062726:web:1ee567bbbd175c31ce2287" 
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true
-});
-const appId = 'cla-kame-oficial';
-
-const getPublicPath = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
-const getPublicDocPath = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
 const ROLE_NAMES = { leader: 'Líder Supremo', kaioh: 'Senhor Kaioh', organizer: 'Organizador', member: 'Membro Oficial' };
 const inputClass = "w-full bg-blue-950 border border-blue-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none transition-colors text-sm";
