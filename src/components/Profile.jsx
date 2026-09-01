@@ -3,10 +3,10 @@ import { UploadCloud, Medal, Star, Trophy, Activity } from 'lucide-react';
 import { updateDoc } from 'firebase/firestore';
 import { getPublicDocPath } from '../utils/firebase';
 import ShieldDisplay from './ShieldDisplay';
-import { processImage } from '../utils/helpers';
+import { processImage, ROLE_NAMES } from '../utils/helpers';
 import { calculateStandings, getChampionIds } from '../utils/torneios';
 import { PONTOS } from '../utils/pontuacoes';
-import { processImage, ROLE_NAMES } from '../utils/helpers';
+
 
 const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpdateUserPhoto }) => { 
   const userTeams = teams.filter(t => t.ownerId === currentUser.id);
