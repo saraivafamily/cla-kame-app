@@ -17,7 +17,7 @@ import ShieldDisplay from './components/ShieldDisplay';
 import RulesPage from './components/RulesPage';
 import TrainingCenter from './components/TrainingCenter';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart, Zap, Brain, Eye, Flame, Calendar, Globe } from 'lucide-react';
-import { processImage, processScreenshot } from './utils/helpers';
+import { processImage, processScreenshot, ROLE_NAMES } from './utils/helpers';
 import KameBank from './components/KameBank';
 import KameStore from './components/KameStore';
 import GlobalRanking from './components/GlobalRanking';
@@ -32,7 +32,6 @@ import Button from './components/Button';
 
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
-const ROLE_NAMES = { leader: 'Líder Supremo', kaioh: 'Senhor Kaioh', organizer: 'Organizador', member: 'Membro Oficial' };
 const inputClass = "w-full bg-blue-950 border border-blue-700 focus:border-emerald-500 rounded-lg p-3 text-white outline-none transition-colors text-sm";
 
 const DrawPanel = ({ comp, teams, matches, showToast }) => {
