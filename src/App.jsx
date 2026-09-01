@@ -40,13 +40,6 @@ const inputClass = "w-full bg-blue-950 border border-blue-700 focus:border-emera
 const processImage = (file, cb) => { if(!file) return; const r = new FileReader(); r.onload = e => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const MAX = 128; let w = img.width, h = img.height; if (w > h) { if (w > MAX) { h *= MAX / w; w = MAX; } } else { if (h > MAX) { w *= MAX / h; h = MAX; } } canvas.width = w; canvas.height = h; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h); cb(canvas.toDataURL('image/png')); }; img.src = e.target.result; }; r.readAsDataURL(file); };
 const processScreenshot = (file, cb) => { if(!file) return; const r = new FileReader(); r.onload = e => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const MAX = 900; let w = img.width, h = img.height; if (w > h) { if (w > MAX) { h *= MAX / w; w = MAX; } } else { if (h > MAX) { w *= MAX / h; h = MAX; } } canvas.width = w; canvas.height = h; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h); cb(canvas.toDataURL('image/jpeg', 0.6)); }; img.src = e.target.result; }; r.readAsDataURL(file); };
 
-const ShieldDisplay = ({ shield, size = 'normal' }) => {
-  const isImage = typeof shield === 'string' && (shield.startsWith('data:') || shield.startsWith('http'));
-  const sizeClasses = { 'small': isImage ? 'w-10 h-10' : 'text-xl', 'normal': isImage ? 'w-16 h-16' : 'text-2xl', 'large': isImage ? 'w-20 h-20' : 'text-2xl' };
-  if (isImage) return <img src={shield} alt="Escudo" className={`${sizeClasses[size]} object-contain drop-shadow-lg`} />;
-  return <span className={`${sizeClasses[size]} inline-block text-center`} style={{lineHeight: 1}}>{shield || '🛡️'}</span>;
-};
-
 const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, type = 'button' }) => {
   const variants = { primary: "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/50", secondary: "bg-blue-700 hover:bg-blue-600 text-white", danger: "bg-red-600 hover:bg-red-500 text-white", outline: "border border-blue-600 text-blue-300 hover:bg-blue-800" };
   return <button type={type} onClick={onClick} disabled={disabled} className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${className}`}>{children}</button>;
