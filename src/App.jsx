@@ -18,8 +18,6 @@ import RulesPage from './components/RulesPage';
 import TrainingCenter from './components/TrainingCenter';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart, Zap, Brain, Eye, Flame, Calendar, Globe } from 'lucide-react';
 
-//Há algo novo aqui
-
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
 const ROLE_NAMES = { leader: 'Líder Supremo', kaioh: 'Senhor Kaioh', organizer: 'Organizador', member: 'Membro Oficial' };
@@ -27,10 +25,6 @@ const inputClass = "w-full bg-blue-950 border border-blue-700 focus:border-emera
 
 const processImage = (file, cb) => { if(!file) return; const r = new FileReader(); r.onload = e => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const MAX = 128; let w = img.width, h = img.height; if (w > h) { if (w > MAX) { h *= MAX / w; w = MAX; } } else { if (h > MAX) { w *= MAX / h; h = MAX; } } canvas.width = w; canvas.height = h; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h); cb(canvas.toDataURL('image/png')); }; img.src = e.target.result; }; r.readAsDataURL(file); };
 const processScreenshot = (file, cb) => { if(!file) return; const r = new FileReader(); r.onload = e => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const MAX = 900; let w = img.width, h = img.height; if (w > h) { if (w > MAX) { h *= MAX / w; w = MAX; } } else { if (h > MAX) { w *= MAX / h; h = MAX; } } canvas.width = w; canvas.height = h; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h); cb(canvas.toDataURL('image/jpeg', 0.6)); }; img.src = e.target.result; }; r.readAsDataURL(file); };
-    
-    // Tratamento universal de data para não bugar no iOS/Safari
-    const safeDateStr = targetDateStr.includes('T') ? targetDateStr : `${targetDateStr}T00:00:00`;
-    const target = new Date(safeDateStr).getTime();
 
 const LoginScreen = ({ onLogin, onRegister, onGoogleLogin }) => {
   const [view, setView] = useState('login'); // 'login', 'register', 'reset'
