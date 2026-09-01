@@ -6,7 +6,7 @@ import ShieldDisplay from './ShieldDisplay';
 import { processImage, ROLE_NAMES } from '../utils/helpers';
 import { calculateStandings, getChampionIds } from '../utils/torneios';
 import { PONTOS } from '../utils/pontuacoes';
-
+//Corrigido
 
 const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpdateUserPhoto }) => { 
   const userTeams = teams.filter(t => t.ownerId === currentUser.id);
