@@ -28,6 +28,7 @@ import LoginScreen from './components/LoginScreen';
 import Standings from './components/Standings';
 import MatchDetails from './components/MatchDetails';
 import TeamsList from './components/TeamsList';
+import Button from './components/Button';
 
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
