@@ -11,7 +11,7 @@ import {
   generateGroupsAndKnockout, 
   generateDuplasCupBracket 
 } from './utils/torneios';
-import ShieldDisplay from './components/ShieldDisplay';
+import ShieldDisplay from './components/ShieldDisplay.';
 import RulesPage from './components/RulesPage';
 import TrainingCenter from './components/TrainingCenter';
 import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart, Zap, Brain, Eye, Flame, Calendar, Globe } from 'lucide-react';
