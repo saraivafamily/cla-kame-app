@@ -6,6 +6,7 @@ const ValidationPanel = ({ matches, teams, competitions, onUpdateStatus, showToa
   const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const isCompAdmin = (c) => isLeader || c?.creatorId === currentUser?.id || (c?.admins || []).includes(currentUser?.id);
 
+  // Filtra só os pendentes das competições que o usuário atual administra
   const pending = (matches || []).filter(m => {
      if (!m || m.status !== 'pending') return false;
      const comp = competitions.find(c => c.id === m.compId);
