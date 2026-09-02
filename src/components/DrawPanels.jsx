@@ -5,30 +5,25 @@ import Button from './Button';
 import { calculateStandings } from '../utils/torneios';
 
 export const DrawPanel = ({ comp, teams, matches, showToast }) => {
-const DrawPanel = ({ comp, teams, matches, showToast }) => {
   const [prizeName, setPrizeName] = useState('Passe de Temporada');
   const [prizeQty, setPrizeQty] = useState(1);
-  const [excludeTop, setExcludeTop] = useState(3); // Exclui Top 1, 2 e 3 por padrão
+  const [excludeTop, setExcludeTop] = useState(3);
   const [excludeWO, setExcludeWO] = useState(true);
   
   const [isDrawing, setIsDrawing] = useState(false);
   const [winners, setWinners] = useState([]);
 
-  // 1. Pega a Classificação Atual
   const standings = useMemo(() => {
-    // Filtra para manter APENAS os times que estão inscritos nesta competição
     const compTeams = (teams || []).filter(t => comp.teams?.includes(t.id));
     return calculateStandings(matches, compTeams, comp.id);
   }, [matches, teams, comp]);
 
-  // 2. Identifica os perdedores por W.O.
   const woLosers = useMemo(() => {
     const losers = new Set();
     matches.filter(m => m.compId === comp.id && m.status === 'approved').forEach(m => {
       const obs = (m.observacoes || '').toLowerCase();
       const isWO = obs.includes('w.o') || obs.includes('wo');
       if (isWO) {
-        // Quem tem 0 gols no W.O. foi quem tomou o W.O. Se for duplo, penaliza os dois.
         if (m.scoreA === 0 && m.scoreB === 3) losers.add(m.teamA);
         if (m.scoreB === 0 && m.scoreA === 3) losers.add(m.teamB);
         if (obs.includes('duplo')) { losers.add(m.teamA); losers.add(m.teamB); }
@@ -37,7 +32,6 @@ const DrawPanel = ({ comp, teams, matches, showToast }) => {
     return losers;
   }, [matches, comp.id]);
 
-  // 3. Aplica o Funil de Regras
   const { eligible, excluded } = useMemo(() => {
     const el = []; const ex = [];
     standings.forEach((teamStats, index) => {
@@ -75,7 +69,6 @@ const DrawPanel = ({ comp, teams, matches, showToast }) => {
     setWinners([]);
 
     setTimeout(() => {
-      // Algoritmo de Embaralhamento (Fisher-Yates)
       let pool = [...eligible];
       for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -85,13 +78,12 @@ const DrawPanel = ({ comp, teams, matches, showToast }) => {
       setWinners(pool.slice(0, prizeQty));
       setIsDrawing(false);
       showToast("Sorteio realizado com sucesso!", "success");
-    }, 2000); // 2 segundos de suspense
+    }, 2000);
   };
 
   return (
     <div className="space-y-6 animate-in fade-in">
       <div className="bg-purple-900/40 p-5 rounded-2xl border border-purple-500/50 flex flex-col md:flex-row gap-6 shadow-xl">
-        {/* Formulário de Configuração */}
         <div className="flex-1 space-y-4">
           <h3 className="text-lg font-black text-purple-400 flex items-center gap-2 uppercase tracking-wider"><Dices size={20}/> Configurar Sorteio</h3>
           
@@ -124,7 +116,6 @@ const DrawPanel = ({ comp, teams, matches, showToast }) => {
           </Button>
         </div>
 
-        {/* Status do Funil */}
         <div className="flex-1 flex flex-col gap-3">
           <div className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex-1 overflow-y-auto max-h-[150px] custom-scrollbar">
             <p className="text-xs font-bold text-emerald-400 mb-2 sticky top-0 bg-blue-950">✅ Participantes Elegíveis ({eligible.length})</p>
@@ -145,7 +136,6 @@ const DrawPanel = ({ comp, teams, matches, showToast }) => {
         </div>
       </div>
 
-      {/* Resultado do Sorteio */}
       {winners.length > 0 && (
         <div className="bg-gradient-to-br from-amber-500 to-yellow-600 p-1 rounded-3xl animate-in zoom-in-95 duration-500 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
           <div className="bg-blue-950 rounded-[22px] p-6 text-center h-full">
@@ -154,7 +144,7 @@ const DrawPanel = ({ comp, teams, matches, showToast }) => {
             <p className="text-sm text-blue-300 mb-6">Prêmio: <b className="text-white">{prizeName}</b></p>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 justify-center">
-              {winners.map((w, idx) => (
+              {winners.map((w) => (
                 <div key={w.id} className="bg-blue-900 p-4 rounded-xl border border-amber-500/40 shadow-inner flex flex-col items-center gap-2 transform hover:scale-105 transition-transform">
                   <ShieldDisplay shield={w.shield} size="normal" />
                   <span className="font-bold text-white text-base mt-2 truncate w-full text-center">{w.name}</span>
@@ -170,9 +160,7 @@ const DrawPanel = ({ comp, teams, matches, showToast }) => {
 };
 
 export const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
-// 🌟 PAINEL DE SORTEIO AO VIVO (MODO OBS COM ÁRVORE DE MATA-MATA)
-const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
-  const [step, setStep] = useState(0); // 0: Init, 1: Sortear Parceiro, 2: Nomear Dupla, 3: Sortear Chave, 4: Concluído
+  const [step, setStep] = useState(0);
   const [p1List, setP1List] = useState([]);
   const [p2List, setP2List] = useState([]);
   const [duplas, setDuplas] = useState([]);
@@ -184,7 +172,6 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
   const [duplaName, setDuplaName] = useState('');
   const [chromaMode, setChromaMode] = useState(false);
 
-  // 🔊 Efeito sonoro de clique de suspense
   const playTick = () => {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -203,7 +190,6 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
     } catch(e) {}
   };
 
-  // Passo 0: Puxa o Ranking e Separa os Potes automaticamente
   useEffect(() => {
     if (step === 0) {
       const getTeamScore = (tId) => { const t = teams.find(x => x.id === tId); return t ? (t.globalPoints || 0) : 0; };
@@ -232,7 +218,6 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
         setCurrentP2(finalP2); 
         setSpinTarget(finalP2);
         
-        // Sugestão Automática de Nome
         const p1 = p1List[0];
         const n1 = p1?.name ? p1.name.split(' ')[0] : 'Time1';
         const n2 = finalP2?.name ? finalP2.name.split(' ')[0] : 'Time2';
@@ -263,7 +248,7 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
     setDuplaName('');
     
     if (newP1List.length === 0) {
-      setStep(3); // Vai direto para o chaveamento de mata-mata
+      setStep(3);
     } else {
       setStep(1);
     }
@@ -290,7 +275,7 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
         setBracketDuplas(prev => {
           const newBracket = [...prev, selected];
           if (newBracket.length === duplas.length) {
-            setTimeout(() => setStep(4), 1000); // Libera o botão verde no final
+            setTimeout(() => setStep(4), 1000);
           }
           return newBracket;
         });
@@ -352,7 +337,6 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
   return (
     <div className={`fixed inset-0 z-50 overflow-y-auto custom-scrollbar flex flex-col p-6 sm:p-8 transition-colors duration-500 ${chromaMode ? 'bg-[#00FF00] text-black' : 'bg-[#020617] text-white'}`}>
       
-      {/* CABEÇALHO */}
       <div className={`flex justify-between items-center border-b pb-4 mb-6 ${chromaMode ? 'border-green-800' : 'border-blue-900'}`}>
         <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
           <div>
@@ -364,7 +348,7 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
             </p>
           </div>
           <button onClick={() => setChromaMode(!chromaMode)} className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-xl text-white text-xs font-black uppercase tracking-wider shadow-lg flex items-center gap-2 transition-transform hover:scale-105 border border-white/20">
-             🟩 Modo OBS (Tela Verde)
+              🟩 Modo OBS (Tela Verde)
           </button>
         </div>
         <button onClick={onCancel} className={`font-bold flex items-center gap-1.5 text-xs sm:text-sm ${chromaMode ? 'text-red-700 hover:text-red-900' : 'text-blue-500 hover:text-red-400'}`}>
@@ -374,7 +358,6 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
 
       <div className="flex-1 flex flex-col items-center justify-center max-w-5xl mx-auto w-full">
         
-        {/* ETAPA 1 e 2: FORMAR AS DUPLAS (POTE 1 x POTE 2) */}
         {(step === 1 || step === 2) && (
           <div className="w-full text-center animate-in zoom-in-95 duration-500">
             <h3 className={`text-xl sm:text-2xl font-black uppercase tracking-widest mb-8 sm:mb-12 ${chromaMode ? 'text-black' : 'text-blue-300'}`}>
@@ -428,20 +411,18 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
           </div>
         )}
 
-        {/* ETAPA 3 e 4: CHAVEAMENTO EM FORMATO OFICIAL DE MATA-MATA */}
         {(step === 3 || step === 4) && (
           <div className="w-full animate-in zoom-in-95 duration-500 flex flex-col items-center">
              
              <div className="text-center mb-8">
                <h3 className={`text-2xl sm:text-3xl font-black uppercase tracking-widest ${chromaMode ? 'text-black' : 'text-amber-400'}`}>
-                 Chaveamento Oficial
+                  Chaveamento Oficial
                </h3>
                <p className={`text-xs sm:text-sm mt-1 ${chromaMode ? 'text-green-900 font-bold' : 'text-blue-300'}`}>
-                 Sorteie as duplas para definir os confrontos diretos na chave.
+                  Sorteie as duplas para definir os confrontos diretos na chave.
                </p>
              </div>
 
-             {/* CONTROLES DO SORTEIO NO TOPO */}
              <div className="flex flex-col items-center justify-center mb-8 w-full max-w-2xl min-h-[120px]">
                {currentP2 && step === 3 && (
                  <div className="text-center animate-in fade-in">
@@ -470,9 +451,7 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
                )}
              </div>
 
-             {/* ÁRVORE DE CONFRONTOS */}
              <div className="w-full flex justify-center overflow-x-auto custom-scrollbar pb-8">
-                {/* Coluna da 1ª Fase */}
                 <div className="w-64 flex flex-col shrink-0 min-h-[400px]">
                    <div className={`border rounded-xl px-4 py-2.5 text-center shadow-md relative overflow-hidden mb-6 ${chromaMode ? 'bg-green-100 border-green-600' : 'bg-blue-900 border-blue-800'}`}>
                       <span className={`text-xs font-black uppercase tracking-widest ${chromaMode ? 'text-green-800' : 'text-amber-400'}`}>FASE INICIAL</span>
@@ -511,9 +490,8 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
                                     </div>
                                  </div>
                                  
-                                 {/* Linha conectora (Mata-mata) */}
                                  {Math.ceil(duplas.length / 2) > 1 && (
-                                   <div className={`absolute -right-6 w-6 ${chromaMode ? 'border-green-600' : 'border-blue-600/60'} ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>
+                                    <div className={`absolute -right-6 w-6 ${chromaMode ? 'border-green-600' : 'border-blue-600/60'} ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>
                                  )}
                              </div>
                          );
@@ -521,7 +499,6 @@ const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
                    </div>
                 </div>
                 
-                {/* Coluna Visual Mockada da 2ª Fase (Apenas para estética de árvore) */}
                 {Math.ceil(duplas.length / 2) > 1 && (
                   <div className="w-64 flex flex-col shrink-0 min-h-[400px] ml-6 opacity-60">
                      <div className={`border rounded-xl px-4 py-2.5 text-center shadow-md relative overflow-hidden mb-6 ${chromaMode ? 'bg-green-100 border-green-600' : 'bg-blue-900 border-blue-800'}`}>
