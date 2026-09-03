@@ -460,7 +460,7 @@ export default function App() {
             await updateDoc(getPublicDocPath('predictions', pred.id), { status: isWin ? 'won' : 'lost', payout, profit });
          }
 
-         // 🛡️ CORREÇÃO 2: Busca o saldo atualizado direto do banco para evitar sobreposição (Race Condition) na validação rápida
+         // 🛡️ CORREÇÃO 2: Busca o saldo atualizado direto do banco
          for (const userId of Object.keys(userPayouts)) {
             const uQuery = query(getPublicPath('users'), where('id', '==', userId));
             const uSnap = await getDocs(uQuery);
@@ -503,7 +503,7 @@ export default function App() {
            else if (finalScoreB === 0 && finalScoreA === 3) isWoOpp = true;
         }
 
-        // 🛡️ NOVA REGRA: Punição (-10), zera pontos e SUSPENDE o infrator do torneio!
+        // 🛡️ NOVA REGRA: Punição (-10), zera pontos e SUSPENDE (Apenas pra próxima edição)
         if (isWoMe || isWoOpp) {
            const suspendedTeams = comp.suspendedTeams || [];
            let newSuspended = [...suspendedTeams];
@@ -511,12 +511,9 @@ export default function App() {
            if (isWoMe && !newSuspended.includes(tA.id)) newSuspended.push(tA.id);
            if (isWoOpp && !newSuspended.includes(tB.id)) newSuspended.push(tB.id);
 
-           // Remove o time da lista de confirmados para limpar a chave futura se houver repescagem
-           const newTeams = (comp.teams || []).filter(tId => !newSuspended.includes(tId));
-           
+           // Removemos a filtragem de comp.teams, o time permance na tabela atual
            await updateDoc(getPublicDocPath('competitions', comp.id), { 
-              suspendedTeams: newSuspended,
-              teams: newTeams
+              suspendedTeams: newSuspended
            });
         }
 
@@ -554,7 +551,7 @@ export default function App() {
           }
         }
 
-        // 🛡️ CORREÇÃO 3: Atualizando os times pegando os dados mais recentes também
+        // 🛡️ CORREÇÃO 3: Atualizando os times pegando os dados mais recentes
         const tAQuery = query(getPublicPath('teams'), where('id', '==', tA.id));
         const tBQuery = query(getPublicPath('teams'), where('id', '==', tB.id));
         const [tASnap, tBSnap] = await Promise.all([getDocs(tAQuery), getDocs(tBQuery)]);
