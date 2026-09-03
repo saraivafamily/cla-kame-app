@@ -22,11 +22,11 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
   }, [teams]);
 
   const getBadge = (pts) => {
-    if (pts >= 3000) return { label: 'Monstro Sagrado', icon: '🐉', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' };
-    if (pts >= 2000) return { label: 'Lenda Suprema', icon: '👑', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' };
-    if (pts >= 1900) return { label: 'Mestre III', icon: '🥋', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' };
-    if (pts >= 1600) return { label: 'Mestre II', icon: '✨', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' };
-    if (pts >= 1300) return { label: 'Mestre I', icon: '🎓', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' };
+    if (pts >= 5000) return { label: 'Monstro Sagrado', icon: '🐉', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' };
+    if (pts >= 4000) return { label: 'Lenda Suprema', icon: '👑', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' };
+    if (pts >= 2900) return { label: 'Mestre III', icon: '🥋', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' };
+    if (pts >= 2600) return { label: 'Mestre II', icon: '✨', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' };
+    if (pts >= 2300) return { label: 'Mestre I', icon: '🎓', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' };
     if (pts >= 750) return { label: 'Veterano III', icon: '🎖️', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
     if (pts >= 500) return { label: 'Veterano II', icon: '🛡️', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
     if (pts >= 250) return { label: 'Veterano I', icon: '🪖', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
@@ -35,12 +35,12 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
 
   // 🌟 NOVO MOTOR: Calcula quanto falta para a PRÓXIMA patente
   const getNextBadgeInfo = (pts) => {
-    if (pts >= 3000) return null; // Já é Monstro Sagrado (MÁXIMO)
-    if (pts >= 2000) return { next: 3000, label: 'Monstro Sagrado' };
-    if (pts >= 1900) return { next: 2000, label: 'Lenda Suprema' };
-    if (pts >= 1600) return { next: 1900, label: 'Mestre III' };
-    if (pts >= 1300) return { next: 1600, label: 'Mestre II' };
-    if (pts >= 750) return { next: 1300, label: 'Mestre I' };
+    if (pts >= 5000) return null; // Já é Monstro Sagrado (MÁXIMO)
+    if (pts >= 4000) return { next: 5000, label: 'Monstro Sagrado' };
+    if (pts >= 2900) return { next: 4000, label: 'Lenda Suprema' };
+    if (pts >= 2600) return { next: 2900, label: 'Mestre III' };
+    if (pts >= 2300) return { next: 2600, label: 'Mestre II' };
+    if (pts >= 750) return { next: 2300, label: 'Mestre I' };
     if (pts >= 500) return { next: 750, label: 'Veterano III' };
     if (pts >= 250) return { next: 500, label: 'Veterano II' };
     return { next: 250, label: 'Veterano I' };
