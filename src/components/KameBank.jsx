@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Landmark, Wallet, Star, CheckCircle, X, AlertCircle } from 'lucide-react';
+import { Landmark, Wallet, Star, CheckCircle, X, AlertCircle, Activity, Crown } from 'lucide-react';
 import { updateDoc, setDoc } from 'firebase/firestore';
 import { getPublicDocPath } from '../utils/firebase';
 import Button from './Button';
