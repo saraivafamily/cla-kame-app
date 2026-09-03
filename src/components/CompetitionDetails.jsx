@@ -8,7 +8,9 @@ import Standings from './Standings';
 import CountdownTimer from './CountdownTimer';
 import { calculateStandings, getChampionIds } from '../utils/torneios';
 import { processImage } from '../utils/helpers';
-import { submitmatch } from './SubmitMatch';
+import SubmitMatch from './SubmitMatch';
+import ValidationPanel from './ValidationPanel';
+import { DrawPanel, LiveDrawPanel } from './DrawPanels';
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png";
 
 const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [], onBack, currentUser, onReleaseRound, onLockRound, onSelectMatch, onDeleteMatch, onEditComp, showToast, onUpdatePlayedMatch, onSubmitMatch, onUpdateMatchStatus, onBatchUpdateComp }) => {
