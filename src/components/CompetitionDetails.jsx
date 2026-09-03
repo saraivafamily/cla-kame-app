@@ -82,7 +82,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
 
   const handleWithdrawTeam = () => {
     if (!withdrawTeamId) return;
-    if (!window.confirm("🚨 ATENÇÃO: O time selecionado será BANIDO desta competição e tomará W.O. (0x3) em TODOS os jogos restantes automaticamente. Confirma?")) return;
+    if (!window.confirm("🚨 ATENÇÃO: O time selecionado sofrerá W.O. (0x3) em TODOS os jogos restantes e será bloqueado de participar da PRÓXIMA EDIÇÃO desta competição. Confirma?")) return;
 
     const newSuspended = [...(comp.suspendedTeams || [])];
     if (!newSuspended.includes(withdrawTeamId)) newSuspended.push(withdrawTeamId);
@@ -351,7 +351,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const handleSavePrizes = () => { onEditComp({ ...comp, prizes: { first: prizeData.first.trim(), second: prizeData.second.trim(), third: prizeData.third.trim(), extra: prizeData.extra.trim() } }); setShowEditPrizes(false); showToast("Quadro de premiações atualizado!", "success"); };
   
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
-  const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id) && !(comp.suspendedTeams || []).includes(t.id));
+  const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id));
   const isKnockoutEdit = editMatchData?.id?.includes('_ko_');
   const availableTeamsForEdit = (comp.format === 'groups' && editMatchData?.group && comp.groups && !isKnockoutEdit) ? (comp.groups[editMatchData.group] || []) : (comp.teams || []);
   
@@ -759,7 +759,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                     <h4 className="text-sm font-bold text-red-400 mb-2 flex items-center gap-2">
                       <Trash2 size={16}/> Registrar Abandono de Equipe
                     </h4>
-                    <p className="text-[10px] text-red-200 mb-3">O time selecionado sofrerá W.O. (0x3) em todos os jogos restantes e será <b>banido de participar de futuras edições</b> deste torneio.</p>
+                    <p className="text-[10px] text-red-200 mb-3">O time selecionado sofrerá W.O. (0x3) em todos os jogos restantes e será <b>bloqueado de participar apenas da próxima edição</b> deste torneio.</p>
                     <div className="flex flex-col sm:flex-row gap-2">
                        <select value={withdrawTeamId} onChange={e=>setWithdrawTeamId(e.target.value)} className="flex-1 bg-blue-900 border border-red-500/50 rounded-lg p-2 text-white text-xs outline-none focus:border-red-400">
                          <option value="">Selecione a equipe que desistiu/quitou...</option>
