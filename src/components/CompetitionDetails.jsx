@@ -123,6 +123,17 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     setWithdrawTeamId('');
   };
 
+  // 🌟 FUNÇÃO PARA REMOVER O TIME COMPLETAMENTE DA TABELA
+  const handleRemoveTeamEntirely = () => {
+    if (!withdrawTeamId) return;
+    if (!window.confirm("🚨 EXCLUSÃO TOTAL: O time desaparecerá da tabela de classificação. Tem certeza que deseja remover o time definitivamente da competição?")) return;
+
+    const newTeams = (comp.teams || []).filter(id => id !== withdrawTeamId);
+    onEditComp({ ...comp, teams: newTeams });
+    showToast("Time removido da tabela com sucesso!", "success");
+    setWithdrawTeamId('');
+  };
+
   const handleAutoFlashRound = (round) => {
     if(!window.confirm('Encerrar fase? Sorteio automático (W.O Duplo) será aplicado nos jogos que não foram disputados.')) return;
     showToast('Processando encerramento de fase...', 'info');
@@ -753,22 +764,28 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                   </div>
                 )}
 
-                {/* 🌟 NOVO: PAINEL DE DESISTÊNCIA (ADMIN) */}
+                {/* 🌟 NOVO: PAINEL DE DESISTÊNCIA E REMOÇÃO (ADMIN) */}
                 {isAdmin && comp.status === 'active' && (
                   <div className="bg-red-950/40 p-5 rounded-xl border border-red-800 shadow-inner mb-6 animate-in slide-in-from-top-2">
                     <h4 className="text-sm font-bold text-red-400 mb-2 flex items-center gap-2">
-                      <Trash2 size={16}/> Registrar Abandono de Equipe
+                      <Trash2 size={16}/> Gerenciar Saída de Equipe
                     </h4>
-                    <p className="text-[10px] text-red-200 mb-3">O time selecionado sofrerá W.O. (0x3) em todos os jogos restantes e será <b>bloqueado de participar apenas da próxima edição</b> deste torneio.</p>
+                    <div className="text-[10px] text-red-200 mb-4 space-y-1">
+                       <p><b>⚠️ Banimento (W.O):</b> Mantém o time na tabela. Dá vitória de 3x0 para os adversários restantes e suspende para a próxima edição.</p>
+                       <p><b>❌ Remover da Competição:</b> Apaga o time da tabela de classificação como se ele nunca tivesse entrado.</p>
+                    </div>
                     <div className="flex flex-col sm:flex-row gap-2">
                        <select value={withdrawTeamId} onChange={e=>setWithdrawTeamId(e.target.value)} className="flex-1 bg-blue-900 border border-red-500/50 rounded-lg p-2 text-white text-xs outline-none focus:border-red-400">
-                         <option value="">Selecione a equipe que desistiu/quitou...</option>
-                         {compTeams.filter(t => !(comp.suspendedTeams || []).includes(t.id)).map(t => (
+                         <option value="">Selecione a equipe...</option>
+                         {compTeams.map(t => (
                            <option key={t.id} value={t.id}>{t.name}</option>
                          ))}
                        </select>
-                       <button onClick={handleWithdrawTeam} className="bg-red-600 hover:bg-red-500 text-white font-bold text-xs py-2 px-4 rounded-lg shadow-lg transition-colors shrink-0">
-                         Confirmar Banimento e W.O
+                       <button onClick={handleWithdrawTeam} className="bg-red-600 hover:bg-red-500 text-white font-bold text-xs py-2 px-3 rounded-lg shadow-lg transition-colors shrink-0">
+                         Aplicar Banimento (W.O)
+                       </button>
+                       <button onClick={handleRemoveTeamEntirely} className="bg-blue-950 hover:bg-blue-900 border border-red-800 text-red-400 hover:text-red-300 font-bold text-xs py-2 px-3 rounded-lg shadow-lg transition-colors shrink-0">
+                         Remover da Tabela
                        </button>
                     </div>
                     {(comp.suspendedTeams || []).length > 0 && (
