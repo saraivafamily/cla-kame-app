@@ -48,7 +48,24 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
     });
   };
 
-  const handleWhatsApp = (phone) => { if (!phone) return; window.open(`https://wa.me/${String(phone).replace(/\D/g, '')}`, '_blank'); };
+  // 📲 BOTÃO WHATSAPP INTERNACIONAL INTELIGENTE
+  const handleWhatsApp = (phone) => { 
+    if (!phone) return; 
+    
+    // 1. Remove tudo que não for número
+    let cleanPhone = String(phone).replace(/\D/g, ''); 
+    
+    // 2. Regra inteligente para o Brasil vs. Outros Países:
+    // Se o número tiver 10 ou 11 dígitos (ex: 11999999999), é um celular/fixo brasileiro sem DDI. Adicionamos o '55'.
+    // Se tiver mais de 11 dígitos, provavelmente já inclui o DDI do país de origem (ou já está completo).
+    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+       cleanPhone = `55${cleanPhone}`;
+    }
+    
+    // 3. Abre a URL oficial do WhatsApp
+    window.open(`https://wa.me/${cleanPhone}`, '_blank'); 
+  };
+  
   const startEdit = (team) => { if (!team) return; setEditingId(team.id); setEditData({ name: team.name || '', coach: team.coach || '', whatsapp: team.whatsapp || '', shield: team.shield || '🛡️', ownerId: team.ownerId || 'manual' }); };
   const saveEdit = (team) => { if (!editData.name || !editData.coach) return; onEditTeam({ ...team, ...editData }); setEditingId(null); };
 

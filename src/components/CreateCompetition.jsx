@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { PlusCircle, Trophy, Activity, AlertCircle, XCircle } from 'lucide-react';
+import { PlusCircle, Trophy, Activity, AlertCircle, XCircle, BookOpen } from 'lucide-react';
 import ShieldDisplay from './ShieldDisplay';
 import Button from './Button';
 import { calculateStandings, generateCupBracket, generateRoundRobin, generateGroupsAndKnockout, generateDuplasCupBracket } from '../utils/torneios';
