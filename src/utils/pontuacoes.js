@@ -9,7 +9,7 @@ export const PONTOS = {
     OITAVAS: 15,
     QUARTAS: 20,
     SEMI: 35,
-    TERCEIRO: 45,
+    TERCEIRO: 40,
     VICE: 50,
     CAMPEAO: 100,
     PUNICAO_WO: -10

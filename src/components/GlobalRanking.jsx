@@ -561,23 +561,23 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       {/* 🌟 TABELA DE PONTUAÇÃO (GAVETA) */}
       {showPointsTable && (
         <div className="bg-blue-900/60 p-5 rounded-2xl border border-blue-800 animate-in slide-in-from-top-2 shadow-inner">
-          <h4 className="text-amber-400 font-bold mb-4 flex items-center gap-2 text-lg"><Target size={18}/> Como ganhar Pontos Xclã?</h4>
+          <h4 className="text-amber-400 font-bold mb-4 flex items-center gap-2 text-lg"><Target size={18}/> Como ganhar KAME POINTS?</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-blue-200">
              
              {/* Torneios Oficiais */}
              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 shadow-md">
                <p className="font-bold text-white mb-3 pb-2 border-b border-blue-800/50 flex items-center gap-2"><Trophy size={16}/> Ligas e Copas Oficiais</p>
                <ul className="space-y-2.5">
-                 <li className="flex justify-between items-center"><span>Inscrição Confirmada</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+10 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Inscrição Confirmada</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+1 pts</span></li>
                  <li className="flex justify-between items-center"><span>Partida Jogada</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+2 pts</span></li>
-                 <li className="flex justify-between items-center"><span>Vitória na Partida</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+3 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Vitória na Partida</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+10 pts</span></li>
                  <li className="flex justify-between items-center"><span>Empate</span> <span className="font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">+1 pt</span></li>
-                 <li className="flex justify-between items-center"><span>Avanço Oitavas (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+5 pts</span></li>
-                 <li className="flex justify-between items-center"><span>Avanço Quartas (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+10 pts</span></li>
-                 <li className="flex justify-between items-center"><span>Avanço Semifinal (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+15 pts</span></li>
-                 <li className="flex justify-between items-center text-amber-400 font-bold mt-3 pt-3 border-t border-blue-800/50"><span>🥉 3º Lugar</span> <span>+15 pts</span></li>
-                 <li className="flex justify-between items-center text-amber-400 font-bold"><span>🥈 Vice-Campeão</span> <span>+25 pts</span></li>
-                 <li className="flex justify-between items-center text-amber-400 font-bold"><span>🥇 Campeão</span> <span>+50 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Avanço Oitavas (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+15 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Avanço Quartas (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+20 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Avanço Semifinal (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+35 pts</span></li>
+                 <li className="flex justify-between items-center text-amber-400 font-bold mt-3 pt-3 border-t border-blue-800/50"><span>🥉 3º Lugar</span> <span>+40 pts</span></li>
+                 <li className="flex justify-between items-center text-amber-400 font-bold"><span>🥈 Vice-Campeão</span> <span>+50 pts</span></li>
+                 <li className="flex justify-between items-center text-amber-400 font-bold"><span>🥇 Campeão</span> <span>+100 pts</span></li>
                </ul>
              </div>
 
@@ -585,16 +585,16 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
              <div className="bg-blue-950 p-4 rounded-xl border border-amber-500/30 shadow-md">
                <p className="font-bold text-amber-400 mb-3 pb-2 border-b border-blue-800/50 flex items-center gap-2"><Activity size={16}/> Copa Flash (Tiro Curto)</p>
                <ul className="space-y-2.5">
-                 <li className="flex justify-between items-center"><span>Inscrição Confirmada</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+2 pts</span></li>
-                 <li className="flex justify-between items-center"><span>Partida Jogada</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+1 pt</span></li>
-                 <li className="flex justify-between items-center"><span>Vitória na Partida</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+1 pt</span></li>
+                 <li className="flex justify-between items-center"><span>Inscrição Confirmada</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+1 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Partida Jogada</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+2 pt</span></li>
+                 <li className="flex justify-between items-center"><span>Vitória na Partida</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+3 pt</span></li>
                  <li className="flex justify-between items-center opacity-50"><span>Empate (Não há em Flash)</span> <span className="font-black text-slate-400">0 pts</span></li>
                  <li className="flex justify-between items-center opacity-50"><span>Avanço Oitavas</span> <span className="font-black text-slate-400">0 pts</span></li>
-                 <li className="flex justify-between items-center"><span>Avanço Quartas (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+2 pts</span></li>
-                 <li className="flex justify-between items-center"><span>Avanço Semifinal (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+5 pts</span></li>
-                 <li className="flex justify-between items-center text-amber-400 font-bold mt-3 pt-3 border-t border-blue-800/50"><span>🥉 3º Lugar</span> <span>+5 pts</span></li>
-                 <li className="flex justify-between items-center text-amber-400 font-bold"><span>🥈 Vice-Campeão</span> <span>+10 pts</span></li>
-                 <li className="flex justify-between items-center text-amber-400 font-bold"><span>🥇 Campeão</span> <span>+20 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Avanço Quartas (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+5 pts</span></li>
+                 <li className="flex justify-between items-center"><span>Avanço Semifinal (Mata-Mata)</span> <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+10 pts</span></li>
+                 <li className="flex justify-between items-center text-amber-400 font-bold mt-3 pt-3 border-t border-blue-800/50"><span>🥉 3º Lugar</span> <span>+15 pts</span></li>
+                 <li className="flex justify-between items-center text-amber-400 font-bold"><span>🥈 Vice-Campeão</span> <span>+20 pts</span></li>
+                 <li className="flex justify-between items-center text-amber-400 font-bold"><span>🥇 Campeão</span> <span>+40 pts</span></li>
                </ul>
                
                <div className="mt-4 bg-red-500/10 p-3 rounded-lg border border-red-500/20">
