@@ -1,4 +1,4 @@
-import React, { useState, eseEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Crown, Target, Trophy, Activity, Zap, Eye, Camera, Brain, Shield, Lock, X, XCircle } from 'lucide-react';
 import { updateDoc, setDoc } from 'firebase/firestore';
 import { getPublicDocPath } from '../utils/firebase';
