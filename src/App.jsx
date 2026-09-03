@@ -37,6 +37,9 @@ import CompetitionsList from './components/CompetitionsList';
 import ValidationPanel from './components/ValidationPanel';
 import SubmitMatch from './components/SubmitMatch';
 import { DrawPanel, LiveDrawPanel } from './components/DrawPanels';
+import TrophyRoom from './components/TrophyRoom';
+import RecordsWall from './components/RecordsWall';
+
 
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
 
