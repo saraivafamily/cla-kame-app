@@ -45,7 +45,7 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskcompleted }) =
       setPostImage(null);
       showToast("Publicado para todo o Clã!", "success");
       
-      if (onTaskcompleted) onTaskcompleted('post', 20);
+      if (onTaskcompleted) onTaskcompleted('post', 5);
       
     } catch (err) {
       showToast("Erro ao publicar. A imagem pode estar muito pesada.", "error");
@@ -64,7 +64,7 @@ const SocialFeed = ({ currentUser, teams, showToast, posts, onTaskcompleted }) =
     await updateDoc(getPublicDocPath('feed', postId), { likes: newLikes });
     
     if (!hasLiked && onTaskcompleted) {
-       onTaskcompleted('like', 5);
+       onTaskcompleted('like', 1);
     }
   };
 

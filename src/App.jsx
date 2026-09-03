@@ -112,7 +112,7 @@ export default function App() {
           updates.kameCoins = currentCoins + 1;
           updates.lastCheckInDate = today;
           hasChanges = true;
-          msg += "📅 +1 kc de Check-in Diário!";
+          msg += "📅 +1 bk de Check-in Diário!";
        }
 
        if (hasChanges) {
