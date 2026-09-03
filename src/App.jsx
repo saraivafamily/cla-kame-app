@@ -426,14 +426,14 @@ export default function App() {
     if (st === 'approved') {
       const match = matches.find(m => m && m.id === id); if (!match) return; 
       const comp = competitions.find(c => c && c.id === match.compId);
-      
-      // 🛡️ CORREÇÃO 1: Conversão estrita para números (evita que placares de "10" percam para "2" por serem lidos como texto)
+
+      // 🛡️ CORREÇÃO 1: Conversão estrita para números
       const finalScoreA = parseInt(updatedData && updatedData.scoreA !== undefined ? updatedData.scoreA : match.scoreA) || 0; 
       const finalScoreB = parseInt(updatedData && updatedData.scoreB !== undefined ? updatedData.scoreB : match.scoreB) || 0; 
       const finalPenaltiesA = updatedData && updatedData.penaltiesA !== undefined ? parseInt(updatedData.penaltiesA) : (match.penaltiesA !== null && match.penaltiesA !== undefined ? parseInt(match.penaltiesA) : null); 
       const finalPenaltiesB = updatedData && updatedData.penaltiesB !== undefined ? parseInt(updatedData.penaltiesB) : (match.penaltiesB !== null && match.penaltiesB !== undefined ? parseInt(match.penaltiesB) : null);
       
-      const matchPreds = predictions.filter(p => p.matchId === match.matchId && !p.status); 
+      const matchPreds = predictions.filter(p => p.matchId === match.matchId && (!p.status || p.status === 'pending')); 
       if (matchPreds.length > 0) {
          let realOutcome = 'D'; 
          if (finalScoreA > finalScoreB) realOutcome = 'A';
@@ -481,6 +481,7 @@ export default function App() {
         const ptsPlay = isFlash ? PONTOS.FLASH.PLAY : PONTOS.NORMAL.PLAY;
         const ptsWin = isFlash ? PONTOS.FLASH.WIN : PONTOS.NORMAL.WIN;
         const ptsDraw = isFlash ? PONTOS.FLASH.DRAW : PONTOS.NORMAL.DRAW;
+        const ptsPunicaoWo = isFlash ? PONTOS.FLASH.PUNICAO_WO : PONTOS.NORMAL.PUNICAO_WO;
 
         let winner = null;
         if (finalScoreA > finalScoreB) winner = 'A';
@@ -553,7 +554,7 @@ export default function App() {
           }
         }
 
-        // 🛡️ CORREÇÃO 3: Atualizando os times pegando os dados mais recentes também (evita erro no saldo de vitórias do time)
+        // 🛡️ CORREÇÃO 3: Atualizando os times pegando os dados mais recentes também
         const tAQuery = query(getPublicPath('teams'), where('id', '==', tA.id));
         const tBQuery = query(getPublicPath('teams'), where('id', '==', tB.id));
         const [tASnap, tBSnap] = await Promise.all([getDocs(tAQuery), getDocs(tBQuery)]);
