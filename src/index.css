@@ -1,4 +1,8 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* O restante do seu CSS do Clã Kame continua normal aqui pra baixo... */
 /* =========================================
    PALETA DARK MODE + DEGRADÊ CLÃ KAME 
    ========================================= */
