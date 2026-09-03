@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Star, Edit } from 'lucide-react';
+import { Camera, Trophy, Star, Edit } from 'lucide-react';
 import Button from './Button';
 
 const RecordsWall = ({ showToast, currentUser, globalRecords, onSaveRecords }) => {
