@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Crown, Target, Trophy, Activity, Zap, Eye, Camera, Brain, Shield, Lock, X, XCircle } from 'lucide-react';
+import { Crown, Target, Trophy, Activity, Zap, Eye, Camera, Brain, Shield, Lock, X, XCircle, Trash2 } from 'lucide-react';
 import { updateDoc, setDoc } from 'firebase/firestore';
 import { getPublicDocPath } from '../utils/firebase';
 import ShieldDisplay from './ShieldDisplay';
