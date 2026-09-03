@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Arquivos de IA e Codespace
+.agents/
+.claude/
+agent/
+skills-lock.json
