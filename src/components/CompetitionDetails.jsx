@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Trophy, BookOpen, Trash2, CheckSquare, Edit, XCircle, X, Shield, Activity, Camera, Users, AlertCircle, PlayCircle, Lock, MessageCircle, Star, Medal, ArrowLeft } from 'lucide-react';
+import { Trophy, BookOpen, Trash2, CheckSquare, CheckCircle, Edit, XCircle, X, Shield, Activity, Camera, Users, AlertCircle, PlayCircle, Lock, MessageCircle, Star, Medal, ArrowLeft } from 'lucide-react';
 import { updateDoc, setDoc } from 'firebase/firestore';
 import { getPublicDocPath } from '../utils/firebase';
 import ShieldDisplay from './ShieldDisplay';
