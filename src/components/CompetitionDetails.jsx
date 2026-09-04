@@ -80,6 +80,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     return `${m}:${s}`;
   };
 
+  // 🌟 FUNÇÃO DE DESISTÊNCIA E W.O. EM MASSA
   const handleWithdrawTeam = () => {
     if (!withdrawTeamId) return;
     if (!window.confirm("🚨 ATENÇÃO: O time selecionado sofrerá W.O. (0x3) em TODOS os jogos restantes e será bloqueado de participar da PRÓXIMA EDIÇÃO desta competição. Confirma?")) return;
@@ -94,7 +95,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
         round.matches.forEach(m => {
             if (m.teamA === withdrawTeamId || m.teamB === withdrawTeamId) {
                 const isPlayed = matches.some(x => x.matchId === m.id && x.compId === comp.id && x.status !== 'rejected');
-                
                 if (!isPlayed && m.teamA && m.teamB && !m.teamA.includes('Definir') && !m.teamB.includes('Definir')) {
                     const isTeamA = m.teamA === withdrawTeamId;
                     newMatchDocs.push({
@@ -109,8 +109,8 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                         penaltiesA: null,
                         penaltiesB: null,
                         goals: [],
-                        observacoes: '🏳️ W.O. por Desistência / Abandono de Campeonato',
-                        status: 'pending', 
+                        observacoes: '🏳️ W.O. por Desistência (Suspenso Próxima Edição)',
+                        status: 'pending',
                         submittedBy: 'Sistema Admin'
                     });
                 }
@@ -132,6 +132,14 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     onEditComp({ ...comp, teams: newTeams });
     showToast("Time removido da tabela com sucesso!", "success");
     setWithdrawTeamId('');
+  };
+
+  // 🌟 FUNÇÃO PARA REMOVER O BANIMENTO
+  const handleRemoveSuspension = (teamId) => {
+    if (!window.confirm("Deseja remover o banimento/suspensão desta equipe? A ficha dela será limpa neste torneio.")) return;
+    const newSuspended = (comp.suspendedTeams || []).filter(id => id !== teamId);
+    onEditComp({ ...comp, suspendedTeams: newSuspended });
+    showToast("Banimento removido! A equipe está com a ficha limpa.", "success");
   };
 
   const handleAutoFlashRound = (round) => {
@@ -362,31 +370,20 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const handleSavePrizes = () => { onEditComp({ ...comp, prizes: { first: prizeData.first.trim(), second: prizeData.second.trim(), third: prizeData.third.trim(), extra: prizeData.extra.trim() } }); setShowEditPrizes(false); showToast("Quadro de premiações atualizado!", "success"); };
   
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
-  const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id));
+  const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id)); // <-- SEM TRAVA DE BANIDO AQUI!
   const isKnockoutEdit = editMatchData?.id?.includes('_ko_');
   const availableTeamsForEdit = (comp.format === 'groups' && editMatchData?.group && comp.groups && !isKnockoutEdit) ? (comp.groups[editMatchData.group] || []) : (comp.teams || []);
   
   const handleAddTeamToComp = () => { 
     if(!newTeamToAdd) return; 
-    
     const newTeams = [...(comp.teams || []), newTeamToAdd]; 
     const newPending = (comp.pendingTeams || []).filter(p => p.teamId !== newTeamToAdd); 
-    
-    // 🔥 CORREÇÃO: Limpa o "nome sujo" do time na lista de banidos ao readicioná-lo!
     const newSuspended = (comp.suspendedTeams || []).filter(id => id !== newTeamToAdd);
 
-    onEditComp({ 
-        ...comp, 
-        teams: newTeams, 
-        pendingTeams: newPending,
-        suspendedTeams: newSuspended 
-    }); 
-    
-    setNewTeamToAdd(''); 
-    setShowAddTeam(false); 
-    showToast("Time reinserido e banimento removido com sucesso!", "success"); 
+    onEditComp({ ...comp, teams: newTeams, pendingTeams: newPending, suspendedTeams: newSuspended }); 
+    setNewTeamToAdd(''); setShowAddTeam(false); showToast("Time inserido e banimento removido com sucesso!", "success"); 
   };
-  
+
   const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}/api/share?id=${comp.id}`); showToast("Link de compartilhamento especial copiado!", "success"); };
   const handleApproveTeam = (req) => { const newPending = comp.pendingTeams.filter(p => p.teamId !== req.teamId); const newTeams = [...(comp.teams || []), req.teamId]; onEditComp({ ...comp, pendingTeams: newPending, teams: newTeams }); showToast("Time Aprovado!", "success"); };
   const handleRemoveConfirmedTeam = (teamId) => {
@@ -814,7 +811,14 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                          <div className="flex flex-wrap gap-2">
                            {comp.suspendedTeams.map(id => {
                               const t = getTeam(id);
-                              return <span key={id} className="bg-red-500/10 text-red-300 border border-red-500/30 px-2 py-1 rounded text-[10px] flex items-center gap-1"><Lock size={10}/> {t?.name || 'Desconhecido'}</span>
+                              return (
+                                <span key={id} className="bg-red-500/10 text-red-300 border border-red-500/30 pl-2 pr-1 py-1 rounded text-[10px] flex items-center gap-1.5 transition-colors hover:bg-red-500/20">
+                                  <Lock size={10}/> {t?.name || 'Desconhecido'}
+                                  <button onClick={() => handleRemoveSuspension(id)} className="bg-red-900/50 hover:bg-red-500 text-red-400 hover:text-white p-0.5 rounded ml-1 transition-colors" title="Remover Banimento">
+                                    <X size={12}/>
+                                  </button>
+                                </span>
+                              );
                            })}
                          </div>
                        </div>
@@ -1198,7 +1202,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                       <select value={editMatchData.teamB} onChange={e => setEditMatchData({...editMatchData, teamB: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded p-2 text-white text-sm outline-none"><option value="">A Definir / Sorteio</option>{availableTeamsForEdit.map(tId => { const t = getTeam(tId); return t ? <option key={t.id} value={t.id}>{t.name}</option> : null; })}</select>
                   </div>
 
-                  {/* 🌟 NOVO CAMPO DE CÓDIGO DLS */}
                   <div className="space-y-1 mt-3 border-t border-blue-800/50 pt-3">
                     <label className="text-[10px] font-bold text-amber-400 uppercase tracking-widest block mb-1">Código DLS (Para Sala Oculta)</label>
                     <div className="flex gap-2">
