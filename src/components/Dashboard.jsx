@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Camera, Dices, Shield, Trophy, BookOpen, PlayCircle, Activity, MessageCircle, AlertCircle, CheckCircle, XCircle, X, Star, Medal } from 'lucide-react';
 import ShieldDisplay from './ShieldDisplay';
 import CountdownTimer from './CountdownTimer';
+import Button from './Button';
 import { calculateStandings, getChampionIds } from '../utils/torneios';
 
 const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch, onJoinOpenComp, onChangeTab }) => {
