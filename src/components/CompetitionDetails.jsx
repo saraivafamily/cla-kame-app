@@ -92,7 +92,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     const newRounds = JSON.parse(JSON.stringify(comp.rounds || []));
 
     newRounds.forEach(round => {
-        round.matches.forEach(m => {
+        (round.matches || []).forEach(m => {
             if (m.teamA === withdrawTeamId || m.teamB === withdrawTeamId) {
                 const isPlayed = matches.some(x => x.matchId === m.id && x.compId === comp.id && x.status !== 'rejected');
                 if (!isPlayed && m.teamA && m.teamB && !m.teamA.includes('Definir') && !m.teamB.includes('Definir')) {
@@ -149,7 +149,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     const newMatchDocs = [];
     const matchResults = {}; 
     
-    round.matches.forEach(m => {
+    (round.matches || []).forEach(m => {
         const sUI = matches.find(x => x.matchId === m.id && x.compId === comp.id && x.status === 'approved');
         if (sUI) {
             let wId = null;
@@ -185,22 +185,22 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
         }
     });
 
-    const newRounds = JSON.parse(JSON.stringify(comp.rounds));
+    const newRounds = JSON.parse(JSON.stringify(comp.rounds || []));
     const rIndex = newRounds.findIndex(r => r.id === round.id);
 
     if (rIndex >= 0 && rIndex < newRounds.length - 1) {
         const nextRound = newRounds[rIndex + 1];
-        round.matches.forEach((m, mIdx) => {
+        (round.matches || []).forEach((m, mIdx) => {
            const winnerId = matchResults[m.id];
            if (!winnerId) return;
 
            const nextMIndex = Math.floor(mIdx / 2);
            const isTeamA = mIdx % 2 === 0;
 
-           const isNextRoundFinal = nextRound.matches.some(x => x.id.includes('_f1') || x.id.includes('_3rd'));
+           const isNextRoundFinal = (nextRound.matches || []).some(x => x.id.includes('_f1') || x.id.includes('_3rd'));
            if (isNextRoundFinal) {
               const loserId = winnerId === m.teamA ? m.teamB : m.teamA;
-              nextRound.matches.forEach(nextMatch => {
+              (nextRound.matches || []).forEach(nextMatch => {
                  if (nextMatch.id.includes('_3rd')) {
                     if (isTeamA) nextMatch.teamA = loserId; else nextMatch.teamB = loserId;
                  } else if (nextMatch.id.includes('_f1')) { 
@@ -208,7 +208,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                  }
               });
            } else {
-              if (nextRound.matches[nextMIndex]) {
+              if ((nextRound.matches || [])[nextMIndex]) {
                  if (isTeamA) nextRound.matches[nextMIndex].teamA = winnerId;
                  else nextRound.matches[nextMIndex].teamB = winnerId;
               }
@@ -217,7 +217,9 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
         nextRound.status = 'released';
         nextRound.releasedAt = Date.now(); 
     }
-    newRounds[rIndex].status = 'locked';
+    if (newRounds[rIndex]) {
+        newRounds[rIndex].status = 'locked';
+    }
 
     if (onBatchUpdateComp) {
         onBatchUpdateComp({ ...comp, rounds: newRounds }, newMatchDocs);
@@ -282,7 +284,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   
   const handleDeleteRound = (roundId) => {
     if (!window.confirm("⚠️ ATENÇÃO: Tem certeza que deseja excluir esta rodada e TODOS os jogos dentro dela? Essa ação não pode ser desfeita.")) return;
-    const updatedRounds = comp.rounds.filter(r => r.id !== roundId);
+    const updatedRounds = (comp.rounds || []).filter(r => r.id !== roundId);
     onEditComp({ ...comp, rounds: updatedRounds });
     showToast("Rodada removida com sucesso!", "success");
   };
@@ -313,8 +315,8 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
       });
     });
       
-    const updatedRounds = comp.rounds.map(round => {
-      const newMatches = round.matches.map(m => {
+    const updatedRounds = (comp.rounds || []).map(round => {
+      const newMatches = (round.matches || []).map(m => {
         let newA = m.teamA; let newB = m.teamB;
         if (!newA && m.placeholderA && qualifiers[m.placeholderA]) newA = qualifiers[m.placeholderA];
         if (!newB && m.placeholderB && qualifiers[m.placeholderB]) newB = qualifiers[m.placeholderB];
@@ -327,7 +329,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
 
   const handleAddMatchToGroup = (roundId, groupLetter) => {
     const newMatch = { id: `m_manual_${Date.now()}_${Math.floor(Math.random()*1000)}`, teamA: '', teamB: '', group: groupLetter, placeholderA: 'A Definir', placeholderB: 'A Definir' };
-    const updatedRounds = comp.rounds.map(r => r.id === roundId ? { ...r, matches: [...r.matches, newMatch] } : r);
+    const updatedRounds = (comp.rounds || []).map(r => r.id === roundId ? { ...r, matches: [...(r.matches || []), newMatch] } : r);
     onEditComp({ ...comp, rounds: updatedRounds }); showToast("Nova partida adicionada!", "success");
   };
 
@@ -336,7 +338,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     if (novoG && novoG.trim()) {
       const upperG = novoG.trim().toUpperCase(); let updatedGroups = { ...(comp.groups || {}) }; if (!updatedGroups[upperG]) updatedGroups[upperG] = [];
       const newMatch = { id: `m_manual_${Date.now()}_${Math.floor(Math.random()*1000)}`, teamA: '', teamB: '', group: upperG, placeholderA: 'A Definir', placeholderB: 'A Definir' };
-      const updatedRounds = comp.rounds.map(r => r.id === roundId ? { ...r, matches: [...r.matches, newMatch] } : r);
+      const updatedRounds = (comp.rounds || []).map(r => r.id === roundId ? { ...r, matches: [...(r.matches || []), newMatch] } : r);
       onEditComp({ ...comp, rounds: updatedRounds, groups: updatedGroups }); showToast(`Grupo ${upperG} criado!`, "success");
     }
   };
@@ -356,12 +358,12 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const handleDeleteMatchCompletely = () => {
     if(!window.confirm("Apagar ESTA PARTIDA INTEIRA do calendário?")) return;
     if (editMatchData.hasPlayed && onDeleteMatch && editMatchData.playedMatchId) onDeleteMatch(editMatchData.playedMatchId);
-    const updatedRounds = comp.rounds.map(r => r.id === editMatchData.roundId ? { ...r, matches: r.matches.filter(m => m.id !== editMatchData.id) } : r);
+    const updatedRounds = (comp.rounds || []).map(r => r.id === editMatchData.roundId ? { ...r, matches: (r.matches || []).filter(m => m.id !== editMatchData.id) } : r);
     onEditComp({ ...comp, rounds: updatedRounds }); setEditMatchData(null); showToast("Removida do calendário!", "success");
   };
 
   const saveMatchEdit = () => {
-    const updatedRounds = comp.rounds.map(r => r.id === editMatchData.roundId ? { ...r, matches: r.matches.map(m => m.id === editMatchData.id ? { ...m, teamA: editMatchData.teamA, teamB: editMatchData.teamB, group: editMatchData.group, dlsCode: editMatchData.dlsCode } : m) } : r);
+    const updatedRounds = (comp.rounds || []).map(r => r.id === editMatchData.roundId ? { ...r, matches: (r.matches || []).map(m => m.id === editMatchData.id ? { ...m, teamA: editMatchData.teamA, teamB: editMatchData.teamB, group: editMatchData.group, dlsCode: editMatchData.dlsCode } : m) } : r);
     onEditComp({ ...comp, rounds: updatedRounds });
     setEditMatchData(null);
     showToast("Confronto salvo!", "success");
@@ -370,7 +372,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const handleSavePrizes = () => { onEditComp({ ...comp, prizes: { first: prizeData.first.trim(), second: prizeData.second.trim(), third: prizeData.third.trim(), extra: prizeData.extra.trim() } }); setShowEditPrizes(false); showToast("Quadro de premiações atualizado!", "success"); };
   
   const compTeams = (teams || []).filter(t => t && comp.teams?.includes(t.id));
-  const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id)); // <-- SEM TRAVA DE BANIDO AQUI!
+  const availableTeamsToAdd = (teams || []).filter(t => t && !comp.teams?.includes(t.id)); 
   const isKnockoutEdit = editMatchData?.id?.includes('_ko_');
   const availableTeamsForEdit = (comp.format === 'groups' && editMatchData?.group && comp.groups && !isKnockoutEdit) ? (comp.groups[editMatchData.group] || []) : (comp.teams || []);
   
@@ -385,7 +387,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   };
 
   const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}/api/share?id=${comp.id}`); showToast("Link de compartilhamento especial copiado!", "success"); };
-  const handleApproveTeam = (req) => { const newPending = comp.pendingTeams.filter(p => p.teamId !== req.teamId); const newTeams = [...(comp.teams || []), req.teamId]; onEditComp({ ...comp, pendingTeams: newPending, teams: newTeams }); showToast("Time Aprovado!", "success"); };
+  const handleApproveTeam = (req) => { const newPending = (comp.pendingTeams || []).filter(p => p.teamId !== req.teamId); const newTeams = [...(comp.teams || []), req.teamId]; onEditComp({ ...comp, pendingTeams: newPending, teams: newTeams }); showToast("Time Aprovado!", "success"); };
   const handleRemoveConfirmedTeam = (teamId) => {
     if (window.confirm("Deseja remover este time da lista de confirmados?")) {
       const newTeams = (comp.teams || []).filter(id => id !== teamId);
@@ -395,7 +397,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   };
   
   const handleGenerateBracket = () => { 
-    if (comp.teams.length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times!`, "error"); return; } 
+    if ((comp.teams || []).length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times!`, "error"); return; } 
     
     if (comp.category === 'copa_flash_dupla') {
         onEditComp({ ...comp, status: 'drawing' });
@@ -420,14 +422,14 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     if (!isAdmin || typeof winnerDupla === 'string') return;
     if (!window.confirm(`Tem certeza que deseja avançar a dupla ${winnerDupla.name} para a próxima fase?`)) return;
 
-    const rIndex = comp.rounds.findIndex(r => r.id === roundId);
-    if (rIndex >= 0 && rIndex < comp.rounds.length - 1) {
-        const mIndex = comp.rounds[rIndex].matches.findIndex(m => m.id === mIda.id);
+    const rIndex = (comp.rounds || []).findIndex(r => r.id === roundId);
+    if (rIndex >= 0 && rIndex < (comp.rounds || []).length - 1) {
+        const mIndex = (comp.rounds[rIndex].matches || []).findIndex(m => m.id === mIda.id);
         const nextRIndex = rIndex + 1;
         const nextMIndex = Math.floor(mIndex / 4) * 2;
         const isTeamA = (Math.floor(mIndex / 2) % 2) === 0;
 
-        const newRounds = JSON.parse(JSON.stringify(comp.rounds));
+        const newRounds = JSON.parse(JSON.stringify(comp.rounds || []));
 
         if (isTeamA) {
             newRounds[nextRIndex].matches[nextMIndex].duplaA = winnerDupla;
@@ -705,7 +707,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
             <h2 className="text-3xl font-black text-emerald-400 uppercase tracking-widest drop-shadow-md mb-2">Inscrições Abertas</h2>
             <p className="text-blue-300">Aguardando os times se cadastrarem pelo link ou via inserção manual.</p>
             <div className="mt-6 flex flex-col items-center justify-center gap-4">
-               <div className="bg-blue-950 px-8 py-4 rounded-2xl border border-blue-800 shadow-inner"><p className="text-xs text-blue-400 uppercase font-bold mb-1">Vagas Preenchidas</p><p className="text-4xl font-black text-white">{(comp.teams?.length || 0)} <span className="text-blue-600 text-2xl">/ {comp.teamCount}</span></p></div>
+               <div className="bg-blue-950 px-8 py-4 rounded-2xl border border-blue-800 shadow-inner"><p className="text-xs text-blue-400 uppercase font-bold mb-1">Vagas Preenchidas</p><p className="text-4xl font-black text-white">{((comp.teams || []).length || 0)} <span className="text-blue-600 text-2xl">/ {comp.teamCount}</span></p></div>
                <Button onClick={handleCopyLink} className="py-3 px-8 text-sm font-bold bg-blue-600 shadow-xl">🔗 Copiar Link de Inscrição</Button>
             </div>
           </div>
@@ -751,7 +753,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
           </div>
 
           <div className="mt-8 pt-8 border-t border-blue-800">
-             <Button onClick={handleGenerateBracket} disabled={comp.teams?.length !== comp.teamCount} className="w-full py-5 text-xl font-black rounded-2xl bg-emerald-500 text-blue-950 hover:bg-emerald-400 disabled:bg-blue-900 disabled:text-blue-700 shadow-2xl">🏆 Encerrar Inscrições e Gerar Tabela</Button>
+             <Button onClick={handleGenerateBracket} disabled={(comp.teams || []).length !== comp.teamCount} className="w-full py-5 text-xl font-black rounded-2xl bg-emerald-500 text-blue-950 hover:bg-emerald-400 disabled:bg-blue-900 disabled:text-blue-700 shadow-2xl">🏆 Encerrar Inscrições e Gerar Tabela</Button>
           </div>
         </div>
       ) : (
@@ -763,7 +765,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
               <>
                 <button onClick={()=>setSubTab('submit')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all ${subTab==='submit'?'bg-emerald-600 text-white':'text-blue-500 hover:text-white'}`}>Registrar</button>
                 <button onClick={()=>setSubTab('validation')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all flex justify-center items-center gap-1 ${subTab==='validation'?'bg-amber-600 text-white':'text-amber-500/70 hover:text-amber-400'}`}>
-                  Validação {matches.filter(m => m.compId === comp.id && m.status === 'pending').length > 0 && <span className="bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[9px] shadow-sm">{matches.filter(m => m.compId === comp.id && m.status === 'pending').length}</span>}
+                  Validação {(matches || []).filter(m => m.compId === comp.id && m.status === 'pending').length > 0 && <span className="bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[9px] shadow-sm">{(matches || []).filter(m => m.compId === comp.id && m.status === 'pending').length}</span>}
                 </button>
                 <button onClick={()=>setSubTab('draw')} className={`shrink-0 flex-1 px-4 py-1.5 text-xs rounded-lg font-bold transition-all flex justify-center items-center gap-1 ${subTab==='draw'?'bg-purple-600 text-white':'text-purple-400 hover:text-purple-300'}`}>🎁 Sorteio</button>
               </>
@@ -809,7 +811,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                        <div className="mt-4 pt-3 border-t border-red-800/50">
                          <span className="text-[10px] text-red-400 font-bold uppercase tracking-widest block mb-2">Equipes Banidas Deste Torneio:</span>
                          <div className="flex flex-wrap gap-2">
-                           {comp.suspendedTeams.map(id => {
+                           {(comp.suspendedTeams || []).map(id => {
                               const t = getTeam(id);
                               return (
                                 <span key={id} className="bg-red-500/10 text-red-300 border border-red-500/30 pl-2 pr-1 py-1 rounded text-[10px] flex items-center gap-1.5 transition-colors hover:bg-red-500/20">
@@ -897,12 +899,12 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                          <div className="space-y-6">
                                            {(() => {
                                              const roundGroupsSet = new Set(); if (comp.groups) Object.keys(comp.groups).forEach(g => roundGroupsSet.add(g.toUpperCase()));
-                                             round.matches.forEach(m => { if (m.group) roundGroupsSet.add(m.group.toUpperCase()); });
+                                             (round.matches || []).forEach(m => { if (m.group) roundGroupsSet.add(m.group.toUpperCase()); });
                                              const sortedGroups = Array.from(roundGroupsSet).sort((a, b) => a.localeCompare(b));
                                              return (
                                                <>
                                                  {sortedGroups.map(groupLetter => {
-                                                   const matchesInGroup = round.matches.filter(m => { if (m.group) { return m.group.toUpperCase() === groupLetter; } const groupTeamIds = comp.groups && comp.groups[groupLetter] ? comp.groups[groupLetter] : []; return groupTeamIds.includes(m.teamA) || groupTeamIds.includes(m.teamB); });
+                                                   const matchesInGroup = (round.matches || []).filter(m => { if (m.group) { return m.group.toUpperCase() === groupLetter; } const groupTeamIds = comp.groups && comp.groups[groupLetter] ? comp.groups[groupLetter] : []; return groupTeamIds.includes(m.teamA) || groupTeamIds.includes(m.teamB); });
                                                    return (
                                                      <div key={groupLetter} className="space-y-3">
                                                        <div className="bg-blue-900/50 py-1 px-3 rounded-lg border border-blue-800/50 flex items-center justify-between gap-3"><span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Confrontos Grupo {groupLetter}</span>{isAdmin && !isLocked && (<button type="button" onClick={() => handleAddMatchToGroup(round.id, groupLetter)} className="text-[9px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-0.5 rounded shadow transition-colors shrink-0">+ Novo Jogo</button>)}</div>
@@ -912,7 +914,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                                              const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                                                              return (
                                                                <div key={m.id} className="relative group">
-                                                                 <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
+                                                                 <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = (matches || []).find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
                                                                    <div className="flex flex-col items-center text-center w-1/3 min-w-0 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(m.teamA); }}><ShieldDisplay shield={tA?.shield} size="normal" /><span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1 hover:text-emerald-400">{tA?.name || m.placeholderA}</span></div>
                                                                    <div className="flex flex-col items-center justify-center w-1/3 shrink-0"><span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>{isLocked ? '🔒 Bloqueado' : sUI.text}</span><div className="flex items-center justify-center gap-2">{sUI.isPlayed ? (<>{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}<span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span><span className="text-blue-700 font-bold text-xl">:</span><span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}</>) : (<span className="text-blue-700 font-bold text-xl">:</span>)}</div></div>
                                                                    <div className="flex flex-col items-center text-center w-1/3 min-w-0 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(m.teamB); }}><ShieldDisplay shield={tB?.shield} size="normal" /><span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1 hover:text-emerald-400">{tB?.name || m.placeholderB}</span></div>
@@ -935,11 +937,11 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                          <div>
                                            {isAdmin && !isLocked && (<div className="mb-3"><button type="button" onClick={() => handleAddMatchToGroup(round.id, null)} className="text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded shadow transition-colors">+ Adicionar Nova Partida na Rodada</button></div>)}
                                            <div className="grid grid-cols-1 gap-3">
-                                             {round.matches.map(m => {
+                                             {(round.matches || []).map(m => {
                                                const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                                                return (
                                                  <div key={m.id} className="relative group">
-                                                   <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
+                                                   <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = (matches || []).find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
                                                      <div className="flex flex-col items-center text-center w-1/3 min-w-0 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(m.teamA); }}><ShieldDisplay shield={tA?.shield} size="normal" /><span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1 hover:text-emerald-400">{tA?.name || m.placeholderA}</span></div>
                                                      <div className="flex flex-col items-center justify-center w-1/3 shrink-0"><span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>{isLocked ? '🔒 Bloqueado' : sUI.text}</span><div className="flex items-center justify-center gap-2">{sUI.isPlayed ? (<>{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}<span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span><span className="text-blue-700 font-bold text-xl">:</span><span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}</>) : (<span className="text-blue-700 font-bold text-xl">:</span>)}</div></div>
                                                      <div className="flex flex-col items-center text-center w-1/3 min-w-0 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(m.teamB); }}><ShieldDisplay shield={tB?.shield} size="normal" /><span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1 hover:text-emerald-400">{tB?.name || m.placeholderB}</span></div>
@@ -996,9 +998,9 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
 
                                 <div className="flex flex-col flex-1 h-full py-2">
                                   {comp.category === 'copa_flash_dupla' ? (
-                                    Array.from({ length: Math.ceil(round.matches.length / 2) }).map((_, idx) => {
-                                      const mIda = round.matches[idx * 2];
-                                      const mVolta = round.matches[idx * 2 + 1];
+                                    Array.from({ length: Math.ceil((round.matches || []).length / 2) }).map((_, idx) => {
+                                      const mIda = (round.matches || [])[idx * 2];
+                                      const mVolta = (round.matches || [])[idx * 2 + 1];
                                       if (!mIda || !mVolta) return null;
                                       
                                       const isLocked = round.status === 'locked';
@@ -1057,7 +1059,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                       );
                                     })
                                   ) : (
-                                    round.matches.map((m, matchIndex) => {
+                                    (round.matches || []).map((m, matchIndex) => {
                                       const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
                                       const isLocked = round.status === 'locked'; const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
                                       
@@ -1075,9 +1077,9 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                         <div key={m.id} className="relative flex-1 flex flex-col justify-center py-3 group">
                                           {!isFirstRound && (<div className="absolute -left-6 w-6 h-[2px] bg-blue-600/60 top-1/2 -translate-y-1/2"></div>)}
                                           <div className="relative z-10 w-full">
-                                            <div onClick={() => { if(sUI.isPlayed && onSelectMatch && !isBye){ const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed || isBye ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} ${!isBye ? 'cursor-pointer' : ''} relative overflow-hidden`}>
+                                            <div onClick={() => { if(sUI.isPlayed && onSelectMatch && !isBye){ const f = (matches || []).find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f) } }} className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all shadow-sm ${sUI.isPlayed || isBye ? 'bg-blue-900/90 border-emerald-500/30' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-40' : 'bg-blue-900/40 border-blue-800 hover:border-blue-600'} ${!isBye ? 'cursor-pointer' : ''} relative overflow-hidden`}>
                                               <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b border-blue-800/40">
-                                                <span className="text-blue-500">{m.id.includes('_f1') && round.matches.length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' : m.id.includes('_f2') ? '🏆 Final (Volta)' : m.id.includes('_3rd') ? '🥉 Disputa 3º Lugar' : 'Confronto'}</span>
+                                                <span className="text-blue-500">{m.id.includes('_f1') && (round.matches || []).length > 1 && !m.id.includes('_3rd') ? '🏆 Final (Ida)' : m.id.includes('_f2') ? '🏆 Final (Volta)' : m.id.includes('_3rd') ? '🥉 Disputa 3º Lugar' : 'Confronto'}</span>
                                                 <span className={isBye ? 'text-emerald-400' : sUI.color}>{isBye ? 'Avanço Direto' : sUI.text}</span>
                                               </div>
                                               <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(m.teamA); }}><ShieldDisplay shield={tA?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamALost || (isBye && tA) ? 'text-emerald-400 font-black' : 'text-blue-200'} hover:text-emerald-400`}>{tA?.name || m.placeholderA}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && !isBye && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed || (isBye && tA) ? 'text-emerald-400' : 'text-blue-700'}`}>{isBye ? (tA ? 'W' : '-') : sUI.isPlayed ? sUI.scoreA : '-'}</span></div></div>
@@ -1181,7 +1183,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
             )}
             
             {subTab === 'submit' && isAdmin && (<div className="animate-in slide-in-from-right-4"><SubmitMatch teams={teams} competitions={[comp]} matches={matches} currentUser={currentUser} showToast={showToast} preSelectedCompId={comp.id} onSubmit={async (m) => { await onSubmitMatch(m); setSubTab('validation'); }} /></div>)}
-            {subTab === 'validation' && isAdmin && (<div className="animate-in slide-in-from-right-4"><ValidationPanel matches={matches.filter(m => m.compId === comp.id)} teams={teams} competitions={[comp]} onUpdateStatus={onUpdateMatchStatus} showToast={showToast} currentUser={currentUser} /></div>)}
+            {subTab === 'validation' && isAdmin && (<div className="animate-in slide-in-from-right-4"><ValidationPanel matches={(matches || []).filter(m => m.compId === comp.id)} teams={teams} competitions={[comp]} onUpdateStatus={onUpdateMatchStatus} showToast={showToast} currentUser={currentUser} /></div>)}
             {subTab === 'draw' && isAdmin && (<div className="animate-in slide-in-from-right-4"><DrawPanel comp={comp} teams={teams} matches={matches} showToast={showToast} /></div>)}
           </div>
         </>
@@ -1328,7 +1330,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                   <p className="text-xl font-black text-white">{aggScoreA} x {aggScoreB}</p>
                 </div>
 
-                {isAdmin && isPlayed && (comp.rounds.findIndex(r => r.id === roundId) < comp.rounds.length - 1) && (
+                {isAdmin && isPlayed && ((comp.rounds || []).findIndex(r => r.id === roundId) < (comp.rounds || []).length - 1) && (
                   <div className="mt-4 grid grid-cols-2 gap-3">
                       <button onClick={() => handleForceAdvanceDupla(roundId, mIda, duplaA)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg shadow-md transition-colors truncate px-2">
                         Avançar {duplaA && typeof duplaA.name === 'string' ? duplaA.name.split(' ')[0] : (duplaA?.name || 'Dupla 1')}
