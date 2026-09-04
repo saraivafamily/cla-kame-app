@@ -524,11 +524,19 @@ export default function App() {
         else addPtsB = ptsPlay;
 
         if (winner === 'A') { 
-            if (!isWoMe) addPtsA += ptsWin; 
+            if (!isWoMe) {
+                // ⚖️ NOVA REGRA: Se o time B tomou W.O, o time A ganha só METADE dos pontos
+                if (isWoOpp) addPtsA += (ptsWin / 2);
+                else addPtsA += ptsWin;
+            }
             winsA = 1; 
         }
         else if (winner === 'B') { 
-            if (!isWoOpp) addPtsB += ptsWin; 
+            if (!isWoOpp) {
+                // ⚖️ NOVA REGRA: Se o time A tomou W.O, o time B ganha só METADE dos pontos
+                if (isWoMe) addPtsB += (ptsWin / 2);
+                else addPtsB += ptsWin;
+            }
             winsB = 1; 
         }
         else { 

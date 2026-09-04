@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Crown, Target, Trophy, Activity, Zap, Eye, Camera, Brain, Shield, Lock, X, XCircle, Trash2 } from 'lucide-react';
+import { Crown, Target, Trophy, Activity, Zap, Eye, Camera, Brain, Shield, Lock, X, XCircle, Trash2, AlertCircle } from 'lucide-react';
 import { updateDoc, setDoc } from 'firebase/firestore';
 import { getPublicDocPath } from '../utils/firebase';
 import ShieldDisplay from './ShieldDisplay';
@@ -272,11 +272,13 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
             const oppName = teams.find(t => t.id === oppId)?.name || 'Adversário';
 
             let isWoMe = false;
+            let isWoOpp = false;
             const obs = (m.observacoes || '').toLowerCase();
             if (obs.includes('w.o') || obs.includes('wo')) {
-                if (obs.includes('duplo')) isWoMe = true;
+                if (obs.includes('duplo')) { isWoMe = true; isWoOpp = true; }
                 else if (m.teamA === myTeam.id && m.scoreA === 0 && m.scoreB === 3) isWoMe = true;
                 else if (m.teamB === myTeam.id && m.scoreB === 0 && m.scoreA === 3) isWoMe = true;
+                else isWoOpp = true;
             }
 
             if (isWoMe) {
@@ -290,7 +292,9 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                 let penOpp = m.teamA === myTeam.id ? m.penaltiesB : m.penaltiesA;
 
                 if (scoreMe > scoreOpp) {
-                    events.push({ id: `win_${m.id}`, date: matchDate + 1, title: `Vitória vs ${oppName}`, pts: ptsWin });
+                    const finalWinPts = isWoOpp ? (ptsWin / 2) : ptsWin;
+                    const isMetade = isWoOpp ? ' (Pelo W.O. Inimigo)' : '';
+                    events.push({ id: `win_${m.id}`, date: matchDate + 1, title: `Vitória vs ${oppName}${isMetade}`, pts: finalWinPts });
                 } else if (scoreMe === scoreOpp && penMe !== null && penOpp !== null && Number(penMe) > Number(penOpp)) {
                     events.push({ id: `winpen_${m.id}`, date: matchDate + 1, title: `Vitória (Pênaltis) vs ${oppName}`, pts: ptsWin });
                 } else if (scoreMe === scoreOpp && penMe === null && ptsDraw > 0) {
@@ -624,7 +628,33 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
       {/* 🏆 CONTEÚDO: RANKING PRINCIPAL */}
       {activeTab === 'ranking' && (
         <div className="bg-blue-950 rounded-3xl border border-blue-800 shadow-2xl overflow-hidden animate-in slide-in-from-left-4">
-          <div className="overflow-x-auto custom-scrollbar">
+          
+          {/* ⚖️ INFO REGRAS DE PONTUAÇÃO DO RANKING */}
+          <div className="bg-blue-900/40 border-b border-amber-500/30 p-5 shadow-inner">
+            <h4 className="text-xs font-black text-amber-400 uppercase tracking-widest flex items-center gap-2 mb-3">
+              <AlertCircle size={16} /> REGRAS ESPECIAIS DE PONTUAÇÃO
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-[11px] text-blue-200">
+              <div className="bg-blue-950 p-2.5 rounded-lg border border-blue-800 flex items-start gap-2">
+                 <span className="text-emerald-400">✅</span>
+                 <p><span className="font-bold text-white">Vitória normal:</span> Ganha a pontuação total da vitória definida pela Liga.</p>
+              </div>
+              <div className="bg-blue-950 p-2.5 rounded-lg border border-blue-800 flex items-start gap-2">
+                 <span className="text-blue-400">➖</span>
+                 <p><span className="font-bold text-white">Empate:</span> Ambos ganham pontos de empate da Liga.</p>
+              </div>
+              <div className="bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20 flex items-start gap-2">
+                 <span className="text-amber-400">⚖️</span>
+                 <p><span className="font-bold text-amber-300">Vitória por W.O:</span> Rende apenas <b>metade (50%)</b> dos pontos de uma vitória.</p>
+              </div>
+              <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20 flex items-start gap-2">
+                 <span className="text-red-400">🛑</span>
+                 <p><span className="font-bold text-red-300">Derrota por W.O:</span> Punição com perda de -10 pontos no saldo global.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto custom-scrollbar p-1">
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="bg-blue-900 text-blue-300 font-bold border-b border-blue-800">
                 <tr>
