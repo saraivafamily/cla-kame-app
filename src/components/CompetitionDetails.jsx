@@ -366,7 +366,27 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const isKnockoutEdit = editMatchData?.id?.includes('_ko_');
   const availableTeamsForEdit = (comp.format === 'groups' && editMatchData?.group && comp.groups && !isKnockoutEdit) ? (comp.groups[editMatchData.group] || []) : (comp.teams || []);
   
-  const handleAddTeamToComp = () => { if(!newTeamToAdd) return; const newTeams = [...(comp.teams || []), newTeamToAdd]; const newPending = (comp.pendingTeams || []).filter(p => p.teamId !== newTeamToAdd); onEditComp({ ...comp, teams: newTeams, pendingTeams: newPending }); setNewTeamToAdd(''); setShowAddTeam(false); showToast("Time inserido manualmente com sucesso!", "success"); };
+  const handleAddTeamToComp = () => { 
+    if(!newTeamToAdd) return; 
+    
+    const newTeams = [...(comp.teams || []), newTeamToAdd]; 
+    const newPending = (comp.pendingTeams || []).filter(p => p.teamId !== newTeamToAdd); 
+    
+    // 🔥 CORREÇÃO: Limpa o "nome sujo" do time na lista de banidos ao readicioná-lo!
+    const newSuspended = (comp.suspendedTeams || []).filter(id => id !== newTeamToAdd);
+
+    onEditComp({ 
+        ...comp, 
+        teams: newTeams, 
+        pendingTeams: newPending,
+        suspendedTeams: newSuspended 
+    }); 
+    
+    setNewTeamToAdd(''); 
+    setShowAddTeam(false); 
+    showToast("Time reinserido e banimento removido com sucesso!", "success"); 
+  };
+  
   const handleCopyLink = () => { navigator.clipboard.writeText(`${window.location.origin}/api/share?id=${comp.id}`); showToast("Link de compartilhamento especial copiado!", "success"); };
   const handleApproveTeam = (req) => { const newPending = comp.pendingTeams.filter(p => p.teamId !== req.teamId); const newTeams = [...(comp.teams || []), req.teamId]; onEditComp({ ...comp, pendingTeams: newPending, teams: newTeams }); showToast("Time Aprovado!", "success"); };
   const handleRemoveConfirmedTeam = (teamId) => {

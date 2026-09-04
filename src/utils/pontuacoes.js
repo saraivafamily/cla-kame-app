@@ -5,7 +5,7 @@ export const PONTOS = {
     JOIN: 1,
     PLAY: 2,
     WIN: 10,
-    DRAW: 1,
+    DRAW: 3,
     OITAVAS: 15,
     QUARTAS: 20,
     SEMI: 35,

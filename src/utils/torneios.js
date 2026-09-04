@@ -1,4 +1,4 @@
-// src/utils/torneios.js
+import { PONTOS } from './pontuacoes';
 
 export const calculateStandings = (matches, teams, compId) => {
   const table = {}; 
@@ -12,8 +12,31 @@ export const calculateStandings = (matches, teams, compId) => {
   
   Object.values(appMap).forEach(m => {
     const tA = table[m.teamA], tB = table[m.teamB]; if (!tA || !tB) return;
-    tA.p++; tB.p++; tA.gf += Number(m.scoreA||0); tB.gf += Number(m.scoreB||0); tA.ga += Number(m.scoreB||0); tB.ga += Number(m.scoreA||0);
-    if (m.scoreA > m.scoreB) { tA.pts+=3; tA.w++; tB.l++; } else if (m.scoreA < m.scoreB) { tB.pts+=3; tB.w++; tA.l++; } else { tA.pts++; tB.pts++; tA.d++; tB.d++; }
+    
+    // Verifica se a partida foi W.O.
+    let isWoA = false; let isWoB = false;
+    const obs = (m.observacoes || '').toLowerCase();
+    if (obs.includes('w.o') || obs.includes('wo')) {
+        if (obs.includes('duplo')) { isWoA = true; isWoB = true; }
+        else if (Number(m.scoreA) === 0 && Number(m.scoreB) === 3) isWoA = true;
+        else if (Number(m.scoreB) === 0 && Number(m.scoreA) === 3) isWoB = true;
+    }
+
+    tA.p++; tB.p++; 
+    tA.gf += Number(m.scoreA||0); tB.gf += Number(m.scoreB||0); 
+    tA.ga += Number(m.scoreB||0); tB.ga += Number(m.scoreA||0);
+    
+    if (Number(m.scoreA) > Number(m.scoreB)) { 
+        // ⚖️ NOVA REGRA: Se foi W.O. do B, o A ganha metade dos pontos padrão
+        tA.pts += isWoB ? (3 / 2) : 3; 
+        tA.w++; tB.l++; 
+    } else if (Number(m.scoreA) < Number(m.scoreB)) { 
+        // ⚖️ NOVA REGRA: Se foi W.O. do A, o B ganha metade dos pontos padrão
+        tB.pts += isWoA ? (3 / 2) : 3; 
+        tB.w++; tA.l++; 
+    } else { 
+        tA.pts++; tB.pts++; tA.d++; tB.d++; 
+    }
   });
   
   return Object.values(table).map(t => ({ ...t, gd: t.gf - t.ga })).sort((a, b) => { 
