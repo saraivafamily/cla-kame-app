@@ -219,6 +219,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
                 <option value="liga_d">🎖️ Liga Kame D (Série D)</option>
                 <option value="liga_acesso">⬆️ Liga de Acesso</option>
                 <option value="copa_main">🏆 Copas Oficiais</option>
+                <option value="copa_recompensa">🎁 Copa Recompensa</option>
                 <option value="copa_estrelas">⭐ Copa das Estrelas</option>
                 <option value="copa_do_rei">👑 Copa do Rei</option>
                 <option value="copa_amazonia">🌳 Copa da Amazônia</option>
