@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { PlusCircle, Trophy, Activity, AlertCircle, XCircle, BookOpen } from 'lucide-react';
 import ShieldDisplay from './ShieldDisplay';
 import Button from './Button';
-// 🌟 IMPORT DA COPA RECOMPENSA ADICIONADO
 import { calculateStandings, generateCupBracket, generateRoundRobin, generateGroupsAndKnockout, generateDuplasCupBracket, generateCopaRecompensaBracket } from '../utils/torneios';
 
 const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate, showToast }) => {
@@ -19,8 +18,8 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const [isDoubleRound, setIsDoubleRound] = useState(false);
   const [isFinalDouble, setIsFinalDouble] = useState(false);
   
-  // 🌟 NOVO: ESTADO DA IDA E VOLTA
   const [isIdaEVolta, setIsIdaEVolta] = useState(false);
+  const [isFinalSingle, setIsFinalSingle] = useState(true); // 🌟 NOVO: Final única no ida e volta
   
   const [registrationStartTime, setRegistrationStartTime] = useState('');
   const [registrationStartDate, setRegistrationStartDate] = useState('');
@@ -147,8 +146,9 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
     const isFlashSolo = category === 'copa_flash';
     const parsedTeamCount = isFlashSolo ? 999 : parseInt(teamCount, 10);
 
-    if (!name || !format || (!isFlashSolo && !teamCount) || !registrationStartDate || !startDate || !deadline || !startTime) { 
-      setError('Preencha os dados básicos do torneio (incluindo todas as datas e horários).'); 
+    // 🌟 DATAS AGORA SÃO OPCIONAIS!
+    if (!name || !format || (!isFlashSolo && !teamCount)) { 
+      setError('Preencha os dados básicos do torneio (Nome, Divisão e Vagas).'); 
       return; 
     }
     
@@ -163,14 +163,12 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
     if (!isAutoJoin) {
       try {
-        // 🌟 LÓGICAS DE CHAVEAMENTO ATUALIZADAS PARA SUPORTAR IDA E VOLTA E COPA RECOMPENSA
         if (category === 'copa_recompensa') {
            if (selectedTeams.length !== 22) throw new Error("A Copa Recompensa exige exatamente 22 times!");
            finalRounds = generateCopaRecompensaBracket(selectedTeams, compId, teams, isFinalDouble, isIdaEVolta);
         } else if (category === 'copa_flash_dupla') {
            const res = generateDuplasCupBracket(selectedTeams, compId, teams, matches, competitions);
-           finalRounds = res.rounds;
-           groupsData = res.duplas; 
+           finalRounds = res.rounds; groupsData = res.duplas; 
         } else if (format === 'groups') {
           const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound, isFinalDouble, isIdaEVolta);
           finalRounds = res.rounds; groupsData = res.groups;
@@ -184,15 +182,15 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
     const newComp = { 
       id: compId, name, format, deadline, startTime, category, playStyle, rules,
-      registrationStartTime,
-      registrationStartDate, startDate,
+      registrationStartTime, registrationStartDate, startDate,
       teamCount: parsedTeamCount, 
       status: isAutoJoin ? 'registration' : 'active', 
-      teams: selectedTeams, pendingTeams: [], 
-      suspendedTeams: [],
-      rounds: finalRounds,
+      teams: selectedTeams, pendingTeams: [], suspendedTeams: [], rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido', creatorId: currentUser?.id, admins: [currentUser?.id],  
-      isDoubleRound, isFinalDouble, isIdaEVolta, // 👈 SALVANDO A IDA E VOLTA NO BANCO
+      isDoubleRound, 
+      isFinalDouble: isIdaEVolta && !isFinalSingle ? true : isFinalDouble, // Se for ida e volta E a final não for única, seta isFinalDouble
+      isIdaEVolta, 
+      isFinalSingle: isIdaEVolta ? isFinalSingle : false, // Salva se a final é única
       numGroups: parseInt(numGroups || '0', 10), qualifiersPerGroup: parseInt(qualifiers || '0', 10),
       flashDuration: isFlashSolo ? parseInt(flashDuration, 10) : null,
       excludedCompIds: excludedCompIds,
@@ -220,27 +218,14 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Nome do Campeonato</label><input type="text" value={name} readOnly className="w-full bg-blue-950/50 border border-blue-800 rounded-xl p-3 text-blue-400 font-bold outline-none cursor-not-allowed" /></div>
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Categoria (Divisão)</label>
               <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full bg-blue-950 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner">
-                <option value="liga_a">🥇 Liga Kame A (Série A)</option>
-                <option value="liga_b">🥈 Liga Kame B (Série B)</option>
-                <option value="liga_c">🥉 Liga Kame C (Série C)</option>
-                <option value="liga_d">🎖️ Liga Kame D (Série D)</option>
-                <option value="liga_acesso">⬆️ Liga de Acesso</option>
-                <option value="copa_main">🏆 Copas Oficiais</option>
-                <option value="copa_recompensa">🎁 Copa Recompensa</option>
-                <option value="copa_estrelas">⭐ Copa das Estrelas</option>
-                <option value="copa_do_rei">👑 Copa do Rei</option>
-                <option value="copa_amazonia">🌳 Copa da Amazônia</option>
-                <option value="copa_flash">⚡ Copa Flash Solo (Com Auto-Start)</option>
-                <option value="copa_flash_dupla">👥 Copa Flash em Duplas (Manual)</option>             
+                <option value="liga_a">🥇 Liga Kame A (Série A)</option><option value="liga_b">🥈 Liga Kame B (Série B)</option><option value="liga_c">🥉 Liga Kame C (Série C)</option><option value="liga_d">🎖️ Liga Kame D (Série D)</option><option value="liga_acesso">⬆️ Liga de Acesso</option><option value="copa_main">🏆 Copas Oficiais</option><option value="copa_recompensa">🎁 Copa Recompensa</option><option value="copa_estrelas">⭐ Copa das Estrelas</option><option value="copa_do_rei">👑 Copa do Rei</option><option value="copa_amazonia">🌳 Copa da Amazônia</option><option value="copa_flash">⚡ Copa Flash Solo</option><option value="copa_flash_dupla">👥 Copa Flash Duplas</option>             
               </select>
             </div>
             
             <div className="space-y-2">
                 <label className="text-sm font-bold text-blue-300">Qtd. Total de Vagas (Times)</label>
                 {category === 'copa_flash' ? (
-                   <div className="w-full bg-amber-900/20 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-black text-base text-center shadow-inner cursor-not-allowed">
-                       ⚡ Ilimitado (Auto-Start)
-                   </div>
+                   <div className="w-full bg-amber-900/20 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-black text-base text-center shadow-inner cursor-not-allowed">⚡ Ilimitado (Auto-Start)</div>
                 ) : (
                    <input type="number" min="2" placeholder={category === 'copa_flash_dupla' ? "Ex: 16 (precisa ser par)" : category === 'copa_recompensa' ? "Exigido: 22" : "Ex: 8"} value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-emerald-400 font-black text-lg focus:ring-2 focus:ring-emerald-500 outline-none" required />
                 )}
@@ -268,17 +253,33 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 col-span-1 md:col-span-2">
-              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Início das Inscrições</label><input type="date" value={registrationStartDate} onChange={e=>setRegistrationStartDate(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Início da Competição</label><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Data Final / Prazo</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
-              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Horário do Gatilho</label><input type="time" value={startTime} onChange={e=>setStartTime(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
+              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Início das Inscrições</label><input type="date" value={registrationStartDate} onChange={e=>setRegistrationStartDate(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" /></div>
+              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Início da Competição</label><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" /></div>
+              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Data Final / Prazo</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-blue-100 focus:ring-2 focus:ring-emerald-500 outline-none" /></div>
+              <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Horário do Gatilho</label><input type="time" value={startTime} onChange={e=>setStartTime(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none" /></div>
             </div>
             
-            {/* 🌟 CHECKBOXES ATUALIZADOS */}
+            {/* 🌟 CHECKBOXES ATUALIZADOS - FINAL ÚNICA ADICIONADA */}
             <div className="flex flex-col gap-4 mt-2 col-span-1 md:col-span-2">
               {format !== 'cup' && (<label className="flex items-center gap-2 cursor-pointer w-max"><input type="checkbox" checked={isDoubleRound} onChange={e=>setIsDoubleRound(e.target.checked)} className="w-5 h-5 accent-emerald-500 cursor-pointer" /><span className="text-sm font-bold text-emerald-400">Grupos em Ida e Volta</span></label>)}
-              {format !== 'league' && (<label className="flex items-center gap-2 cursor-pointer w-max"><input type="checkbox" checked={isFinalDouble} onChange={e=>setIsFinalDouble(e.target.checked)} className="w-5 h-5 accent-amber-500 cursor-pointer" /><span className="text-sm font-bold text-amber-400">Final (2 Jogos)</span></label>)}
-              {format !== 'league' && (<label className="flex items-center gap-2 cursor-pointer w-max"><input type="checkbox" checked={isIdaEVolta} onChange={e=>setIsIdaEVolta(e.target.checked)} className="w-5 h-5 accent-purple-500 cursor-pointer" /><span className="text-sm font-bold text-purple-400">Todo Mata-Mata em Ida e Volta (Placar Agregado)</span></label>)}
+              
+              {format !== 'league' && !isIdaEVolta && (<label className="flex items-center gap-2 cursor-pointer w-max"><input type="checkbox" checked={isFinalDouble} onChange={e=>setIsFinalDouble(e.target.checked)} className="w-5 h-5 accent-amber-500 cursor-pointer" /><span className="text-sm font-bold text-amber-400">Final (2 Jogos)</span></label>)}
+              
+              {format !== 'league' && (
+                <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 space-y-3">
+                    <label className="flex items-center gap-2 cursor-pointer w-max">
+                        <input type="checkbox" checked={isIdaEVolta} onChange={e=>setIsIdaEVolta(e.target.checked)} className="w-5 h-5 accent-purple-500 cursor-pointer" />
+                        <span className="text-sm font-bold text-purple-400">Todo Mata-Mata em Ida e Volta</span>
+                    </label>
+                    
+                    {isIdaEVolta && (
+                        <label className="flex items-center gap-2 cursor-pointer w-max ml-6 animate-in slide-in-from-left-2">
+                            <input type="checkbox" checked={isFinalSingle} onChange={e=>setIsFinalSingle(e.target.checked)} className="w-5 h-5 accent-amber-500 cursor-pointer" />
+                            <span className="text-sm font-bold text-amber-400">Mas a Final será Única (1 Jogo Só)</span>
+                        </label>
+                    )}
+                </div>
+              )}
             </div>
 
             {format === 'groups' && (<><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Quantidade de Grupos</label><input type="number" min="1" placeholder="Ex: 1, 2, 3, 4..." value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white outline-none" required /></div><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Classificados por Grupo</label><input type="number" min="1" placeholder="Ex: 2" value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white outline-none" required /></div></>)}
