@@ -266,10 +266,10 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const handleApproveTeam = (req) => { const newPending = comp.pendingTeams.filter(p => p.teamId !== req.teamId); const newTeams = [...(comp.teams || []), req.teamId]; onEditComp({ ...comp, pendingTeams: newPending, teams: newTeams }); showToast("Time Aprovado!", "success"); };
   const handleRemoveConfirmedTeam = (teamId) => { if (window.confirm("Deseja remover este time da lista de confirmados?")) { const newTeams = (comp.teams || []).filter(id => id !== teamId); onEditComp({ ...comp, teams: newTeams }); showToast("Time removido da competição.", "success"); } };
   
+  // 🌟 CORREÇÃO DO REDIRECIONAMENTO PARA A TELA DE SORTEIO
   const handleGenerateBracket = () => { 
     if (comp.teams.length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times!`, "error"); return; } 
     
-    // 🌟 NOVA REGRA: Manda pro Sorteio tudo que for Copa (Mata-Mata) ou Recompensa, EXCETO Copa Flash Solo
     const vaiProSorteio = (comp.format === 'cup' && comp.category !== 'copa_flash') || 
                           comp.category === 'copa_recompensa' || 
                           comp.category === 'copa_flash_dupla';
@@ -280,7 +280,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
         return; 
     }
 
-    // Se for Fase de Grupos ou Pontos Corridos, a tabela é gerada diretamente
     let finalRounds = []; let groupsData = null; 
     if (comp.format === 'groups') { 
         const res = generateGroupsAndKnockout(comp.teams, comp.id, comp.numGroups, comp.qualifiersPerGroup, comp.isDoubleRound, comp.isFinalDouble, comp.isIdaEVolta); 
@@ -391,7 +390,6 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
             <div className="space-y-1 md:col-span-2"><label className="text-xs font-bold text-blue-400">Regras da Competição</label><textarea value={settingsData.rules} onChange={e => setSettingsData({...settingsData, rules: e.target.value})} placeholder="Descreva as regras..." className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500 min-h-[80px] resize-y" /></div>
             <div className="space-y-1"><label className="text-xs font-bold text-emerald-400">⏰ Abertura das Inscrições (Opcional)</label><input type="datetime-local" value={settingsData.registrationStartTime} onChange={e => setSettingsData({...settingsData, registrationStartTime: e.target.value})} className="w-full bg-blue-900 border border-emerald-500/50 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" /></div>
             
-            {/* 🌟 NOVA OPÇÃO DE IDA E VOLTA */}
             <div className="space-y-1 md:col-span-2 mt-2">
               <label className="flex items-center gap-2 cursor-pointer bg-blue-900 p-3 rounded-xl border border-blue-700 hover:border-amber-500 transition-colors">
                 <input type="checkbox" checked={settingsData.isIdaEVolta} onChange={e => setSettingsData({...settingsData, isIdaEVolta: e.target.checked})} className="accent-amber-500 w-4 h-4" />
@@ -561,19 +559,94 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                          <div>
                                            {isAdmin && !isLocked && (<div className="mb-3"><button type="button" onClick={() => handleAddMatchToGroup(round.id, null)} className="text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded shadow transition-colors">+ Adicionar Nova Partida na Rodada</button></div>)}
                                            <div className="grid grid-cols-1 gap-3">
-                                             {round.matches.map(m => {
-                                               const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
-                                               return (
-                                                 <div key={m.id} className="relative group">
-                                                   <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
-                                                     <div className="flex flex-col items-center text-center w-1/3 min-w-0 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(m.teamA); }}><ShieldDisplay shield={tA?.shield} size="normal" /><span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1 hover:text-emerald-400">{tA?.name || m.placeholderA}</span></div>
-                                                     <div className="flex flex-col items-center justify-center w-1/3 shrink-0"><span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>{isLocked ? '🔒 Bloqueado' : sUI.text}</span><div className="flex items-center justify-center gap-2">{sUI.isPlayed ? (<>{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}<span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span><span className="text-blue-700 font-bold text-xl">:</span><span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}</>) : (<span className="text-blue-700 font-bold text-xl">:</span>)}</div></div>
-                                                     <div className="flex flex-col items-center text-center w-1/3 min-w-0 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(m.teamB); }}><ShieldDisplay shield={tB?.shield} size="normal" /><span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1 hover:text-emerald-400">{tB?.name || m.placeholderB}</span></div>
-                                                   </div>
-                                                   {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
-                                                 </div>
-                                               );
-                                             })}
+                                             {comp.category === 'copa_flash_dupla' || comp.isIdaEVolta ? (
+                                                Array.from({ length: Math.ceil(round.matches.length / 2) }).map((_, matchIndex) => {
+                                                    const mIda = round.matches[matchIndex * 2];
+                                                    const mVolta = round.matches[matchIndex * 2 + 1];
+                                                    if (!mIda) return null;
+                              
+                                                    if (!mVolta || mIda.id.includes('_3rd') || (!mIda.id.includes('_ida') && !mIda.id.includes('_f1'))) {
+                                                        const tA = getTeam(mIda.teamA); const tB = getTeam(mIda.teamB); const sUI = getMatchStatusDisplay(mIda.id);
+                                                        return (
+                                                           <div key={mIda.id} className="relative group">
+                                                              <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
+                                                                <div className="flex flex-col items-center text-center w-1/3 min-w-0 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(mIda.teamA); }}><ShieldDisplay shield={tA?.shield} size="normal" /><span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1 hover:text-emerald-400">{tA?.name || mIda.placeholderA}</span></div>
+                                                                <div className="flex flex-col items-center justify-center w-1/3 shrink-0"><span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>{isLocked ? '🔒 Bloqueado' : sUI.text}</span><div className="flex items-center justify-center gap-2">{sUI.isPlayed ? (<>{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}<span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span><span className="text-blue-700 font-bold text-xl">:</span><span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}</>) : (<span className="text-blue-700 font-bold text-xl">:</span>)}</div></div>
+                                                                <div className="flex flex-col items-center text-center w-1/3 min-w-0 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(mIda.teamB); }}><ShieldDisplay shield={tB?.shield} size="normal" /><span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1 hover:text-emerald-400">{tB?.name || mIda.placeholderB}</span></div>
+                                                              </div>
+                                                              {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(mIda, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
+                                                           </div>
+                                                        );
+                                                    }
+                              
+                                                    const sIda = getMatchStatusDisplay(mIda.id); const sVolta = getMatchStatusDisplay(mVolta.id);
+                                                    const idaIsFinished = sIda.isPlayed; const isLocked = round.status === 'locked';
+                              
+                                                    let aggScoreA = '?'; let aggScoreB = '?';
+                                                    let isPlayed = false; let statusText = 'Aguardando'; let statusColor = 'text-blue-500';
+                              
+                                                    if (sIda.isPlayed && sIda.text === 'Oficial' && sVolta.isPlayed && sVolta.text === 'Oficial') {
+                                                      isPlayed = true; statusText = 'Oficializado'; statusColor = 'text-emerald-400';
+                                                      aggScoreA = Number(sIda.scoreA||0) + Number(sVolta.scoreB||0);
+                                                      aggScoreB = Number(sIda.scoreB||0) + Number(sVolta.scoreA||0);
+                                                    } else if (sIda.isPlayed || sVolta.isPlayed) {
+                                                      statusText = 'Em Andamento'; statusColor = 'text-amber-400';
+                                                    }
+                              
+                                                    const isDupla = comp.category === 'copa_flash_dupla';
+                                                    const realTeamA = isDupla ? ((comp.groups || []).find(d => d.id === mIda.duplaA?.id) || mIda.duplaA) : getTeam(mIda.teamA);
+                                                    const realTeamB = isDupla ? ((comp.groups || []).find(d => d.id === mIda.duplaB?.id) || mIda.duplaB) : getTeam(mIda.teamB);
+                              
+                                                    return (
+                                                       <div key={`cal_dupla_${matchIndex}`} className="relative group">
+                                                          <div 
+                                                            onClick={() => {
+                                                               try { setSelectedDuplaMatchup({ mIda, mVolta, duplaA: realTeamA, duplaB: realTeamB, aggScoreA, aggScoreB, isLocked, roundId: round.id, idaIsFinished }); } 
+                                                               catch(err) { console.error("Erro", err); }
+                                                            }} 
+                                                            className={`p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm cursor-pointer hover:-translate-y-1 ${isPlayed ? 'bg-blue-900/90 border-emerald-500/50' : isLocked ? 'bg-blue-950/40 border-blue-900/60 opacity-60' : 'bg-blue-900/40 border-blue-700 hover:border-amber-500/50'}`}
+                                                          >
+                                                             <div className="flex flex-col items-center text-center w-1/3 min-w-0">
+                                                                <ShieldDisplay shield={realTeamA?.shield} size="normal" />
+                                                                <span className={`font-bold text-xs mt-2 truncate w-full px-1 ${isPlayed ? 'text-emerald-400' : 'text-blue-200'}`}>{realTeamA?.name || mIda.placeholderA}</span>
+                                                             </div>
+                                                             <div className="flex flex-col items-center justify-center w-1/3 shrink-0">
+                                                                <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center bg-blue-950 ${statusColor}`}>{isDupla ? '👥 Duplas' : '⚔️ Ida e Volta'}</span>
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                   {isPlayed ? (
+                                                                      <>
+                                                                         <span className={`text-2xl font-black ${statusColor}`}>{aggScoreA}</span>
+                                                                         <span className="text-blue-700 font-bold text-xl">:</span>
+                                                                         <span className={`text-2xl font-black ${statusColor}`}>{aggScoreB}</span>
+                                                                      </>
+                                                                   ) : (
+                                                                      <span className="text-blue-700 font-bold text-xl">VS</span>
+                                                                   )}
+                                                                </div>
+                                                             </div>
+                                                             <div className="flex flex-col items-center text-center w-1/3 min-w-0">
+                                                                <ShieldDisplay shield={realTeamB?.shield} size="normal" />
+                                                                <span className={`font-bold text-xs mt-2 truncate w-full px-1 ${isPlayed ? 'text-emerald-400' : 'text-blue-200'}`}>{realTeamB?.name || mIda.placeholderB}</span>
+                                                             </div>
+                                                          </div>
+                                                       </div>
+                                                    );
+                                                })
+                                             ) : (
+                                                round.matches.map(m => {
+                                                   const tA = getTeam(m.teamA); const tB = getTeam(m.teamB); const sUI = getMatchStatusDisplay(m.id);
+                                                   return (
+                                                      <div key={m.id} className="relative group">
+                                                        <div onClick={()=>{if(!isLocked && sUI.isPlayed && onSelectMatch){const f = matches.find(x=>x.id===sUI.submittedMatchId); if(f) onSelectMatch(f)}}} className={`bg-blue-900/80 p-4 rounded-xl border flex items-center justify-between transition-colors shadow-sm ${isLocked ? 'border-blue-900/60 opacity-50 grayscale-[50%]' : 'border-blue-800 cursor-pointer hover:border-blue-700'}`}>
+                                                          <div className="flex flex-col items-center text-center w-1/3 min-w-0 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(m.teamA); }}><ShieldDisplay shield={tA?.shield} size="normal" /><span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1 hover:text-emerald-400">{tA?.name || m.placeholderA}</span></div>
+                                                          <div className="flex flex-col items-center justify-center w-1/3 shrink-0"><span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md mb-2 text-center ${sUI.bg} ${sUI.color}`}>{isLocked ? '🔒 Bloqueado' : sUI.text}</span><div className="flex items-center justify-center gap-2">{sUI.isPlayed ? (<>{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 mr-0.5">({sUI.penaltiesA})</span>}<span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreA}</span><span className="text-blue-700 font-bold text-xl">:</span><span className={`text-2xl font-black ${sUI.color}`}>{sUI.scoreB}</span>{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold mb-3 ml-0.5">({sUI.penaltiesB})</span>}</>) : (<span className="text-blue-700 font-bold text-xl">:</span>)}</div></div>
+                                                          <div className="flex flex-col items-center text-center w-1/3 min-w-0 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(m.teamB); }}><ShieldDisplay shield={tB?.shield} size="normal" /><span className="font-bold text-blue-200 text-xs mt-2 truncate w-full px-1 hover:text-emerald-400">{tB?.name || m.placeholderB}</span></div>
+                                                        </div>
+                                                        {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
+                                                      </div>
+                                                   );
+                                                })
+                                             )}
                                            </div>
                                          </div>
                                       )}
@@ -642,8 +715,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                       const mVolta = round.matches[idx * 2 + 1];
                                       if (!mIda) return null;
 
-                                      // 🌟 Se não tiver o jogo de volta (Ex: Disputa de 3º lugar), desenha o quadro simples
-                                      if (!mVolta) {
+                                      if (!mVolta || mIda.id.includes('_3rd') || (!mIda.id.includes('_ida') && !mIda.id.includes('_f1'))) {
                                           const tA = getTeam(mIda.teamA); const tB = getTeam(mIda.teamB); const sUI = getMatchStatusDisplay(mIda.id);
                                           const isLocked = round.status === 'locked'; const isPlayed = sUI.isPlayed && sUI.text === 'Oficial';
                                           const isBye = (mIda.teamA && !mIda.teamB && mIda.placeholderB.includes('Vaga')) || (!mIda.teamA && mIda.teamB && mIda.placeholderA.includes('Vaga'));

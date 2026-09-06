@@ -4,8 +4,9 @@ import ShieldDisplay from './ShieldDisplay';
 import CountdownTimer from './CountdownTimer';
 import Button from './Button';
 import { calculateStandings, getChampionIds } from '../utils/torneios';
+import XPointsPanel from './XPointsPanel';
 
-const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch, onJoinOpenComp, onChangeTab }) => {
+const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch, onJoinOpenComp, onChangeTab }) => {
   const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const isCompAdmin = (c) => isLeader || c?.creatorId === currentUser?.id || (c?.admins || []).includes(currentUser?.id);
 
@@ -27,28 +28,54 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
     m.status !== 'approved' && m.status !== 'rejected'
   );
 
+  // 🌟 LÓGICA ATUALIZADA: AGRUPAMENTO INTELIGENTE PARA IDA E VOLTA
   const matchesToPlay = useMemo(() => {
     const available = [];
     (competitions || []).forEach(comp => {
       if (comp.status !== 'active') return;
       
       (comp.rounds || []).filter(r => r.status === 'released').forEach(round => {
-        (round.matches || []).forEach(m => {
-          if (userTeamIds.includes(m.teamA) || userTeamIds.includes(m.teamB)) {
-            const alreadyPlayed = (matches || []).some(
-              submitted => submitted.matchId === m.id && submitted.compId === comp.id && submitted.status !== 'rejected'
-            );
-            
-            if (!alreadyPlayed) {
+        const myMatchesInRound = (round.matches || []).filter(m => userTeamIds.includes(m.teamA) || userTeamIds.includes(m.teamB));
+        
+        // Agrupa as pernas do confronto (Ida/Volta) pelo ID base
+        const grouped = {};
+        myMatchesInRound.forEach(m => {
+           let baseId = m.id;
+           if (m.id.includes('_ida')) baseId = m.id.replace('_ida', '');
+           else if (m.id.includes('_volta')) baseId = m.id.replace('_volta', '');
+           else if (m.id.includes('_f1')) baseId = m.id.replace('_f1', '');
+           else if (m.id.includes('_f2')) baseId = m.id.replace('_f2', '');
+           
+           if (!grouped[baseId]) grouped[baseId] = [];
+           grouped[baseId].push(m);
+        });
+
+        // Varre os grupos para exibir apenas 1 card por adversário
+        Object.values(grouped).forEach(group => {
+           const unplayedMatch = group.find(m => {
+              return !(matches || []).some(
+                submitted => submitted.matchId === m.id && submitted.compId === comp.id && submitted.status !== 'rejected'
+              );
+           });
+
+           if (unplayedMatch) {
+              let legLabel = '';
+              if (group.length > 1 || comp.isIdaEVolta) {
+                  if (unplayedMatch.id.includes('_ida') || unplayedMatch.id.includes('_f1')) legLabel = 'Jogo de Ida';
+                  else if (unplayedMatch.id.includes('_volta') || unplayedMatch.id.includes('_f2')) legLabel = 'Jogo de Volta';
+              }
+
               available.push({ 
-                ...m, 
+                ...unplayedMatch, 
                 compName: comp.name, 
                 compId: comp.id, 
                 roundName: round.number,
-                isFlash: comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla'
+                isFlash: comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla',
+                isDoubleLeg: group.length > 1 || comp.isIdaEVolta,
+                isDupla: comp.category === 'copa_flash_dupla',
+                legLabel
               });
-            }
-          }
+           }
         });
       });
     });
@@ -63,6 +90,9 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
         <h2 className="text-2xl font-bold text-white mb-2">QG Clã Kame</h2>
         <p className="text-blue-400">Um app para guardar a sua história!</p>
       </div>
+
+      {/* 🌟 PAINEL DE XPOINTS RESTAURADO */}
+      <XPointsPanel users={users} currentUser={currentUser} />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {hasAdminAccess && (
@@ -113,16 +143,6 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {matchesToPlay.map(m => {
-              const compForMatch = competitions.find(c => c.id === m.compId);
-              const isDupla = compForMatch?.category === 'copa_flash_dupla';
-              const isVolta = m.id.includes('_volta');
-              
-              if (isDupla && isVolta) {
-                 const idaMatchId = m.id.replace('_volta', '_ida');
-                 const idaPlayed = (matches || []).some(sub => sub.matchId === idaMatchId && sub.compId === m.compId && sub.status !== 'rejected');
-                 if (!idaPlayed) return null; 
-              }
-
               const tA = getTeam(m.teamA);
               const tB = getTeam(m.teamB);
               
@@ -130,16 +150,28 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
               const opponentTeam = isUserTeamA ? tB : tA;
               const myTeamObj = isUserTeamA ? tA : tB;
 
+              let badgeLabel = '';
+              if (m.isDupla) badgeLabel = '👥 Duplas';
+              else if (m.isDoubleLeg) badgeLabel = '⚔️ Ida e Volta';
+
               return (
                 <div key={m.id} className="bg-blue-900/80 border border-emerald-500/40 hover:border-emerald-400/80 rounded-2xl p-4 shadow-lg transition-all flex flex-col justify-between group">
-                  <div className="flex justify-between items-start mb-4">
+                  <div className="flex justify-between items-start mb-2">
                     <span className="text-[10px] bg-blue-950 text-blue-300 px-2.5 py-1 rounded font-bold uppercase tracking-widest border border-blue-800 shadow-inner">
                       {m.compName} • Rodada {m.roundName}
                     </span>
                     {m.isFlash && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-1 rounded font-bold uppercase animate-pulse border border-amber-500/30 shadow-md flex items-center gap-1"><Activity size={10}/> Flash</span>}
                   </div>
                   
-                  <div className="flex items-center justify-between gap-2 mb-5 px-2">
+                  {badgeLabel && (
+                     <div className="text-center mb-1">
+                        <span className="text-[9px] bg-blue-950/80 text-amber-400 px-2 py-0.5 rounded font-black uppercase tracking-widest border border-amber-500/30 shadow-sm">
+                          {badgeLabel} {m.legLabel ? `• ${m.legLabel}` : ''}
+                        </span>
+                     </div>
+                  )}
+
+                  <div className={`flex items-center justify-between gap-2 ${badgeLabel ? 'mb-4 mt-2' : 'mb-5 mt-3'} px-2`}>
                     <div className="flex flex-col items-center flex-1 min-w-0">
                       <ShieldDisplay shield={myTeamObj?.shield} size="small" />
                       <span className={`text-xs font-bold mt-2 truncate w-full text-center text-emerald-400 drop-shadow-md`}>{myTeamObj?.name}</span>
@@ -281,12 +313,12 @@ const Dashboard = ({ matches, teams, competitions, currentUser, onSelectMatch, o
   );
 };
 
-const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
+export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
   if (!team) return null;
   
   const teamMatches = (matches || []).filter(m => {
     if (m.status !== 'approved' || (m.teamA !== team.id && m.teamB !== team.id)) return false;
-    return !!competitions.find(c => c.id === m.compId); // 👈 Filtra apagados
+    return !!competitions.find(c => c.id === m.compId);
   });
   let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0; 
   let biggestWin = null; let maxGd = -1;
@@ -316,7 +348,6 @@ const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
     }
   });
 
-  // 🌟 LEITURA DINÂMICA DE TÍTULOS
           let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0;
           let copasFlash = 0;
           let customTitles = {};
