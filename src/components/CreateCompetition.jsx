@@ -50,7 +50,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   };
 
   useEffect(() => {
-    if (category === 'copa_flash' || category === 'copa_flash_dupla') { setFormat('cup'); }
+    if (category === 'copa_flash' || category === 'copa_flash_dupla'|| category === 'copa_recompensa') { setFormat('cup'); }
     const compsOfCategory = (competitions || []).filter(c => c.category === category);
     const nextEditionNumber = compsOfCategory.length + 1;
     setName(`${CAT_NAMES[category] || 'Competição'} - Edição ${nextEditionNumber}`);
