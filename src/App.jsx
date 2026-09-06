@@ -441,33 +441,20 @@ export default function App() {
             if (finalPenaltiesA > finalPenaltiesB) realOutcome = 'A';
             else if (finalPenaltiesB > finalPenaltiesA) realOutcome = 'B';
          }
-
          const userPayouts = {};
-
          for (const pred of matchPreds) {
             const isWin = pred.option === realOutcome;
             const betAmount = Number(pred.amount);
             const oddToUse = pred.lockedOdd || 1.1; 
             const payout = isWin ? Math.floor(betAmount * oddToUse) : 0;
             const profit = isWin ? (payout - betAmount) : -betAmount;
-
-            if (payout > 0) {
-               if (!userPayouts[pred.userId]) userPayouts[pred.userId] = 0;
-               userPayouts[pred.userId] += payout;
-            }
-            
+            if (payout > 0) { if (!userPayouts[pred.userId]) userPayouts[pred.userId] = 0; userPayouts[pred.userId] += payout; }
             await updateDoc(getPublicDocPath('predictions', pred.id), { status: isWin ? 'won' : 'lost', payout, profit });
          }
-
          for (const userId of Object.keys(userPayouts)) {
             const uQuery = query(getPublicPath('users'), where('id', '==', userId));
             const uSnap = await getDocs(uQuery);
-            if (!uSnap.empty) {
-               const uData = uSnap.docs[0].data();
-               await updateDoc(getPublicDocPath('users', userId), { 
-                 kameCoins: Number(uData.kameCoins || 0) + userPayouts[userId] 
-               });
-            }
+            if (!uSnap.empty) { const uData = uSnap.docs[0].data(); await updateDoc(getPublicDocPath('users', userId), { kameCoins: Number(uData.kameCoins || 0) + userPayouts[userId] }); }
          }
       }
 
@@ -489,10 +476,7 @@ export default function App() {
           else if (finalPenaltiesB > finalPenaltiesA) winner = 'B';
         }
 
-        let addPtsA = 0; let addPtsB = 0;
-        let winsA = 0; let winsB = 0;
-        let drawsA = 0; let drawsB = 0;
-
+        let addPtsA = 0; let addPtsB = 0; let winsA = 0; let winsB = 0; let drawsA = 0; let drawsB = 0;
         let isWoMe = false; let isWoOpp = false;
         const obs = (match.observacoes || '').toLowerCase();
         if (obs.includes('w.o') || obs.includes('wo')) {
@@ -502,40 +486,21 @@ export default function App() {
         }
 
         if (isWoMe || isWoOpp) {
-           const suspendedTeams = comp.suspendedTeams || [];
-           let newSuspended = [...suspendedTeams];
+           const suspendedTeams = comp.suspendedTeams || []; let newSuspended = [...suspendedTeams];
            if (isWoMe && !newSuspended.includes(tA.id)) newSuspended.push(tA.id);
            if (isWoOpp && !newSuspended.includes(tB.id)) newSuspended.push(tB.id);
-
-           await updateDoc(getPublicDocPath('competitions', comp.id), { 
-              suspendedTeams: newSuspended
-           });
+           await updateDoc(getPublicDocPath('competitions', comp.id), { suspendedTeams: newSuspended });
         }
 
-        if (isWoMe) addPtsA = ptsPunicaoWo;
-        else addPtsA = ptsPlay;
-        
-        if (isWoOpp) addPtsB = ptsPunicaoWo;
-        else addPtsB = ptsPlay;
+        if (isWoMe) addPtsA = ptsPunicaoWo; else addPtsA = ptsPlay;
+        if (isWoOpp) addPtsB = ptsPunicaoWo; else addPtsB = ptsPlay;
 
         if (winner === 'A') { 
-            if (!isWoMe) {
-                if (isWoOpp) addPtsA += (ptsWin / 2);
-                else addPtsA += ptsWin;
-            }
-            winsA = 1; 
-        }
-        else if (winner === 'B') { 
-            if (!isWoOpp) {
-                if (isWoMe) addPtsB += (ptsWin / 2);
-                else addPtsB += ptsWin;
-            }
-            winsB = 1; 
-        }
-        else { 
-            if (!isWoMe) addPtsA += ptsDraw; 
-            if (!isWoOpp) addPtsB += ptsDraw; 
-            drawsA = 1; drawsB = 1; 
+            if (!isWoMe) { if (isWoOpp) addPtsA += (ptsWin / 2); else addPtsA += ptsWin; } winsA = 1; 
+        } else if (winner === 'B') { 
+            if (!isWoOpp) { if (isWoMe) addPtsB += (ptsWin / 2); else addPtsB += ptsWin; } winsB = 1; 
+        } else { 
+            if (!isWoMe) addPtsA += ptsDraw; if (!isWoOpp) addPtsB += ptsDraw; drawsA = 1; drawsB = 1; 
         }
 
         const isKnockoutMatch = match.matchId.includes('_ko_') || comp?.format === 'cup';
@@ -547,44 +512,28 @@ export default function App() {
           if (rName === 'Quartas') { addPtsA += (isFlash ? 2 : 10); addPtsB += (isFlash ? 2 : 10); }
           if (rName === 'Semifinal') { addPtsA += (isFlash ? 5 : 15); addPtsB += (isFlash ? 5 : 15); }
           if (rName === 'Final' && match.matchId.includes('_3rd')) {
-            if (winner === 'A') addPtsA += (isFlash ? 5 : 15);
-            else if (winner === 'B') addPtsB += (isFlash ? 5 : 15);
+            if (winner === 'A') addPtsA += (isFlash ? 5 : 15); else if (winner === 'B') addPtsB += (isFlash ? 5 : 15);
           }
         }
 
-        const tAQuery = query(getPublicPath('teams'), where('id', '==', tA.id));
-        const tBQuery = query(getPublicPath('teams'), where('id', '==', tB.id));
+        const tAQuery = query(getPublicPath('teams'), where('id', '==', tA.id)); const tBQuery = query(getPublicPath('teams'), where('id', '==', tB.id));
         const [tASnap, tBSnap] = await Promise.all([getDocs(tAQuery), getDocs(tBQuery)]);
 
         if (!tASnap.empty) {
            const tAData = tASnap.docs[0].data();
-           await updateDoc(getPublicDocPath('teams', tA.id), {
-             globalPoints: (tAData.globalPoints || 0) + addPtsA,
-             playedMatches: (tAData.playedMatches || 0) + 1,
-             totalWins: (tAData.totalWins || 0) + winsA,
-             totalDraws: (tAData.totalDraws || 0) + drawsA,
-             goalsFor: (tAData.goalsFor || 0) + finalScoreA,
-             goalsAgainst: (tAData.goalsAgainst || 0) + finalScoreB
-           });
+           await updateDoc(getPublicDocPath('teams', tA.id), { globalPoints: (tAData.globalPoints || 0) + addPtsA, playedMatches: (tAData.playedMatches || 0) + 1, totalWins: (tAData.totalWins || 0) + winsA, totalDraws: (tAData.totalDraws || 0) + drawsA, goalsFor: (tAData.goalsFor || 0) + finalScoreA, goalsAgainst: (tAData.goalsAgainst || 0) + finalScoreB });
         }
-        
         if (!tBSnap.empty) {
            const tBData = tBSnap.docs[0].data();
-           await updateDoc(getPublicDocPath('teams', tB.id), {
-             globalPoints: (tBData.globalPoints || 0) + addPtsB,
-             playedMatches: (tBData.playedMatches || 0) + 1,
-             totalWins: (tBData.totalWins || 0) + winsB,
-             totalDraws: (tBData.totalDraws || 0) + drawsB,
-             goalsFor: (tBData.goalsFor || 0) + finalScoreB,
-             goalsAgainst: (tBData.goalsAgainst || 0) + finalScoreA
-           });
+           await updateDoc(getPublicDocPath('teams', tB.id), { globalPoints: (tBData.globalPoints || 0) + addPtsB, playedMatches: (tBData.playedMatches || 0) + 1, totalWins: (tBData.totalWins || 0) + winsB, totalDraws: (tBData.totalDraws || 0) + drawsB, goalsFor: (tBData.goalsFor || 0) + finalScoreB, goalsAgainst: (tBData.goalsAgainst || 0) + finalScoreA });
         }
       }
 
       if (comp && (comp.format === 'cup' || comp.format === 'groups' || comp.category === 'copa_flash_dupla' || comp.category === 'copa_recompensa')) {
         let winnerId = null; 
+        const isIdaVoltaMatch = match.matchId.includes('_ida') || match.matchId.includes('_volta');
         
-        if (comp.category === 'copa_flash_dupla') {
+        if (comp.category === 'copa_flash_dupla' || (comp.isIdaEVolta && isIdaVoltaMatch)) {
            const isIda = match.matchId.includes('_ida');
            const partnerMatchId = match.matchId.replace(isIda ? '_ida' : '_volta', isIda ? '_volta' : '_ida');
            
@@ -593,13 +542,6 @@ export default function App() {
            
            if (!snapPartner.empty) {
                const partnerMatch = snapPartner.docs[0].data();
-               const currentRoundUI = comp.rounds.find(r => r.id === match.roundId);
-               const idaMatchId = isIda ? match.matchId : partnerMatchId;
-               const idaMatchUI = currentRoundUI.matches.find(x => x.id === idaMatchId);
-               
-               const duplaA = idaMatchUI.duplaA; 
-               const duplaB = idaMatchUI.duplaB;
-
                let aggScoreA = 0; let aggScoreB = 0; let aggPenA = 0; let aggPenB = 0;
                
                if (isIda) {
@@ -614,11 +556,21 @@ export default function App() {
                  aggPenB = Number(partnerMatch.penaltiesB||0) + (finalPenaltiesA||0);
                }
 
-               if (aggScoreA > aggScoreB) winnerId = duplaA; 
-               else if (aggScoreB > aggScoreA) winnerId = duplaB;
-               else if (aggPenA > aggPenB) winnerId = duplaA;
-               else if (aggPenB > aggPenA) winnerId = duplaB;
-               else { winnerId = Math.random() < 0.5 ? duplaA : duplaB; }
+               if (comp.category === 'copa_flash_dupla') {
+                   const currentRoundUI = comp.rounds.find(r => r.id === match.roundId);
+                   const idaMatchUI = currentRoundUI.matches.find(x => x.id === (isIda ? match.matchId : partnerMatchId));
+                   const duplaA = idaMatchUI.duplaA; const duplaB = idaMatchUI.duplaB;
+                   if (aggScoreA > aggScoreB) winnerId = duplaA; 
+                   else if (aggScoreB > aggScoreA) winnerId = duplaB;
+                   else if (aggPenA > aggPenB) winnerId = duplaA;
+                   else if (aggPenB > aggPenA) winnerId = duplaB;
+                   else { winnerId = Math.random() < 0.5 ? duplaA : duplaB; }
+               } else {
+                   if (aggScoreA > aggScoreB) winnerId = match.teamA; 
+                   else if (aggScoreB > aggScoreA) winnerId = match.teamB;
+                   else if (aggPenA > aggPenB) winnerId = match.teamA;
+                   else if (aggPenB > aggPenA) winnerId = match.teamB;
+               }
            }
         } else {
            if (finalScoreA > finalScoreB) winnerId = match.teamA; 
@@ -633,60 +585,54 @@ export default function App() {
           const rIndex = comp.rounds.findIndex(r => r && r.id === match.roundId); 
           const isKnockoutMatch = match.matchId.includes('_ko_') || comp.format === 'cup' || comp.category === 'copa_flash_dupla' || comp.category === 'copa_recompensa';
           
-          const divisorIndex = comp.category === 'copa_flash_dupla' ? 4 : 2;
+          const isDouble = comp.category === 'copa_flash_dupla' || comp.isIdaEVolta;
+          const divisorIndex = isDouble ? 4 : 2;
+          const stepMult = isDouble ? 2 : 1;
 
           if (rIndex >= 0 && rIndex < comp.rounds.length - 1 && isKnockoutMatch) {
             const mIndex = comp.rounds[rIndex].matches.findIndex(m => m && m.id === match.matchId);
             if (mIndex >= 0) {
                const nextRIndex = rIndex + 1; 
-               const nextMIndex = Math.floor(mIndex / divisorIndex) * (comp.category === 'copa_flash_dupla' ? 2 : 1); 
-               const isTeamA = (Math.floor(mIndex / (comp.category === 'copa_flash_dupla' ? 2 : 1)) % 2) === 0; 
+               const nextMIndex = Math.floor(mIndex / divisorIndex) * stepMult; 
+               const isTeamA = (Math.floor(mIndex / stepMult) % 2) === 0; 
                const newRounds = JSON.parse(JSON.stringify(comp.rounds)); 
 
                if (comp.category === 'copa_flash_dupla') {
                    if (isTeamA) {
-                       newRounds[nextRIndex].matches[nextMIndex].duplaA = winnerId;
-                       newRounds[nextRIndex].matches[nextMIndex].teamA = winnerId.p1;
-                       newRounds[nextRIndex].matches[nextMIndex].placeholderA = `${winnerId.name} (Téc 1)`;
-                       
-                       newRounds[nextRIndex].matches[nextMIndex + 1].duplaB = winnerId;
-                       newRounds[nextRIndex].matches[nextMIndex + 1].teamB = winnerId.p2;
-                       newRounds[nextRIndex].matches[nextMIndex + 1].placeholderB = `${winnerId.name} (Téc 2)`;
+                       newRounds[nextRIndex].matches[nextMIndex].duplaA = winnerId; newRounds[nextRIndex].matches[nextMIndex].teamA = winnerId.p1; newRounds[nextRIndex].matches[nextMIndex].placeholderA = `${winnerId.name} (Téc 1)`;
+                       newRounds[nextRIndex].matches[nextMIndex + 1].duplaB = winnerId; newRounds[nextRIndex].matches[nextMIndex + 1].teamB = winnerId.p2; newRounds[nextRIndex].matches[nextMIndex + 1].placeholderB = `${winnerId.name} (Téc 2)`;
                    } else {
-                       newRounds[nextRIndex].matches[nextMIndex].duplaB = winnerId;
-                       newRounds[nextRIndex].matches[nextMIndex].teamB = winnerId.p1;
-                       newRounds[nextRIndex].matches[nextMIndex].placeholderA = `${winnerId.name} (Téc 1)`;
-
-                       newRounds[nextRIndex].matches[nextMIndex + 1].duplaA = winnerId;
-                       newRounds[nextRIndex].matches[nextMIndex + 1].teamA = winnerId.p2;
-                       newRounds[nextRIndex].matches[nextMIndex + 1].placeholderA = `${winnerId.name} (Téc 2)`;
+                       newRounds[nextRIndex].matches[nextMIndex].duplaB = winnerId; newRounds[nextRIndex].matches[nextMIndex].teamB = winnerId.p1; newRounds[nextRIndex].matches[nextMIndex].placeholderA = `${winnerId.name} (Téc 1)`;
+                       newRounds[nextRIndex].matches[nextMIndex + 1].duplaA = winnerId; newRounds[nextRIndex].matches[nextMIndex + 1].teamA = winnerId.p2; newRounds[nextRIndex].matches[nextMIndex + 1].placeholderA = `${winnerId.name} (Téc 2)`;
                    }
-               // 🎁 LÓGICA DE AVANÇO EXCLUSIVA DA COPA RECOMPENSA
                } else if (comp.category === 'copa_recompensa' && comp.rounds[rIndex].number === 'Playoff de Acesso') {
-                   // O jogo 1 do Playoff (mIndex 0) preenche a vaga no jogo 1 das Quartas
-                   if (mIndex === 0) newRounds[nextRIndex].matches[0].teamB = winnerId;
-                   // O jogo 2 do Playoff (mIndex 1) preenche a vaga no jogo 4 das Quartas
-                   else if (mIndex === 1) newRounds[nextRIndex].matches[3].teamB = winnerId;
-
+                   if (isDouble) {
+                       if (mIndex <= 1) { newRounds[nextRIndex].matches[0].teamB = winnerId; newRounds[nextRIndex].matches[1].teamA = winnerId; }
+                       else { newRounds[nextRIndex].matches[6].teamB = winnerId; newRounds[nextRIndex].matches[7].teamA = winnerId; }
+                   } else {
+                       if (mIndex === 0) newRounds[nextRIndex].matches[0].teamB = winnerId; else if (mIndex === 1) newRounds[nextRIndex].matches[3].teamB = winnerId;
+                   }
                } else {
                    const loserId = winnerId === match.teamA ? match.teamB : match.teamA;
                    const isNextRoundFinal = newRounds[nextRIndex].matches.some(x => x.id.includes('_f1') || x.id.includes('_3rd'));
 
-                   if (isNextRoundFinal) {
+                   if (isNextRoundFinal && !isDouble) {
                       newRounds[nextRIndex].matches.forEach(nextMatch => {
-                         if (nextMatch.id.includes('_3rd')) {
-                            if (isTeamA) nextMatch.teamA = loserId; else nextMatch.teamB = loserId;
-                         } else {
-                            if (nextMatch.id.includes('_f2')) {
-                               if (isTeamA) nextMatch.teamB = winnerId; else nextMatch.teamA = winnerId;
-                            } else {
-                               if (isTeamA) nextMatch.teamA = winnerId; else nextMatch.teamB = winnerId;
-                            }
-                         }
+                         if (nextMatch.id.includes('_3rd')) { if (isTeamA) nextMatch.teamA = loserId; else nextMatch.teamB = loserId; } 
+                         else { if (nextMatch.id.includes('_f2')) { if (isTeamA) nextMatch.teamB = winnerId; else nextMatch.teamA = winnerId; } else { if (isTeamA) nextMatch.teamA = winnerId; else nextMatch.teamB = winnerId; } }
+                      });
+                   } else if (isNextRoundFinal && isDouble) {
+                      newRounds[nextRIndex].matches.forEach(nextMatch => {
+                         if (nextMatch.id.includes('_3rd')) { if (isTeamA) nextMatch.teamA = loserId; else nextMatch.teamB = loserId; } 
+                         else { if (nextMatch.id.includes('_f2') || nextMatch.id.includes('_volta')) { if (isTeamA) nextMatch.teamB = winnerId; else nextMatch.teamA = winnerId; } else { if (isTeamA) nextMatch.teamA = winnerId; else nextMatch.teamB = winnerId; } }
                       });
                    } else {
-                      if (isTeamA) newRounds[nextRIndex].matches[nextMIndex].teamA = winnerId; 
-                      else newRounds[nextRIndex].matches[nextMIndex].teamB = winnerId;
+                      if (isDouble) {
+                          if (isTeamA) { newRounds[nextRIndex].matches[nextMIndex].teamA = winnerId; newRounds[nextRIndex].matches[nextMIndex + 1].teamB = winnerId; } 
+                          else { newRounds[nextRIndex].matches[nextMIndex].teamB = winnerId; newRounds[nextRIndex].matches[nextMIndex + 1].teamA = winnerId; }
+                      } else {
+                          if (isTeamA) newRounds[nextRIndex].matches[nextMIndex].teamA = winnerId; else newRounds[nextRIndex].matches[nextMIndex].teamB = winnerId;
+                      }
                    }
                }
                await updateDoc(getPublicDocPath('competitions', comp.id), { rounds: newRounds });

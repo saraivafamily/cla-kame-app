@@ -12,19 +12,10 @@ export const calculateStandings = (matches, teams, compId) => {
   
   Object.values(appMap).forEach(m => {
     const tA = table[m.teamA], tB = table[m.teamB]; if (!tA || !tB) return;
-    
     tA.p++; tB.p++; 
     tA.gf += Number(m.scoreA||0); tB.gf += Number(m.scoreB||0); 
     tA.ga += Number(m.scoreB||0); tB.ga += Number(m.scoreA||0);
-    
-    // ⚽ PADRÃO FUTEBOL: +3 (Vitória), +1 (Empate), 0 (Derrota)
-    if (Number(m.scoreA) > Number(m.scoreB)) { 
-        tA.pts += 3; tA.w++; tB.l++; 
-    } else if (Number(m.scoreA) < Number(m.scoreB)) { 
-        tB.pts += 3; tB.w++; tA.l++; 
-    } else { 
-        tA.pts++; tB.pts++; tA.d++; tB.d++; 
-    }
+    if (Number(m.scoreA) > Number(m.scoreB)) { tA.pts += 3; tA.w++; tB.l++; } else if (Number(m.scoreA) < Number(m.scoreB)) { tB.pts += 3; tB.w++; tA.l++; } else { tA.pts++; tB.pts++; tA.d++; tB.d++; }
   });
   
   return Object.values(table).map(t => ({ ...t, gd: t.gf - t.ga })).sort((a, b) => { 
@@ -44,7 +35,7 @@ export const getChampionIds = (comp, matches, teams) => {
     const finalMatches = lastRound.matches.filter(m => !m.id.includes('_3rd'));
     if (finalMatches.length === 0) return [];
 
-    if (comp.category === 'copa_flash_dupla') {
+    if (comp.category === 'copa_flash_dupla' || comp.isIdaEVolta) {
         const mIda = finalMatches[0];
         const mVolta = finalMatches[1];
         if (!mIda || !mVolta) return [];
@@ -58,10 +49,17 @@ export const getChampionIds = (comp, matches, teams) => {
         const penDuplaA = Number(sIda.penaltiesA || 0) + Number(sVolta.penaltiesB || 0);
         const penDuplaB = Number(sIda.penaltiesB || 0) + Number(sVolta.penaltiesA || 0);
         
-        if (scoreDuplaA > scoreDuplaB) return [mIda.duplaA?.p1, mIda.duplaA?.p2].filter(Boolean);
-        if (scoreDuplaB > scoreDuplaA) return [mIda.duplaB?.p1, mIda.duplaB?.p2].filter(Boolean);
-        if (penDuplaA > penDuplaB) return [mIda.duplaA?.p1, mIda.duplaA?.p2].filter(Boolean);
-        if (penDuplaB > penDuplaA) return [mIda.duplaB?.p1, mIda.duplaB?.p2].filter(Boolean);
+        if (comp.category === 'copa_flash_dupla') {
+            if (scoreDuplaA > scoreDuplaB) return [mIda.duplaA?.p1, mIda.duplaA?.p2].filter(Boolean);
+            if (scoreDuplaB > scoreDuplaA) return [mIda.duplaB?.p1, mIda.duplaB?.p2].filter(Boolean);
+            if (penDuplaA > penDuplaB) return [mIda.duplaA?.p1, mIda.duplaA?.p2].filter(Boolean);
+            if (penDuplaB > penDuplaA) return [mIda.duplaB?.p1, mIda.duplaB?.p2].filter(Boolean);
+        } else {
+            if (scoreDuplaA > scoreDuplaB) return [mIda.teamA];
+            if (scoreDuplaB > scoreDuplaA) return [mIda.teamB];
+            if (penDuplaA > penDuplaB) return [mIda.teamA];
+            if (penDuplaB > penDuplaA) return [mIda.teamB];
+        }
         return [];
     }
 
@@ -75,7 +73,6 @@ export const getChampionIds = (comp, matches, teams) => {
     for (let fm of finalMatches) {
        const sUI = matches.find(m => m.matchId === fm.id && m.compId === comp.id && m.status === 'approved');
        if (!sUI) { allApproved = false; break; }
-       
        if (fm.teamA === tA) {
           totalScoreA += Number(sUI.scoreA || 0); totalScoreB += Number(sUI.scoreB || 0);
           if (sUI.penaltiesA !== null && sUI.penaltiesA !== undefined) { lastPenA = Number(sUI.penaltiesA); lastPenB = Number(sUI.penaltiesB); }
@@ -88,10 +85,7 @@ export const getChampionIds = (comp, matches, teams) => {
     if (allApproved) {
        if (totalScoreA > totalScoreB) return [tA];
        if (totalScoreB > totalScoreA) return [tB];
-       if (lastPenA !== null && lastPenB !== null) {
-          if (lastPenA > lastPenB) return [tA];
-          if (lastPenB > lastPenA) return [tB];
-       }
+       if (lastPenA !== null && lastPenB !== null) { if (lastPenA > lastPenB) return [tA]; if (lastPenB > lastPenA) return [tB]; }
     }
   } else if (comp.format === 'league') {
     const groupOrNormalRounds = comp.rounds.filter(r => !r.id.includes('ko'));
@@ -106,15 +100,14 @@ export const getChampionIds = (comp, matches, teams) => {
   return [];
 };
 
-export const generateCupBracket = (teamIds, compId, isFinalDouble = false) => {
+export const generateCupBracket = (teamIds, compId, isFinalDouble = false, isIdaEVolta = false) => {
   if (!teamIds || teamIds.length === 0) return [];
   const sh = [...teamIds].sort(() => 0.5 - Math.random());
   let p2 = 1; while (p2 < sh.length) p2 *= 2;
   const tkr = Math.log2(p2);
   const rounds = [];
   const firstRoundMatches = [];
-  const byes = p2 - sh.length; 
-  const playing = sh.length - byes; 
+  const byes = p2 - sh.length; const playing = sh.length - byes; 
   
   let teamIndex = 0;
   for (let i = 0; i < p2 / 2; i++) {
@@ -126,52 +119,42 @@ export const generateCupBracket = (teamIds, compId, isFinalDouble = false) => {
   let prevRoundMatches = firstRoundMatches.map(m => { return { tA: m[0] || '', tB: m[1] || '', isBye: (!m[0] || !m[1]) }; });
 
   for (let kr = 0; kr < tkr; kr++) {
-    const rm = [];
-    const nm = p2 / Math.pow(2, kr + 1);
-    const fmc = mc;
-    let rl = 'Mata-Mata';
-    if (nm === 1) rl = 'Final';
-    else if (nm === 2) rl = 'Semifinal';
-    else if (nm === 4) rl = 'Quartas';
-    else if (nm === 8) rl = 'Oitavas';
-    else if (nm === 16) rl = '16 Avos';
-    else if (nm === 32) rl = '32 Avos';
-
+    const rm = []; const nm = p2 / Math.pow(2, kr + 1); const fmc = mc;
+    let rl = 'Mata-Mata'; if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas'; else if (nm === 8) rl = 'Oitavas'; else if (nm === 16) rl = '16 Avos'; else if (nm === 32) rl = '32 Avos';
     const currentRoundMatches = [];
 
     for (let i = 0; i < nm; i++) {
-      let tA = ''; let tB = '';
-      let pA = 'A Definir'; let pB = 'A Definir';
+      let tA = ''; let tB = ''; let pA = 'A Definir'; let pB = 'A Definir';
 
       if (kr === 0) {
         tA = prevRoundMatches[i].tA; tB = prevRoundMatches[i].tB;
-        if (!tA && !tB) { pA = 'Vaga Aberta'; pB = 'Vaga Aberta'; }
-        else if (!tA) { pA = 'Vaga Aberta'; pB = 'A Definir'; } 
-        else if (!tB) { pA = 'A Definir'; pB = 'Vaga Aberta'; }
+        if (!tA && !tB) { pA = 'Vaga Aberta'; pB = 'Vaga Aberta'; } else if (!tA) { pA = 'Vaga Aberta'; pB = 'A Definir'; } else if (!tB) { pA = 'A Definir'; pB = 'Vaga Aberta'; }
         currentRoundMatches.push({ advanced: tA || tB });
       } else {
         const prevA = prevRoundMatches[i * 2]; const prevB = prevRoundMatches[i * 2 + 1];
-        if (prevA && prevA.advanced) { tA = prevA.advanced; pA = 'Avanço Automático'; }
-        else { pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; }
-        if (prevB && prevB.advanced) { tB = prevB.advanced; pB = 'Avanço Automático'; }
-        else { pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`; }
-
-        if (tA && !tB && pB.includes('Avanço')) currentRoundMatches.push({ advanced: tA });
-        else if (!tA && tB && pA.includes('Avanço')) currentRoundMatches.push({ advanced: tB });
-        else currentRoundMatches.push({ advanced: null });
+        if (prevA && prevA.advanced) { tA = prevA.advanced; pA = 'Avanço Automático'; } else { pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; }
+        if (prevB && prevB.advanced) { tB = prevB.advanced; pB = 'Avanço Automático'; } else { pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`; }
+        if (tA && !tB && pB.includes('Avanço')) currentRoundMatches.push({ advanced: tA }); else if (!tA && tB && pA.includes('Avanço')) currentRoundMatches.push({ advanced: tB }); else currentRoundMatches.push({ advanced: null });
       }
 
       if (nm === 1) {
-        rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_f1`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
-        if (isFinalDouble) {
-          rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_f2`, teamA: tB, teamB: tA, placeholderA: pB, placeholderB: pA, status: 'pending_play' }); mc++;
+        if (isIdaEVolta || isFinalDouble) {
+            rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_ida`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' });
+            rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_volta`, teamA: tB, teamB: tA, placeholderA: `Volta: ${pB}`, placeholderB: `Volta: ${pA}`, status: 'pending_play' });
+        } else {
+            rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_f1`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' });
         }
         if (kr > 0) {
-          let p3A = `Perd. Jogo ${fmc - (nm * 2) + (i * 2)}`; let p3B = `Perd. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
-          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_3rd`, teamA: '', teamB: '', placeholderA: `🥉 ${p3A}`, placeholderB: `🥉 ${p3B}`, status: 'pending_play' }); mc++;
+            let p3A = `Perd. Jogo ${fmc - (nm * 2) + (i * 2)}`; let p3B = `Perd. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
+            rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_3rd`, teamA: '', teamB: '', placeholderA: `🥉 ${p3A}`, placeholderB: `🥉 ${p3B}`, status: 'pending_play' }); mc++;
         }
       } else {
-        rm.push({ id: `${compId}_ko_m${mc}_kr${kr}`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
+        if (isIdaEVolta) {
+            rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_ida`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' });
+            rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_volta`, teamA: tB, teamB: tA, placeholderA: `Volta: ${pB}`, placeholderB: `Volta: ${pA}`, status: 'pending_play' });
+        } else {
+            rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' });
+        }
       }
     }
     prevRoundMatches = currentRoundMatches;
@@ -217,7 +200,7 @@ export const generateRoundRobin = (teams, compId, isDoubleRound = false) => {
   return rounds;
 };
 
-export const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2, isDoubleRound = false, isFinalDouble = false) => {
+export const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers = 2, isDoubleRound = false, isFinalDouble = false, isIdaEVolta = false) => {
   const sh = [...teamIds].sort(() => 0.5 - Math.random()); const groups = {}; const gn = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   for(let i=0; i<numGroups; i++) groups[gn[i]] = []; sh.forEach((t, i) => groups[gn[i % numGroups]].push(t));
   
@@ -251,16 +234,23 @@ export const generateGroupsAndKnockout = (teamIds, compId, numGroups, qualifiers
       }
 
       if (nm === 1) { 
-          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f1`, teamA: '', teamB: '', placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
-          if (isFinalDouble) {
-             rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f2`, teamA: '', teamB: '', placeholderA: pB, placeholderB: pA, status: 'pending_play' }); mc++;
+          if (isIdaEVolta || isFinalDouble) {
+              rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_ida`, teamA: '', teamB: '', placeholderA: pA, placeholderB: pB, status: 'pending_play' });
+              rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_volta`, teamA: '', teamB: '', placeholderA: `Volta: ${pB}`, placeholderB: `Volta: ${pA}`, status: 'pending_play' });
+          } else {
+              rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_f1`, teamA: '', teamB: '', placeholderA: pA, placeholderB: pB, status: 'pending_play' });
           }
           if (kr > 0) { 
              let p3A = `Perd. Jogo ${fmc - (nm * 2) + (i * 2)}`; let p3B = `Perd. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
              rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_3rd`, teamA: '', teamB: '', placeholderA: `🥉 ${p3A}`, placeholderB: `🥉 ${p3B}`, status: 'pending_play' }); mc++;
           }
       } else {
-          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}`, teamA: '', teamB: '', placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
+          if (isIdaEVolta) {
+              rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_ida`, teamA: '', teamB: '', placeholderA: pA, placeholderB: pB, status: 'pending_play' });
+              rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_volta`, teamA: '', teamB: '', placeholderA: `Volta: ${pB}`, placeholderB: `Volta: ${pA}`, status: 'pending_play' });
+          } else {
+              rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}`, teamA: '', teamB: '', placeholderA: pA, placeholderB: pB, status: 'pending_play' });
+          }
       }
     }
     rounds.push({ id: `ko_${kr}`, number: rl, status: 'locked', releasedAt: null, matches: rm });
@@ -284,7 +274,6 @@ export const generateDuplasCupBracket = (teamIds, compId, teamsData, matchesData
     const time2 = teamsData.find(t => t.id === pote2[i]);
     const nameP1 = time1 && time1.name ? time1.name.split(' ')[0] : 'Time 1';
     const nameP2 = time2 && time2.name ? time2.name.split(' ')[0] : 'Time 2';
-
     duplas.push({ id: `dp_${i+1}`, name: `${nameP1} & ${nameP2}`, p1: pote1[i], p2: pote2[i] });
   }
 
@@ -298,155 +287,70 @@ export const generateDuplasCupBracket = (teamIds, compId, teamsData, matchesData
 
     for (let i = 0; i < nm; i++) {
       let dA = null; let dB = null; let pA = 'A Definir'; let pB = 'A Definir';
-      
-      if (kr === 0) {
-        dA = sh[i * 2] || null; dB = sh[i * 2 + 1] || null;
-        pA = dA ? dA.name : 'Vaga Aberta'; pB = dB ? dB.name : 'Vaga Aberta';
-      } else {
-        pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
-      }
+      if (kr === 0) { dA = sh[i * 2] || null; dB = sh[i * 2 + 1] || null; pA = dA ? dA.name : 'Vaga Aberta'; pB = dB ? dB.name : 'Vaga Aberta'; } 
+      else { pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`; }
 
       rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_ida`, isDupla: true, duplaA: dA, duplaB: dB, teamA: dA ? dA.p1 : '', teamB: dB ? dB.p1 : '', placeholderA: `${pA} (Técnico 1)`, placeholderB: `${pB} (Técnico 1)`, status: 'pending_play' }); mc++;
       rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_volta`, isDupla: true, duplaA: dB, duplaB: dA, teamA: dB ? dB.p2 : '', teamB: dA ? dA.p2 : '', placeholderA: `${pB} (Técnico 2)`, placeholderB: `${pA} (Técnico 2)`, status: 'pending_play' }); mc++;
     }
     rounds.push({ id: `ko_${kr}`, number: rl, status: kr === 0 ? 'released' : 'locked', releasedAt: kr === 0 ? Date.now() : null, matches: rm });
   }
-  
   return { rounds, duplas };
 };
 
-// 🌟 NOVO: GERADOR DA COPA RECOMPENSA
-export const generateCopaRecompensaBracket = (teamIds, compId, teamsData, isFinalDouble = false) => {
-  // Ordena times por pontos globais (Top 6 vão direto pras Quartas)
+export const generateCopaRecompensaBracket = (teamIds, compId, teamsData, isFinalDouble = false, isIdaEVolta = false) => {
   const sortedTeams = [...teamIds].sort((a, b) => {
-    const tA = teamsData.find(t => t.id === a);
-    const tB = teamsData.find(t => t.id === b);
-    const ptsA = tA ? (tA.globalPoints || 0) : 0;
-    const ptsB = tB ? (tB.globalPoints || 0) : 0;
+    const tA = teamsData.find(t => t.id === a); const tB = teamsData.find(t => t.id === b);
+    const ptsA = tA ? (tA.globalPoints || 0) : 0; const ptsB = tB ? (tB.globalPoints || 0) : 0;
     return ptsB - ptsA;
   });
 
-  const elite = sortedTeams.slice(0, 6);
-  const preliminar = sortedTeams.slice(6); // Os 16 restantes
-
-  // Embaralha para os confrontos não serem previsíveis
+  const elite = sortedTeams.slice(0, 6); const preliminar = sortedTeams.slice(6);
   const shuffledPrelim = [...preliminar].sort(() => 0.5 - Math.random());
   const shuffledElite = [...elite].sort(() => 0.5 - Math.random());
 
-  const rounds = [];
-  let mc = 1;
+  const rounds = []; let mc = 1;
 
-  // --- FASE 1 (16 times -> 8 jogos) ---
+  const pushMatch = (rm, baseId, tA, tB, pA, pB) => {
+      if (isIdaEVolta) {
+          rm.push({ id: `${baseId}_ida`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' });
+          rm.push({ id: `${baseId}_volta`, teamA: tB, teamB: tA, placeholderA: `Volta: ${pB}`, placeholderB: `Volta: ${pA}`, status: 'pending_play' });
+      } else {
+          rm.push({ id: baseId, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' });
+      }
+  };
+
   const r0Matches = [];
-  for(let i=0; i<8; i++) {
-    const tA = shuffledPrelim[i*2] || '';
-    const tB = shuffledPrelim[i*2+1] || '';
-    r0Matches.push({
-      id: `${compId}_ko_m${mc++}_kr0`,
-      teamA: tA, teamB: tB,
-      placeholderA: tA ? '' : 'A Definir', placeholderB: tB ? '' : 'A Definir',
-      status: 'pending_play'
-    });
-  }
+  for(let i=0; i<8; i++) { pushMatch(r0Matches, `${compId}_ko_m${mc++}_kr0`, shuffledPrelim[i*2] || '', shuffledPrelim[i*2+1] || '', shuffledPrelim[i*2] ? '' : 'A Definir', shuffledPrelim[i*2+1] ? '' : 'A Definir'); }
   rounds.push({ id: `ko_0`, number: 'Fase 1 (Preliminar)', status: 'released', releasedAt: Date.now(), matches: r0Matches });
 
-  // --- FASE 2 (8 times -> 4 jogos) ---
   const r1Matches = [];
-  for(let i=0; i<4; i++) {
-    r1Matches.push({
-      id: `${compId}_ko_m${mc++}_kr1`,
-      teamA: '', teamB: '',
-      placeholderA: `Venc. Jogo ${r0Matches[i*2].id.split('_m')[1].split('_')[0]}`,
-      placeholderB: `Venc. Jogo ${r0Matches[i*2+1].id.split('_m')[1].split('_')[0]}`,
-      status: 'pending_play'
-    });
-  }
+  for(let i=0; i<4; i++) { pushMatch(r1Matches, `${compId}_ko_m${mc++}_kr1`, '', '', `Venc. Jogo ${r0Matches[i*(isIdaEVolta?4:2)].id.split('_m')[1].split('_')[0]}`, `Venc. Jogo ${r0Matches[(i*(isIdaEVolta?4:2))+(isIdaEVolta?2:1)].id.split('_m')[1].split('_')[0]}`); }
   rounds.push({ id: `ko_1`, number: 'Fase 2 (Preliminar)', status: 'locked', releasedAt: null, matches: r1Matches });
 
-  // --- FASE 3: PLAYOFF DE ACESSO (4 times -> 2 jogos) ---
   const r2Matches = [];
-  for(let i=0; i<2; i++) {
-    r2Matches.push({
-      id: `${compId}_ko_m${mc++}_kr2`,
-      teamA: '', teamB: '',
-      placeholderA: `Venc. Jogo ${r1Matches[i*2].id.split('_m')[1].split('_')[0]}`,
-      placeholderB: `Venc. Jogo ${r1Matches[i*2+1].id.split('_m')[1].split('_')[0]}`,
-      status: 'pending_play'
-    });
-  }
+  for(let i=0; i<2; i++) { pushMatch(r2Matches, `${compId}_ko_m${mc++}_kr2`, '', '', `Venc. Jogo ${r1Matches[i*(isIdaEVolta?4:2)].id.split('_m')[1].split('_')[0]}`, `Venc. Jogo ${r1Matches[(i*(isIdaEVolta?4:2))+(isIdaEVolta?2:1)].id.split('_m')[1].split('_')[0]}`); }
   rounds.push({ id: `ko_2`, number: 'Playoff de Acesso', status: 'locked', releasedAt: null, matches: r2Matches });
 
-  // --- FASE 4: QUARTAS DE FINAL (6 Elite + 2 Classificados -> 4 jogos) ---
   const r3Matches = [];
-  // Jogo 1: Elite 1 x Vencedor Playoff 1
-  r3Matches.push({
-    id: `${compId}_ko_m${mc++}_kr3`,
-    teamA: shuffledElite[0] || '', teamB: '',
-    placeholderA: 'Elite Rank #1',
-    placeholderB: `Venc. Playoff 1`,
-    status: 'pending_play'
-  });
-  // Jogo 2: Elite 2 x Elite 3
-  r3Matches.push({
-    id: `${compId}_ko_m${mc++}_kr3`,
-    teamA: shuffledElite[1] || '', teamB: shuffledElite[2] || '',
-    placeholderA: 'Elite Rank #2',
-    placeholderB: 'Elite Rank #3',
-    status: 'pending_play'
-  });
-  // Jogo 3: Elite 4 x Elite 5
-  r3Matches.push({
-    id: `${compId}_ko_m${mc++}_kr3`,
-    teamA: shuffledElite[3] || '', teamB: shuffledElite[4] || '',
-    placeholderA: 'Elite Rank #4',
-    placeholderB: 'Elite Rank #5',
-    status: 'pending_play'
-  });
-  // Jogo 4: Elite 6 x Vencedor Playoff 2
-  r3Matches.push({
-    id: `${compId}_ko_m${mc++}_kr3`,
-    teamA: shuffledElite[5] || '', teamB: '',
-    placeholderA: 'Elite Rank #6',
-    placeholderB: `Venc. Playoff 2`,
-    status: 'pending_play'
-  });
+  pushMatch(r3Matches, `${compId}_ko_m${mc++}_kr3`, shuffledElite[0] || '', '', 'Elite Rank #1', `Venc. Playoff 1`);
+  pushMatch(r3Matches, `${compId}_ko_m${mc++}_kr3`, shuffledElite[1] || '', shuffledElite[2] || '', 'Elite Rank #2', 'Elite Rank #3');
+  pushMatch(r3Matches, `${compId}_ko_m${mc++}_kr3`, shuffledElite[3] || '', shuffledElite[4] || '', 'Elite Rank #4', 'Elite Rank #5');
+  pushMatch(r3Matches, `${compId}_ko_m${mc++}_kr3`, shuffledElite[5] || '', '', 'Elite Rank #6', `Venc. Playoff 2`);
   rounds.push({ id: `ko_3`, number: 'Quartas', status: 'locked', releasedAt: null, matches: r3Matches });
 
-  // --- FASE 5: SEMIFINAL (4 times -> 2 jogos) ---
   const r4Matches = [];
-  for(let i=0; i<2; i++) {
-    r4Matches.push({
-      id: `${compId}_ko_m${mc++}_kr4`,
-      teamA: '', teamB: '',
-      placeholderA: `Venc. Quartas ${i*2 + 1}`,
-      placeholderB: `Venc. Quartas ${i*2 + 2}`,
-      status: 'pending_play'
-    });
-  }
+  for(let i=0; i<2; i++) { pushMatch(r4Matches, `${compId}_ko_m${mc++}_kr4`, '', '', `Venc. Quartas ${i*2 + 1}`, `Venc. Quartas ${i*2 + 2}`); }
   rounds.push({ id: `ko_4`, number: 'Semifinal', status: 'locked', releasedAt: null, matches: r4Matches });
 
-  // --- FASE 6: FINAL (2 times -> 1 jogo) ---
   const r5Matches = [];
-  r5Matches.push({
-    id: `${compId}_ko_m${mc++}_kr5_f1`,
-    teamA: '', teamB: '',
-    placeholderA: `Venc. Semi 1`, placeholderB: `Venc. Semi 2`,
-    status: 'pending_play'
-  });
-  if (isFinalDouble) {
-    r5Matches.push({
-      id: `${compId}_ko_m${mc++}_kr5_f2`,
-      teamA: '', teamB: '',
-      placeholderA: `Venc. Semi 2`, placeholderB: `Venc. Semi 1`,
-      status: 'pending_play'
-    });
+  if (isIdaEVolta || isFinalDouble) {
+      r5Matches.push({ id: `${compId}_ko_m${mc++}_kr5_ida`, teamA: '', teamB: '', placeholderA: `Venc. Semi 1`, placeholderB: `Venc. Semi 2`, status: 'pending_play' });
+      r5Matches.push({ id: `${compId}_ko_m${mc++}_kr5_volta`, teamA: '', teamB: '', placeholderA: `Venc. Semi 2`, placeholderB: `Venc. Semi 1`, status: 'pending_play' });
+  } else {
+      r5Matches.push({ id: `${compId}_ko_m${mc++}_kr5_f1`, teamA: '', teamB: '', placeholderA: `Venc. Semi 1`, placeholderB: `Venc. Semi 2`, status: 'pending_play' });
   }
-  r5Matches.push({
-    id: `${compId}_ko_m${mc}_kr5_3rd`,
-    teamA: '', teamB: '',
-    placeholderA: `🥉 Perd. Semi 1`, placeholderB: `🥉 Perd. Semi 2`,
-    status: 'pending_play'
-  });
+  r5Matches.push({ id: `${compId}_ko_m${mc}_kr5_3rd`, teamA: '', teamB: '', placeholderA: `🥉 Perd. Semi 1`, placeholderB: `🥉 Perd. Semi 2`, status: 'pending_play' });
   rounds.push({ id: `ko_5`, number: 'Final', status: 'locked', releasedAt: null, matches: r5Matches });
 
   return rounds;

@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { PlusCircle, Trophy, Activity, AlertCircle, XCircle, BookOpen } from 'lucide-react';
 import ShieldDisplay from './ShieldDisplay';
 import Button from './Button';
-import { calculateStandings, generateCupBracket, generateRoundRobin, generateGroupsAndKnockout, generateDuplasCupBracket } from '../utils/torneios';
+// 🌟 IMPORT DA COPA RECOMPENSA ADICIONADO
+import { calculateStandings, generateCupBracket, generateRoundRobin, generateGroupsAndKnockout, generateDuplasCupBracket, generateCopaRecompensaBracket } from '../utils/torneios';
 
 const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate, showToast }) => {
   const [name, setName] = useState('');
@@ -17,6 +18,9 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const [qualifiers, setQualifiers] = useState('2');
   const [isDoubleRound, setIsDoubleRound] = useState(false);
   const [isFinalDouble, setIsFinalDouble] = useState(false);
+  
+  // 🌟 NOVO: ESTADO DA IDA E VOLTA
+  const [isIdaEVolta, setIsIdaEVolta] = useState(false);
   
   const [registrationStartTime, setRegistrationStartTime] = useState('');
   const [registrationStartDate, setRegistrationStartDate] = useState('');
@@ -94,7 +98,6 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const displayTeams = teams.filter(t => !busyTeamIds.has(t.id));
 
   const handleSmartImport = () => {
-    // [Lógica Mantida Integralmente...]
     const HIERARCHY = ['liga_a', 'liga_b', 'liga_c', 'liga_d', 'liga_acesso'];
     const myIdx = HIERARCHY.indexOf(category);
     if (myIdx === -1) { if (showToast) showToast("A importação inteligente só funciona para Ligas oficiais.", "error"); return; }
@@ -141,7 +144,6 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    // 🌟 CORREÇÃO VITAL: Auto Start (Ilimitado) AGORA É SÓ PARA A COPA FLASH SOLO
     const isFlashSolo = category === 'copa_flash';
     const parsedTeamCount = isFlashSolo ? 999 : parseInt(teamCount, 10);
 
@@ -161,15 +163,19 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
     if (!isAutoJoin) {
       try {
-        if (category === 'copa_flash_dupla') {
+        // 🌟 LÓGICAS DE CHAVEAMENTO ATUALIZADAS PARA SUPORTAR IDA E VOLTA E COPA RECOMPENSA
+        if (category === 'copa_recompensa') {
+           if (selectedTeams.length !== 22) throw new Error("A Copa Recompensa exige exatamente 22 times!");
+           finalRounds = generateCopaRecompensaBracket(selectedTeams, compId, teams, isFinalDouble, isIdaEVolta);
+        } else if (category === 'copa_flash_dupla') {
            const res = generateDuplasCupBracket(selectedTeams, compId, teams, matches, competitions);
            finalRounds = res.rounds;
            groupsData = res.duplas; 
         } else if (format === 'groups') {
-          const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound, isFinalDouble);
+          const res = generateGroupsAndKnockout(selectedTeams, compId, parseInt(numGroups), parseInt(qualifiers), isDoubleRound, isFinalDouble, isIdaEVolta);
           finalRounds = res.rounds; groupsData = res.groups;
         } else if (format === 'cup') {
-          finalRounds = generateCupBracket(selectedTeams, compId, isFinalDouble);
+          finalRounds = generateCupBracket(selectedTeams, compId, isFinalDouble, isIdaEVolta);
         } else {
           finalRounds = generateRoundRobin(selectedTeams, compId, isDoubleRound);
         }
@@ -183,10 +189,11 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
       teamCount: parsedTeamCount, 
       status: isAutoJoin ? 'registration' : 'active', 
       teams: selectedTeams, pendingTeams: [], 
-      suspendedTeams: [], // 👈 NOVO CAMPO: Lista negra de desistentes do torneio começa vazia
+      suspendedTeams: [],
       rounds: finalRounds,
       createdBy: currentUser?.name || 'Desconhecido', creatorId: currentUser?.id, admins: [currentUser?.id],  
-      isDoubleRound, isFinalDouble, numGroups: parseInt(numGroups || '0', 10), qualifiersPerGroup: parseInt(qualifiers || '0', 10),
+      isDoubleRound, isFinalDouble, isIdaEVolta, // 👈 SALVANDO A IDA E VOLTA NO BANCO
+      numGroups: parseInt(numGroups || '0', 10), qualifiersPerGroup: parseInt(qualifiers || '0', 10),
       flashDuration: isFlashSolo ? parseInt(flashDuration, 10) : null,
       excludedCompIds: excludedCompIds,
       ...(groupsData && { groups: groupsData }),
@@ -235,12 +242,12 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
                        ⚡ Ilimitado (Auto-Start)
                    </div>
                 ) : (
-                   <input type="number" min="2" placeholder={category === 'copa_flash_dupla' ? "Ex: 16 (precisa ser número par)" : "Ex: 8"} value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-emerald-400 font-black text-lg focus:ring-2 focus:ring-emerald-500 outline-none" required />
+                   <input type="number" min="2" placeholder={category === 'copa_flash_dupla' ? "Ex: 16 (precisa ser par)" : category === 'copa_recompensa' ? "Exigido: 22" : "Ex: 8"} value={teamCount} onChange={e=>setTeamCount(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-emerald-400 font-black text-lg focus:ring-2 focus:ring-emerald-500 outline-none" required />
                 )}
             </div>
 
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Formato</label>
-              <select value={format} onChange={e=>setFormat(e.target.value)} disabled={category === 'copa_flash' || category === 'copa_flash_dupla'} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"><option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option></select>
+              <select value={format} onChange={e=>setFormat(e.target.value)} disabled={category === 'copa_flash' || category === 'copa_flash_dupla' || category === 'copa_recompensa'} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"><option value="league">Pontos Corridos (Liga)</option><option value="cup">Mata-Mata (Copa)</option><option value="groups">Fase de Grupos + Mata-Mata</option></select>
             </div>
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Estilo de Jogo</label>
               <select value={playStyle} onChange={e=>setPlayStyle(e.target.value)} className="w-full bg-blue-950 border border-purple-500/50 rounded-xl p-3 text-purple-300 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"><option value="Livre">Livre (Qualquer Estilo)</option><option value="Full Razz">Full Razz (Sem Balão)</option><option value="Personalizado">Regras Especiais</option></select>
@@ -267,10 +274,13 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
               <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Horário do Gatilho</label><input type="time" value={startTime} onChange={e=>setStartTime(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none" required /></div>
             </div>
             
-            <div className="flex flex-col md:flex-row gap-4 mt-2 col-span-1 md:col-span-2">
-              {format !== 'cup' && (<label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={isDoubleRound} onChange={e=>setIsDoubleRound(e.target.checked)} className="w-5 h-5 accent-emerald-500 cursor-pointer" /><span className="text-sm font-bold text-blue-300">Fases de Grupo em Ida e Volta</span></label>)}
-              {format !== 'league' && (<label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={isFinalDouble} onChange={e=>setIsFinalDouble(e.target.checked)} className="w-5 h-5 accent-amber-500 cursor-pointer" /><span className="text-sm font-bold text-amber-400">Final em Ida e Volta (2 Jogos)</span></label>)}
+            {/* 🌟 CHECKBOXES ATUALIZADOS */}
+            <div className="flex flex-col gap-4 mt-2 col-span-1 md:col-span-2">
+              {format !== 'cup' && (<label className="flex items-center gap-2 cursor-pointer w-max"><input type="checkbox" checked={isDoubleRound} onChange={e=>setIsDoubleRound(e.target.checked)} className="w-5 h-5 accent-emerald-500 cursor-pointer" /><span className="text-sm font-bold text-emerald-400">Grupos em Ida e Volta</span></label>)}
+              {format !== 'league' && (<label className="flex items-center gap-2 cursor-pointer w-max"><input type="checkbox" checked={isFinalDouble} onChange={e=>setIsFinalDouble(e.target.checked)} className="w-5 h-5 accent-amber-500 cursor-pointer" /><span className="text-sm font-bold text-amber-400">Final (2 Jogos)</span></label>)}
+              {format !== 'league' && (<label className="flex items-center gap-2 cursor-pointer w-max"><input type="checkbox" checked={isIdaEVolta} onChange={e=>setIsIdaEVolta(e.target.checked)} className="w-5 h-5 accent-purple-500 cursor-pointer" /><span className="text-sm font-bold text-purple-400">Todo Mata-Mata em Ida e Volta (Placar Agregado)</span></label>)}
             </div>
+
             {format === 'groups' && (<><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Quantidade de Grupos</label><input type="number" min="1" placeholder="Ex: 1, 2, 3, 4..." value={numGroups} onChange={e=>setNumGroups(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white outline-none" required /></div><div className="space-y-2"><label className="text-sm font-bold text-blue-300">Classificados por Grupo</label><input type="number" min="1" placeholder="Ex: 2" value={qualifiers} onChange={e=>setQualifiers(e.target.value)} className="w-full bg-blue-950 border border-blue-700 rounded-xl p-3 text-white outline-none" required /></div></>)}
           </div>
           <div className="bg-blue-950/50 mt-6 p-6 md:p-8 border-t border-blue-800"><label className="text-sm font-bold text-sky-400 flex items-center gap-2 mb-2"><BookOpen size={16}/> Regras do Campeonato (Opcional)</label><textarea placeholder="Descreva aqui limites de overral de jogadores, times permitidos, ou regras de conduta específicas para este torneio..." value={rules} onChange={e=>setRules(e.target.value)} className="w-full bg-blue-900 border border-blue-700 focus:border-emerald-500 rounded-xl p-3 text-blue-200 text-sm min-h-[100px] outline-none resize-y" /></div>
