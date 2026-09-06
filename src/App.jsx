@@ -39,6 +39,7 @@ import SubmitMatch from './components/SubmitMatch';
 import { DrawPanel, LiveDrawPanel } from './components/DrawPanels';
 import TrophyRoom from './components/TrophyRoom';
 import RecordsWall from './components/RecordsWall';
+import XPointsManager from './components/XPointsManager';
 
 
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
@@ -703,7 +704,15 @@ export default function App() {
       case 'trophies': return <TrophyRoom competitions={competitions} matches={matches} teams={teams} />;
       case 'rules': return <RulesPage />;
       case 'validation': return <ValidationPanel matches={matches} teams={teams} competitions={competitions} onUpdateStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} showToast={showToast} currentUser={currentUser} />;
-        
+      case 'xpoints_manager':
+        return (
+          <XPointsManager 
+            users={users} 
+            onBack={() => setCurrentTab('dashboard')} 
+            showToast={showToast} 
+          />
+        );  
+
       default: return <Dashboard matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} onChangeTab={setCurrentTab} onJoinOpenComp={(id) => { setSelectedCompId(id); setCurrentTab('join_comp'); }} />;
     }
   };

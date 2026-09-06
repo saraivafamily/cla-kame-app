@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Camera, Dices, Shield, Trophy, BookOpen, PlayCircle, Activity, MessageCircle, AlertCircle, CheckCircle, XCircle, X, Star, Medal } from 'lucide-react';
+import { Camera, Dices, Shield, Trophy, BookOpen, Zap, PlayCircle, Activity, MessageCircle, AlertCircle, CheckCircle, XCircle, X, Star, Medal } from 'lucide-react';
 import ShieldDisplay from './ShieldDisplay';
 import CountdownTimer from './CountdownTimer';
 import Button from './Button';
@@ -132,6 +132,15 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
           <span className="text-xs font-bold text-blue-200">Regras</span>
         </button>
       </div>
+
+      {hasAdminAccess && (
+          <button onClick={() => onChangeTab('xpoints_manager')} className="bg-gradient-to-br from-amber-600/20 to-amber-900/40 hover:from-amber-600/40 p-4 rounded-2xl border border-amber-500/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+            <div className="bg-amber-950 p-2 rounded-full group-hover:scale-110 transition-transform shadow-inner">
+              <Zap size={20} className="text-amber-400 animate-pulse" />
+            </div>
+            <span className="text-xs font-bold text-amber-200">Gestão XPoints</span>
+          </button>
+        )}
 
       {/* 🌟 PAINEL DE PARTIDAS LIBERADAS */}
       {matchesToPlay.length > 0 && (
