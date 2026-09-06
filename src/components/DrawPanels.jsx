@@ -160,17 +160,30 @@ export const DrawPanel = ({ comp, teams, matches, showToast }) => {
 };
 
 export const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
+  const isDupla = comp.category === 'copa_flash_dupla';
+  const isRecompensa = comp.category === 'copa_recompensa';
+  const isStandard = !isDupla && !isRecompensa;
+
   const [step, setStep] = useState(0);
+  
+  // Específico para Duplas
   const [p1List, setP1List] = useState([]);
   const [p2List, setP2List] = useState([]);
   const [duplas, setDuplas] = useState([]);
-  const [bracketDuplas, setBracketDuplas] = useState([]);
+  const [duplaName, setDuplaName] = useState('');
+
+  // Controle Geral de Sorteio (Comum a todos)
+  const [drawPool, setDrawPool] = useState([]); 
+  const [secondaryPool, setSecondaryPool] = useState([]); 
+  const [drawnList, setDrawnList] = useState([]);
   
   const [spinning, setSpinning] = useState(false);
   const [currentP2, setCurrentP2] = useState(null);
   const [spinTarget, setSpinTarget] = useState(null);
-  const [duplaName, setDuplaName] = useState('');
   const [chromaMode, setChromaMode] = useState(false);
+
+  const totalToDraw = isRecompensa ? 22 : isStandard ? comp.teams.length : duplas.length;
+  const isBracketFull = drawnList.length === totalToDraw && totalToDraw > 0;
 
   const playTick = () => {
     try {
@@ -192,16 +205,30 @@ export const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
 
   useEffect(() => {
     if (step === 0) {
-      const getTeamScore = (tId) => { const t = teams.find(x => x.id === tId); return t ? (t.globalPoints || 0) : 0; };
-      const sorted = [...comp.teams].sort((a, b) => getTeamScore(b) - getTeamScore(a));
-      const half = Math.ceil(sorted.length / 2);
-      
-      setP1List(sorted.slice(0, half).map(id => teams.find(t => t.id === id)));
-      setP2List(sorted.slice(half).map(id => teams.find(t => t.id === id)));
-      setStep(1);
+      if (isDupla) {
+        const getTeamScore = (tId) => { const t = teams.find(x => x.id === tId); return t ? (t.globalPoints || 0) : 0; };
+        const sorted = [...comp.teams].sort((a, b) => getTeamScore(b) - getTeamScore(a));
+        const half = Math.ceil(sorted.length / 2);
+        setP1List(sorted.slice(0, half).map(id => teams.find(t => t.id === id)));
+        setP2List(sorted.slice(half).map(id => teams.find(t => t.id === id)));
+        setStep(1);
+      } else if (isRecompensa) {
+        const getTeamScore = (tId) => { const t = teams.find(x => x.id === tId); return t ? (t.globalPoints || 0) : 0; };
+        const sorted = [...comp.teams].sort((a, b) => getTeamScore(b) - getTeamScore(a));
+        const elite = sorted.slice(0, 6).map(id => teams.find(t => t.id === id));
+        const prelim = sorted.slice(6).map(id => teams.find(t => t.id === id));
+        setDrawPool(prelim); // Começamos sorteando a fase preliminar
+        setSecondaryPool(elite);
+        setStep(3); // Pula direto para o sorteio de chaves
+      } else {
+        const allTeams = comp.teams.map(id => teams.find(t => t.id === id));
+        setDrawPool(allTeams);
+        setStep(3); // Pula direto para o sorteio de chaves
+      }
     }
-  }, [comp.teams, teams, step]);
+  }, [comp.teams, teams, step, isDupla, isRecompensa]);
 
+  // Passo 1: Rodar parceiro (Só Duplas)
   const handleSpinParceiro = () => {
     if (p2List.length === 0) return;
     setSpinning(true);
@@ -210,7 +237,6 @@ export const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
       const randomP2 = p2List[Math.floor(Math.random() * p2List.length)];
       setCurrentP2(randomP2);
       playTick();
-      
       ticks++;
       if (ticks > 25) {
         clearInterval(interval);
@@ -229,9 +255,9 @@ export const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
     }, 100);
   };
 
+  // Passo 2: Salvar Dupla Formada
   const handleSaveDupla = () => {
-    const p1 = p1List[0]; 
-    const p2 = spinTarget;
+    const p1 = p1List[0]; const p2 = spinTarget;
     if (!duplaName) return;
 
     const novaDupla = { id: `dp_${Date.now()}_${Math.random()}`, name: duplaName.toUpperCase(), p1: p1.id, p2: p2.id };
@@ -240,42 +266,55 @@ export const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
     
     const newP1List = p1List.slice(1);
     const newP2List = p2List.filter(t => t.id !== p2.id);
-    
-    setP1List(newP1List); 
-    setP2List(newP2List);
-    setCurrentP2(null); 
-    setSpinTarget(null); 
-    setDuplaName('');
+    setP1List(newP1List); setP2List(newP2List);
+    setCurrentP2(null); setSpinTarget(null); setDuplaName('');
     
     if (newP1List.length === 0) {
+      setDrawPool(updatedDuplas); // Alimenta a roleta principal com as duplas prontas
       setStep(3);
     } else {
       setStep(1);
     }
   };
 
+  // Passo 3: Rodar Roleta Principal do Chaveamento
   const handleSpinBracket = () => {
-    const availableDuplas = duplas.filter(d => !bracketDuplas.find(b => b.id === d.id));
-    if (availableDuplas.length === 0) return;
+    const available = drawPool.filter(t => !drawnList.find(d => d.id === t.id));
+    if (available.length === 0) return;
 
     setSpinning(true);
     let ticks = 0;
     
     const interval = setInterval(() => {
-      const randomDupla = availableDuplas[Math.floor(Math.random() * availableDuplas.length)];
-      setCurrentP2(randomDupla);
+      const randomItem = available[Math.floor(Math.random() * available.length)];
+      setCurrentP2(randomItem);
       playTick();
       
       ticks++;
       if (ticks > 20) {
         clearInterval(interval);
-        const selected = availableDuplas[Math.floor(Math.random() * availableDuplas.length)];
+        const selected = available[Math.floor(Math.random() * available.length)];
         setCurrentP2(null);
         
-        setBracketDuplas(prev => {
+        setDrawnList(prev => {
           const newBracket = [...prev, selected];
-          if (newBracket.length === duplas.length) {
-            setTimeout(() => setStep(4), 1000);
+          
+          if (isRecompensa) {
+             if (newBracket.length === 16 && secondaryPool.length > 0) {
+                // Virou a chave! Agora a roleta vai sortear a Elite
+                setDrawPool(secondaryPool);
+                setSecondaryPool([]);
+             } else if (newBracket.length === 22) {
+                setTimeout(() => setStep(4), 1000);
+             }
+          } else if (isStandard) {
+             if (newBracket.length === comp.teams.length) {
+                setTimeout(() => setStep(4), 1000);
+             }
+          } else if (isDupla) {
+             if (newBracket.length === duplas.length) {
+                setTimeout(() => setStep(4), 1000);
+             }
           }
           return newBracket;
         });
@@ -285,54 +324,131 @@ export const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
     }, 100);
   };
 
+  // Passo Final: Despejar resultados e construir Chave real nos bastidores
   const finalizeBracketAndSave = () => {
-    let p2_count = 1; 
-    while (p2_count < bracketDuplas.length) p2_count *= 2;
-    const tkr = Math.log2(p2_count);
-    const rounds = []; 
-    let mc = 1;
+    let rounds = [];
+    const compId = comp.id;
+    const isIdaEVolta = comp.isIdaEVolta;
+    const isFinalDouble = comp.isFinalDouble;
 
-    for (let kr = 0; kr < tkr; kr++) {
-        const rm = []; 
-        const nm = p2_count / Math.pow(2, kr + 1); 
-        const fmc = mc;
-        let rl = 'Mata-Mata (Duplas)'; 
-        if (nm === 1) rl = 'Final'; 
-        else if (nm === 2) rl = 'Semifinal'; 
-        else if (nm === 4) rl = 'Quartas'; 
-        else if (nm === 8) rl = 'Oitavas';
+    if (isDupla) {
+       let p2_count = 1; while (p2_count < drawnList.length) p2_count *= 2; const tkr = Math.log2(p2_count);
+       let mc = 1;
+       for (let kr = 0; kr < tkr; kr++) {
+           const rm = []; const nm = p2_count / Math.pow(2, kr + 1); const fmc = mc;
+           let rl = 'Mata-Mata (Duplas)'; if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas'; else if (nm === 8) rl = 'Oitavas';
+           for (let i = 0; i < nm; i++) {
+               let dA = null; let dB = null; let pA = 'A Definir'; let pB = 'A Definir';
+               if (kr === 0) { dA = drawnList[i * 2] || null; dB = drawnList[i * 2 + 1] || null; pA = dA ? dA.name : 'Vaga Aberta'; pB = dB ? dB.name : 'Vaga Aberta'; } 
+               else { pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`; }
+               rm.push({ id: `${comp.id}_ko_m${mc}_kr${kr}_ida`, isDupla: true, duplaA: dA, duplaB: dB, teamA: dA ? dA.p1 : '', teamB: dB ? dB.p1 : '', placeholderA: `${pA} (Téc 1)`, placeholderB: `${pB} (Téc 1)`, status: 'pending_play' }); mc++;
+               rm.push({ id: `${comp.id}_ko_m${mc}_kr${kr}_volta`, isDupla: true, duplaA: dB, duplaB: dA, teamA: dB ? dB.p2 : '', teamB: dA ? dA.p2 : '', placeholderA: `${pB} (Téc 2)`, placeholderB: `${pA} (Téc 2)`, status: 'pending_play' }); mc++;
+           }
+           rounds.push({ id: `ko_${kr}`, number: rl, status: kr === 0 ? 'released' : 'locked', releasedAt: kr === 0 ? Date.now() : null, matches: rm });
+       }
+       onFinish(rounds, duplas);
+       return;
+    }
+
+    if (isStandard) {
+      const teamIds = drawnList.map(t => t.id);
+      let p2 = 1; while (p2 < teamIds.length) p2 *= 2; const tkr = Math.log2(p2);
+      const firstRoundMatches = []; const byes = p2 - teamIds.length; const playing = teamIds.length - byes; 
+      
+      let teamIndex = 0;
+      for (let i = 0; i < p2 / 2; i++) {
+         if (i < playing / 2) { firstRoundMatches.push([teamIds[teamIndex++], teamIds[teamIndex++]]); } 
+         else { firstRoundMatches.push([teamIds[teamIndex++], null]); }
+      }
+      
+      let mc = 1;
+      let prevRoundMatches = firstRoundMatches.map(m => { return { tA: m[0] || '', tB: m[1] || '', isBye: (!m[0] || !m[1]) }; });
+
+      for (let kr = 0; kr < tkr; kr++) {
+        const rm = []; const nm = p2 / Math.pow(2, kr + 1); const fmc = mc;
+        let rl = 'Mata-Mata'; if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas'; else if (nm === 8) rl = 'Oitavas'; else if (nm === 16) rl = '16 Avos'; else if (nm === 32) rl = '32 Avos';
+        const currentRoundMatches = [];
 
         for (let i = 0; i < nm; i++) {
-            let dA = null; let dB = null; let pA = 'A Definir'; let pB = 'A Definir';
-            if (kr === 0) {
-                dA = bracketDuplas[i * 2] || null; 
-                dB = bracketDuplas[i * 2 + 1] || null;
-                pA = dA ? dA.name : 'Vaga Aberta'; 
-                pB = dB ? dB.name : 'Vaga Aberta';
-            } else {
-                pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; 
-                pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
-            }
+          let tA = ''; let tB = ''; let pA = 'A Definir'; let pB = 'A Definir';
+          if (kr === 0) {
+            tA = prevRoundMatches[i].tA; tB = prevRoundMatches[i].tB;
+            if (!tA && !tB) { pA = 'Vaga Aberta'; pB = 'Vaga Aberta'; } else if (!tA) { pA = 'Vaga Aberta'; pB = 'A Definir'; } else if (!tB) { pA = 'A Definir'; pB = 'Vaga Aberta'; }
+            currentRoundMatches.push({ advanced: tA || tB });
+          } else {
+            const prevA = prevRoundMatches[i * 2]; const prevB = prevRoundMatches[i * 2 + 1];
+            if (prevA && prevA.advanced) { tA = prevA.advanced; pA = 'Avanço Automático'; } else { pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; }
+            if (prevB && prevB.advanced) { tB = prevB.advanced; pB = 'Avanço Automático'; } else { pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`; }
+            if (tA && !tB && pB.includes('Avanço')) currentRoundMatches.push({ advanced: tA }); else if (!tA && tB && pA.includes('Avanço')) currentRoundMatches.push({ advanced: tB }); else currentRoundMatches.push({ advanced: null });
+          }
 
-            rm.push({ 
-              id: `${comp.id}_ko_m${mc}_kr${kr}_ida`, 
-              isDupla: true, duplaA: dA, duplaB: dB, teamA: dA ? dA.p1 : '', teamB: dB ? dB.p1 : '', 
-              placeholderA: `${pA} (Téc 1)`, placeholderB: `${pB} (Téc 1)`, status: 'pending_play' 
-            }); mc++;
-
-            rm.push({ 
-              id: `${comp.id}_ko_m${mc}_kr${kr}_volta`, 
-              isDupla: true, duplaA: dB, duplaB: dA, teamA: dB ? dB.p2 : '', teamB: dA ? dA.p2 : '', 
-              placeholderA: `${pB} (Téc 2)`, placeholderB: `${pA} (Téc 2)`, status: 'pending_play' 
-            }); mc++;
+          if (nm === 1) {
+            if (isIdaEVolta || isFinalDouble) {
+                rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_ida`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' });
+                rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_volta`, teamA: tB, teamB: tA, placeholderA: `Volta: ${pB}`, placeholderB: `Volta: ${pA}`, status: 'pending_play' });
+            } else { rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_f1`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); }
+            if (kr > 0) { let p3A = `Perd. Jogo ${fmc - (nm * 2) + (i * 2)}`; let p3B = `Perd. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`; rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_3rd`, teamA: '', teamB: '', placeholderA: `🥉 ${p3A}`, placeholderB: `🥉 ${p3B}`, status: 'pending_play' }); mc++; }
+          } else {
+            if (isIdaEVolta) {
+                rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_ida`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' });
+                rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_volta`, teamA: tB, teamB: tA, placeholderA: `Volta: ${pB}`, placeholderB: `Volta: ${pA}`, status: 'pending_play' });
+            } else { rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); }
+          }
         }
-        rounds.push({ id: `ko_${kr}`, number: rl, status: kr === 0 ? 'released' : 'locked', releasedAt: kr === 0 ? Date.now() : null, matches: rm });
+        prevRoundMatches = currentRoundMatches; rounds.push({ id: `ko_${kr}`, number: rl, status: kr === 0 ? 'released' : 'locked', releasedAt: kr === 0 ? Date.now() : null, matches: rm });
+      }
+      onFinish(rounds, null);
     }
-    
-    onFinish(rounds, duplas);
+
+    if (isRecompensa) {
+      const prelimIds = drawnList.slice(0, 16).map(t => t.id);
+      const eliteIds = drawnList.slice(16).map(t => t.id);
+      let mc = 1;
+
+      const pushMatch = (rm, baseId, tA, tB, pA, pB) => {
+          if (isIdaEVolta) {
+              rm.push({ id: `${baseId}_ida`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' });
+              rm.push({ id: `${baseId}_volta`, teamA: tB, teamB: tA, placeholderA: `Volta: ${pB}`, placeholderB: `Volta: ${pA}`, status: 'pending_play' });
+          } else { rm.push({ id: baseId, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); }
+      };
+
+      const r0Matches = [];
+      for(let i=0; i<8; i++) { pushMatch(r0Matches, `${compId}_ko_m${mc++}_kr0`, prelimIds[i*2] || '', prelimIds[i*2+1] || '', prelimIds[i*2] ? '' : 'A Definir', prelimIds[i*2+1] ? '' : 'A Definir'); }
+      rounds.push({ id: `ko_0`, number: 'Fase 1 (Preliminar)', status: 'released', releasedAt: Date.now(), matches: r0Matches });
+
+      const stepMult = isIdaEVolta ? 4 : 2; const offset = isIdaEVolta ? 2 : 1;
+      const r1Matches = [];
+      for(let i=0; i<4; i++) { pushMatch(r1Matches, `${compId}_ko_m${mc++}_kr1`, '', '', `Venc. Jogo ${r0Matches[i*stepMult].id.split('_m')[1].split('_')[0]}`, `Venc. Jogo ${r0Matches[i*stepMult+offset].id.split('_m')[1].split('_')[0]}`); }
+      rounds.push({ id: `ko_1`, number: 'Fase 2 (Preliminar)', status: 'locked', releasedAt: null, matches: r1Matches });
+
+      const r2Matches = [];
+      for(let i=0; i<2; i++) { pushMatch(r2Matches, `${compId}_ko_m${mc++}_kr2`, '', '', `Venc. Jogo ${r1Matches[i*stepMult].id.split('_m')[1].split('_')[0]}`, `Venc. Jogo ${r1Matches[i*stepMult+offset].id.split('_m')[1].split('_')[0]}`); }
+      rounds.push({ id: `ko_2`, number: 'Playoff de Acesso', status: 'locked', releasedAt: null, matches: r2Matches });
+
+      const r3Matches = [];
+      pushMatch(r3Matches, `${compId}_ko_m${mc++}_kr3`, eliteIds[0] || '', '', 'Elite Rank #1', `Venc. Playoff 1`);
+      pushMatch(r3Matches, `${compId}_ko_m${mc++}_kr3`, eliteIds[1] || '', eliteIds[2] || '', 'Elite Rank #2', 'Elite Rank #3');
+      pushMatch(r3Matches, `${compId}_ko_m${mc++}_kr3`, eliteIds[3] || '', eliteIds[4] || '', 'Elite Rank #4', 'Elite Rank #5');
+      pushMatch(r3Matches, `${compId}_ko_m${mc++}_kr3`, eliteIds[5] || '', '', 'Elite Rank #6', `Venc. Playoff 2`);
+      rounds.push({ id: `ko_3`, number: 'Quartas', status: 'locked', releasedAt: null, matches: r3Matches });
+
+      const r4Matches = [];
+      for(let i=0; i<2; i++) { pushMatch(r4Matches, `${compId}_ko_m${mc++}_kr4`, '', '', `Venc. Quartas ${i*2 + 1}`, `Venc. Quartas ${i*2 + 2}`); }
+      rounds.push({ id: `ko_4`, number: 'Semifinal', status: 'locked', releasedAt: null, matches: r4Matches });
+
+      const r5Matches = [];
+      if (isIdaEVolta || isFinalDouble) {
+          r5Matches.push({ id: `${compId}_ko_m${mc++}_kr5_ida`, teamA: '', teamB: '', placeholderA: `Venc. Semi 1`, placeholderB: `Venc. Semi 2`, status: 'pending_play' });
+          r5Matches.push({ id: `${compId}_ko_m${mc++}_kr5_volta`, teamA: '', teamB: '', placeholderA: `Venc. Semi 2`, placeholderB: `Venc. Semi 1`, status: 'pending_play' });
+      } else { r5Matches.push({ id: `${compId}_ko_m${mc++}_kr5_f1`, teamA: '', teamB: '', placeholderA: `Venc. Semi 1`, placeholderB: `Venc. Semi 2`, status: 'pending_play' }); }
+      r5Matches.push({ id: `${compId}_ko_m${mc}_kr5_3rd`, teamA: '', teamB: '', placeholderA: `🥉 Perd. Semi 1`, placeholderB: `🥉 Perd. Semi 2`, status: 'pending_play' });
+      rounds.push({ id: `ko_5`, number: 'Final', status: 'locked', releasedAt: null, matches: r5Matches });
+      
+      onFinish(rounds, null);
+    }
   };
 
-  const isBracketFull = duplas.length > 0 && bracketDuplas.length === duplas.length;
+  const compTypeName = isDupla ? 'Copa Flash em Duplas' : isRecompensa ? 'Copa Recompensa' : 'Sorteio Mata-Mata';
 
   return (
     <div className={`fixed inset-0 z-50 overflow-y-auto custom-scrollbar flex flex-col p-6 sm:p-8 transition-colors duration-500 ${chromaMode ? 'bg-[#00FF00] text-black' : 'bg-[#020617] text-white'}`}>
@@ -344,7 +460,7 @@ export const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
               <Dices size={32} className={chromaMode ? 'text-black' : ''} /> Transmissão de Sorteio Ao Vivo
             </h2>
             <p className={`font-bold mt-1 text-xs sm:text-sm ${chromaMode ? 'text-green-900' : 'text-blue-400'}`}>
-              Copa Flash em Duplas • {comp.name}
+              {compTypeName} • {comp.name}
             </p>
           </div>
           <button onClick={() => setChromaMode(!chromaMode)} className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-xl text-white text-xs font-black uppercase tracking-wider shadow-lg flex items-center gap-2 transition-transform hover:scale-105 border border-white/20">
@@ -358,7 +474,7 @@ export const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
 
       <div className="flex-1 flex flex-col items-center justify-center max-w-5xl mx-auto w-full">
         
-        {(step === 1 || step === 2) && (
+        {isDupla && (step === 1 || step === 2) && (
           <div className="w-full text-center animate-in zoom-in-95 duration-500">
             <h3 className={`text-xl sm:text-2xl font-black uppercase tracking-widest mb-8 sm:mb-12 ${chromaMode ? 'text-black' : 'text-blue-300'}`}>
               Formação da {duplas.length + 1}ª Dupla ({duplas.length + 1} de {comp.teams.length / 2})
@@ -413,13 +529,13 @@ export const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
 
         {(step === 3 || step === 4) && (
           <div className="w-full animate-in zoom-in-95 duration-500 flex flex-col items-center">
-             
+              
              <div className="text-center mb-8">
                <h3 className={`text-2xl sm:text-3xl font-black uppercase tracking-widest ${chromaMode ? 'text-black' : 'text-amber-400'}`}>
-                  Chaveamento Oficial
+                 Chaveamento Oficial
                </h3>
                <p className={`text-xs sm:text-sm mt-1 ${chromaMode ? 'text-green-900 font-bold' : 'text-blue-300'}`}>
-                  Sorteie as duplas para definir os confrontos diretos na chave.
+                 Sorteie os participantes para definir os confrontos diretos na tabela.
                </p>
              </div>
 
@@ -433,7 +549,7 @@ export const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
 
                {!isBracketFull && step === 3 && !currentP2 && (
                  <button onClick={handleSpinBracket} disabled={spinning} className="bg-amber-600 hover:bg-amber-500 text-white font-black text-lg sm:text-xl py-4 px-10 rounded-full shadow-[0_0_30px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all">
-                   {spinning ? 'SORTEANDO POSIÇÃO...' : `SORTEAR PRÓXIMA DUPLA (${bracketDuplas.length + 1}/${duplas.length})`}
+                   {spinning ? 'SORTEANDO POSIÇÃO...' : `SORTEAR PRÓXIMO PARTICIPANTE (${drawnList.length + 1}/${totalToDraw})`}
                  </button>
                )}
 
@@ -454,43 +570,50 @@ export const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
              <div className="w-full flex justify-center overflow-x-auto custom-scrollbar pb-8">
                 <div className="w-64 flex flex-col shrink-0 min-h-[400px]">
                    <div className={`border rounded-xl px-4 py-2.5 text-center shadow-md relative overflow-hidden mb-6 ${chromaMode ? 'bg-green-100 border-green-600' : 'bg-blue-900 border-blue-800'}`}>
-                      <span className={`text-xs font-black uppercase tracking-widest ${chromaMode ? 'text-green-800' : 'text-amber-400'}`}>FASE INICIAL</span>
+                      <span className={`text-xs font-black uppercase tracking-widest ${chromaMode ? 'text-green-800' : 'text-amber-400'}`}>
+                          FASE INICIAL
+                      </span>
                    </div>
 
                    <div className="flex flex-col flex-1 h-full py-2">
-                      {Array.from({ length: Math.ceil(duplas.length / 2) }).map((_, matchIdx) => {
-                         const duplaA = bracketDuplas[matchIdx * 2];
-                         const duplaB = bracketDuplas[matchIdx * 2 + 1];
+                      {Array.from({ length: Math.ceil(totalToDraw / 2) }).map((_, matchIdx) => {
+                         const itemA = drawnList[matchIdx * 2];
+                         const itemB = drawnList[matchIdx * 2 + 1];
                          const isTop = matchIdx % 2 === 0;
+
+                         let blockLabel = isDupla ? `Confronto ${matchIdx + 1}` : 'Confronto';
+                         if (isRecompensa) {
+                             blockLabel = matchIdx < 8 ? 'Fase Preliminar' : 'Quartas (Elite)';
+                         }
 
                          return (
                              <div key={matchIdx} className="relative flex-1 flex flex-col justify-center py-3 group">
                                  <div className={`p-3 rounded-xl border flex flex-col gap-1.5 shadow-sm relative z-10 transition-colors ${chromaMode ? 'bg-white border-green-500' : 'bg-blue-900/80 border-blue-800'}`}>
                                     <div className={`flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b ${chromaMode ? 'border-green-200' : 'border-blue-800/40'}`}>
-                                       <span className={chromaMode ? 'text-green-800' : 'text-blue-500'}>Confronto {matchIdx + 1}</span>
+                                       <span className={chromaMode ? 'text-green-800' : 'text-blue-500'}>{blockLabel}</span>
                                        <span className={chromaMode ? 'text-gray-500' : 'text-blue-500/50'}>Sorteio</span>
                                     </div>
                                     
                                     <div className="flex items-center justify-between gap-2 min-w-0 mt-0.5">
                                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                          <ShieldDisplay shield="🛡️" size="small" />
-                                          <span className={`text-xs truncate font-bold ${duplaA ? (chromaMode ? 'text-black' : 'text-white') : (chromaMode ? 'text-gray-400' : 'text-blue-500/50')}`}>
-                                             {duplaA ? duplaA.name : 'Aguardando Sorteio'}
+                                          <ShieldDisplay shield={itemA ? itemA.shield : "🛡️"} size="small" />
+                                          <span className={`text-xs truncate font-bold ${itemA ? (chromaMode ? 'text-black' : 'text-white') : (chromaMode ? 'text-gray-400' : 'text-blue-500/50')}`}>
+                                             {itemA ? itemA.name : 'Aguardando Sorteio'}
                                           </span>
                                        </div>
                                     </div>
 
                                     <div className="flex items-center justify-between gap-2 min-w-0">
                                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                          <ShieldDisplay shield="🛡️" size="small" />
-                                          <span className={`text-xs truncate font-bold ${duplaB ? (chromaMode ? 'text-black' : 'text-white') : (chromaMode ? 'text-gray-400' : 'text-blue-500/50')}`}>
-                                             {duplaB ? duplaB.name : 'Aguardando Sorteio'}
+                                          <ShieldDisplay shield={itemB ? itemB.shield : "🛡️"} size="small" />
+                                          <span className={`text-xs truncate font-bold ${itemB ? (chromaMode ? 'text-black' : 'text-white') : (chromaMode ? 'text-gray-400' : 'text-blue-500/50')}`}>
+                                             {itemB ? itemB.name : 'Aguardando Sorteio'}
                                           </span>
                                        </div>
                                     </div>
                                  </div>
                                  
-                                 {Math.ceil(duplas.length / 2) > 1 && (
+                                 {Math.ceil(totalToDraw / 2) > 1 && (
                                     <div className={`absolute -right-6 w-6 ${chromaMode ? 'border-green-600' : 'border-blue-600/60'} ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>
                                  )}
                              </div>
@@ -499,13 +622,13 @@ export const LiveDrawPanel = ({ comp, teams, onFinish, onCancel }) => {
                    </div>
                 </div>
                 
-                {Math.ceil(duplas.length / 2) > 1 && (
+                {Math.ceil(totalToDraw / 2) > 1 && (
                   <div className="w-64 flex flex-col shrink-0 min-h-[400px] ml-6 opacity-60">
                      <div className={`border rounded-xl px-4 py-2.5 text-center shadow-md relative overflow-hidden mb-6 ${chromaMode ? 'bg-green-100 border-green-600' : 'bg-blue-900 border-blue-800'}`}>
                         <span className={`text-xs font-black uppercase tracking-widest ${chromaMode ? 'text-green-800' : 'text-blue-400'}`}>PRÓXIMA FASE</span>
                      </div>
                      <div className="flex flex-col flex-1 h-full py-2">
-                        {Array.from({ length: Math.ceil(duplas.length / 4) }).map((_, matchIdx) => (
+                        {Array.from({ length: Math.ceil(totalToDraw / 4) }).map((_, matchIdx) => (
                             <div key={matchIdx} className="relative flex-1 flex flex-col justify-center py-3 group">
                                <div className={`p-3 rounded-xl border flex flex-col gap-1.5 shadow-sm relative z-10 ${chromaMode ? 'bg-white border-green-500' : 'bg-blue-900/80 border-blue-800'}`}>
                                    <div className={`flex justify-between items-center text-[9px] font-bold uppercase tracking-wider pb-1 border-b ${chromaMode ? 'border-green-200' : 'border-blue-800/40'}`}>

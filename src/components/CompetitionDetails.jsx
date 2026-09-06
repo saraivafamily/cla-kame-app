@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Trophy, BookOpen, Trash2, Edit, XCircle, X, Shield, CheckSquare, Activity, Camera, Users, AlertCircle, PlayCircle, Lock, MessageCircle, Star, Medal, ArrowLeft } from 'lucide-react';
+import { Trophy, BookOpen, Trash2, Edit, XCircle, X, Shield, CheckSquare, CheckCircle, Activity, Camera, Users, AlertCircle, PlayCircle, Lock, MessageCircle, Star, Medal, ArrowLeft } from 'lucide-react';
 import { updateDoc, setDoc } from 'firebase/firestore';
 import { getPublicDocPath } from '../utils/firebase';
 import ShieldDisplay from './ShieldDisplay';
@@ -268,17 +268,23 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   
   const handleGenerateBracket = () => { 
     if (comp.teams.length !== comp.teamCount) { showToast(`Você precisa de ${comp.teamCount} times!`, "error"); return; } 
-    if (comp.category === 'copa_flash_dupla') { onEditComp({ ...comp, status: 'drawing' }); showToast("Modo Sorteio Ao Vivo Ativado!", "success"); return; }
+    
+    // 🌟 NOVA REGRA: Manda pro Sorteio tudo que for Copa (Mata-Mata) ou Recompensa, EXCETO Copa Flash Solo
+    const vaiProSorteio = (comp.format === 'cup' && comp.category !== 'copa_flash') || 
+                          comp.category === 'copa_recompensa' || 
+                          comp.category === 'copa_flash_dupla';
 
+    if (vaiProSorteio) { 
+        onEditComp({ ...comp, status: 'drawing' }); 
+        showToast("Modo Sorteio Ao Vivo Ativado!", "success"); 
+        return; 
+    }
+
+    // Se for Fase de Grupos ou Pontos Corridos, a tabela é gerada diretamente
     let finalRounds = []; let groupsData = null; 
-    if (comp.category === 'copa_recompensa') {
-        if (comp.teams.length !== 22) { showToast("A Copa Recompensa exige exatamente 22 times!", "error"); return; }
-        finalRounds = generateCopaRecompensaBracket(comp.teams, comp.id, teams, comp.isFinalDouble, comp.isIdaEVolta);
-    } else if (comp.format === 'groups') { 
+    if (comp.format === 'groups') { 
         const res = generateGroupsAndKnockout(comp.teams, comp.id, comp.numGroups, comp.qualifiersPerGroup, comp.isDoubleRound, comp.isFinalDouble, comp.isIdaEVolta); 
         finalRounds = res.rounds; groupsData = res.groups; 
-    } else if (comp.format === 'cup') { 
-        finalRounds = generateCupBracket(comp.teams, comp.id, comp.isFinalDouble, comp.isIdaEVolta); 
     } else { 
         finalRounds = generateRoundRobin(comp.teams, comp.id, comp.isDoubleRound); 
     } 
