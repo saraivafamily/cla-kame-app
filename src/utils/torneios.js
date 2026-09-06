@@ -37,8 +37,8 @@ export const calculateStandings = (matches, teams, compId) => {
 
 export const getChampionIds = (comp, matches, teams) => {
   if (!comp || !comp.rounds || comp.rounds.length === 0) return [];
-  if (comp.format === 'cup' || comp.format === 'groups' || comp.category === 'copa_flash_dupla') {
-    const knockoutRounds = comp.rounds.filter(r => r.id.includes('ko') || comp.format === 'cup' || comp.category === 'copa_flash_dupla');
+  if (comp.format === 'cup' || comp.format === 'groups' || comp.category === 'copa_flash_dupla' || comp.category === 'copa_recompensa') {
+    const knockoutRounds = comp.rounds.filter(r => r.id.includes('ko') || comp.format === 'cup' || comp.category === 'copa_flash_dupla' || comp.category === 'copa_recompensa');
     if (knockoutRounds.length === 0) return [];
     const lastRound = knockoutRounds[knockoutRounds.length - 1];
     const finalMatches = lastRound.matches.filter(m => !m.id.includes('_3rd'));
@@ -162,9 +162,9 @@ export const generateCupBracket = (teamIds, compId, isFinalDouble = false) => {
       }
 
       if (nm === 1) {
-        rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f1`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
+        rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_f1`, teamA: tA, teamB: tB, placeholderA: pA, placeholderB: pB, status: 'pending_play' }); mc++;
         if (isFinalDouble) {
-          rm.push({ id: `${compId}_ko_m${mc}_kr${kr}_f2`, teamA: tB, teamB: tA, placeholderA: pB, placeholderB: pA, status: 'pending_play' }); mc++;
+          rm.push({ id: `${compId}_ko_m${mc++}_kr${kr}_f2`, teamA: tB, teamB: tA, placeholderA: pB, placeholderB: pA, status: 'pending_play' }); mc++;
         }
         if (kr > 0) {
           let p3A = `Perd. Jogo ${fmc - (nm * 2) + (i * 2)}`; let p3B = `Perd. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`;
@@ -313,4 +313,141 @@ export const generateDuplasCupBracket = (teamIds, compId, teamsData, matchesData
   }
   
   return { rounds, duplas };
+};
+
+// 🌟 NOVO: GERADOR DA COPA RECOMPENSA
+export const generateCopaRecompensaBracket = (teamIds, compId, teamsData, isFinalDouble = false) => {
+  // Ordena times por pontos globais (Top 6 vão direto pras Quartas)
+  const sortedTeams = [...teamIds].sort((a, b) => {
+    const tA = teamsData.find(t => t.id === a);
+    const tB = teamsData.find(t => t.id === b);
+    const ptsA = tA ? (tA.globalPoints || 0) : 0;
+    const ptsB = tB ? (tB.globalPoints || 0) : 0;
+    return ptsB - ptsA;
+  });
+
+  const elite = sortedTeams.slice(0, 6);
+  const preliminar = sortedTeams.slice(6); // Os 16 restantes
+
+  // Embaralha para os confrontos não serem previsíveis
+  const shuffledPrelim = [...preliminar].sort(() => 0.5 - Math.random());
+  const shuffledElite = [...elite].sort(() => 0.5 - Math.random());
+
+  const rounds = [];
+  let mc = 1;
+
+  // --- FASE 1 (16 times -> 8 jogos) ---
+  const r0Matches = [];
+  for(let i=0; i<8; i++) {
+    const tA = shuffledPrelim[i*2] || '';
+    const tB = shuffledPrelim[i*2+1] || '';
+    r0Matches.push({
+      id: `${compId}_ko_m${mc++}_kr0`,
+      teamA: tA, teamB: tB,
+      placeholderA: tA ? '' : 'A Definir', placeholderB: tB ? '' : 'A Definir',
+      status: 'pending_play'
+    });
+  }
+  rounds.push({ id: `ko_0`, number: 'Fase 1 (Preliminar)', status: 'released', releasedAt: Date.now(), matches: r0Matches });
+
+  // --- FASE 2 (8 times -> 4 jogos) ---
+  const r1Matches = [];
+  for(let i=0; i<4; i++) {
+    r1Matches.push({
+      id: `${compId}_ko_m${mc++}_kr1`,
+      teamA: '', teamB: '',
+      placeholderA: `Venc. Jogo ${r0Matches[i*2].id.split('_m')[1].split('_')[0]}`,
+      placeholderB: `Venc. Jogo ${r0Matches[i*2+1].id.split('_m')[1].split('_')[0]}`,
+      status: 'pending_play'
+    });
+  }
+  rounds.push({ id: `ko_1`, number: 'Fase 2 (Preliminar)', status: 'locked', releasedAt: null, matches: r1Matches });
+
+  // --- FASE 3: PLAYOFF DE ACESSO (4 times -> 2 jogos) ---
+  const r2Matches = [];
+  for(let i=0; i<2; i++) {
+    r2Matches.push({
+      id: `${compId}_ko_m${mc++}_kr2`,
+      teamA: '', teamB: '',
+      placeholderA: `Venc. Jogo ${r1Matches[i*2].id.split('_m')[1].split('_')[0]}`,
+      placeholderB: `Venc. Jogo ${r1Matches[i*2+1].id.split('_m')[1].split('_')[0]}`,
+      status: 'pending_play'
+    });
+  }
+  rounds.push({ id: `ko_2`, number: 'Playoff de Acesso', status: 'locked', releasedAt: null, matches: r2Matches });
+
+  // --- FASE 4: QUARTAS DE FINAL (6 Elite + 2 Classificados -> 4 jogos) ---
+  const r3Matches = [];
+  // Jogo 1: Elite 1 x Vencedor Playoff 1
+  r3Matches.push({
+    id: `${compId}_ko_m${mc++}_kr3`,
+    teamA: shuffledElite[0] || '', teamB: '',
+    placeholderA: 'Elite Rank #1',
+    placeholderB: `Venc. Playoff 1`,
+    status: 'pending_play'
+  });
+  // Jogo 2: Elite 2 x Elite 3
+  r3Matches.push({
+    id: `${compId}_ko_m${mc++}_kr3`,
+    teamA: shuffledElite[1] || '', teamB: shuffledElite[2] || '',
+    placeholderA: 'Elite Rank #2',
+    placeholderB: 'Elite Rank #3',
+    status: 'pending_play'
+  });
+  // Jogo 3: Elite 4 x Elite 5
+  r3Matches.push({
+    id: `${compId}_ko_m${mc++}_kr3`,
+    teamA: shuffledElite[3] || '', teamB: shuffledElite[4] || '',
+    placeholderA: 'Elite Rank #4',
+    placeholderB: 'Elite Rank #5',
+    status: 'pending_play'
+  });
+  // Jogo 4: Elite 6 x Vencedor Playoff 2
+  r3Matches.push({
+    id: `${compId}_ko_m${mc++}_kr3`,
+    teamA: shuffledElite[5] || '', teamB: '',
+    placeholderA: 'Elite Rank #6',
+    placeholderB: `Venc. Playoff 2`,
+    status: 'pending_play'
+  });
+  rounds.push({ id: `ko_3`, number: 'Quartas', status: 'locked', releasedAt: null, matches: r3Matches });
+
+  // --- FASE 5: SEMIFINAL (4 times -> 2 jogos) ---
+  const r4Matches = [];
+  for(let i=0; i<2; i++) {
+    r4Matches.push({
+      id: `${compId}_ko_m${mc++}_kr4`,
+      teamA: '', teamB: '',
+      placeholderA: `Venc. Quartas ${i*2 + 1}`,
+      placeholderB: `Venc. Quartas ${i*2 + 2}`,
+      status: 'pending_play'
+    });
+  }
+  rounds.push({ id: `ko_4`, number: 'Semifinal', status: 'locked', releasedAt: null, matches: r4Matches });
+
+  // --- FASE 6: FINAL (2 times -> 1 jogo) ---
+  const r5Matches = [];
+  r5Matches.push({
+    id: `${compId}_ko_m${mc++}_kr5_f1`,
+    teamA: '', teamB: '',
+    placeholderA: `Venc. Semi 1`, placeholderB: `Venc. Semi 2`,
+    status: 'pending_play'
+  });
+  if (isFinalDouble) {
+    r5Matches.push({
+      id: `${compId}_ko_m${mc++}_kr5_f2`,
+      teamA: '', teamB: '',
+      placeholderA: `Venc. Semi 2`, placeholderB: `Venc. Semi 1`,
+      status: 'pending_play'
+    });
+  }
+  r5Matches.push({
+    id: `${compId}_ko_m${mc}_kr5_3rd`,
+    teamA: '', teamB: '',
+    placeholderA: `🥉 Perd. Semi 1`, placeholderB: `🥉 Perd. Semi 2`,
+    status: 'pending_play'
+  });
+  rounds.push({ id: `ko_5`, number: 'Final', status: 'locked', releasedAt: null, matches: r5Matches });
+
+  return rounds;
 };

@@ -427,7 +427,6 @@ export default function App() {
       const match = matches.find(m => m && m.id === id); if (!match) return; 
       const comp = competitions.find(c => c && c.id === match.compId);
 
-      // 🛡️ CORREÇÃO 1: Conversão estrita para números
       const finalScoreA = parseInt(updatedData && updatedData.scoreA !== undefined ? updatedData.scoreA : match.scoreA) || 0; 
       const finalScoreB = parseInt(updatedData && updatedData.scoreB !== undefined ? updatedData.scoreB : match.scoreB) || 0; 
       const finalPenaltiesA = updatedData && updatedData.penaltiesA !== undefined ? parseInt(updatedData.penaltiesA) : (match.penaltiesA !== null && match.penaltiesA !== undefined ? parseInt(match.penaltiesA) : null); 
@@ -460,7 +459,6 @@ export default function App() {
             await updateDoc(getPublicDocPath('predictions', pred.id), { status: isWin ? 'won' : 'lost', payout, profit });
          }
 
-         // 🛡️ CORREÇÃO 2: Busca o saldo atualizado direto do banco
          for (const userId of Object.keys(userPayouts)) {
             const uQuery = query(getPublicPath('users'), where('id', '==', userId));
             const uSnap = await getDocs(uQuery);
@@ -503,15 +501,12 @@ export default function App() {
            else if (finalScoreB === 0 && finalScoreA === 3) isWoOpp = true;
         }
 
-        // 🛡️ NOVA REGRA: Punição (-10), zera pontos e SUSPENDE (Apenas pra próxima edição)
         if (isWoMe || isWoOpp) {
            const suspendedTeams = comp.suspendedTeams || [];
            let newSuspended = [...suspendedTeams];
-           
            if (isWoMe && !newSuspended.includes(tA.id)) newSuspended.push(tA.id);
            if (isWoOpp && !newSuspended.includes(tB.id)) newSuspended.push(tB.id);
 
-           // Removemos a filtragem de comp.teams, o time permance na tabela atual
            await updateDoc(getPublicDocPath('competitions', comp.id), { 
               suspendedTeams: newSuspended
            });
@@ -525,7 +520,6 @@ export default function App() {
 
         if (winner === 'A') { 
             if (!isWoMe) {
-                // ⚖️ NOVA REGRA: Se o time B tomou W.O, o time A ganha só METADE dos pontos
                 if (isWoOpp) addPtsA += (ptsWin / 2);
                 else addPtsA += ptsWin;
             }
@@ -533,7 +527,6 @@ export default function App() {
         }
         else if (winner === 'B') { 
             if (!isWoOpp) {
-                // ⚖️ NOVA REGRA: Se o time A tomou W.O, o time B ganha só METADE dos pontos
                 if (isWoMe) addPtsB += (ptsWin / 2);
                 else addPtsB += ptsWin;
             }
@@ -559,7 +552,6 @@ export default function App() {
           }
         }
 
-        // 🛡️ CORREÇÃO 3: Atualizando os times pegando os dados mais recentes
         const tAQuery = query(getPublicPath('teams'), where('id', '==', tA.id));
         const tBQuery = query(getPublicPath('teams'), where('id', '==', tB.id));
         const [tASnap, tBSnap] = await Promise.all([getDocs(tAQuery), getDocs(tBQuery)]);
@@ -589,7 +581,7 @@ export default function App() {
         }
       }
 
-      if (comp && (comp.format === 'cup' || comp.format === 'groups' || comp.category === 'copa_flash_dupla')) {
+      if (comp && (comp.format === 'cup' || comp.format === 'groups' || comp.category === 'copa_flash_dupla' || comp.category === 'copa_recompensa')) {
         let winnerId = null; 
         
         if (comp.category === 'copa_flash_dupla') {
@@ -601,7 +593,6 @@ export default function App() {
            
            if (!snapPartner.empty) {
                const partnerMatch = snapPartner.docs[0].data();
-               
                const currentRoundUI = comp.rounds.find(r => r.id === match.roundId);
                const idaMatchId = isIda ? match.matchId : partnerMatchId;
                const idaMatchUI = currentRoundUI.matches.find(x => x.id === idaMatchId);
@@ -627,9 +618,7 @@ export default function App() {
                else if (aggScoreB > aggScoreA) winnerId = duplaB;
                else if (aggPenA > aggPenB) winnerId = duplaA;
                else if (aggPenB > aggPenA) winnerId = duplaB;
-               else {
-                   winnerId = Math.random() < 0.5 ? duplaA : duplaB;
-               }
+               else { winnerId = Math.random() < 0.5 ? duplaA : duplaB; }
            }
         } else {
            if (finalScoreA > finalScoreB) winnerId = match.teamA; 
@@ -642,7 +631,7 @@ export default function App() {
         
         if (winnerId) {
           const rIndex = comp.rounds.findIndex(r => r && r.id === match.roundId); 
-          const isKnockoutMatch = match.matchId.includes('_ko_') || comp.format === 'cup' || comp.category === 'copa_flash_dupla';
+          const isKnockoutMatch = match.matchId.includes('_ko_') || comp.format === 'cup' || comp.category === 'copa_flash_dupla' || comp.category === 'copa_recompensa';
           
           const divisorIndex = comp.category === 'copa_flash_dupla' ? 4 : 2;
 
@@ -672,6 +661,13 @@ export default function App() {
                        newRounds[nextRIndex].matches[nextMIndex + 1].teamA = winnerId.p2;
                        newRounds[nextRIndex].matches[nextMIndex + 1].placeholderA = `${winnerId.name} (Téc 2)`;
                    }
+               // 🎁 LÓGICA DE AVANÇO EXCLUSIVA DA COPA RECOMPENSA
+               } else if (comp.category === 'copa_recompensa' && comp.rounds[rIndex].number === 'Playoff de Acesso') {
+                   // O jogo 1 do Playoff (mIndex 0) preenche a vaga no jogo 1 das Quartas
+                   if (mIndex === 0) newRounds[nextRIndex].matches[0].teamB = winnerId;
+                   // O jogo 2 do Playoff (mIndex 1) preenche a vaga no jogo 4 das Quartas
+                   else if (mIndex === 1) newRounds[nextRIndex].matches[3].teamB = winnerId;
+
                } else {
                    const loserId = winnerId === match.teamA ? match.teamB : match.teamA;
                    const isNextRoundFinal = newRounds[nextRIndex].matches.some(x => x.id.includes('_f1') || x.id.includes('_3rd'));
