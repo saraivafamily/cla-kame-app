@@ -91,9 +91,73 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
         <p className="text-blue-400">Um app para guardar a sua história!</p>
       </div>
 
-      {/* 🌟 PAINEL DE XPOINTS RESTAURADO */}
-      <XPointsPanel users={users} currentUser={currentUser} />
+      {/* 🌟 1º LUGAR: INSCRIÇÕES ABERTAS EM EVIDÊNCIA MÁXIMA */}
+      {openCompetitions.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2"><Trophy size={20} /> Novas Competições</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {openCompetitions.map(comp => {
+              const isFlash = comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla'; 
+              const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
+              const compPending = Array.isArray(comp.pendingTeams) ? comp.pendingTeams : [];
+              const teamCount = parseInt(comp.teamCount) || 0;
+              const isFull = isFlash ? false : compTeams.length >= teamCount;
+              const alreadyJoined = compTeams.some(tId => userTeamIds.includes(tId));
+              const isPending = compPending.some(p => p && userTeamIds.includes(p.teamId));
 
+              const isBlockedByOtherComp = Array.isArray(comp.excludedCompIds) && comp.excludedCompIds.some(exCompId => {
+                const exComp = (competitions || []).find(c => c.id === exCompId);
+                if (!exComp) return false;
+                const inConfirmed = Array.isArray(exComp.teams) && exComp.teams.some(tId => userTeamIds.includes(tId));
+                const inPendingEx = Array.isArray(exComp.pendingTeams) && exComp.pendingTeams.some(p => p && userTeamIds.includes(p.teamId));
+                return inConfirmed || inPendingEx;
+              });
+
+              return (
+                <div key={comp.id} className={`bg-blue-900 p-5 rounded-2xl border ${isFlash ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-amber-500/30'} shadow-lg flex flex-col justify-between group hover:border-amber-500/60 transition-all`}>
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className={`font-black text-lg transition-colors ${isFlash ? 'text-amber-400' : 'text-white group-hover:text-amber-400'}`}>{comp.name}</h4>
+                      <span className="text-xs bg-amber-500/20 text-amber-400 font-bold px-2 py-1 rounded-lg border border-amber-500/30">
+                        {compTeams.length}/{isFlash ? '∞' : teamCount} Vagas
+                      </span>
+                    </div>
+                    <p className="text-xs uppercase text-emerald-400 font-bold tracking-widest">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</p>
+                  </div>
+                  
+                  <div className="mt-5 pt-4 border-t border-blue-800">
+                    
+                    {isFlash && comp.deadline && (
+                      <div className="bg-blue-950 p-2.5 rounded-xl border border-amber-500/40 text-center mb-4">
+                        <p className="text-[9px] text-amber-400 font-bold uppercase tracking-widest mb-0.5 flex items-center justify-center gap-1"><Activity size={12}/> Inicia em</p>
+                        <p className="text-2xl text-amber-500 drop-shadow-md">
+                          <CountdownTimer targetDateStr={`${comp.deadline}T${comp.startTime || '20:00'}:00`} />
+                        </p>
+                      </div>
+                    )}
+
+                    {alreadyJoined ? (
+                       <div className="text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20"><CheckCircle size={16}/> Você já está dentro!</div>
+                    ) : isPending ? (
+                       <div className="text-amber-400 text-xs font-bold flex items-center justify-center gap-1 bg-amber-500/10 py-2 rounded-lg border border-amber-500/20"><Activity size={16}/> Inscrição em Análise</div>
+                    ) : isBlockedByOtherComp ? (
+                       <div className="text-red-400 text-xs font-bold flex items-center justify-center gap-1 bg-red-500/10 py-2 rounded-lg border border-red-500/20 text-center"><XCircle size={16}/> Bloqueado (Jogando outro torneio)</div>
+                    ) : isFull ? (
+                       <div className="text-red-400 text-xs font-bold flex items-center justify-center gap-1 bg-red-500/10 py-2 rounded-lg border border-red-500/20"><XCircle size={16}/> Vagas Esgotadas</div>
+                    ) : (
+                       <Button onClick={() => onJoinOpenComp && onJoinOpenComp(comp.id)} className="w-full py-2.5 text-sm bg-amber-600 hover:bg-amber-500 text-white font-black shadow-md border-0">
+                         Participar do Torneio
+                       </Button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* BOTÕES DE ACESSO RÁPIDO */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {hasAdminAccess && (
           <button onClick={() => onChangeTab('competitions')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
@@ -134,15 +198,15 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
       </div>
 
       {hasAdminAccess && (
-          <button onClick={() => onChangeTab('xpoints_manager')} className="bg-gradient-to-br from-amber-600/20 to-amber-900/40 hover:from-amber-600/40 p-4 rounded-2xl border border-amber-500/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+          <button onClick={() => onChangeTab('xpoints_manager')} className="w-full sm:w-auto bg-gradient-to-br from-amber-600/20 to-amber-900/40 hover:from-amber-600/40 p-4 rounded-2xl border border-amber-500/50 flex items-center justify-center gap-3 transition-all group shadow-[0_0_15px_rgba(245,158,11,0.1)]">
             <div className="bg-amber-950 p-2 rounded-full group-hover:scale-110 transition-transform shadow-inner">
               <Zap size={20} className="text-amber-400 animate-pulse" />
             </div>
-            <span className="text-xs font-bold text-amber-200">Gestão XPoints</span>
+            <span className="text-sm font-bold text-amber-200 uppercase tracking-widest">Painel de Gestão XPoints</span>
           </button>
         )}
 
-      {/* 🌟 PAINEL DE PARTIDAS LIBERADAS */}
+      {/* PARTIDAS LIBERADAS E PENDENTES */}
       {matchesToPlay.length > 0 && (
         <div className="space-y-3 animate-in slide-in-from-left-4">
           <h3 className="text-lg font-bold text-emerald-400 flex items-center gap-2">
@@ -234,71 +298,12 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
         </div>
       )}
 
-      {openCompetitions.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2"><Trophy size={20} /> Inscrições Abertas</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {openCompetitions.map(comp => {
-              const isFlash = comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla'; 
-              const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
-              const compPending = Array.isArray(comp.pendingTeams) ? comp.pendingTeams : [];
-              const teamCount = parseInt(comp.teamCount) || 0;
-              const isFull = isFlash ? false : compTeams.length >= teamCount;
-              const alreadyJoined = compTeams.some(tId => userTeamIds.includes(tId));
-              const isPending = compPending.some(p => p && userTeamIds.includes(p.teamId));
+      {/* 🌟 PAINEL DE XPOINTS (MENOR EVIDÊNCIA E MAIS PARA BAIXO) */}
+      <div className="pt-6 border-t border-blue-800">
+         <XPointsPanel users={users} currentUser={currentUser} />
+      </div>
 
-              const isBlockedByOtherComp = Array.isArray(comp.excludedCompIds) && comp.excludedCompIds.some(exCompId => {
-                const exComp = (competitions || []).find(c => c.id === exCompId);
-                if (!exComp) return false;
-                const inConfirmed = Array.isArray(exComp.teams) && exComp.teams.some(tId => userTeamIds.includes(tId));
-                const inPendingEx = Array.isArray(exComp.pendingTeams) && exComp.pendingTeams.some(p => p && userTeamIds.includes(p.teamId));
-                return inConfirmed || inPendingEx;
-              });
-
-              return (
-                <div key={comp.id} className={`bg-blue-900 p-5 rounded-2xl border ${isFlash ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-amber-500/30'} shadow-lg flex flex-col justify-between group hover:border-amber-500/60 transition-all`}>
-                  <div>
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className={`font-black text-lg transition-colors ${isFlash ? 'text-amber-400' : 'text-white group-hover:text-amber-400'}`}>{comp.name}</h4>
-                      <span className="text-xs bg-amber-500/20 text-amber-400 font-bold px-2 py-1 rounded-lg border border-amber-500/30">
-                        {compTeams.length}/{isFlash ? '∞' : teamCount} Vagas
-                      </span>
-                    </div>
-                    <p className="text-xs uppercase text-emerald-400 font-bold tracking-widest">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</p>
-                  </div>
-                  
-                  <div className="mt-5 pt-4 border-t border-blue-800">
-                    
-                    {isFlash && comp.deadline && (
-                      <div className="bg-blue-950 p-2.5 rounded-xl border border-amber-500/40 text-center mb-4">
-                        <p className="text-[9px] text-amber-400 font-bold uppercase tracking-widest mb-0.5 flex items-center justify-center gap-1"><Activity size={12}/> Inicia em</p>
-                        <p className="text-2xl text-amber-500 drop-shadow-md">
-                          <CountdownTimer targetDateStr={`${comp.deadline}T${comp.startTime || '20:00'}:00`} />
-                        </p>
-                      </div>
-                    )}
-
-                    {alreadyJoined ? (
-                       <div className="text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20"><CheckCircle size={16}/> Você já está dentro!</div>
-                    ) : isPending ? (
-                       <div className="text-amber-400 text-xs font-bold flex items-center justify-center gap-1 bg-amber-500/10 py-2 rounded-lg border border-amber-500/20"><Activity size={16}/> Inscrição em Análise</div>
-                    ) : isBlockedByOtherComp ? (
-                       <div className="text-red-400 text-xs font-bold flex items-center justify-center gap-1 bg-red-500/10 py-2 rounded-lg border border-red-500/20 text-center"><XCircle size={16}/> Bloqueado (Jogando outro torneio)</div>
-                    ) : isFull ? (
-                       <div className="text-red-400 text-xs font-bold flex items-center justify-center gap-1 bg-red-500/10 py-2 rounded-lg border border-red-500/20"><XCircle size={16}/> Vagas Esgotadas</div>
-                    ) : (
-                       <Button onClick={() => onJoinOpenComp && onJoinOpenComp(comp.id)} className="w-full py-2.5 text-sm bg-amber-600 hover:bg-amber-500 text-white font-black shadow-md border-0">
-                         Participar do Torneio
-                       </Button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
+      {/* ÚLTIMOS RESULTADOS */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados Enviados</h3>
         <div className="space-y-3">
