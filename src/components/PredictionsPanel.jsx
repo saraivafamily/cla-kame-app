@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Target, AlertCircle, CheckCircle, Dices } from 'lucide-react';
+import { Target, AlertCircle, CheckCircle, Dices, Save } from 'lucide-react';
 import { updateDoc, setDoc, getDocs, query, where } from 'firebase/firestore';
 import { getPublicDocPath, getPublicPath } from '../utils/firebase';
 import ShieldDisplay from './ShieldDisplay';
@@ -25,9 +25,26 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
     (competitions || []).forEach(c => {
       if (c.status !== 'active') return;
       
+      const isFlash = c.category === 'copa_flash' || c.category === 'copa_flash_dupla';
+      
       const validRounds = [];
       c.rounds?.forEach(r => {
         if (r.status !== 'locked') return; 
+        
+        // 🌟 REGRA: Copa Flash só libera palpites em Semi, Final e 3º Lugar
+        if (isFlash) {
+           const roundName = String(r.number).toLowerCase();
+           // Bloqueia quartas e oitavas logo de cara
+           if (roundName.includes('quarta') || roundName.includes('oitava') || roundName.includes('grupo') || roundName.includes('fase')) return;
+           
+           const allowed = roundName.includes('semi') || 
+                           roundName.includes('final') || 
+                           roundName.includes('3º') || 
+                           roundName.includes('terceiro') ||
+                           roundName === '3';
+           
+           if (!allowed) return; 
+        }
         
         const validMatches = [];
         r.matches.forEach(m => {
@@ -64,19 +81,42 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
     return round ? round.matches : [];
   }, [bettingData, selectedCompId, selectedRoundId]);
 
-  const getOdds = (matchId, compId, tA_id, tB_id) => {
-     if (customOdds[matchId]) return customOdds[matchId];
+  // 🌟 NOVO MOTOR DE ODDS COM RANKING XPOINTS PARA COPA FLASH
+  const getOdds = (match) => {
+     // 1º: Verifica se há Odds personalizadas salvas no banco para todos verem
+     if (match.customOdds) return match.customOdds;
 
-     const table = calculateStandings(matches, teams, compId);
+     const comp = (competitions || []).find(c => c.id === match.compId);
+     const isFlash = comp?.category === 'copa_flash' || comp?.category === 'copa_flash_dupla';
 
-     const statsA = table.find(t => t.id === tA_id);
-     const statsB = table.find(t => t.id === tB_id);
+     let weightA = 5;
+     let weightB = 5;
 
-     const ptsA = statsA ? statsA.pts : 0;
-     const ptsB = statsB ? statsB.pts : 0;
+     if (isFlash) {
+         // Para Copa Flash, o peso vem do Ranking XPoints Global!
+         const validUsers = (users || []).filter(u => u.name && u.id !== 'u_master');
+         const sortedUsers = [...validUsers].sort((a, b) => (Number(b.dlsXPoints) || 0) - (Number(a.dlsXPoints) || 0));
+         
+         const ownerA = (teams || []).find(t => t.id === match.teamA)?.ownerId;
+         const ownerB = (teams || []).find(t => t.id === match.teamB)?.ownerId;
+
+         const rankA = sortedUsers.findIndex(u => u.id === ownerA) + 1 || validUsers.length;
+         const rankB = sortedUsers.findIndex(u => u.id === ownerB) + 1 || validUsers.length;
+         
+         const total = validUsers.length || 50;
+         
+         // Fórmula: Quanto melhor a posição (ex: 1º), maior o peso e menor a Odd
+         weightA = Math.max(1, total - rankA + 10);
+         weightB = Math.max(1, total - rankB + 10);
+     } else {
+         // Ligas e Fases de Grupos continuam com a pontuação da tabela do torneio
+         const table = calculateStandings(matches, teams, match.compId);
+         const statsA = table.find(t => t.id === match.teamA);
+         const statsB = table.find(t => t.id === match.teamB);
+         weightA = 5 + (statsA ? statsA.pts : 0);
+         weightB = 5 + (statsB ? statsB.pts : 0);
+     }
      
-     const weightA = 5 + ptsA;
-     const weightB = 5 + ptsB;
      const weightD = 5 + (Math.max(weightA, weightB) - Math.abs(weightA - weightB)) * 0.5;
      const totalWeight = weightA + weightB + weightD;
 
@@ -88,15 +128,36 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
      return { A: clamp(oddA), B: clamp(oddB), D: clamp(oddD) };
   };
 
-  const handleCustomOddChange = (matchId, option, newValue) => {
-      const matchOdds = getOdds(matchId, displayedMatches.find(m => m.id === matchId)?.compId, displayedMatches.find(m => m.id === matchId)?.teamA, displayedMatches.find(m => m.id === matchId)?.teamB);
+  const handleCustomOddChangeLocal = (matchId, option, newValue, currentOdds) => {
       setCustomOdds({
           ...customOdds,
           [matchId]: {
-              ...matchOdds,
+              ...(customOdds[matchId] || currentOdds),
               [option]: newValue
           }
       });
+  };
+
+  // 🌟 SALVA A ODD EDITADA DIRETO NO BANCO PARA TODOS OS USUÁRIOS
+  const saveCustomOddsToDB = async (match) => {
+      const oddsToSave = customOdds[match.id];
+      if (!oddsToSave) return;
+      
+      try {
+          const comp = competitions.find(c => c.id === match.compId);
+          if (!comp) return;
+
+          const updatedRounds = comp.rounds.map(r => ({
+              ...r,
+              matches: r.matches.map(m => m.id === match.id ? { ...m, customOdds: oddsToSave } : m)
+          }));
+
+          await updateDoc(getPublicDocPath('competitions', comp.id), { rounds: updatedRounds });
+          showToast("Odds alteradas sincronizadas para todos!", "success");
+      } catch (err) {
+          console.error(err);
+          showToast("Erro ao sincronizar odds globais.", "error");
+      }
   };
 
   const ranking = useMemo(() => {
@@ -133,7 +194,8 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
        return;
      }
 
-     const currentOdds = getOdds(m.id, m.compId, m.teamA, m.teamB);
+     const baseOdds = getOdds(m);
+     const currentOdds = customOdds[m.id] || baseOdds;
      const lockedOdd = Number(currentOdds[data.option]);
 
      onSavePrediction({
@@ -150,7 +212,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
      showToast(`Bilhete Fechado! Odd cravada em ${lockedOdd}x 🍀`, "success");
   };
 
-  // 🚀 MOTOR DE AUDITORIA DO KAMEBET: Recalcula falsos Reds e ajusta a conta bancária
   const handleSyncBettingHistory = async () => {
     if (!window.confirm("Atenção! Isso vai varrer TODOS os palpites antigos do servidor, corrigir os falsos Reds causados pelo bug do placar e devolver o saldo para a conta dos jogadores corretamente. Deseja iniciar a varredura?")) return;
     showToast("Analisando bilhetes e recalculando saldos... Isso pode levar alguns segundos.", "info");
@@ -160,12 +221,11 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
       const predictionsToUpdate = [];
 
       for (const pred of predictions) {
-          if (pred.type === 'deposit') continue; // Ignora as compras de KameCoins
+          if (pred.type === 'deposit') continue; 
 
           const match = matches.find(m => m.matchId === pred.matchId && m.compId === pred.compId && m.status === 'approved');
           if (!match) continue; 
 
-          // Lendo os placares como NUMEROS REAIS
           const scoreA = Number(match.scoreA || 0);
           const scoreB = Number(match.scoreB || 0);
           const penA = match.penaltiesA !== null && match.penaltiesA !== undefined ? Number(match.penaltiesA) : null;
@@ -188,7 +248,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
 
           const currentProfit = pred.status ? Number(pred.profit || 0) : 0;
           
-          // Se o sistema marcou errado ou o lucro anotado for diferente do real, joga pra fila de correção
           if (pred.status !== correctStatus || currentProfit !== correctProfit) {
               const diff = correctProfit - currentProfit;
               
@@ -204,7 +263,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
           }
       }
 
-      // Devolvendo e ajustando os BitKames dos usuários prejudicados
       for (const userId of Object.keys(balanceDiffs)) {
           const u = users.find(x => x.id === userId);
           if (u) {
@@ -213,7 +271,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
           }
       }
 
-      // Corrigindo a etiqueta dos bilhetes (de Loss para Won)
       for (const pUpdate of predictionsToUpdate) {
           await updateDoc(getPublicDocPath('predictions', pUpdate.id), {
               status: pUpdate.status,
@@ -308,11 +365,14 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                 const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
                 const myPred = getMyPred(m.id);
                 const currentData = betData[m.id] || { option: myPred?.option || null, amount: myPred?.amount || '' };
-                const odds = getOdds(m.id, m.compId, m.teamA, m.teamB);
+                
+                const baseOdds = getOdds(m);
+                // currentOdds junta as modificadas localmente (se o admin estiver alterando agora) ou a final (já salva no Firebase)
+                const currentOdds = customOdds[m.id] || baseOdds;
 
-                const displayOddA = (myPred && myPred.option === 'A') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : odds.A;
-                const displayOddD = (myPred && myPred.option === 'D') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : odds.D;
-                const displayOddB = (myPred && myPred.option === 'B') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : odds.B;
+                const displayOddA = (myPred && myPred.option === 'A') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : currentOdds.A;
+                const displayOddD = (myPred && myPred.option === 'D') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : currentOdds.D;
+                const displayOddB = (myPred && myPred.option === 'B') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : currentOdds.B;
 
                 return (
                   <div key={m.id} className="bg-blue-900 p-5 rounded-2xl border border-blue-800 shadow-lg hover:border-amber-500/30 transition-all group">
@@ -321,14 +381,17 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                       {myPred && <span className="text-[10px] text-emerald-400 font-black uppercase flex items-center gap-1">✅ Bilhete Salvo</span>}
                     </div>
                     
-                    {/* 🌟 MODO ADMIN: Edição Manual das Odds */}
+                    {/* 🌟 MODO ADMIN: Edição Global de Odds */}
                     {isAdmin && !myPred && (
                         <div className="flex justify-between items-center mb-3 bg-blue-950/50 p-2 rounded-lg border border-blue-800/50">
-                            <span className="text-[10px] text-emerald-400 font-bold uppercase">👑 Ajuste Manual de Odd (Admin)</span>
+                            <span className="text-[10px] text-emerald-400 font-bold uppercase">👑 Ajuste de Odd Global</span>
                             <div className="flex gap-2">
-                                <input type="number" step="0.1" value={odds.A} onChange={(e) => handleCustomOddChange(m.id, 'A', e.target.value)} className="w-12 bg-blue-900 text-[10px] text-white p-1 rounded outline-none border border-blue-700 focus:border-emerald-500 text-center" title="Editar Odd Time A" />
-                                <input type="number" step="0.1" value={odds.D} onChange={(e) => handleCustomOddChange(m.id, 'D', e.target.value)} className="w-12 bg-blue-900 text-[10px] text-white p-1 rounded outline-none border border-blue-700 focus:border-emerald-500 text-center" title="Editar Odd Empate" />
-                                <input type="number" step="0.1" value={odds.B} onChange={(e) => handleCustomOddChange(m.id, 'B', e.target.value)} className="w-12 bg-blue-900 text-[10px] text-white p-1 rounded outline-none border border-blue-700 focus:border-emerald-500 text-center" title="Editar Odd Time B" />
+                                <input type="number" step="0.1" value={currentOdds.A} onChange={(e) => handleCustomOddChangeLocal(m.id, 'A', e.target.value, baseOdds)} className="w-12 bg-blue-900 text-[10px] text-white p-1 rounded outline-none border border-blue-700 focus:border-emerald-500 text-center" title="Editar Odd Time A" />
+                                <input type="number" step="0.1" value={currentOdds.D} onChange={(e) => handleCustomOddChangeLocal(m.id, 'D', e.target.value, baseOdds)} className="w-12 bg-blue-900 text-[10px] text-white p-1 rounded outline-none border border-blue-700 focus:border-emerald-500 text-center" title="Editar Odd Empate" />
+                                <input type="number" step="0.1" value={currentOdds.B} onChange={(e) => handleCustomOddChangeLocal(m.id, 'B', e.target.value, baseOdds)} className="w-12 bg-blue-900 text-[10px] text-white p-1 rounded outline-none border border-blue-700 focus:border-emerald-500 text-center" title="Editar Odd Time B" />
+                                <button onClick={() => saveCustomOddsToDB(m)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded transition-colors shadow-md flex items-center gap-1">
+                                  <Save size={12}/> Salvar
+                                </button>
                             </div>
                         </div>
                     )}
@@ -370,7 +433,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                     {currentData.option && currentData.amount && (
                       <p className="text-center text-[10px] text-emerald-400 mt-2 font-medium">
                         Retorno Estimado: <b className="text-amber-400">
-                           {Math.floor(Number(currentData.amount) * (myPred?.option === currentData.option ? Number(myPred.lockedOdd || 1.1) : Number(odds[currentData.option])))} BK
+                          {Math.floor(Number(currentData.amount) * (myPred?.option === currentData.option ? Number(myPred.lockedOdd || 1.1) : Number(currentOdds[currentData.option])))} BK
                         </b>
                       </p>
                     )}
