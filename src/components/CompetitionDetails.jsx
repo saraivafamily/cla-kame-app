@@ -564,7 +564,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                                     const mIda = round.matches[matchIndex * 2];
                                                     const mVolta = round.matches[matchIndex * 2 + 1];
                                                     if (!mIda) return null;
-                              
+                                                    
                                                     if (!mVolta || mIda.id.includes('_3rd') || (!mIda.id.includes('_ida') && !mIda.id.includes('_f1'))) {
                                                         const tA = getTeam(mIda.teamA); const tB = getTeam(mIda.teamB); const sUI = getMatchStatusDisplay(mIda.id);
                                                         return (
@@ -578,13 +578,13 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                                            </div>
                                                         );
                                                     }
-                              
+                                                    
                                                     const sIda = getMatchStatusDisplay(mIda.id); const sVolta = getMatchStatusDisplay(mVolta.id);
                                                     const idaIsFinished = sIda.isPlayed; const isLocked = round.status === 'locked';
-                              
+                                                    
                                                     let aggScoreA = '?'; let aggScoreB = '?';
                                                     let isPlayed = false; let statusText = 'Aguardando'; let statusColor = 'text-blue-500';
-                              
+                                                    
                                                     if (sIda.isPlayed && sIda.text === 'Oficial' && sVolta.isPlayed && sVolta.text === 'Oficial') {
                                                       isPlayed = true; statusText = 'Oficializado'; statusColor = 'text-emerald-400';
                                                       aggScoreA = Number(sIda.scoreA||0) + Number(sVolta.scoreB||0);
@@ -592,11 +592,11 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                                     } else if (sIda.isPlayed || sVolta.isPlayed) {
                                                       statusText = 'Em Andamento'; statusColor = 'text-amber-400';
                                                     }
-                              
+                                                    
                                                     const isDupla = comp.category === 'copa_flash_dupla';
                                                     const realTeamA = isDupla ? ((comp.groups || []).find(d => d.id === mIda.duplaA?.id) || mIda.duplaA) : getTeam(mIda.teamA);
                                                     const realTeamB = isDupla ? ((comp.groups || []).find(d => d.id === mIda.duplaB?.id) || mIda.duplaB) : getTeam(mIda.teamB);
-                              
+                                                    
                                                     return (
                                                        <div key={`cal_dupla_${matchIndex}`} className="relative group">
                                                           <div 
@@ -731,7 +731,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                                   <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(mIda.teamA); }}><ShieldDisplay shield={tA?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamALost || (isBye && tA) ? 'text-emerald-400 font-black' : 'text-blue-200'} hover:text-emerald-400`}>{tA?.name || mIda.placeholderA}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && !isBye && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed || (isBye && tA) ? 'text-emerald-400' : 'text-blue-700'}`}>{isBye ? (tA ? 'W' : '-') : sUI.isPlayed ? sUI.scoreA : '-'}</span></div></div>
                                                   <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(mIda.teamB); }}><ShieldDisplay shield={tB?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamBLost || (isBye && tB) ? 'text-emerald-400 font-black' : 'text-blue-200'} hover:text-emerald-400`}>{tB?.name || mIda.placeholderB}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && !isBye && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed || (isBye && tB) ? 'text-emerald-400' : 'text-blue-700'}`}>{isBye ? (tB ? 'W' : '-') : sUI.isPlayed ? sUI.scoreB : '-'}</span></div></div>
                                                 </div>
-                                                {isAdmin && !isBye && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(mIda, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
+                                                {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(mIda, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
                                               </div>
                                             </div>
                                           );
@@ -821,7 +821,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
                                               <div className={`flex items-center justify-between gap-2 min-w-0 mt-0.5 transition-all duration-500 ${teamALost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(m.teamA); }}><ShieldDisplay shield={tA?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamALost || (isBye && tA) ? 'text-emerald-400 font-black' : 'text-blue-200'} hover:text-emerald-400`}>{tA?.name || m.placeholderA}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesA !== null && sUI.penaltiesA !== undefined && !isBye && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesA})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed || (isBye && tA) ? 'text-emerald-400' : 'text-blue-700'}`}>{isBye ? (tA ? 'W' : '-') : sUI.isPlayed ? sUI.scoreA : '-'}</span></div></div>
                                               <div className={`flex items-center justify-between gap-2 min-w-0 transition-all duration-500 ${teamBLost ? 'grayscale opacity-60 contrast-75 line-through decoration-red-500/30' : ''}`}><div className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer hover:text-emerald-400 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTeamHistory(m.teamB); }}><ShieldDisplay shield={tB?.shield} size="small" /><span className={`text-xs truncate font-bold ${isPlayed && !teamBLost || (isBye && tB) ? 'text-emerald-400 font-black' : 'text-blue-200'} hover:text-emerald-400`}>{tB?.name || m.placeholderB}</span></div><div className="flex items-center gap-1 shrink-0">{sUI.penaltiesB !== null && sUI.penaltiesB !== undefined && !isBye && <span className="text-[9px] text-amber-500 font-bold">({sUI.penaltiesB})</span>}<span className={`w-6 text-center text-sm font-black rounded p-0.5 bg-blue-950 ${sUI.isPlayed || (isBye && tB) ? 'text-emerald-400' : 'text-blue-700'}`}>{isBye ? (tB ? 'W' : '-') : sUI.isPlayed ? sUI.scoreB : '-'}</span></div></div>
                                             </div>
-                                            {isAdmin && !isBye && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
+                                            {isAdmin && (<button type="button" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(m, round.id); }} className="absolute -right-1 -top-1 text-blue-400 hover:text-emerald-400 p-1 bg-blue-950 rounded border border-blue-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-lg z-10"><Edit size={12} /></button>)}
                                           </div>
                                           {!isLastRound && (<div className={`absolute -right-6 w-6 border-blue-600/60 ${isTop ? 'top-1/2 border-t-[2px] border-r-[2px] h-1/2 rounded-tr-xl' : 'bottom-1/2 border-b-[2px] border-r-[2px] h-1/2 rounded-br-xl'}`}></div>)}
                                         </div>

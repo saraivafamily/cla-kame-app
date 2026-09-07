@@ -103,24 +103,48 @@ export const getChampionIds = (comp, matches, teams) => {
 export const generateCupBracket = (teamIds, compId, isFinalDouble = false, isIdaEVolta = false) => {
   if (!teamIds || teamIds.length === 0) return [];
   const sh = [...teamIds].sort(() => 0.5 - Math.random());
+  
+  // Calcula a potência de 2 mais próxima (Ex: 13 times -> chave de 16)
   let p2 = 1; while (p2 < sh.length) p2 *= 2;
   const tkr = Math.log2(p2);
   const rounds = [];
-  const firstRoundMatches = [];
-  const byes = p2 - sh.length; const playing = sh.length - byes; 
   
+  const byes = p2 - sh.length; 
+  const playing = sh.length - byes; 
+  
+  // 🌟 MUDANÇA 1: Distribuição justa dos "Avanços Diretos" (Byes) para não ficar tudo de um lado só
+  const firstRoundMatches = new Array(p2 / 2).fill(null).map(() => [null, null]);
   let teamIndex = 0;
+  
+  const step = byes > 0 ? Math.floor((p2 / 2) / byes) : 1;
+  for (let i = 0; i < byes; i++) {
+      let pos = (i * step) % (p2 / 2);
+      while (firstRoundMatches[pos][0] !== null) pos = (pos + 1) % (p2 / 2);
+      firstRoundMatches[pos] = [sh[teamIndex++], null];
+  }
+  
+  // Preenche o restante com as partidas reais da 1ª fase
   for (let i = 0; i < p2 / 2; i++) {
-     if (i < playing / 2) { firstRoundMatches.push([sh[teamIndex++], sh[teamIndex++]]); } 
-     else { firstRoundMatches.push([sh[teamIndex++], null]); }
+      if (firstRoundMatches[i][0] === null) {
+          firstRoundMatches[i] = [sh[teamIndex++], sh[teamIndex++]];
+      }
   }
   
   let mc = 1;
-  let prevRoundMatches = firstRoundMatches.map(m => { return { tA: m[0] || '', tB: m[1] || '', isBye: (!m[0] || !m[1]) }; });
+  let prevRoundMatches = firstRoundMatches.map(m => { 
+      return { tA: m[0] || '', tB: m[1] || '', isBye: (!m[0] || !m[1]) }; 
+  });
 
   for (let kr = 0; kr < tkr; kr++) {
     const rm = []; const nm = p2 / Math.pow(2, kr + 1); const fmc = mc;
-    let rl = 'Mata-Mata'; if (nm === 1) rl = 'Final'; else if (nm === 2) rl = 'Semifinal'; else if (nm === 4) rl = 'Quartas'; else if (nm === 8) rl = 'Oitavas'; else if (nm === 16) rl = '16 Avos'; else if (nm === 32) rl = '32 Avos';
+    let rl = 'Mata-Mata'; 
+    if (nm === 1) rl = 'Final'; 
+    else if (nm === 2) rl = 'Semifinal'; 
+    else if (nm === 4) rl = 'Quartas'; 
+    else if (nm === 8) rl = 'Oitavas'; 
+    else if (nm === 16) rl = '16 Avos'; 
+    else if (nm === 32) rl = '32 Avos';
+    
     const currentRoundMatches = [];
 
     for (let i = 0; i < nm; i++) {
@@ -128,13 +152,21 @@ export const generateCupBracket = (teamIds, compId, isFinalDouble = false, isIda
 
       if (kr === 0) {
         tA = prevRoundMatches[i].tA; tB = prevRoundMatches[i].tB;
-        if (!tA && !tB) { pA = 'Vaga Aberta'; pB = 'Vaga Aberta'; } else if (!tA) { pA = 'Vaga Aberta'; pB = 'A Definir'; } else if (!tB) { pA = 'A Definir'; pB = 'Vaga Aberta'; }
-        currentRoundMatches.push({ advanced: tA || tB });
+        if (!tA && !tB) { pA = 'Vaga Aberta'; pB = 'Vaga Aberta'; } 
+        else if (!tA) { pA = 'Vaga Aberta'; pB = 'A Definir'; } 
+        else if (!tB) { pA = 'A Definir'; pB = 'Vaga Aberta'; }
+        
+        // 🌟 MUDANÇA 2 (O BUG CRÍTICO RESOLVIDO): Se for uma partida normal (tA e tB existem), 
+        // ele NÃO avança ninguém ainda (null). Se for um Bye, avança o time que sobrou.
+        currentRoundMatches.push({ advanced: (tA && tB) ? null : (tA || tB) });
       } else {
         const prevA = prevRoundMatches[i * 2]; const prevB = prevRoundMatches[i * 2 + 1];
         if (prevA && prevA.advanced) { tA = prevA.advanced; pA = 'Avanço Automático'; } else { pA = `Venc. Jogo ${fmc - (nm * 2) + (i * 2)}`; }
         if (prevB && prevB.advanced) { tB = prevB.advanced; pB = 'Avanço Automático'; } else { pB = `Venc. Jogo ${fmc - (nm * 2) + (i * 2) + 1}`; }
-        if (tA && !tB && pB.includes('Avanço')) currentRoundMatches.push({ advanced: tA }); else if (!tA && tB && pA.includes('Avanço')) currentRoundMatches.push({ advanced: tB }); else currentRoundMatches.push({ advanced: null });
+        
+        if (tA && !tB && pB.includes('Avanço')) currentRoundMatches.push({ advanced: tA }); 
+        else if (!tA && tB && pA.includes('Avanço')) currentRoundMatches.push({ advanced: tB }); 
+        else currentRoundMatches.push({ advanced: null });
       }
 
       if (nm === 1) {
