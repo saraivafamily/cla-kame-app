@@ -40,7 +40,7 @@ import { DrawPanel, LiveDrawPanel } from './components/DrawPanels';
 import TrophyRoom from './components/TrophyRoom';
 import RecordsWall from './components/RecordsWall';
 import XPointsManager from './components/XPointsManager';
-import { TeamStatsModal } from './Dashboard';
+import { TeamStatsModal } from "./components/Dashboard";
 
 
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
