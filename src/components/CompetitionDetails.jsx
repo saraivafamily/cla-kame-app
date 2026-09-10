@@ -291,33 +291,54 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     showToast("Tabela gerada com sucesso!", "success"); 
   };
 
-  const handleForceAdvanceDupla = (roundId, mIda, winnerDupla) => {
-    if (!isAdmin || typeof winnerDupla === 'string') return;
+ const handleForceAdvanceDupla = (roundId, mIda, winnerDupla) => {
+    if (!isAdmin || !winnerDupla) return;
     if (!window.confirm(`Tem certeza que deseja avançar o time/dupla para a próxima fase?`)) return;
 
     const rIndex = comp.rounds.findIndex(r => r.id === roundId);
     if (rIndex >= 0 && rIndex < comp.rounds.length - 1) {
         const mIndex = comp.rounds[rIndex].matches.findIndex(m => m.id === mIda.id);
-        const nextRIndex = rIndex + 1; const nextMIndex = Math.floor(mIndex / 4) * 2; const isTeamA = (Math.floor(mIndex / 2) % 2) === 0;
+        const nextRIndex = rIndex + 1; 
+        
+        const isDouble = comp.category === 'copa_flash_dupla' || comp.isIdaEVolta;
+        const divisorIndex = isDouble ? 4 : 2;
+        const stepMult = isDouble ? 2 : 1;
+
+        const nextMIndex = Math.floor(mIndex / divisorIndex) * stepMult; 
+        const isTeamA = (Math.floor(mIndex / stepMult) % 2) === 0;
+        
         const newRounds = JSON.parse(JSON.stringify(comp.rounds));
+        
+        // 🌟 CORREÇÃO: Garante que o sistema injete apenas o ID (texto) e não o objeto inteiro
+        const wId = comp.category === 'copa_flash_dupla' ? winnerDupla : (winnerDupla.id || winnerDupla);
 
         if (comp.category === 'copa_flash_dupla') {
            if (isTeamA) {
-              newRounds[nextRIndex].matches[nextMIndex].duplaA = winnerDupla; newRounds[nextRIndex].matches[nextMIndex].teamA = winnerDupla.p1; newRounds[nextRIndex].matches[nextMIndex].placeholderA = `${winnerDupla.name} (Téc 1)`;
-              newRounds[nextRIndex].matches[nextMIndex + 1].duplaB = winnerDupla; newRounds[nextRIndex].matches[nextMIndex + 1].teamB = winnerDupla.p2; newRounds[nextRIndex].matches[nextMIndex + 1].placeholderB = `${winnerDupla.name} (Téc 2)`;
+              newRounds[nextRIndex].matches[nextMIndex].duplaA = wId; newRounds[nextRIndex].matches[nextMIndex].teamA = wId.p1; newRounds[nextRIndex].matches[nextMIndex].placeholderA = `${wId.name} (Téc 1)`;
+              newRounds[nextRIndex].matches[nextMIndex + 1].duplaB = wId; newRounds[nextRIndex].matches[nextMIndex + 1].teamB = wId.p2; newRounds[nextRIndex].matches[nextMIndex + 1].placeholderB = `${wId.name} (Téc 2)`;
            } else {
-              newRounds[nextRIndex].matches[nextMIndex].duplaB = winnerDupla; newRounds[nextRIndex].matches[nextMIndex].teamB = winnerDupla.p1; newRounds[nextRIndex].matches[nextMIndex].placeholderB = `${winnerDupla.name} (Téc 1)`;
-              newRounds[nextRIndex].matches[nextMIndex + 1].duplaA = winnerDupla; newRounds[nextRIndex].matches[nextMIndex + 1].teamA = winnerDupla.p2; newRounds[nextRIndex].matches[nextMIndex + 1].placeholderA = `${winnerDupla.name} (Téc 2)`;
+              newRounds[nextRIndex].matches[nextMIndex].duplaB = wId; newRounds[nextRIndex].matches[nextMIndex].teamB = wId.p1; newRounds[nextRIndex].matches[nextMIndex].placeholderB = `${wId.name} (Téc 1)`;
+              newRounds[nextRIndex].matches[nextMIndex + 1].duplaA = wId; newRounds[nextRIndex].matches[nextMIndex + 1].teamA = wId.p2; newRounds[nextRIndex].matches[nextMIndex + 1].placeholderA = `${wId.name} (Téc 2)`;
+           }
+        } else if (comp.category === 'copa_recompensa' && comp.rounds[rIndex].number === 'Playoff de Acesso') {
+           if (isDouble) {
+               if (mIndex <= 1) { newRounds[nextRIndex].matches[0].teamB = wId; newRounds[nextRIndex].matches[1].teamA = wId; }
+               else { newRounds[nextRIndex].matches[6].teamB = wId; newRounds[nextRIndex].matches[7].teamA = wId; }
+           } else {
+               if (mIndex === 0) newRounds[nextRIndex].matches[0].teamB = wId; else if (mIndex === 1) newRounds[nextRIndex].matches[3].teamB = wId;
            }
         } else {
-           if (isTeamA) {
-               newRounds[nextRIndex].matches[nextMIndex].teamA = winnerDupla; newRounds[nextRIndex].matches[nextMIndex + 1].teamB = winnerDupla;
+           if (isDouble) {
+               if (isTeamA) { newRounds[nextRIndex].matches[nextMIndex].teamA = wId; newRounds[nextRIndex].matches[nextMIndex + 1].teamB = wId; } 
+               else { newRounds[nextRIndex].matches[nextMIndex].teamB = wId; newRounds[nextRIndex].matches[nextMIndex + 1].teamA = wId; }
            } else {
-               newRounds[nextRIndex].matches[nextMIndex].teamB = winnerDupla; newRounds[nextRIndex].matches[nextMIndex + 1].teamA = winnerDupla;
+               if (isTeamA) newRounds[nextRIndex].matches[nextMIndex].teamA = wId; else newRounds[nextRIndex].matches[nextMIndex].teamB = wId;
            }
         }
 
-        onEditComp({ ...comp, rounds: newRounds }); showToast("Avançado com sucesso!", "success"); setSelectedDuplaMatchup(null);
+        onEditComp({ ...comp, rounds: newRounds }); 
+        showToast("Avançado com sucesso!", "success"); 
+        setSelectedDuplaMatchup(null);
     }
   };
   
