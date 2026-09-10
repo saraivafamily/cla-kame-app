@@ -3,6 +3,7 @@ import { Shield, Edit, Trash2, MessageCircle, UploadCloud, X, Save } from 'lucid
 import ShieldDisplay from './ShieldDisplay';
 import Button from './Button';
 import { processImage } from '../utils/helpers';
+import { TeamStatsModal } from './Dashboard';
 
 const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTeam, onDeleteTeam }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';

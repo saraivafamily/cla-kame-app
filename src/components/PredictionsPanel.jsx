@@ -52,7 +52,8 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
 
           const hasResult = matches.some(x => x.matchId === m.id && x.compId === c.id && x.status !== 'rejected');
           
-          if (!hasResult && m.teamA && m.teamB && !m.teamA.includes('Definir') && !m.teamB.includes('Definir')) {
+          // 🛡️ BLINDADO: Usando String() antes de chamar .includes()
+          if (!hasResult && m.teamA && m.teamB && !String(m.teamA).includes('Definir') && !String(m.teamB).includes('Definir')) {
             validMatches.push({ ...m, compName: c.name, compId: c.id, roundName: r.number });
           }
         });

@@ -578,8 +578,9 @@ export default function App() {
         }
         
         if (winnerId) {
-          const rIndex = comp.rounds.findIndex(r => r && r.id === match.roundId); 
-          const isKnockoutMatch = match.matchId.includes('_ko_') || comp.format === 'cup' || comp.category === 'copa_flash_dupla' || comp.category === 'copa_recompensa';
+  // Agora o sistema varre a tabela e descobre a rodada automaticamente olhando o ID do confronto
+  const rIndex = comp.rounds.findIndex(r => r && r.matches && r.matches.some(mx => mx.id === match.matchId)); 
+  const isKnockoutMatch = match.matchId.includes('_ko_') || comp.format === 'cup' || comp.category === 'copa_flash_dupla' || comp.category === 'copa_recompensa';
           
           const isDouble = comp.category === 'copa_flash_dupla' || comp.isIdaEVolta;
           const divisorIndex = isDouble ? 4 : 2;
