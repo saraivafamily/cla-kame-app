@@ -1,23 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import Dashboard from './components/Dashboard';
 import { auth, db, getPublicPath, getPublicDocPath } from './utils/firebase';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query, orderBy, limit, where, initializeFirestore, getDocs } from 'firebase/firestore';
 import { PONTOS } from './utils/pontuacoes';
-import { 
-  calculateStandings, 
-  getChampionIds, 
-  generateCupBracket, 
-  generateRoundRobin, 
-  generateGroupsAndKnockout, 
-  generateDuplasCupBracket 
-} from './utils/torneios';
+import { calculateStandings, getChampionIds, generateCupBracket, generateRoundRobin, generateGroupsAndKnockout, generateDuplasCupBracket } from './utils/torneios';
+import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart, Zap, Brain, Eye, Flame, Calendar, Globe } from 'lucide-react';
+import { processImage, processScreenshot, ROLE_NAMES } from './utils/helpers';
+
+import Dashboard from './components/Dashboard';
 import ShieldDisplay from './components/ShieldDisplay';
 import RulesPage from './components/RulesPage';
 import TrainingCenter from './components/TrainingCenter';
-import { Home, Trophy, Medal, Camera, CheckSquare, Users, LogOut, UploadCloud, CheckCircle, XCircle, AlertCircle, Activity, PlusCircle, ArrowLeft, PlayCircle, Lock, Shield, BookOpen, Trash2, Edit, Save, X, MessageCircle, Send, Crown, User, UserPlus, Award, Star, Key, Heart, MoreHorizontal, Target, Dices, Landmark, Wallet, ShoppingCart, Zap, Brain, Eye, Flame, Calendar, Globe } from 'lucide-react';
-import { processImage, processScreenshot, ROLE_NAMES } from './utils/helpers';
 import KameBank from './components/KameBank';
 import KameStore from './components/KameStore';
 import GlobalRanking from './components/GlobalRanking';
