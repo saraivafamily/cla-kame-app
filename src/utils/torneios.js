@@ -6,8 +6,8 @@ export const calculateStandings = (matches, teams, compId) => {
   
   const appMap = {}; 
   (matches || []).filter(m => m && m.compId === compId && m.status === 'approved').forEach(m => { 
-      const time = parseInt(String(m?.id || '').split('_')[1] || '0'); 
-      if (!appMap[m.matchId] || time > parseInt(String(appMap[m.matchId].id).split('_')[1] || '0')) { appMap[m.matchId] = m; } 
+      // CORREÇÃO: Salva no mapa todos os jogos aprovados sem a falha do ID
+      appMap[m.matchId] = m; 
   });
   
   Object.values(appMap).forEach(m => {
@@ -15,7 +15,14 @@ export const calculateStandings = (matches, teams, compId) => {
     tA.p++; tB.p++; 
     tA.gf += Number(m.scoreA||0); tB.gf += Number(m.scoreB||0); 
     tA.ga += Number(m.scoreB||0); tB.ga += Number(m.scoreA||0);
-    if (Number(m.scoreA) > Number(m.scoreB)) { tA.pts += 3; tA.w++; tB.l++; } else if (Number(m.scoreA) < Number(m.scoreB)) { tB.pts += 3; tB.w++; tA.l++; } else { tA.pts++; tB.pts++; tA.d++; tB.d++; }
+    
+    if (Number(m.scoreA) > Number(m.scoreB)) { 
+        tA.pts += 3; tA.w++; tB.l++; 
+    } else if (Number(m.scoreA) < Number(m.scoreB)) { 
+        tB.pts += 3; tB.w++; tA.l++; 
+    } else { 
+        tA.pts++; tB.pts++; tA.d++; tB.d++; 
+    }
   });
   
   return Object.values(table).map(t => ({ ...t, gd: t.gf - t.ga })).sort((a, b) => { 

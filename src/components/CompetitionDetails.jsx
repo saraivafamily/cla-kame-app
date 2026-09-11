@@ -246,7 +246,22 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
 
   const saveMatchEdit = () => {
     const updatedRounds = comp.rounds.map(r => r.id === editMatchData.roundId ? { ...r, matches: r.matches.map(m => m.id === editMatchData.id ? { ...m, teamA: editMatchData.teamA, teamB: editMatchData.teamB, group: editMatchData.group, dlsCode: editMatchData.dlsCode } : m) } : r);
-    onEditComp({ ...comp, rounds: updatedRounds }); setEditMatchData(null); showToast("Confronto salvo!", "success");
+    
+    onEditComp({ ...comp, rounds: updatedRounds }); 
+    
+    // 🌟 CORREÇÃO: Agora o sistema envia os gols corrigidos para o banco de dados!
+    if (editMatchData.hasPlayed && editMatchData.playedMatchId && onUpdatePlayedMatch) {
+        onUpdatePlayedMatch({
+            id: editMatchData.playedMatchId,
+            scoreA: Number(editMatchData.scoreA || 0),
+            scoreB: Number(editMatchData.scoreB || 0),
+            penaltiesA: editMatchData.penaltiesA !== '' && editMatchData.penaltiesA !== null ? Number(editMatchData.penaltiesA) : null,
+            penaltiesB: editMatchData.penaltiesB !== '' && editMatchData.penaltiesB !== null ? Number(editMatchData.penaltiesB) : null
+        });
+    }
+
+    setEditMatchData(null); 
+    showToast("Confronto salvo e placar atualizado no sistema!", "success");
   };
 
   const handleSavePrizes = () => { onEditComp({ ...comp, prizes: { first: prizeData.first.trim(), second: prizeData.second.trim(), third: prizeData.third.trim(), extra: prizeData.extra.trim() } }); setShowEditPrizes(false); showToast("Quadro de premiações atualizado!", "success"); };
@@ -350,6 +365,18 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     const ids = getChampionIds(comp, matches, teams);
     return ids.map(id => getTeam(id)).filter(Boolean);
   }, [comp, matches, teams]);
+
+  const handleSyncStandings = () => {
+    if (!window.confirm("Deseja forçar a atualização da tabela? O sistema fará uma re-leitura de todos os placares oficializados.")) return;
+    showToast("Recalculando tabela...", "info");
+    
+    // Força uma atualização no banco para todos os usuários receberem a tabela fresca
+    onEditComp({ ...comp, lastTableSync: Date.now() });
+    
+    setTimeout(() => {
+        showToast("Tabela atualizada com os resultados mais recentes!", "success");
+    }, 1000);
+  };
 
   if (comp.status === 'drawing') {
     if (isAdmin) {
@@ -519,7 +546,19 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
 
                 {viewType === 'table' && (
                   <div className="space-y-6 animate-in fade-in">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 mb-2 pl-2"><h3 className="text-lg font-bold text-white">Classificação da Competição</h3><Button onClick={() => captureSection('capture-standings', `Tabela-${comp.name}`)} className="text-[10px] py-1.5 px-3 shadow-lg" variant="outline"><Camera size={14}/> Salvar Tabela</Button></div>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 mb-2 pl-2">
+    <h3 className="text-lg font-bold text-white">Classificação da Competição</h3>
+    <div className="flex gap-2">
+      {isAdmin && (
+         <Button onClick={handleSyncStandings} className="text-[10px] py-1.5 px-3 shadow-lg bg-emerald-600 hover:bg-emerald-500 border-0 text-white transition-colors">
+           🔄 Forçar Atualização
+         </Button>
+      )}
+      <Button onClick={() => captureSection('capture-standings', `Tabela-${comp.name}`)} className="text-[10px] py-1.5 px-3 shadow-lg" variant="outline">
+        <Camera size={14}/> Salvar Tabela
+      </Button>
+    </div>
+  </div>
                     <div id="capture-standings" className="bg-blue-950 p-6 sm:p-8 rounded-3xl border border-blue-800 shadow-2xl"><div className="flex items-center gap-4 mb-6"><img src={LOGO_URL} alt="Logo" className="w-16 h-16 object-contain" /><h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-wider">TABELA - {comp.name}</h2></div><Standings matches={matches} teams={compTeams} comp={comp} onTeamClick={(teamId) => setSelectedTeamHistory(teamId)} /></div>
                     {(groupOrNormalRounds.length > 0 || (isAdmin && comp.format === 'league')) && (
                       <div className="space-y-3 pt-4 border-t border-blue-800/50">
