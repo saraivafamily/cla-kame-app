@@ -196,12 +196,11 @@ Retorne EXATAMENTE este formato JSON. Não use marcações de código Markdown e
 
         const safeKey = userApiKey.trim();
         
-        // 🌟 LISTA BLINDADA (2026): Nomes exatos dos modelos que o Google não deletou.
+        // 🌟 LISTA DEFINITIVA: Modelos ultra-rápidos liberados na sua chave
         const modelsToTry = [
-          "gemini-3.7-flash",
-          "gemini-3.5-flash",
-          "gemini-1.5-flash-002",
-          "gemini-1.5-pro-002"
+          "gemini-flash-latest",
+          "gemini-3.8-flash",
+          "gemini-3.5-flash"
         ];
         
         let resultJson = null;
