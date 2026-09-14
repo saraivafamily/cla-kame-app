@@ -249,12 +249,13 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
     
     onEditComp({ ...comp, rounds: updatedRounds }); 
     
-    // 🌟 CORREÇÃO: Agora o sistema envia os gols corrigidos para o banco de dados!
     if (editMatchData.hasPlayed && editMatchData.playedMatchId && onUpdatePlayedMatch) {
         onUpdatePlayedMatch({
             id: editMatchData.playedMatchId,
             scoreA: Number(editMatchData.scoreA || 0),
             scoreB: Number(editMatchData.scoreB || 0),
+            teamA: editMatchData.teamA, // 🌟 CORREÇÃO: Sincroniza a equipa A no recibo
+            teamB: editMatchData.teamB, // 🌟 CORREÇÃO: Sincroniza a equipa B no recibo
             penaltiesA: editMatchData.penaltiesA !== '' && editMatchData.penaltiesA !== null ? Number(editMatchData.penaltiesA) : null,
             penaltiesB: editMatchData.penaltiesB !== '' && editMatchData.penaltiesB !== null ? Number(editMatchData.penaltiesB) : null
         });
@@ -367,17 +368,40 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   }, [comp, matches, teams]);
 
   const handleSyncStandings = () => {
-    if (!window.confirm("Deseja forçar a atualização da tabela? O sistema fará uma re-leitura de todos os placares oficializados.")) return;
-    showToast("Recalculando tabela...", "info");
+    if (!window.confirm("Deseja forçar a atualização da tabela? O sistema fará uma auditoria completa para corrigir jogos fantasmas e desincronizados.")) return;
+    showToast("Auditoria iniciada! Limpando partidas fantasmas...", "info");
     
-    // Força uma atualização no banco para todos os usuários receberem a tabela fresca
+    if (comp.rounds && matches) {
+       // 1. Mapeia todos os IDs de jogos que ainda existem visualmente no calendário
+       const validMatchIds = [];
+       comp.rounds.forEach(r => r.matches?.forEach(rm => validMatchIds.push(rm.id)));
+
+       // 2. Varre o banco de dados procurando recibos
+       matches.filter(m => m.compId === comp.id && m.status === 'approved').forEach(matchDoc => {
+          
+          // 🛑 CAÇA-FANTASMAS: Se o recibo não está mais no calendário visual, ele é deletado!
+          if (!validMatchIds.includes(matchDoc.matchId)) {
+             if (onDeleteMatch) onDeleteMatch(matchDoc.id);
+          } 
+          // 🔧 AUTO-REPARO: Se a equipe do recibo for diferente do calendário (Bug do União)
+          else {
+             const visualMatch = comp.rounds.flatMap(r => r.matches).find(rm => rm.id === matchDoc.matchId);
+             if (visualMatch && (matchDoc.teamA !== visualMatch.teamA || matchDoc.teamB !== visualMatch.teamB)) {
+                if (onUpdatePlayedMatch) {
+                   onUpdatePlayedMatch({ id: matchDoc.id, teamA: visualMatch.teamA, teamB: visualMatch.teamB });
+                }
+             }
+          }
+       });
+    }
+
     onEditComp({ ...comp, lastTableSync: Date.now() });
     
     setTimeout(() => {
-        showToast("Tabela atualizada com os resultados mais recentes!", "success");
-    }, 1000);
+        showToast("Auditoria concluída! Tabela e Histórico estão 100% sincronizados.", "success");
+    }, 2000);
   };
-
+  
   if (comp.status === 'drawing') {
     if (isAdmin) {
       return (
@@ -481,6 +505,26 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
              <div className="flex items-center gap-5 relative z-10 w-full md:w-auto justify-center"><div className="flex flex-col items-center gap-2"><ShieldDisplay shield={championTeams[0]?.shield} size="large" /><span className="font-black text-white text-sm uppercase">{championTeams[0]?.name}</span></div><div className="text-center mx-2 mt-4 md:mt-0"><span className="text-[10px] bg-blue-950 text-amber-400 px-2.5 py-0.5 rounded-full uppercase font-black tracking-widest block mb-2 shadow-lg">🏆 DUPLA CAMPEÃ 🏆</span><span className="text-3xl font-black text-blue-950 drop-shadow-md">&</span></div><div className="flex flex-col items-center gap-2"><ShieldDisplay shield={championTeams[1]?.shield} size="large" /><span className="font-black text-white text-sm uppercase">{championTeams[1]?.name}</span></div></div>
           )}
           <div className="flex items-center gap-3 bg-blue-950/20 px-5 py-3 rounded-2xl relative z-10 w-full md:w-auto mt-4 md:mt-0"><Trophy className="text-white animate-bounce" size={44} style={{ animationDuration: '3s' }} /><div className="text-left"><p className="text-[9px] uppercase font-black tracking-widest text-blue-950">Troféu de Elite</p><p className="text-sm font-black text-white leading-tight uppercase max-w-[180px] truncate">{comp.name}</p></div></div>
+        </div>
+      )}
+
+      //* 👑 BOTÃO SUPREMO PARA CORRIGIR CAMPEÃO (Apenas Líderes)
+      {comp.status === 'finished' && isAdmin && (
+        <div className="flex flex-col sm:flex-row justify-center items-center gap-0 mt-2 mb-8 animate-in fade-in">
+            <select id="manualChampSelect" className="bg-blue-950 text-white text-sm p-3 rounded-t-xl sm:rounded-l-xl sm:rounded-tr-none border border-amber-500/50 outline-none w-full sm:w-auto min-w-[250px] shadow-lg">
+                <option value="">👑 Corrigir Campeão Manualmente...</option>
+                {compTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <button onClick={() => {
+                const sel = document.getElementById('manualChampSelect').value;
+                if(!sel) { showToast("Selecione um time primeiro!", "error"); return; }
+                if(window.confirm("Tem certeza que deseja cravar este time como o Campeão Oficial? Isso irá enviar a taça para a Sala de Troféus imediatamente.")) {
+                    onEditComp({...comp, championIds: [sel]});
+                    showToast("Campeão cravado com sucesso!", "success");
+                }
+            }} className="bg-amber-600 hover:bg-amber-500 text-white font-black text-sm px-6 py-3 rounded-b-xl sm:rounded-r-xl sm:rounded-bl-none shadow-lg w-full sm:w-auto transition-colors">
+                Salvar Troféu
+            </button>
         </div>
       )}
 

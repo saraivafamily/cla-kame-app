@@ -34,77 +34,58 @@ export const calculateStandings = (matches, teams, compId) => {
 };
 
 export const getChampionIds = (comp, matches, teams) => {
-  if (!comp || !comp.rounds || comp.rounds.length === 0) return [];
-  if (comp.format === 'cup' || comp.format === 'groups' || comp.category === 'copa_flash_dupla' || comp.category === 'copa_recompensa') {
-    const knockoutRounds = comp.rounds.filter(r => r.id.includes('ko') || comp.format === 'cup' || comp.category === 'copa_flash_dupla' || comp.category === 'copa_recompensa');
-    if (knockoutRounds.length === 0) return [];
-    const lastRound = knockoutRounds[knockoutRounds.length - 1];
-    const finalMatches = lastRound.matches.filter(m => !m.id.includes('_3rd'));
-    if (finalMatches.length === 0) return [];
+  if (!comp || comp.status !== 'finished') return [];
 
-    if (comp.category === 'copa_flash_dupla' || comp.isIdaEVolta) {
-        const mIda = finalMatches[0];
-        const mVolta = finalMatches[1];
-        if (!mIda || !mVolta) return [];
-        
-        const sIda = matches.find(m => m.matchId === mIda.id && m.compId === comp.id && m.status === 'approved');
-        const sVolta = matches.find(m => m.matchId === mVolta.id && m.compId === comp.id && m.status === 'approved');
-        if (!sIda || !sVolta) return [];
-        
-        const scoreDuplaA = Number(sIda.scoreA || 0) + Number(sVolta.scoreB || 0);
-        const scoreDuplaB = Number(sIda.scoreB || 0) + Number(sVolta.scoreA || 0);
-        const penDuplaA = Number(sIda.penaltiesA || 0) + Number(sVolta.penaltiesB || 0);
-        const penDuplaB = Number(sIda.penaltiesB || 0) + Number(sVolta.penaltiesA || 0);
-        
-        if (comp.category === 'copa_flash_dupla') {
-            if (scoreDuplaA > scoreDuplaB) return [mIda.duplaA?.p1, mIda.duplaA?.p2].filter(Boolean);
-            if (scoreDuplaB > scoreDuplaA) return [mIda.duplaB?.p1, mIda.duplaB?.p2].filter(Boolean);
-            if (penDuplaA > penDuplaB) return [mIda.duplaA?.p1, mIda.duplaA?.p2].filter(Boolean);
-            if (penDuplaB > penDuplaA) return [mIda.duplaB?.p1, mIda.duplaB?.p2].filter(Boolean);
-        } else {
-            if (scoreDuplaA > scoreDuplaB) return [mIda.teamA];
-            if (scoreDuplaB > scoreDuplaA) return [mIda.teamB];
-            if (penDuplaA > penDuplaB) return [mIda.teamA];
-            if (penDuplaB > penDuplaA) return [mIda.teamB];
-        }
-        return [];
-    }
-
-    let allApproved = true;
-    let totalScoreA = 0; let totalScoreB = 0;
-    let lastPenA = null; let lastPenB = null;
-    let tA = finalMatches[0].teamA; let tB = finalMatches[0].teamB;
-
-    if(!tA || !tB) return [];
-
-    for (let fm of finalMatches) {
-       const sUI = matches.find(m => m.matchId === fm.id && m.compId === comp.id && m.status === 'approved');
-       if (!sUI) { allApproved = false; break; }
-       if (fm.teamA === tA) {
-          totalScoreA += Number(sUI.scoreA || 0); totalScoreB += Number(sUI.scoreB || 0);
-          if (sUI.penaltiesA !== null && sUI.penaltiesA !== undefined) { lastPenA = Number(sUI.penaltiesA); lastPenB = Number(sUI.penaltiesB); }
-       } else {
-          totalScoreA += Number(sUI.scoreB || 0); totalScoreB += Number(sUI.scoreA || 0);
-          if (sUI.penaltiesB !== null && sUI.penaltiesB !== undefined) { lastPenA = Number(sUI.penaltiesB); lastPenB = Number(sUI.penaltiesA); }
-       }
-    }
-
-    if (allApproved) {
-       if (totalScoreA > totalScoreB) return [tA];
-       if (totalScoreB > totalScoreA) return [tB];
-       if (lastPenA !== null && lastPenB !== null) { if (lastPenA > lastPenB) return [tA]; if (lastPenB > lastPenA) return [tB]; }
-    }
-  } else if (comp.format === 'league') {
-    const groupOrNormalRounds = comp.rounds.filter(r => !r.id.includes('ko'));
-    const totalMatches = groupOrNormalRounds.reduce((acc, r) => acc + r.matches.length, 0);
-    const approvedMatches = matches.filter(m => m.compId === comp.id && m.status === 'approved').length;
-    if (totalMatches > 0 && approvedMatches === totalMatches) {
-      const compTeams = teams.filter(t => comp.teams?.includes(t.id));
-      const standings = calculateStandings(matches, compTeams, comp.id);
-      return standings.length > 0 ? [standings[0].id] : [];
-    }
+  // 🌟 1. O PODER SUPREMO: Lê o campeão forçado manualmente pelo Administrador
+  if (comp.championIds && comp.championIds.length > 0) {
+      return comp.championIds;
   }
-  return [];
+
+  // 2. LIGAS (Pontos Corridos)
+  if (comp.format === 'league') {
+    const compTeams = (teams || []).filter(t => comp.teams && comp.teams.includes(t.id));
+    const table = calculateStandings(matches, compTeams, comp.id);
+    if (table && table.length > 0) return [table[0].id];
+    return [];
+  }
+
+  // 3. COPAS E MATA-MATA
+  if (!comp.rounds || comp.rounds.length === 0) return [];
+  const finalRound = comp.rounds[comp.rounds.length - 1];
+  if (!finalRound || !finalRound.matches || finalRound.matches.length === 0) return [];
+
+  const matchIda = finalRound.matches[0];
+  const matchVolta = finalRound.matches[1];
+  
+  const sUI_ida = matches.find(m => m.matchId === matchIda.id && m.compId === comp.id && m.status === 'approved');
+  const sUI_volta = matchVolta ? matches.find(m => m.matchId === matchVolta.id && m.compId === comp.id && m.status === 'approved') : null;
+
+  if (!sUI_ida) return [];
+
+  let scoreA = Number(sUI_ida.scoreA || 0); let scoreB = Number(sUI_ida.scoreB || 0);
+  let penA = Number(sUI_ida.penaltiesA || 0); let penB = Number(sUI_ida.penaltiesB || 0);
+
+  if (sUI_volta) {
+      scoreA += Number(sUI_volta.scoreB || 0); scoreB += Number(sUI_volta.scoreA || 0);
+      penA += Number(sUI_volta.penaltiesB || 0); penB += Number(sUI_volta.penaltiesA || 0);
+  }
+
+  let winnerId = null;
+  if (scoreA > scoreB) winnerId = matchIda.teamA;
+  else if (scoreB > scoreA) winnerId = matchIda.teamB;
+  else {
+      if (penA > penB) winnerId = matchIda.teamA;
+      else if (penB > penA) winnerId = matchIda.teamB;
+  }
+
+  if (!winnerId) return [];
+
+  if (comp.category === 'copa_flash_dupla') {
+      if (winnerId === matchIda.teamA) return [matchIda.duplaA?.p1 || matchIda.teamA, matchIda.duplaA?.p2].filter(Boolean);
+      else return [matchIda.duplaB?.p1 || matchIda.teamB, matchIda.duplaB?.p2].filter(Boolean);
+  }
+
+  return [winnerId];
 };
 
 export const generateCupBracket = (teamIds, compId, isFinalDouble = false, isIdaEVolta = false) => {

@@ -316,51 +316,47 @@ export default function App() {
 
   const handleLogin = async (identifier, password) => {
     const cleanPhone = String(identifier).replace(/\D/g, '');
+    
+    // Master User
     if (users.length === 0 && (String(identifier).toLowerCase().includes('savio') || cleanPhone === '91998270658')) { const masterUser = { id: 'u_master', name: 'Sávio Saraiva', role: 'leader', whatsapp: '91998270658', email: 'saviosaraiva777@gmail.com', password: password, status: 'active', kameCoins: 9999 }; await setDoc(getPublicDocPath('users', 'u_master'), masterUser); setCurrentUser(masterUser); setCurrentTab('dashboard'); return; }
     
     let emFake = formatarParaEmail(identifier); 
     let foundUser = null;
+
     if (users.length > 0) { 
       foundUser = users.find(u => u && ((u.email && u.email.toLowerCase() === identifier.trim().toLowerCase()) || (cleanPhone.length >= 8 && String(u.whatsapp) === cleanPhone))); 
       if (foundUser?.email) emFake = foundUser.email; 
     }
     
-    if (foundUser && foundUser.status === 'pending') { throw new Error("Aguardando aprovação dos líderes."); }
-    try { await signInWithEmailAndPassword(auth, emFake, password); } 
-    catch (e) { throw new Error("Acesso negado. Verifique os dados."); }
-  };
+    // 🛑 CAÇA-FANTASMAS
+    if (!foundUser && users.length > 0) { 
+        const err = new Error("Usuário não encontrado.");
+        err.code = 'auth/user-not-found';
+        throw err; 
+    }
 
-  const handleGoogleLogin = async (googleUser) => {
-    const email = googleUser.email.toLowerCase();
-    const existingUser = users.find(u => u.email && u.email.toLowerCase() === email);
-    
-    if (existingUser) {
-      if (existingUser.status === 'pending') throw new Error("Sua conta ainda está aguardando aprovação dos líderes.");
-      setCurrentUser(existingUser);
-      setCurrentTab('dashboard');
-    } else {
-      const uid = googleUser.uid;
-      const newUser = { 
-        id: uid, 
-        name: googleUser.displayName || 'Jogador Convidado', 
-        email: email, 
-        whatsapp: '00000000000', 
-        role: 'member', 
-        status: 'pending', 
-        kameCoins: 100, 
-        receivedProfileBonus: true,
-        photoURL: googleUser.photoURL || null
-      };
-      const newTeam = { id: `t_${uid}`, name: 'Time Google', coach: googleUser.displayName || 'Jogador', whatsapp: '', ownerId: uid, shield: '🛡️' };
-      
-      await setDoc(getPublicDocPath('users', uid), newUser);
-      await setDoc(getPublicDocPath('teams', newTeam.id), newTeam);
-      
-      await signOut(auth); 
-      throw new Error("Cadastro via Google realizado! Aguarde a aprovação dos líderes.");
+    try { 
+        // 🛑 BARREIRA DA DIRETORIA
+        if (foundUser && foundUser.status === 'pending') {
+            setCurrentUser(foundUser);
+            return;
+        }
+
+        await signInWithEmailAndPassword(auth, emFake, password); 
+
+        // 🚀 ENTRADA VIP
+        if (foundUser) {
+            setCurrentUser(foundUser);
+            setCurrentTab('dashboard');
+        }
+
+    } catch (e) { 
+        // 🌟 AGORA REPASSA O ERRO EXATO PARA A TELA DE LOGIN LER
+        throw e; 
     }
   };
 
+  
   const handleApproveUser = async (userId) => {
     await updateDoc(getPublicDocPath('users', userId), { status: 'active' });
     showToast("Técnico aprovado com sucesso!", "success");
@@ -369,7 +365,7 @@ export default function App() {
   useEffect(() => { const unsub = onAuthStateChanged(auth, (fbUser) => { if (fbUser && users.length > 0) { const found = users.find(u => u && (u.email?.toLowerCase() === fbUser.email?.toLowerCase())); if (found) setCurrentUser(found); } }); return () => unsub(); }, [users]);
 
   if (isFirebaseLoading) return (<div className="min-h-screen bg-blue-950 text-amber-400 flex items-center justify-center font-sans font-bold text-sm shadow-xl animate-pulse">🛡️ Carregando Arena Kame...</div>);
-  if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} onGoogleLogin={handleGoogleLogin} />;
+  if (!currentUser) return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} />;
 
   if (currentUser.status === 'pending') {
     return (
