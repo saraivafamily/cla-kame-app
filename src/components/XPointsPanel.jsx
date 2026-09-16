@@ -22,7 +22,7 @@ const XPointsPanel = ({ users, currentUser }) => {
   const COLLECTIVE_GOAL = 10000000;
   const MIN_INDIVIDUAL_GOAL = 200000;
   const MAX_INDIVIDUAL_GOAL = 350000; // Teto para o Sorteio do Passe
-  const SEASON_END_DATE = "2026-09-16T09:00:00"; // ⏱️ Altere aqui a data de fim da temporada
+  const SEASON_END_DATE = "2026-09-26T09:00:00"; // ⏱️ Altere aqui a data de fim da temporada
 
   // Filtra apenas membros válidos e calcula o total
   const validUsers = (users || []).filter(u => u.name && u.id !== 'u_master');

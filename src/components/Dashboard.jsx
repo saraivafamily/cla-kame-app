@@ -367,11 +367,6 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
         </div>
       </div>
 
-      {/* 🌟 PAINEL DE XPOINTS (MENOR EVIDÊNCIA E MAIS PARA BAIXO) */}
-      <div className="pt-6 border-t border-blue-800">
-         <XPointsPanel users={users} currentUser={currentUser} />
-      </div>
-
       {/* ÚLTIMOS RESULTADOS */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados Enviados</h3>

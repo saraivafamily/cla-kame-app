@@ -1,40 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { updateDoc } from 'firebase/firestore';
 import { getPublicDocPath } from '../utils/firebase';
-import { Save, Zap, ArrowLeft, RotateCcw, Edit3, RefreshCw, XCircle, PlusCircle } from 'lucide-react';
+import { Zap, ArrowLeft, RotateCcw, RefreshCw, XCircle, PlusCircle } from 'lucide-react';
 import Button from './Button';
 import ShieldDisplay from './ShieldDisplay';
 
 const XPointsManager = ({ users, teams, onBack, showToast }) => {
   const [draftPoints, setDraftPoints] = useState({});
-  const [draftTeamNames, setDraftTeamNames] = useState({});
   const [draftBranches, setDraftBranches] = useState({});
-  const [isEditingName, setIsEditingName] = useState({});
-  const [isSaving, setIsSaving] = useState(false);
   
-  // 🌟 ESTADOS INDEPENDENTES PARA CADA ILHA
   const [selectedTropical, setSelectedTropical] = useState('');
   const [selectedCeu, setSelectedCeu] = useState('');
   
   const validUsers = (users || []).filter(u => {
-    // Esconde o Master, quem não tem nome, e quem não está ativo
     if (!u.name || u.id === 'u_master' || u.status !== 'active') return false;
-    
-    // Procura o time e esconde se estiver marcado como Inativo
     const userTeam = (teams || []).find(t => t.ownerId === u.id);
     if (userTeam && userTeam.status === 'inactive') return false;
-    
     return true;
   });
   
+  // 🌟 Carrega do banco apenas uma vez para não travar o cursor ao digitar
   useEffect(() => {
-    const initialPoints = {}; const initialTeams = {}; const initialBranches = {};
-    validUsers.forEach(u => {
-      initialPoints[u.id] = u.dlsXPoints || '';
-      initialTeams[u.id] = u.dlsTeamName || ''; 
-      if (u.clanBranch) initialBranches[u.id] = u.clanBranch;
+    setDraftPoints(prev => {
+      const next = { ...prev };
+      validUsers.forEach(u => { if (next[u.id] === undefined) next[u.id] = u.dlsXPoints || ''; });
+      return next;
     });
-    setDraftPoints(initialPoints); setDraftTeamNames(initialTeams); setDraftBranches(initialBranches);
+    setDraftBranches(prev => {
+      const next = { ...prev };
+      validUsers.forEach(u => { if (next[u.id] === undefined && u.clanBranch) next[u.id] = u.clanBranch; });
+      return next;
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users]);
 
@@ -42,56 +38,43 @@ const XPointsManager = ({ users, teams, onBack, showToast }) => {
   const tropicalUsers = validUsers.filter(u => draftBranches[u.id] === 'tropical').sort((a,b) => (Number(draftPoints[b.id])||0) - (Number(draftPoints[a.id])||0));
   const ceuUsers = validUsers.filter(u => draftBranches[u.id] === 'ceu').sort((a,b) => (Number(draftPoints[b.id])||0) - (Number(draftPoints[a.id])||0));
 
-  // 🌟 FUNÇÕES DE ADIÇÃO ESPECÍFICAS
-  const handleAddTropical = () => {
+  const handleAddTropical = async () => {
     if (!selectedTropical) return;
-    setDraftBranches(prev => ({ ...prev, [selectedTropical]: 'tropical' }));
+    const uId = selectedTropical;
+    setDraftBranches(prev => ({ ...prev, [uId]: 'tropical' }));
     setSelectedTropical('');
+    await updateDoc(getPublicDocPath('users', uId), { clanBranch: 'tropical' });
   };
 
-  const handleAddCeu = () => {
+  const handleAddCeu = async () => {
     if (!selectedCeu) return;
-    setDraftBranches(prev => ({ ...prev, [selectedCeu]: 'ceu' }));
+    const uId = selectedCeu;
+    setDraftBranches(prev => ({ ...prev, [uId]: 'ceu' }));
     setSelectedCeu('');
+    await updateDoc(getPublicDocPath('users', uId), { clanBranch: 'ceu' });
   };
 
-  const handleRemoveUser = (id) => {
+  const handleRemoveUser = async (id) => {
     if(!window.confirm("Remover este técnico do controle de XPoints?")) return;
     setDraftBranches(prev => { const next = {...prev}; delete next[id]; return next; });
+    await updateDoc(getPublicDocPath('users', id), { clanBranch: null, dlsXPoints: 0, dlsXPointsTargetReached: false });
   };
 
-  const toggleBranch = (id, currentBranch) => {
-    setDraftBranches(prev => ({ ...prev, [id]: currentBranch === 'tropical' ? 'ceu' : 'tropical' }));
-  };
+  const toggleBranch = async (id, currentBranch) => {
+    const newBranch = currentBranch === 'tropical' ? 'ceu' : 'tropical';
+    setDraftBranches(prev => ({ ...prev, [id]: newBranch }));
+    
+    const pts = Number(draftPoints[id]) || 0;
+    const reachedTarget = newBranch === 'tropical' ? pts >= 200000 : true;
 
-  const handleSaveManual = async () => {
-    setIsSaving(true);
-    try {
-      const promises = validUsers.map(u => {
-        const branch = draftBranches[u.id];
-        if (!branch) {
-            if (u.clanBranch) return updateDoc(getPublicDocPath('users', u.id), { clanBranch: null, dlsTeamName: '', dlsXPoints: 0, dlsXPointsTargetReached: false });
-            return Promise.resolve();
-        }
-        const newTeamName = (draftTeamNames[u.id] || '').trim();
-        const pts = Number(draftPoints[u.id]) || 0;
-        const reachedTarget = branch === 'tropical' ? pts >= 200000 : true;
-
-        return updateDoc(getPublicDocPath('users', u.id), { 
-            dlsTeamName: newTeamName, dlsXPoints: pts, clanBranch: branch, dlsXPointsTargetReached: reachedTarget
-        });
-      });
-      
-      await Promise.all(promises);
-      setIsEditingName({});
-      showToast("XPoints salvos com sucesso nas Ilhas!", "success");
-    } catch (error) { showToast("Erro ao salvar os dados.", "error"); }
-    setIsSaving(false);
+    await updateDoc(getPublicDocPath('users', id), { 
+        clanBranch: newBranch, 
+        dlsXPointsTargetReached: reachedTarget 
+    });
   };
 
   const handleResetAllPoints = async () => {
     if (!window.confirm("🚨 ATENÇÃO: Deseja ZERAR os saldos para iniciar uma nova temporada?")) return;
-    setIsSaving(true);
     try {
       const promises = validUsers.filter(u => draftBranches[u.id]).map(u => updateDoc(getPublicDocPath('users', u.id), { dlsXPoints: 0, dlsXPointsTargetReached: false }));
       await Promise.all(promises);
@@ -99,49 +82,56 @@ const XPointsManager = ({ users, teams, onBack, showToast }) => {
       setDraftPoints(resetDraft);
       showToast("Saldos zerados com sucesso!", "success");
     } catch (error) { showToast("Erro ao zerar ranking.", "error"); }
-    setIsSaving(false);
   };
 
-  // Função para desenhar a linha de cada jogador
-  const renderUserRow = (u, branch) => (
-    <div key={u.id} className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${branch === 'tropical' ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-sky-950/20 border-sky-500/30'}`}>
-      <div className="flex items-center gap-3 w-full sm:w-1/3 min-w-[180px]">
-        <ShieldDisplay shield={u.shield} size="small" />
-        <div className="flex flex-col">
-          <span className="text-[11px] text-white font-bold truncate pr-2">{u.name}</span>
-          <div className="flex items-center gap-3 mt-1">
-             <button onClick={() => toggleBranch(u.id, branch)} className="text-[9px] text-amber-500 hover:text-amber-400 flex items-center gap-1 font-bold">
-               <RefreshCw size={10} /> Mover p/ {branch === 'tropical' ? 'Céu' : 'Tropical'}
-             </button>
-             <button onClick={() => handleRemoveUser(u.id)} className="text-[9px] text-red-400 hover:text-red-300 flex items-center gap-1"><XCircle size={10}/> Remover</button>
+  // 🌟 AUTO-SAVE MILISSEGUNDO: Salva a cada dígito inserido silenciosamente!
+  const handlePointChange = (id, branch, val) => {
+    setDraftPoints(prev => ({...prev, [id]: val})); 
+    
+    const pts = Number(val) || 0;
+    const reachedTarget = branch === 'tropical' ? pts >= 200000 : true;
+
+    updateDoc(getPublicDocPath('users', id), { 
+        dlsXPoints: pts, 
+        dlsXPointsTargetReached: reachedTarget 
+    }).catch(err => console.error(err));
+  };
+
+  const renderUserRow = (u, branch) => {
+    const userTeam = (teams || []).find(t => t.ownerId === u.id);
+    const teamName = userTeam ? userTeam.name : 'Sem Time';
+
+    return (
+      <div key={u.id} className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${branch === 'tropical' ? 'bg-emerald-950/20 border-emerald-500/30 hover:border-emerald-500/60' : 'bg-sky-950/20 border-sky-500/30 hover:border-sky-500/60'}`}>
+        
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <ShieldDisplay shield={u.shield} size="small" />
+          <div className="flex flex-col min-w-0">
+            <span className="text-[11px] text-white font-bold truncate">
+              {u.name} <span className="text-blue-500 font-normal hidden sm:inline mx-1">•</span> <span className="text-amber-400">{teamName}</span>
+            </span>
+            <div className="flex items-center gap-3 mt-1.5">
+               <button onClick={() => toggleBranch(u.id, branch)} className="text-[9px] text-amber-500 hover:text-amber-400 flex items-center gap-1 font-bold transition-colors">
+                 <RefreshCw size={10} /> Mover p/ {branch === 'tropical' ? 'Céu' : 'Tropical'}
+               </button>
+               <button onClick={() => handleRemoveUser(u.id)} className="text-[9px] text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"><XCircle size={10}/> Remover</button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="flex-1 w-full sm:w-auto">
-        <span className="text-[9px] text-blue-400 uppercase font-bold mb-1 block sm:hidden">Nome DLS</span>
-        {u.dlsTeamName && !isEditingName[u.id] ? (
-            <div className="flex items-center gap-2 bg-blue-950/50 p-2.5 rounded-lg border border-blue-800">
-               <span className="text-xs font-black text-white uppercase truncate flex-1">{draftTeamNames[u.id] || u.dlsTeamName}</span>
-               <button onClick={() => setIsEditingName(prev => ({...prev, [u.id]: true}))} className="text-emerald-400 hover:text-emerald-300 shrink-0"><Edit3 size={14} /></button>
-            </div>
-        ) : (
-            <input 
-              type="text" value={draftTeamNames[u.id] || ''} onChange={e => setDraftTeamNames(prev => ({...prev, [u.id]: e.target.value.toUpperCase()}))} placeholder="Nome do Time no Jogo"
-              className="w-full bg-blue-950 border border-amber-500/50 rounded-lg p-2.5 text-xs font-black uppercase text-amber-400 focus:border-amber-400 outline-none"
-            />
-        )}
+        <div className="w-full sm:w-32 shrink-0">
+          <span className="text-[9px] text-blue-400 uppercase font-bold mb-1 block sm:hidden">Saldo XPoints</span>
+          <input 
+            type="number" 
+            value={draftPoints[u.id] !== undefined ? draftPoints[u.id] : ''} 
+            onChange={e => handlePointChange(u.id, branch, e.target.value)}
+            placeholder="0"
+            className="w-full sm:text-right p-2.5 rounded-lg font-black text-sm bg-blue-950 text-amber-400 border border-blue-700 outline-none focus:border-amber-400 focus:bg-blue-900 transition-colors"
+          />
+        </div>
       </div>
-
-      <div className="w-full sm:w-32 shrink-0">
-        <span className="text-[9px] text-blue-400 uppercase font-bold mb-1 block sm:hidden">Saldo XPoints</span>
-        <input 
-          type="number" value={draftPoints[u.id] !== undefined ? draftPoints[u.id] : ''} onChange={e => setDraftPoints(prev => ({...prev, [u.id]: e.target.value}))} placeholder="0"
-          className="w-full sm:text-right p-2.5 rounded-lg font-black text-sm bg-blue-950 text-amber-400 border border-blue-700 outline-none focus:border-amber-400"
-        />
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10 max-w-5xl mx-auto min-h-screen">
@@ -153,11 +143,10 @@ const XPointsManager = ({ users, teams, onBack, showToast }) => {
       <div className="bg-blue-900 p-6 rounded-3xl border border-amber-500/30 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
           <h2 className="text-xl md:text-2xl font-black text-amber-400 uppercase tracking-widest flex items-center gap-2"><Zap size={24} /> Gestão de Ilhas (XPoints)</h2>
-          <p className="text-blue-300 text-xs md:text-sm mt-1">Atualize os saldos oficiais das divisões do Clã Kame.</p>
+          <p className="text-blue-300 text-xs md:text-sm mt-1">O sistema <span className="font-bold text-white">salva automaticamente</span> cada número que você digita!</p>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
-            <Button onClick={handleResetAllPoints} disabled={isSaving} className="text-xs bg-red-900/40 hover:bg-red-600 text-red-400 hover:text-white border border-red-800 py-3 px-4 flex-1 md:flex-none justify-center shadow-md"><RotateCcw size={16}/> Zerar</Button>
-            <Button onClick={handleSaveManual} disabled={isSaving} className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-6 flex-1 md:flex-none justify-center shadow-[0_0_15px_rgba(16,185,129,0.4)]"><Save size={16}/> Salvar Tudo</Button>
+            <Button onClick={handleResetAllPoints} className="text-xs bg-red-900/40 hover:bg-red-600 text-red-400 hover:text-white border border-red-800 py-3 px-6 flex-1 md:flex-none justify-center shadow-md"><RotateCcw size={16}/> Zerar Temporada</Button>
         </div>
       </div>
 
@@ -170,7 +159,6 @@ const XPointsManager = ({ users, teams, onBack, showToast }) => {
                <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-2 py-1 rounded">Meta: 200K</span>
             </h3>
             
-            {/* NOVO: BARRA DE ADIÇÃO EXCLUSIVA TROPICAL */}
             <div className="flex gap-2 mb-4 bg-emerald-950/20 p-2 rounded-xl border border-emerald-500/20">
                <select value={selectedTropical} onChange={e => setSelectedTropical(e.target.value)} className="flex-1 min-w-0 bg-blue-950 text-white text-xs p-2.5 rounded-lg border border-emerald-500/30 outline-none">
                   <option value="">Adicionar Membro...</option>
@@ -196,7 +184,6 @@ const XPointsManager = ({ users, teams, onBack, showToast }) => {
                <span className="text-[9px] bg-sky-900/50 text-sky-300 px-2 py-1 rounded">Sem Meta</span>
             </h3>
 
-            {/* NOVO: BARRA DE ADIÇÃO EXCLUSIVA CÉU */}
             <div className="flex gap-2 mb-4 bg-sky-950/20 p-2 rounded-xl border border-sky-500/20">
                <select value={selectedCeu} onChange={e => setSelectedCeu(e.target.value)} className="flex-1 min-w-0 bg-blue-950 text-white text-xs p-2.5 rounded-lg border border-sky-500/30 outline-none">
                   <option value="">Adicionar Membro...</option>
