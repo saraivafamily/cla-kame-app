@@ -508,7 +508,7 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
         </div>
       )}
 
-      //* 👑 BOTÃO SUPREMO PARA CORRIGIR CAMPEÃO (Apenas Líderes)
+      
       {comp.status === 'finished' && isAdmin && (
         <div className="flex flex-col sm:flex-row justify-center items-center gap-0 mt-2 mb-8 animate-in fade-in">
             <select id="manualChampSelect" className="bg-blue-950 text-white text-sm p-3 rounded-t-xl sm:rounded-l-xl sm:rounded-tr-none border border-amber-500/50 outline-none w-full sm:w-auto min-w-[250px] shadow-lg">
