@@ -298,6 +298,75 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
         </div>
       )}
 
+      {/* 🌟 WIDGET DE EVOLUÇÃO XPOINTS: TROPICAL E CÉU */}
+      <div className="bg-gradient-to-br from-blue-900 to-blue-950 p-6 rounded-2xl border border-amber-500/30 shadow-xl relative overflow-hidden animate-in slide-in-from-bottom-4">
+        <div className="relative z-10">
+            <h3 className="text-lg font-black text-amber-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+              <Zap size={20} className="text-amber-400" /> Clã Points Oficiais
+            </h3>
+            <p className="text-xs text-blue-300 mb-6 font-medium">Acompanhamento de desempenho das divisões do Clã Kame.</p>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* 🌴 ILHA TROPICAL (META 200K) */}
+              <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-4 shadow-inner">
+                 <h4 className="text-sm font-black text-emerald-400 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-emerald-500/30 pb-3">
+                   🌴 Ilha Tropical <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/20">Meta Individual: 200k</span>
+                 </h4>
+                 
+                 <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+                   {(users || []).filter(u => u.clanBranch === 'tropical' && u.id !== 'u_master').length === 0 ? (
+                      <p className="text-xs text-emerald-500/50 italic text-center py-2">Nenhum membro na Ilha Tropical.</p>
+                   ) : (
+                      (users || []).filter(u => u.clanBranch === 'tropical' && u.id !== 'u_master').sort((a,b) => (b.dlsXPoints||0) - (a.dlsXPoints||0)).map(u => {
+                        const pts = Number(u.dlsXPoints||0);
+                        const progress = Math.min(100, Math.round((pts / 200000) * 100));
+                        const isElite = pts >= 200000;
+                        
+                        return (
+                          <div key={u.id} className={`p-3 rounded-xl border flex flex-col gap-2 transition-all ${isElite ? 'bg-emerald-900/40 border-emerald-500/50 shadow-md' : 'bg-blue-950/80 border-blue-800'}`}>
+                             <div className="flex justify-between items-center">
+                               <span className={`text-xs font-bold truncate pr-2 flex items-center gap-1.5 ${isElite ? 'text-white' : 'text-blue-200'}`}>
+                                 {isElite && <CheckCircle size={14} className="text-emerald-400"/>}
+                                 {u.name}
+                               </span>
+                               <span className={`text-[11px] font-black ${isElite ? 'text-emerald-400' : 'text-amber-400'}`}>{pts.toLocaleString('pt-BR')} XP</span>
+                             </div>
+                             {/* Barra de Progresso */}
+                             <div className="w-full bg-blue-900/50 rounded-full h-2 overflow-hidden shadow-inner">
+                                <div className={`${isElite ? 'bg-emerald-500' : 'bg-amber-500'} h-2 rounded-full transition-all duration-1000`} style={{ width: `${progress}%` }}></div>
+                             </div>
+                          </div>
+                        )
+                      })
+                   )}
+                 </div>
+              </div>
+
+              {/* ☁️ ILHA DO CÉU (SEM META) */}
+              <div className="bg-sky-950/30 border border-sky-500/30 rounded-xl p-4 shadow-inner">
+                 <h4 className="text-sm font-black text-sky-400 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-sky-500/30 pb-3">
+                   ☁️ Ilha do Céu <span className="text-[9px] bg-sky-900/50 text-sky-300 px-2 py-0.5 rounded border border-sky-500/20">Sem Meta</span>
+                 </h4>
+                 
+                 <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+                   {(users || []).filter(u => u.clanBranch === 'ceu' && u.id !== 'u_master').length === 0 ? (
+                      <p className="text-xs text-sky-500/50 italic text-center py-2">Nenhum membro na Ilha do Céu.</p>
+                   ) : (
+                      (users || []).filter(u => u.clanBranch === 'ceu' && u.id !== 'u_master').sort((a,b) => (b.dlsXPoints||0) - (a.dlsXPoints||0)).map(u => (
+                        <div key={u.id} className="flex justify-between items-center bg-blue-950/80 p-3.5 rounded-xl border border-sky-800/50 shadow-sm hover:border-sky-500/50 transition-all">
+                           <span className="text-xs font-bold text-blue-100 truncate pr-2">{u.name}</span>
+                           <span className="text-[11px] font-black text-sky-400 bg-sky-900/30 px-2 py-1 rounded shadow-sm border border-sky-500/20">{Number(u.dlsXPoints||0).toLocaleString('pt-BR')} XP</span>
+                        </div>
+                      ))
+                   )}
+                 </div>
+              </div>
+
+            </div>
+        </div>
+      </div>
+
       {/* 🌟 PAINEL DE XPOINTS (MENOR EVIDÊNCIA E MAIS PARA BAIXO) */}
       <div className="pt-6 border-t border-blue-800">
          <XPointsPanel users={users} currentUser={currentUser} />

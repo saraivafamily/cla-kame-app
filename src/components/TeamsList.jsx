@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Edit, Trash2, MessageCircle, UploadCloud, X, Save } from 'lucide-react';
+import { Shield, Edit, Trash2, MessageCircle, UploadCloud, X, Save, Power, PowerOff } from 'lucide-react';
 import ShieldDisplay from './ShieldDisplay';
 import Button from './Button';
 import { processImage } from '../utils/helpers';
@@ -19,31 +19,20 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
 
   // 🔒 2. ALGORITMO DE VALIDAÇÃO: Bloqueia o botão se não houver jogo liberado pendente
   const canCallTeam = (targetTeamId) => {
-    // Não deixa ele ligar para si mesmo ou se não tiver time
     if (!myTeamId || targetTeamId === myTeamId) return false;
 
     return (competitions || []).some(c => {
-      // Só analisa competições em andamento (ativas)
       if (c.status !== 'active' || !c.rounds) return false;
-
       return c.rounds.some(round => {
-        // Só aceita rodadas que os líderes já liberaram
         if (round.status !== 'released') return false;
-
         return round.matches.some(rm => {
-          // Verifica se o confronto direto entre os dois existe nesta rodada
           const isOurMatch = (rm.teamA === myTeamId && rm.teamB === targetTeamId) || 
                              (rm.teamA === targetTeamId && rm.teamB === myTeamId);
           if (!isOurMatch) return false;
-
-          // Se o jogo existe, confirma se ele já não foi jogado (enviado pro firebase)
           const alreadyPlayed = (matches || []).some(m => 
-            m.matchId === rm.id && 
-            m.compId === c.id && 
-            (m.status === 'pending' || m.status === 'approved')
+            m.matchId === rm.id && m.compId === c.id && (m.status === 'pending' || m.status === 'approved')
           );
-
-          return !alreadyPlayed; // O botão ativa apenas se NÃO tiver sido jogado
+          return !alreadyPlayed; 
         });
       });
     });
@@ -52,23 +41,22 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
   // 📲 BOTÃO WHATSAPP INTERNACIONAL INTELIGENTE
   const handleWhatsApp = (phone) => { 
     if (!phone) return; 
-    
-    // 1. Remove tudo que não for número
     let cleanPhone = String(phone).replace(/\D/g, ''); 
-    
-    // 2. Regra inteligente para o Brasil vs. Outros Países:
-    // Se o número tiver 10 ou 11 dígitos (ex: 11999999999), é um celular/fixo brasileiro sem DDI. Adicionamos o '55'.
-    // Se tiver mais de 11 dígitos, provavelmente já inclui o DDI do país de origem (ou já está completo).
-    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
-       cleanPhone = `55${cleanPhone}`;
-    }
-    
-    // 3. Abre a URL oficial do WhatsApp
+    if (cleanPhone.length === 10 || cleanPhone.length === 11) cleanPhone = `55${cleanPhone}`;
     window.open(`https://wa.me/${cleanPhone}`, '_blank'); 
   };
   
   const startEdit = (team) => { if (!team) return; setEditingId(team.id); setEditData({ name: team.name || '', coach: team.coach || '', whatsapp: team.whatsapp || '', shield: team.shield || '🛡️', ownerId: team.ownerId || 'manual' }); };
   const saveEdit = (team) => { if (!editData.name || !editData.coach) return; onEditTeam({ ...team, ...editData }); setEditingId(null); };
+
+  // 🌟 NOVO: ALTERNAR STATUS ATIVO/INATIVO
+  const toggleTeamStatus = (team) => {
+    const isCurrentlyInactive = team.status === 'inactive';
+    const newStatus = isCurrentlyInactive ? 'active' : 'inactive';
+    if(window.confirm(`Tem certeza que deseja marcar este time como ${isCurrentlyInactive ? 'ATIVO' : 'INATIVO'}?`)) {
+       onEditTeam({ ...team, status: newStatus });
+    }
+  };
 
   const filteredTeams = (teams || []).filter(t => t && (String(t.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || String(t.coach || '').toLowerCase().includes(searchTerm.toLowerCase())));
 
@@ -100,6 +88,7 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
           {filteredTeams.map(team => {
             if (!team) return null;
             const safeTeamId = team.id || Math.random().toString();
+            const isInactive = team.status === 'inactive';
             
             if (editingId === team.id) {
               return (
@@ -146,26 +135,28 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
 
             if (viewMode === 'list') {
                return (
-                <div key={safeTeamId} onClick={() => setViewingTeam(team)} className="relative bg-blue-900 p-3 sm:p-4 rounded-xl border border-blue-800 hover:border-emerald-500/50 hover:shadow-lg transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group cursor-pointer">
+                <div key={safeTeamId} onClick={() => setViewingTeam(team)} className={`relative bg-blue-900 p-3 sm:p-4 rounded-xl border ${isInactive ? 'border-red-900 opacity-60' : 'border-blue-800 hover:border-emerald-500/50 hover:shadow-lg'} transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group cursor-pointer`}>
                   <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
-                    <div className="shrink-0"><ShieldDisplay shield={team.shield} size="normal" /></div>
+                    <div className={`shrink-0 ${isInactive && 'grayscale'}`}><ShieldDisplay shield={team.shield} size="normal" /></div>
                     <div className="flex-1 min-w-0 pr-10 sm:pr-0">
                       <div className="flex items-center gap-2">
-                        {/* Removido o 'truncate' e adicionado 'whitespace-normal break-words' */}
-                        <h3 className="text-sm md:text-base font-bold text-white leading-tight whitespace-normal break-words group-hover:text-emerald-400 transition-colors">{String(team.name || 'Time')}</h3>
-                        {team.ownerId === 'manual' && <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 rounded uppercase font-bold shrink-0">Sem Acesso</span>}
+                        <h3 className={`text-sm md:text-base font-bold leading-tight whitespace-normal break-words transition-colors ${isInactive ? 'text-slate-400 line-through' : 'text-white group-hover:text-emerald-400'}`}>{String(team.name || 'Time')}</h3>
+                        {isInactive && <span className="text-[9px] bg-red-900/50 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20 uppercase font-black shrink-0">INATIVO</span>}
+                        {team.ownerId === 'manual' && !isInactive && <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded uppercase font-bold shrink-0">Sem Acesso</span>}
                       </div>
-                      <p className="text-[10px] md:text-xs text-blue-400 mt-0.5 truncate"><span className="text-blue-300 font-medium">{String(team.coach || 'Sem técnico')}</span> • {String(team.whatsapp || 'Sem WhatsApp')}</p>
+                      <p className={`text-[10px] md:text-xs mt-0.5 truncate ${isInactive ? 'text-slate-500' : 'text-blue-400'}`}><span className="font-medium">{String(team.coach || 'Sem técnico')}</span> • {String(team.whatsapp || 'Sem WhatsApp')}</p>
                     </div>
                   </div>
                   {isAdmin && ( 
                   <div className="absolute top-2 right-2 flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10">
+                    <button onClick={(e) => { e.stopPropagation(); toggleTeamStatus(team); }} className={`p-1.5 rounded-lg hover:bg-blue-800 ${isInactive ? 'text-emerald-500 hover:text-emerald-400' : 'text-amber-500 hover:text-amber-400'}`} title={isInactive ? "Reativar Time" : "Inativar Time"}>
+                       {isInactive ? <Power size={14} /> : <PowerOff size={14} />}
+                    </button>
                     <button onClick={(e) => { e.stopPropagation(); startEdit(team); }} className="text-blue-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-blue-800" title="Editar"><Edit size={14} /></button> 
                     <button onClick={(e) => { e.stopPropagation(); if(window.confirm('Tem certeza que deseja apagar este time definitivamente?')) { onDeleteTeam(team.id); } }} className="text-blue-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-blue-800" title="Excluir Time"><Trash2 size={14} /></button>
                   </div>
                 )}
-                  {/* 🔒 TRAVA APLICADA NO MODO LISTA */}
-                  <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-3 text-xs disabled:bg-blue-800 disabled:text-blue-500 shrink-0 z-10" disabled={!team.whatsapp || !canCallTeam(team.id)}>
+                  <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-3 text-xs disabled:bg-blue-800 disabled:text-blue-500 shrink-0 z-10" disabled={!team.whatsapp || !canCallTeam(team.id) || isInactive}>
                     <MessageCircle size={16} /> <span className="sm:hidden lg:inline">Chamar</span>
                   </Button>
                 </div>
@@ -173,27 +164,28 @@ const TeamsList = ({ teams, users, currentUser, matches, competitions, onEditTea
             }
 
             return (
-              // Adicionado 'h-full' para garantir que os cards no modo grade estiquem e fiquem do mesmo tamanho
-              <div key={safeTeamId} onClick={() => setViewingTeam(team)} className="relative h-full bg-blue-900 p-3 md:p-4 rounded-xl border border-blue-800 hover:border-emerald-500/50 hover:shadow-lg transition-all flex flex-col justify-between gap-3 group cursor-pointer">
+              <div key={safeTeamId} onClick={() => setViewingTeam(team)} className={`relative h-full bg-blue-900 p-3 md:p-4 rounded-xl border ${isInactive ? 'border-red-900 opacity-60' : 'border-blue-800 hover:border-emerald-500/50 hover:shadow-lg'} transition-all flex flex-col justify-between gap-3 group cursor-pointer`}>
                 {isAdmin && ( 
                     <div className="absolute top-3 sm:top-auto sm:relative right-3 sm:right-auto flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 shrink-0 z-10">
+                      <button onClick={(e) => { e.stopPropagation(); toggleTeamStatus(team); }} className={`p-1.5 rounded-lg hover:bg-blue-800 transition-colors ${isInactive ? 'text-emerald-500 hover:text-emerald-400' : 'text-amber-500 hover:text-amber-400'}`} title={isInactive ? "Reativar Time" : "Inativar Time"}>
+                         {isInactive ? <Power size={16} /> : <PowerOff size={16} />}
+                      </button>
                       <button onClick={(e) => { e.stopPropagation(); startEdit(team); }} className="text-blue-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-blue-800 transition-colors" title="Editar"><Edit size={16} /></button>
                       <button onClick={(e) => { e.stopPropagation(); if(window.confirm('Tem certeza que deseja apagar este time definitivamente?')) { onDeleteTeam(team.id); } }} className="text-blue-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-blue-800 transition-colors" title="Excluir Time"><Trash2 size={16} /></button>
                     </div>
                   )}
                 <div className="flex flex-col items-center text-center gap-2 mt-2">
-                  <div className="shrink-0 relative group-hover:scale-105 transition-transform">
+                  <div className={`shrink-0 relative group-hover:scale-105 transition-transform ${isInactive && 'grayscale'}`}>
                     <ShieldDisplay shield={team.shield} size="normal" />
-                    {team.ownerId === 'manual' && <span className="absolute -top-2 -right-2 text-[8px] bg-amber-500/20 text-amber-400 px-1 rounded shadow" title="Conta Manual">👤</span>}
+                    {team.ownerId === 'manual' && !isInactive && <span className="absolute -top-2 -right-2 text-[8px] bg-amber-500/20 text-amber-400 px-1 rounded shadow" title="Conta Manual">👤</span>}
                   </div>
                   <div className="w-full">
-                    {/* Removido o 'truncate' e adicionado 'whitespace-normal break-words' */}
-                    <h3 className="text-sm md:text-base font-bold text-white leading-tight whitespace-normal break-words px-2 group-hover:text-emerald-400 transition-colors">{String(team.name || 'Time')}</h3>
-                    <p className="text-[9px] md:text-[10px] text-blue-400 mt-1 truncate px-1"><span className="text-blue-300 font-medium">{String(team.coach || 'Sem técnico')}</span></p>
+                    <h3 className={`text-sm md:text-base font-bold leading-tight whitespace-normal break-words px-2 transition-colors ${isInactive ? 'text-slate-400 line-through' : 'text-white group-hover:text-emerald-400'}`}>{String(team.name || 'Time')}</h3>
+                    {isInactive && <span className="text-[9px] bg-red-900/50 text-red-400 px-2 py-0.5 rounded border border-red-500/20 uppercase font-black mt-1 inline-block">INATIVO</span>}
+                    <p className={`text-[9px] md:text-[10px] mt-1 truncate px-1 ${isInactive ? 'text-slate-500' : 'text-blue-400'}`}><span className="font-medium">{String(team.coach || 'Sem técnico')}</span></p>
                   </div>
                 </div>
-                {/* 🔒 TRAVA APLICADA NO MODO GRADE */}
-                <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-1 py-1.5 text-[10px] md:text-xs px-2 disabled:bg-blue-800 disabled:text-blue-500 z-10" disabled={!team.whatsapp || !canCallTeam(team.id)}>
+                <Button onClick={(e) => { e.stopPropagation(); handleWhatsApp(team.whatsapp); }} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white mt-1 py-1.5 text-[10px] md:text-xs px-2 disabled:bg-blue-800 disabled:text-blue-500 z-10" disabled={!team.whatsapp || !canCallTeam(team.id) || isInactive}>
                   <MessageCircle size={14} /> Chamar
                 </Button>
               </div>

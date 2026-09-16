@@ -700,6 +700,7 @@ export default function App() {
         return (
           <XPointsManager 
             users={users} 
+            teams={teams}
             onBack={() => setCurrentTab('dashboard')} 
             showToast={showToast} 
           />
