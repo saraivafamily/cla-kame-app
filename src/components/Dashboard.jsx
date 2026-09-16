@@ -1,10 +1,9 @@
-import React, { useMemo } from 'react';
-import { Camera, Dices, Shield, Trophy, BookOpen, Zap, PlayCircle, Activity, MessageCircle, AlertCircle, CheckCircle, XCircle, X, Star, Medal } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Camera, Dices, Shield, Trophy, BookOpen, Zap, PlayCircle, Activity, MessageCircle, AlertCircle, CheckCircle, XCircle, X, Star, Medal, Gift, Ticket, Crown } from 'lucide-react';
 import ShieldDisplay from './ShieldDisplay';
 import CountdownTimer from './CountdownTimer';
 import Button from './Button';
 import { calculateStandings, getChampionIds } from '../utils/torneios';
-import XPointsPanel from './XPointsPanel';
 
 const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectMatch, onDeleteMatch, onJoinOpenComp, onChangeTab }) => {
   const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
@@ -28,16 +27,12 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
     m.status !== 'approved' && m.status !== 'rejected'
   );
 
-  // 🌟 LÓGICA ATUALIZADA: AGRUPAMENTO INTELIGENTE PARA IDA E VOLTA
   const matchesToPlay = useMemo(() => {
     const available = [];
     (competitions || []).forEach(comp => {
       if (comp.status !== 'active') return;
-      
       (comp.rounds || []).filter(r => r.status === 'released').forEach(round => {
         const myMatchesInRound = (round.matches || []).filter(m => userTeamIds.includes(m.teamA) || userTeamIds.includes(m.teamB));
-        
-        // Agrupa as pernas do confronto (Ida/Volta) pelo ID base
         const grouped = {};
         myMatchesInRound.forEach(m => {
            let baseId = m.id;
@@ -45,12 +40,10 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
            else if (m.id.includes('_volta')) baseId = m.id.replace('_volta', '');
            else if (m.id.includes('_f1')) baseId = m.id.replace('_f1', '');
            else if (m.id.includes('_f2')) baseId = m.id.replace('_f2', '');
-           
            if (!grouped[baseId]) grouped[baseId] = [];
            grouped[baseId].push(m);
         });
 
-        // Varre os grupos para exibir apenas 1 card por adversário
         Object.values(grouped).forEach(group => {
            const unplayedMatch = group.find(m => {
               return !(matches || []).some(
@@ -64,16 +57,10 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
                   if (unplayedMatch.id.includes('_ida') || unplayedMatch.id.includes('_f1')) legLabel = 'Jogo de Ida';
                   else if (unplayedMatch.id.includes('_volta') || unplayedMatch.id.includes('_f2')) legLabel = 'Jogo de Volta';
               }
-
               available.push({ 
-                ...unplayedMatch, 
-                compName: comp.name, 
-                compId: comp.id, 
-                roundName: round.number,
+                ...unplayedMatch, compName: comp.name, compId: comp.id, roundName: round.number,
                 isFlash: comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla',
-                isDoubleLeg: group.length > 1 || comp.isIdaEVolta,
-                isDupla: comp.category === 'copa_flash_dupla',
-                legLabel
+                isDoubleLeg: group.length > 1 || comp.isIdaEVolta, isDupla: comp.category === 'copa_flash_dupla', legLabel
               });
            }
         });
@@ -84,14 +71,51 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
 
   const hasAdminAccess = isLeader || (competitions || []).some(c => c.status !== 'finished' && isCompAdmin(c));
 
+  // 🌟 LÓGICA DO PAINEL XPOINTS E SORTEIO
+  const [showDrawModal, setShowDrawModal] = useState(false);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [drawWinner, setDrawWinner] = useState(null);
+
+  const validXpUsers = (users || []).filter(u => u.id !== 'u_master' && u.name);
+  const totalGlobalXp = validXpUsers.reduce((acc, u) => acc + (Number(u.dlsXPoints) || 0), 0);
+  const metaGlobal = 10000000;
+  const globalProgress = Math.min(100, (totalGlobalXp / metaGlobal) * 100);
+  const isGlobalGoalMet = totalGlobalXp >= metaGlobal;
+
+  const tropicalUsers = validXpUsers.filter(u => u.clanBranch === 'tropical').sort((a,b) => (Number(b.dlsXPoints)||0) - (Number(a.dlsXPoints)||0));
+  const ceuUsers = validXpUsers.filter(u => u.clanBranch === 'ceu').sort((a,b) => (Number(b.dlsXPoints)||0) - (Number(a.dlsXPoints)||0));
+
+  const totalTropicalXp = tropicalUsers.reduce((acc, u) => acc + (Number(u.dlsXPoints) || 0), 0);
+  const totalCeuXp = ceuUsers.reduce((acc, u) => acc + (Number(u.dlsXPoints) || 0), 0);
+
+  const eligibleForDraw = tropicalUsers.filter(u => (Number(u.dlsXPoints) || 0) >= 350000);
+
+  const handleStartDraw = () => {
+      if (!isGlobalGoalMet) return alert("A meta global de 10 Milhões ainda não foi batida!");
+      if (eligibleForDraw.length === 0) return alert("Ninguém da Ilha Tropical atingiu os 350k exigidos para o sorteio!");
+      
+      setDrawWinner(null);
+      setShowDrawModal(true);
+      setIsDrawing(true);
+
+      // Animação de Suspense (Sorteando...)
+      setTimeout(() => {
+          const randomIndex = Math.floor(Math.random() * eligibleForDraw.length);
+          setDrawWinner(eligibleForDraw[randomIndex]);
+          setIsDrawing(false);
+      }, 4000); 
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+      
+      {/* HEADER */}
       <div className="bg-gradient-to-r from-emerald-900/50 to-blue-900 p-6 rounded-2xl border border-emerald-900/50 shadow-xl">
         <h2 className="text-2xl font-bold text-white mb-2">QG Clã Kame</h2>
         <p className="text-blue-400">Um app para guardar a sua história!</p>
       </div>
 
-      {/* 🌟 1º LUGAR: INSCRIÇÕES ABERTAS EM EVIDÊNCIA MÁXIMA */}
+      {/* INSCRIÇÕES ABERTAS */}
       {openCompetitions.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2"><Trophy size={20} /> Novas Competições</h3>
@@ -104,7 +128,6 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
               const isFull = isFlash ? false : compTeams.length >= teamCount;
               const alreadyJoined = compTeams.some(tId => userTeamIds.includes(tId));
               const isPending = compPending.some(p => p && userTeamIds.includes(p.teamId));
-
               const isBlockedByOtherComp = Array.isArray(comp.excludedCompIds) && comp.excludedCompIds.some(exCompId => {
                 const exComp = (competitions || []).find(c => c.id === exCompId);
                 if (!exComp) return false;
@@ -126,7 +149,6 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
                   </div>
                   
                   <div className="mt-5 pt-4 border-t border-blue-800">
-                    
                     {isFlash && comp.deadline && (
                       <div className="bg-blue-950 p-2.5 rounded-xl border border-amber-500/40 text-center mb-4">
                         <p className="text-[9px] text-amber-400 font-bold uppercase tracking-widest mb-0.5 flex items-center justify-center gap-1"><Activity size={12}/> Inicia em</p>
@@ -161,38 +183,24 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {hasAdminAccess && (
           <button onClick={() => onChangeTab('competitions')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
-            <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
-              <Camera size={20} className="text-emerald-400" />
-            </div>
+            <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform"><Camera size={20} className="text-emerald-400" /></div>
             <span className="text-xs font-bold text-blue-200">Registrar/Validar</span>
           </button>
         )}
-        
         <button onClick={() => onChangeTab('predictions')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
-          <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
-            <Dices size={20} className="text-amber-500" />
-          </div>
+          <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform"><Dices size={20} className="text-amber-500" /></div>
           <span className="text-xs font-bold text-blue-200">KameBet</span>
         </button>
-
         <button onClick={() => onChangeTab('profile')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
-          <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
-            <Shield size={20} className="text-amber-400" />
-          </div>
+          <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform"><Shield size={20} className="text-amber-400" /></div>
           <span className="text-xs font-bold text-blue-200">Meu Perfil</span>
         </button>
-
         <button onClick={() => onChangeTab('ranking')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
-          <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
-            <Trophy size={20} className="text-purple-400" />
-          </div>
+          <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform"><Trophy size={20} className="text-purple-400" /></div>
           <span className="text-xs font-bold text-blue-200">Ranking Xclã</span>
         </button>
-
         <button onClick={() => onChangeTab('rules')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
-          <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform">
-            <BookOpen size={20} className="text-sky-400" />
-          </div>
+          <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform"><BookOpen size={20} className="text-sky-400" /></div>
           <span className="text-xs font-bold text-blue-200">Regras</span>
         </button>
       </div>
@@ -204,70 +212,167 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
             </div>
             <span className="text-sm font-bold text-amber-200 uppercase tracking-widest">Painel de Gestão XPoints</span>
           </button>
-        )}
+      )}
+
+      {/* 🌟 O NOVO PAINEL ÉPICO DE XPOINTS */}
+      <div className="space-y-4 pt-6 border-t border-blue-800 animate-in slide-in-from-bottom-4">
+         
+         {/* META GLOBAL */}
+         <div className="bg-blue-900 border border-blue-700 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-start mb-6 relative z-10 gap-4">
+               <div className="flex items-center gap-3">
+                   <div className="bg-blue-950 p-2.5 rounded-xl border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                      <Zap size={24} className="text-amber-400" />
+                   </div>
+                   <div>
+                      <h3 className="text-lg md:text-xl font-black text-white tracking-wide">META GLOBAL XCLÃ <span className="text-amber-400">(LIVE)</span></h3>
+                      <p className="text-[10px] md:text-xs text-blue-300">Jogue as partidas na Live do DLS e some pontos para o Clã Kame!</p>
+                   </div>
+               </div>
+               
+               {isLeader && (
+                  <button onClick={handleStartDraw} className={`w-full sm:w-auto px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shrink-0 ${isGlobalGoalMet ? 'bg-amber-500 hover:bg-amber-400 text-blue-950 shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-pulse' : 'bg-blue-950 text-blue-600 border border-blue-800 cursor-not-allowed'}`}>
+                     {isGlobalGoalMet ? '🎁 Sortear Passe' : '🔒 Sorteio Bloqueado'}
+                  </button>
+               )}
+            </div>
+
+            <div className="bg-blue-950/50 rounded-xl p-4 md:p-5 border border-blue-800/50 relative z-10">
+                <div className="flex justify-between items-end mb-3">
+                    <div>
+                        <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mb-1">Pontos Acumulados</p>
+                        <p className="text-3xl md:text-4xl font-black text-white drop-shadow-md">{totalGlobalXp.toLocaleString('pt-BR')}</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-1">Objetivo Final</p>
+                        <p className="text-xl md:text-2xl font-black text-amber-500 drop-shadow-md">10.000.000</p>
+                    </div>
+                </div>
+                <div className="w-full bg-blue-900 rounded-full h-3 md:h-4 overflow-hidden shadow-inner border border-blue-800">
+                    <div className="bg-gradient-to-r from-blue-500 via-emerald-400 to-amber-400 h-full rounded-full transition-all duration-1000 relative" style={{ width: `${globalProgress}%` }}>
+                       <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                    </div>
+                </div>
+                <p className="text-center text-[10px] md:text-xs font-black text-blue-300 mt-2 tracking-widest">{globalProgress.toFixed(1)}% CONCLUÍDO</p>
+            </div>
+         </div>
+
+         {/* AS DUAS ILHAS */}
+         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+             {/* 🌴 ILHA TROPICAL */}
+             <div className="bg-blue-950/40 border border-emerald-500/30 rounded-2xl p-5 shadow-lg flex flex-col">
+                 <div className="flex justify-between items-center border-b border-emerald-500/30 pb-3 mb-4">
+                    <h4 className="text-sm md:text-base font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">🌴 Ilha Tropical</h4>
+                    <div className="text-right">
+                       <p className="text-[9px] text-emerald-500 uppercase font-bold">Total da Ilha</p>
+                       <p className="text-sm font-black text-white">{totalTropicalXp.toLocaleString('pt-BR')} XP</p>
+                    </div>
+                 </div>
+                 
+                 <div className="flex gap-2 mb-4">
+                     <span className="text-[9px] bg-emerald-900/40 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded font-bold">Mínimo: 200.000</span>
+                     <span className="text-[9px] bg-amber-900/40 text-amber-400 border border-amber-500/30 px-2 py-1 rounded font-bold flex items-center gap-1 shadow-sm"><Ticket size={10}/> Sorteio: 350.000</span>
+                 </div>
+
+                 <div className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
+                     {tropicalUsers.length === 0 && <p className="text-xs text-emerald-500/50 italic">Nenhum membro na Ilha Tropical.</p>}
+                     {tropicalUsers.map(u => {
+                         const pts = Number(u.dlsXPoints) || 0;
+                         const prog = Math.min(100, (pts / 350000) * 100);
+                         const hitMin = pts >= 200000;
+                         const hitMax = pts >= 350000;
+                         let barColor = 'bg-blue-500';
+                         if (hitMax) barColor = 'bg-gradient-to-r from-amber-500 to-yellow-300 shadow-[0_0_8px_rgba(245,158,11,0.6)]';
+                         else if (hitMin) barColor = 'bg-emerald-400';
+
+                         return (
+                             <div key={u.id} className={`bg-blue-900/50 p-3 rounded-xl border ${hitMax ? 'border-amber-500/40' : 'border-blue-800'}`}>
+                                 <div className="flex justify-between items-center mb-2">
+                                     <span className={`text-xs font-bold flex items-center gap-1.5 ${hitMax ? 'text-white' : 'text-blue-100'}`}>
+                                        {hitMax && <Crown size={12} className="text-amber-400 drop-shadow-md"/>}
+                                        {u.name}
+                                     </span>
+                                     <span className={`text-[10px] font-black ${hitMax ? 'text-amber-400 drop-shadow-md' : hitMin ? 'text-emerald-400' : 'text-blue-300'}`}>{pts.toLocaleString('pt-BR')} XP</span>
+                                 </div>
+                                 <div className="w-full bg-blue-950 rounded-full h-1.5 overflow-hidden shadow-inner">
+                                     <div className={`${barColor} h-1.5 rounded-full transition-all duration-1000`} style={{ width: `${prog}%` }}></div>
+                                 </div>
+                             </div>
+                         );
+                     })}
+                 </div>
+             </div>
+
+             {/* ☁️ ILHA DO CÉU */}
+             <div className="bg-blue-950/40 border border-sky-500/30 rounded-2xl p-5 shadow-lg flex flex-col">
+                 <div className="flex justify-between items-center border-b border-sky-500/30 pb-3 mb-4">
+                    <h4 className="text-sm md:text-base font-black text-sky-400 uppercase tracking-widest flex items-center gap-2">☁️ Ilha do Céu</h4>
+                    <div className="text-right">
+                       <p className="text-[9px] text-sky-500 uppercase font-bold">Total da Ilha</p>
+                       <p className="text-sm font-black text-white">{totalCeuXp.toLocaleString('pt-BR')} XP</p>
+                    </div>
+                 </div>
+
+                 <div className="flex gap-2 mb-4">
+                     <span className="text-[9px] bg-sky-900/40 text-sky-400 border border-sky-500/30 px-2 py-1 rounded font-bold">Sem Obrigação de Meta</span>
+                 </div>
+
+                 <div className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
+                     {ceuUsers.length === 0 && <p className="text-xs text-sky-500/50 italic">Nenhum membro na Ilha do Céu.</p>}
+                     {ceuUsers.map(u => {
+                         const pts = Number(u.dlsXPoints) || 0;
+                         const maxCeu = Math.max(100000, ...ceuUsers.map(x => Number(x.dlsXPoints)||0));
+                         const prog = Math.min(100, (pts / maxCeu) * 100);
+
+                         return (
+                             <div key={u.id} className="bg-blue-900/50 p-3 rounded-xl border border-blue-800">
+                                 <div className="flex justify-between items-center mb-2">
+                                     <span className="text-xs font-bold text-blue-100">{u.name}</span>
+                                     <span className="text-[10px] font-black text-sky-400">{pts.toLocaleString('pt-BR')} XP</span>
+                                 </div>
+                                 <div className="w-full bg-blue-950 rounded-full h-1.5 overflow-hidden shadow-inner">
+                                     <div className="bg-sky-500 h-1.5 rounded-full transition-all duration-1000" style={{ width: `${prog}%` }}></div>
+                                 </div>
+                             </div>
+                         );
+                     })}
+                 </div>
+             </div>
+         </div>
+      </div>
 
       {/* PARTIDAS LIBERADAS E PENDENTES */}
       {matchesToPlay.length > 0 && (
-        <div className="space-y-3 animate-in slide-in-from-left-4">
+        <div className="space-y-3 animate-in slide-in-from-left-4 mt-6">
           <h3 className="text-lg font-bold text-emerald-400 flex items-center gap-2">
             <PlayCircle size={20} /> Seus Confrontos Liberados
           </h3>
-          <p className="text-xs text-blue-400 -mt-2 mb-2">Partidas que já foram liberadas pelos líderes. Chame seu adversário para o jogo!</p>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {matchesToPlay.map(m => {
-              const tA = getTeam(m.teamA);
-              const tB = getTeam(m.teamB);
-              
+              const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
               const isUserTeamA = userTeamIds.includes(m.teamA);
               const opponentTeam = isUserTeamA ? tB : tA;
               const myTeamObj = isUserTeamA ? tA : tB;
-
               let badgeLabel = '';
-              if (m.isDupla) badgeLabel = '👥 Duplas';
-              else if (m.isDoubleLeg) badgeLabel = '⚔️ Ida e Volta';
+              if (m.isDupla) badgeLabel = '👥 Duplas'; else if (m.isDoubleLeg) badgeLabel = '⚔️ Ida e Volta';
 
               return (
-                <div key={m.id} className="bg-blue-900/80 border border-emerald-500/40 hover:border-emerald-400/80 rounded-2xl p-4 shadow-lg transition-all flex flex-col justify-between group">
+                <div key={m.id} className="bg-blue-900/80 border border-emerald-500/40 rounded-2xl p-4 flex flex-col justify-between group">
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-[10px] bg-blue-950 text-blue-300 px-2.5 py-1 rounded font-bold uppercase tracking-widest border border-blue-800 shadow-inner">
-                      {m.compName} • Rodada {m.roundName}
-                    </span>
-                    {m.isFlash && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-1 rounded font-bold uppercase animate-pulse border border-amber-500/30 shadow-md flex items-center gap-1"><Activity size={10}/> Flash</span>}
+                    <span className="text-[10px] bg-blue-950 text-blue-300 px-2.5 py-1 rounded font-bold uppercase border border-blue-800">{m.compName} • {m.roundName}</span>
+                    {m.isFlash && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-1 rounded font-bold uppercase animate-pulse border border-amber-500/30 flex items-center gap-1"><Activity size={10}/> Flash</span>}
                   </div>
-                  
                   {badgeLabel && (
                      <div className="text-center mb-1">
-                        <span className="text-[9px] bg-blue-950/80 text-amber-400 px-2 py-0.5 rounded font-black uppercase tracking-widest border border-amber-500/30 shadow-sm">
-                          {badgeLabel} {m.legLabel ? `• ${m.legLabel}` : ''}
-                        </span>
+                        <span className="text-[9px] bg-blue-950/80 text-amber-400 px-2 py-0.5 rounded font-black uppercase border border-amber-500/30">{badgeLabel} {m.legLabel ? `• ${m.legLabel}` : ''}</span>
                      </div>
                   )}
-
                   <div className={`flex items-center justify-between gap-2 ${badgeLabel ? 'mb-4 mt-2' : 'mb-5 mt-3'} px-2`}>
-                    <div className="flex flex-col items-center flex-1 min-w-0">
-                      <ShieldDisplay shield={myTeamObj?.shield} size="small" />
-                      <span className={`text-xs font-bold mt-2 truncate w-full text-center text-emerald-400 drop-shadow-md`}>{myTeamObj?.name}</span>
-                    </div>
-                    <span className="text-blue-600 font-black text-lg px-2 shrink-0">X</span>
-                    <div className="flex flex-col items-center flex-1 min-w-0">
-                      <ShieldDisplay shield={opponentTeam?.shield} size="small" />
-                      <span className={`text-xs font-bold mt-2 truncate w-full text-center text-blue-100`}>{opponentTeam?.name || 'Adversário'}</span>
-                    </div>
+                    <div className="flex flex-col items-center flex-1 min-w-0"><ShieldDisplay shield={myTeamObj?.shield} size="small" /><span className="text-xs font-bold mt-2 truncate w-full text-center text-emerald-400">{myTeamObj?.name}</span></div>
+                    <span className="text-blue-600 font-black text-lg px-2">X</span>
+                    <div className="flex flex-col items-center flex-1 min-w-0"><ShieldDisplay shield={opponentTeam?.shield} size="small" /><span className="text-xs font-bold mt-2 truncate w-full text-center text-blue-100">{opponentTeam?.name || 'Adversário'}</span></div>
                   </div>
-                  
-                  <button 
-                    onClick={() => {
-                      if (opponentTeam?.whatsapp) {
-                        window.open(`https://wa.me/${String(opponentTeam.whatsapp).replace(/\D/g, '')}`, '_blank');
-                      }
-                    }} 
-                    disabled={!opponentTeam?.whatsapp}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-blue-800 disabled:text-blue-500 text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wide transition-colors shadow-md flex items-center justify-center gap-2"
-                  >
-                    <MessageCircle size={14}/> 
-                    {opponentTeam?.whatsapp ? 'Chamar Adversário' : 'Adversário sem Zap'}
-                  </button>
+                  <button onClick={() => { if (opponentTeam?.whatsapp) window.open(`https://wa.me/${String(opponentTeam.whatsapp).replace(/\D/g, '')}`, '_blank'); }} disabled={!opponentTeam?.whatsapp} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-blue-800 disabled:text-blue-500 text-white font-bold py-2.5 rounded-xl text-xs uppercase flex items-center justify-center gap-2"><MessageCircle size={14}/> {opponentTeam?.whatsapp ? 'Chamar Adversário' : 'Sem Zap'}</button>
                 </div>
               );
             })}
@@ -276,18 +381,14 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
       )}
 
       {myPendingMatches.length > 0 && (
-        <div className="bg-blue-950/80 p-5 rounded-2xl border border-amber-500/40 shadow-lg relative overflow-hidden animate-in slide-in-from-bottom-4">
+        <div className="bg-blue-950/80 p-5 rounded-2xl border border-amber-500/40 shadow-lg relative overflow-hidden mt-6">
           <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
-          <h3 className="text-sm font-bold text-amber-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <AlertCircle size={16} /> Aguardando Validação ({myPendingMatches.length})
-          </h3>
-          <p className="text-xs text-amber-400/70 mb-3 -mt-3">Estes placares já foram enviados e estão na fila de aprovação dos líderes.</p>
+          <h3 className="text-sm font-bold text-amber-400 uppercase tracking-widest mb-4 flex items-center gap-2"><AlertCircle size={16} /> Aguardando Validação ({myPendingMatches.length})</h3>
           <div className="space-y-2">
             {myPendingMatches.slice(0, 3).map(m => {
-              const tA = getTeam(m.teamA);
-              const tB = getTeam(m.teamB);
+              const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
               return (
-                <div key={m.id} onClick={() => onSelectMatch && onSelectMatch(m)} className="bg-blue-900/50 hover:bg-blue-800/80 p-3 rounded-xl border border-blue-800 hover:border-amber-500/50 flex justify-between items-center gap-2 cursor-pointer transition-all">
+                <div key={m.id} onClick={() => onSelectMatch && onSelectMatch(m)} className="bg-blue-900/50 p-3 rounded-xl border border-blue-800 flex justify-between items-center gap-2 cursor-pointer">
                   <span className={`text-xs font-bold truncate flex-1 text-right ${userTeamIds.includes(m.teamA) ? 'text-emerald-400' : 'text-blue-200'}`}>{tA?.name || 'A Definir'}</span>
                   <span className="text-[10px] text-blue-500 font-black px-2">VS</span>
                   <span className={`text-xs font-bold truncate flex-1 text-left ${userTeamIds.includes(m.teamB) ? 'text-emerald-400' : 'text-blue-200'}`}>{tB?.name || 'A Definir'}</span>
@@ -298,102 +399,70 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
         </div>
       )}
 
-      {/* 🌟 WIDGET DE EVOLUÇÃO XPOINTS: TROPICAL E CÉU */}
-      <div className="bg-gradient-to-br from-blue-900 to-blue-950 p-6 rounded-2xl border border-amber-500/30 shadow-xl relative overflow-hidden animate-in slide-in-from-bottom-4">
-        <div className="relative z-10">
-            <h3 className="text-lg font-black text-amber-400 uppercase tracking-widest mb-1 flex items-center gap-2">
-              <Zap size={20} className="text-amber-400" /> Clã Points Oficiais
-            </h3>
-            <p className="text-xs text-blue-300 mb-6 font-medium">Acompanhamento de desempenho das divisões do Clã Kame.</p>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* 🌴 ILHA TROPICAL (META 200K) */}
-              <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-4 shadow-inner">
-                 <h4 className="text-sm font-black text-emerald-400 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-emerald-500/30 pb-3">
-                   🌴 Ilha Tropical <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/20">Meta Individual: 200k</span>
-                 </h4>
-                 
-                 <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
-                   {(users || []).filter(u => u.clanBranch === 'tropical' && u.id !== 'u_master').length === 0 ? (
-                      <p className="text-xs text-emerald-500/50 italic text-center py-2">Nenhum membro na Ilha Tropical.</p>
-                   ) : (
-                      (users || []).filter(u => u.clanBranch === 'tropical' && u.id !== 'u_master').sort((a,b) => (b.dlsXPoints||0) - (a.dlsXPoints||0)).map(u => {
-                        const pts = Number(u.dlsXPoints||0);
-                        const progress = Math.min(100, Math.round((pts / 200000) * 100));
-                        const isElite = pts >= 200000;
-                        
-                        return (
-                          <div key={u.id} className={`p-3 rounded-xl border flex flex-col gap-2 transition-all ${isElite ? 'bg-emerald-900/40 border-emerald-500/50 shadow-md' : 'bg-blue-950/80 border-blue-800'}`}>
-                             <div className="flex justify-between items-center">
-                               <span className={`text-xs font-bold truncate pr-2 flex items-center gap-1.5 ${isElite ? 'text-white' : 'text-blue-200'}`}>
-                                 {isElite && <CheckCircle size={14} className="text-emerald-400"/>}
-                                 {u.name}
-                               </span>
-                               <span className={`text-[11px] font-black ${isElite ? 'text-emerald-400' : 'text-amber-400'}`}>{pts.toLocaleString('pt-BR')} XP</span>
-                             </div>
-                             {/* Barra de Progresso */}
-                             <div className="w-full bg-blue-900/50 rounded-full h-2 overflow-hidden shadow-inner">
-                                <div className={`${isElite ? 'bg-emerald-500' : 'bg-amber-500'} h-2 rounded-full transition-all duration-1000`} style={{ width: `${progress}%` }}></div>
-                             </div>
-                          </div>
-                        )
-                      })
-                   )}
-                 </div>
-              </div>
-
-              {/* ☁️ ILHA DO CÉU (SEM META) */}
-              <div className="bg-sky-950/30 border border-sky-500/30 rounded-xl p-4 shadow-inner">
-                 <h4 className="text-sm font-black text-sky-400 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-sky-500/30 pb-3">
-                   ☁️ Ilha do Céu <span className="text-[9px] bg-sky-900/50 text-sky-300 px-2 py-0.5 rounded border border-sky-500/20">Sem Meta</span>
-                 </h4>
-                 
-                 <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
-                   {(users || []).filter(u => u.clanBranch === 'ceu' && u.id !== 'u_master').length === 0 ? (
-                      <p className="text-xs text-sky-500/50 italic text-center py-2">Nenhum membro na Ilha do Céu.</p>
-                   ) : (
-                      (users || []).filter(u => u.clanBranch === 'ceu' && u.id !== 'u_master').sort((a,b) => (b.dlsXPoints||0) - (a.dlsXPoints||0)).map(u => (
-                        <div key={u.id} className="flex justify-between items-center bg-blue-950/80 p-3.5 rounded-xl border border-sky-800/50 shadow-sm hover:border-sky-500/50 transition-all">
-                           <span className="text-xs font-bold text-blue-100 truncate pr-2">{u.name}</span>
-                           <span className="text-[11px] font-black text-sky-400 bg-sky-900/30 px-2 py-1 rounded shadow-sm border border-sky-500/20">{Number(u.dlsXPoints||0).toLocaleString('pt-BR')} XP</span>
-                        </div>
-                      ))
-                   )}
-                 </div>
-              </div>
-
-            </div>
-        </div>
-      </div>
-
       {/* ÚLTIMOS RESULTADOS */}
-      <div>
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados Enviados</h3>
+      <div className="mt-8">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-emerald-500" /> Últimos Resultados</h3>
         <div className="space-y-3">
           {recentMatches.length === 0 && <p className="text-blue-500 text-sm p-4 bg-blue-900 rounded-xl border border-blue-800">Nenhum resultado submetido ainda.</p>}
           {recentMatches.map(m => {
             if (!m) return null; const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
             return (
-              <div key={m.id} onClick={() => onSelectMatch && onSelectMatch(m)} className="bg-blue-900 p-3 md:p-4 rounded-xl border border-blue-800 flex flex-col gap-3 shadow-sm cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition-all group relative">
+              <div key={m.id} onClick={() => onSelectMatch && onSelectMatch(m)} className="bg-blue-900 p-3 md:p-4 rounded-xl border border-blue-800 flex flex-col gap-3 cursor-pointer hover:border-emerald-500/50 transition-all group">
                 <div className="flex items-center justify-between w-full gap-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-start"><div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="normal" /></div><span className="font-medium text-[11px] md:text-sm text-blue-200 truncate group-hover:text-emerald-400 transition-colors">{String(tA?.name || 'Time A')}</span></div>
+                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-start"><div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="normal" /></div><span className="font-medium text-[11px] md:text-sm text-blue-200 truncate group-hover:text-emerald-400">{String(tA?.name || 'Time A')}</span></div>
                   <div className="flex items-center justify-center gap-1.5 md:gap-2 px-2 md:px-3 py-1 bg-blue-950 rounded-lg border border-blue-800 shrink-0">{m.penaltiesA !== null && m.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mr-1">({m.penaltiesA})</span>}<span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreA) : '?'}</span><span className="text-[10px] md:text-xs text-blue-500 font-bold mx-0.5">X</span><span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreB) : '?'}</span>{m.penaltiesB !== null && m.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold ml-1">({m.penaltiesB})</span>}</div>
-                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-end"><span className="font-medium text-[11px] md:text-sm text-blue-200 truncate text-right group-hover:text-emerald-400 transition-colors">{String(tB?.name || 'Time B')}</span><div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="normal" /></div></div>
+                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-end"><span className="font-medium text-[11px] md:text-sm text-blue-200 truncate text-right group-hover:text-emerald-400">{String(tB?.name || 'Time B')}</span><div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="normal" /></div></div>
                 </div>
-                <div className="flex justify-center border-t border-blue-800/50 pt-2 flex-col items-center gap-1">{m.status === 'approved' ? <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">✅ Oficializado • Clique para detalhes</span> : <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 font-medium">⏳ Aguardando Validação • Clique para detalhes</span>}</div>
+                <div className="flex justify-center border-t border-blue-800/50 pt-2 flex-col items-center gap-1">{m.status === 'approved' ? <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">✅ Oficializado</span> : <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400">⏳ Aguardando Validação</span>}</div>
               </div>
             );
           })}
         </div>
       </div>
+
+      {/* 🌟 MODAL DE SORTEIO OFICIAL */}
+      {showDrawModal && (
+        <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
+           <div className="bg-blue-950 border-2 border-amber-500 rounded-3xl w-full max-w-md p-6 text-center shadow-[0_0_50px_rgba(245,158,11,0.3)] relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/20 via-blue-950/0 to-blue-950/0 pointer-events-none"></div>
+
+              <Gift size={64} className={`mx-auto mb-4 ${isDrawing ? 'text-amber-500 animate-bounce' : 'text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.8)]'}`} />
+              
+              <h2 className="text-2xl font-black text-white uppercase tracking-widest mb-2 relative z-10">
+                 {isDrawing ? 'Sorteando o Passe...' : 'Temos um Vencedor!'}
+              </h2>
+              
+              <p className="text-xs text-blue-300 mb-6 relative z-10">
+                 {isDrawing ? `Sorteando a sorte entre os ${eligibleForDraw.length} técnicos de Elite...` : 'O Passe de Batalha da Temporada vai para:'}
+              </p>
+
+              <div className="bg-blue-900 border border-blue-700 rounded-2xl p-6 mb-6 min-h-[140px] flex items-center justify-center shadow-inner relative z-10">
+                 {isDrawing ? (
+                    <div className="flex flex-col items-center animate-pulse">
+                       <Dices size={40} className="text-amber-500 mb-2 animate-spin-slow" />
+                       <span className="text-amber-500 font-black tracking-widest">GIRANDO A ROLETA</span>
+                    </div>
+                 ) : (
+                    <div className="animate-in zoom-in duration-500 flex flex-col items-center">
+                       <Crown size={40} className="text-amber-400 mb-3 drop-shadow-md" />
+                       <h3 className="text-3xl font-black text-amber-400 drop-shadow-lg leading-none">{drawWinner?.name}</h3>
+                       <p className="text-xs text-emerald-400 font-bold mt-2 uppercase tracking-widest">{Number(drawWinner?.dlsXPoints).toLocaleString('pt-BR')} XP Acumulados</p>
+                    </div>
+                 )}
+              </div>
+
+              <Button onClick={() => setShowDrawModal(false)} disabled={isDrawing} className="w-full relative z-10 bg-blue-800 hover:bg-blue-700 text-white py-3 shadow-md">
+                 {isDrawing ? 'Aguarde o sorteio...' : 'Fechar Sorteio'}
+              </Button>
+           </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) => {
   if (!team) return null;
-  
   const teamMatches = (matches || []).filter(m => {
     if (m.status !== 'approved' || (m.teamA !== team.id && m.teamB !== team.id)) return false;
     return !!competitions.find(c => c.id === m.compId);
@@ -408,58 +477,40 @@ export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) 
     const scoreFor = isTeamA ? m.scoreA : m.scoreB;
     const scoreAgainst = isTeamA ? m.scoreB : m.scoreA;
     gf += scoreFor; ga += scoreAgainst;
-    
     const gd = scoreFor - scoreAgainst;
     if (scoreFor > scoreAgainst) { 
-      wins++; 
-      currentStreak++; maxStreak = Math.max(maxStreak, currentStreak);
+      wins++; currentStreak++; maxStreak = Math.max(maxStreak, currentStreak);
       if (gd > maxGd) { maxGd = gd; biggestWin = { scoreFor, scoreAgainst, oppId: isTeamA ? m.teamB : m.teamA }; } 
-    } 
-    else if (scoreFor === scoreAgainst) { 
-      draws++; 
-      currentStreak++; maxStreak = Math.max(maxStreak, currentStreak);
-    } 
-    else { 
-      losses++; 
-      currentStreak = 0;
+    } else if (scoreFor === scoreAgainst) { 
+      draws++; currentStreak++; maxStreak = Math.max(maxStreak, currentStreak);
+    } else { 
+      losses++; currentStreak = 0;
       if (gd < minGd) { minGd = gd; biggestLoss = { scoreFor, scoreAgainst, oppId: isTeamA ? m.teamB : m.teamA }; }
     }
   });
 
-          let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0;
-          let copasFlash = 0;
-          let customTitles = {};
-          
-          (competitions || []).forEach(c => {
-             const champIds = getChampionIds(c, matches, teams);
-             if (champIds.includes(team.id)) {
-                 if (c.category === 'liga_a' || c.category === 'liga_main') ligaA++;
-                 else if (c.category === 'liga_b') ligaB++;
-                 else if (c.category === 'liga_c') ligaC++;
-                 else if (c.category === 'liga_d') ligaD++;
-                 else if (c.category === 'copa_flash' || c.category === 'copa_flash_dupla') copasFlash++;
-                 else {
-                     const compName = c.name || 'Torneio Oficial';
-                     customTitles[compName] = (customTitles[compName] || 0) + 1;
-                 }
-             }
-          });
+  let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0; let copasFlash = 0; let customTitles = {};
+  (competitions || []).forEach(c => {
+      const champIds = getChampionIds(c, matches, teams);
+      if (champIds.includes(team.id)) {
+          if (c.category === 'liga_a' || c.category === 'liga_main') ligaA++;
+          else if (c.category === 'liga_b') ligaB++;
+          else if (c.category === 'liga_c') ligaC++;
+          else if (c.category === 'liga_d') ligaD++;
+          else if (c.category === 'copa_flash' || c.category === 'copa_flash_dupla') copasFlash++;
+          else { const compName = c.name || 'Torneio Oficial'; customTitles[compName] = (customTitles[compName] || 0) + 1; }
+      }
+  });
 
   const conquistas = [];
-  
   if (ligaA > 0) conquistas.push({ icon: '🥇', title: `LIGA KAME A - ${ligaA} TÍTULO${ligaA > 1 ? 'S' : ''}`, desc: 'Campeão da Divisão de Elite' });
   if (ligaB > 0) conquistas.push({ icon: '🥈', title: `LIGA KAME B - ${ligaB} TÍTULO${ligaB > 1 ? 'S' : ''}`, desc: 'Campeão da Série B' });
   if (ligaC > 0) conquistas.push({ icon: '🥉', title: `LIGA KAME C - ${ligaC} TÍTULO${ligaC > 1 ? 'S' : ''}`, desc: 'Campeão da Série C' });
   if (ligaD > 0) conquistas.push({ icon: '🎖️', title: `LIGA KAME D - ${ligaD} TÍTULO${ligaD > 1 ? 'S' : ''}`, desc: 'Campeão da Série D' });
   if (copasFlash > 0) conquistas.push({ icon: '⚡', title: `COPA FLASH - ${copasFlash} TÍTULO${copasFlash > 1 ? 'S' : ''}`, desc: 'Campeão de Tiro Curto' });
-
   Object.keys(customTitles).forEach(compName => {
       const count = customTitles[compName];
-      conquistas.push({ 
-          icon: '🏆', 
-          title: `${compName.toUpperCase()} - ${count} TÍTULO${count > 1 ? 'S' : ''}`, 
-          desc: 'Campeão Oficial' 
-      });
+      conquistas.push({ icon: '🏆', title: `${compName.toUpperCase()} - ${count} TÍTULO${count > 1 ? 'S' : ''}`, desc: 'Campeão Oficial' });
   });
 
   if (wins > 0) conquistas.push({ icon: '🌟', title: '1ª VITÓRIA', desc: 'Venceu uma partida oficial' });
@@ -476,8 +527,6 @@ export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
       <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl" onClick={e => e.stopPropagation()}>
-        
-        {/* Cabeçalho */}
         <div className="sticky top-0 bg-blue-900/95 backdrop-blur border-b border-blue-800 p-4 sm:p-6 flex justify-between items-center z-10">
           <div className="flex items-center gap-4">
             <ShieldDisplay shield={team.shield} size="normal" />
@@ -489,10 +538,7 @@ export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) 
           <button onClick={onClose} className="text-blue-400 hover:text-white p-2 bg-blue-800 hover:bg-blue-700 rounded-full transition-colors"><X size={18}/></button>
         </div>
         
-        {/* Corpo com Estatísticas */}
         <div className="p-4 sm:p-6 space-y-8">
-          
-          {/* Resumo da Temporada */}
           <div>
             <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Activity size={16}/> Visão Geral</h4>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -503,7 +549,6 @@ export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) 
             </div>
           </div>
 
-          {/* Recordes do Clube */}
           <div>
             <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Star size={16} className="text-amber-400"/> Recordes do Clube</h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -533,7 +578,6 @@ export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) 
             </div>
           </div>
 
-          {/* Desempenho em Torneios */}
           <div>
             <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Trophy size={16} className="text-emerald-500"/> Desempenho nos Campeonatos</h4>
             {activeComps.length > 0 ? (
@@ -543,14 +587,12 @@ export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) 
                   const rankIndex = table.findIndex(t => t.id === team.id);
                   const myStats = rankIndex !== -1 ? table[rankIndex] : null;
                   const rank = rankIndex !== -1 ? rankIndex + 1 : '-';
-                  
                   return (
                     <div key={comp.id} className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex flex-col sm:flex-row items-center justify-between gap-3">
                       <div className="flex-1 flex flex-col items-center sm:items-start w-full">
                         <span className="font-bold text-blue-200 text-sm truncate">{comp.name}</span>
                         <span className="text-[10px] text-blue-500 uppercase font-bold">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</span>
                       </div>
-                      
                       {myStats && myStats.p > 0 ? (
                         <div className="flex items-center gap-4 shrink-0 bg-blue-900/50 px-4 py-2 rounded-lg border border-blue-800/50">
                           <div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Posição</p><p className="text-base font-black text-emerald-400">{rank}º</p></div>
@@ -569,7 +611,6 @@ export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) 
             )}
           </div>
 
-          {/* Conquistas e Títulos */}
           <div>
             <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Medal size={16} className="text-amber-400"/> Sala de Troféus</h4>
             {conquistas.length > 0 ? (
@@ -595,6 +636,5 @@ export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) 
     </div>
   );
 };
-
 
 export default Dashboard;
