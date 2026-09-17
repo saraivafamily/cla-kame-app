@@ -19,13 +19,8 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
   }).sort((a, b) => parseInt(String(b?.id || '').split('_')[1] || '0') - parseInt(String(a?.id || '').split('_')[1] || '0')).slice(0, 8);
 
   const getTeam = (id) => (teams || []).find(t => t && t.id === id);
-
   const openCompetitions = (competitions || []).filter(c => c && c.status === 'registration');
-
-  const myPendingMatches = (matches || []).filter(m => 
-    (userTeamIds.includes(m.teamA) || userTeamIds.includes(m.teamB)) &&
-    m.status !== 'approved' && m.status !== 'rejected'
-  );
+  const myPendingMatches = (matches || []).filter(m => (userTeamIds.includes(m.teamA) || userTeamIds.includes(m.teamB)) && m.status !== 'approved' && m.status !== 'rejected');
 
   const matchesToPlay = useMemo(() => {
     const available = [];
@@ -46,22 +41,15 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
 
         Object.values(grouped).forEach(group => {
            const unplayedMatch = group.find(m => {
-              return !(matches || []).some(
-                submitted => submitted.matchId === m.id && submitted.compId === comp.id && submitted.status !== 'rejected'
-              );
+              return !(matches || []).some(submitted => submitted.matchId === m.id && submitted.compId === comp.id && submitted.status !== 'rejected');
            });
-
            if (unplayedMatch) {
               let legLabel = '';
               if (group.length > 1 || comp.isIdaEVolta) {
                   if (unplayedMatch.id.includes('_ida') || unplayedMatch.id.includes('_f1')) legLabel = 'Jogo de Ida';
                   else if (unplayedMatch.id.includes('_volta') || unplayedMatch.id.includes('_f2')) legLabel = 'Jogo de Volta';
               }
-              available.push({ 
-                ...unplayedMatch, compName: comp.name, compId: comp.id, roundName: round.number,
-                isFlash: comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla',
-                isDoubleLeg: group.length > 1 || comp.isIdaEVolta, isDupla: comp.category === 'copa_flash_dupla', legLabel
-              });
+              available.push({ ...unplayedMatch, compName: comp.name, compId: comp.id, roundName: round.number, isFlash: comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla', isDoubleLeg: group.length > 1 || comp.isIdaEVolta, isDupla: comp.category === 'copa_flash_dupla', legLabel });
            }
         });
       });
@@ -71,16 +59,18 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
 
   const hasAdminAccess = isLeader || (competitions || []).some(c => c.status !== 'finished' && isCompAdmin(c));
 
-  // 🌟 LÓGICA DO PAINEL XPOINTS E SORTEIO
+  // 🌟 LÓGICA DE METAS POR ILHA E VISUALIZAÇÃO ISOLADA
+  const myBranch = currentUser?.clanBranch;
+  const showTropical = isLeader || myBranch === 'tropical';
+  const showCeu = isLeader || myBranch === 'ceu';
+
   const [showDrawModal, setShowDrawModal] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawWinner, setDrawWinner] = useState(null);
+  const [drawBranch, setDrawBranch] = useState(null);
 
   const validXpUsers = (users || []).filter(u => u.id !== 'u_master' && u.name);
-  const totalGlobalXp = validXpUsers.reduce((acc, u) => acc + (Number(u.dlsXPoints) || 0), 0);
-  const metaGlobal = 10000000;
-  const globalProgress = Math.min(100, (totalGlobalXp / metaGlobal) * 100);
-  const isGlobalGoalMet = totalGlobalXp >= metaGlobal;
+  const metaGlobalPorIlha = 10000000;
 
   const tropicalUsers = validXpUsers.filter(u => u.clanBranch === 'tropical').sort((a,b) => (Number(b.dlsXPoints)||0) - (Number(a.dlsXPoints)||0));
   const ceuUsers = validXpUsers.filter(u => u.clanBranch === 'ceu').sort((a,b) => (Number(b.dlsXPoints)||0) - (Number(a.dlsXPoints)||0));
@@ -88,20 +78,31 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
   const totalTropicalXp = tropicalUsers.reduce((acc, u) => acc + (Number(u.dlsXPoints) || 0), 0);
   const totalCeuXp = ceuUsers.reduce((acc, u) => acc + (Number(u.dlsXPoints) || 0), 0);
 
-  const eligibleForDraw = tropicalUsers.filter(u => (Number(u.dlsXPoints) || 0) >= 350000);
+  const tropicalProgress = Math.min(100, (totalTropicalXp / metaGlobalPorIlha) * 100);
+  const ceuProgress = Math.min(100, (totalCeuXp / metaGlobalPorIlha) * 100);
 
-  const handleStartDraw = () => {
-      if (!isGlobalGoalMet) return alert("A meta global de 10 Milhões ainda não foi batida!");
-      if (eligibleForDraw.length === 0) return alert("Ninguém da Ilha Tropical atingiu os 350k exigidos para o sorteio!");
+  const isTropicalGoalMet = totalTropicalXp >= metaGlobalPorIlha;
+  const isCeuGoalMet = totalCeuXp >= metaGlobalPorIlha;
+
+  const eligibleForDrawTropical = tropicalUsers.filter(u => (Number(u.dlsXPoints) || 0) >= 350000);
+  const eligibleForDrawCeu = ceuUsers.filter(u => (Number(u.dlsXPoints) || 0) >= 350000);
+
+  const handleStartDraw = (branchStr) => {
+      const isCeu = branchStr === 'ceu';
+      const goalMet = isCeu ? isCeuGoalMet : isTropicalGoalMet;
+      const eligible = isCeu ? eligibleForDrawCeu : eligibleForDrawTropical;
+
+      if (!goalMet) return alert(`A meta coletiva de 10 Milhões da Ilha ${isCeu ? 'do Céu' : 'Tropical'} ainda não foi batida!`);
+      if (eligible.length === 0) return alert(`Ninguém da Ilha ${isCeu ? 'do Céu' : 'Tropical'} atingiu os 350k exigidos para o sorteio!`);
       
+      setDrawBranch(branchStr);
       setDrawWinner(null);
       setShowDrawModal(true);
       setIsDrawing(true);
 
-      // Animação de Suspense (Sorteando...)
       setTimeout(() => {
-          const randomIndex = Math.floor(Math.random() * eligibleForDraw.length);
-          setDrawWinner(eligibleForDraw[randomIndex]);
+          const randomIndex = Math.floor(Math.random() * eligible.length);
+          setDrawWinner(eligible[randomIndex]);
           setIsDrawing(false);
       }, 4000); 
   };
@@ -109,13 +110,11 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
       
-      {/* HEADER */}
       <div className="bg-gradient-to-r from-emerald-900/50 to-blue-900 p-6 rounded-2xl border border-emerald-900/50 shadow-xl">
         <h2 className="text-2xl font-bold text-white mb-2">QG Clã Kame</h2>
         <p className="text-blue-400">Um app para guardar a sua história!</p>
       </div>
 
-      {/* INSCRIÇÕES ABERTAS */}
       {openCompetitions.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2"><Trophy size={20} /> Novas Competições</h3>
@@ -152,12 +151,9 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
                     {isFlash && comp.deadline && (
                       <div className="bg-blue-950 p-2.5 rounded-xl border border-amber-500/40 text-center mb-4">
                         <p className="text-[9px] text-amber-400 font-bold uppercase tracking-widest mb-0.5 flex items-center justify-center gap-1"><Activity size={12}/> Inicia em</p>
-                        <p className="text-2xl text-amber-500 drop-shadow-md">
-                          <CountdownTimer targetDateStr={`${comp.deadline}T${comp.startTime || '20:00'}:00`} />
-                        </p>
+                        <p className="text-2xl text-amber-500 drop-shadow-md"><CountdownTimer targetDateStr={`${comp.deadline}T${comp.startTime || '20:00'}:00`} /></p>
                       </div>
                     )}
-
                     {alreadyJoined ? (
                        <div className="text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20"><CheckCircle size={16}/> Você já está dentro!</div>
                     ) : isPending ? (
@@ -167,9 +163,7 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
                     ) : isFull ? (
                        <div className="text-red-400 text-xs font-bold flex items-center justify-center gap-1 bg-red-500/10 py-2 rounded-lg border border-red-500/20"><XCircle size={16}/> Vagas Esgotadas</div>
                     ) : (
-                       <Button onClick={() => onJoinOpenComp && onJoinOpenComp(comp.id)} className="w-full py-2.5 text-sm bg-amber-600 hover:bg-amber-500 text-white font-black shadow-md border-0">
-                         Participar do Torneio
-                       </Button>
+                       <Button onClick={() => onJoinOpenComp && onJoinOpenComp(comp.id)} className="w-full py-2.5 text-sm bg-amber-600 hover:bg-amber-500 text-white font-black shadow-md border-0">Participar do Torneio</Button>
                     )}
                   </div>
                 </div>
@@ -207,138 +201,158 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
 
       {hasAdminAccess && (
           <button onClick={() => onChangeTab('xpoints_manager')} className="w-full sm:w-auto bg-gradient-to-br from-amber-600/20 to-amber-900/40 hover:from-amber-600/40 p-4 rounded-2xl border border-amber-500/50 flex items-center justify-center gap-3 transition-all group shadow-[0_0_15px_rgba(245,158,11,0.1)]">
-            <div className="bg-amber-950 p-2 rounded-full group-hover:scale-110 transition-transform shadow-inner">
-              <Zap size={20} className="text-amber-400 animate-pulse" />
-            </div>
+            <div className="bg-amber-950 p-2 rounded-full group-hover:scale-110 transition-transform shadow-inner"><Zap size={20} className="text-amber-400 animate-pulse" /></div>
             <span className="text-sm font-bold text-amber-200 uppercase tracking-widest">Painel de Gestão XPoints</span>
           </button>
       )}
 
-      {/* 🌟 O NOVO PAINEL ÉPICO DE XPOINTS */}
-      <div className="space-y-4 pt-6 border-t border-blue-800 animate-in slide-in-from-bottom-4">
-         
-         {/* META GLOBAL */}
-         <div className="bg-blue-900 border border-blue-700 rounded-2xl p-5 shadow-xl relative overflow-hidden">
-            <div className="flex flex-col sm:flex-row justify-between sm:items-start mb-6 relative z-10 gap-4">
-               <div className="flex items-center gap-3">
-                   <div className="bg-blue-950 p-2.5 rounded-xl border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-                      <Zap size={24} className="text-amber-400" />
-                   </div>
-                   <div>
-                      <h3 className="text-lg md:text-xl font-black text-white tracking-wide">META GLOBAL XCLÃ <span className="text-amber-400">(LIVE)</span></h3>
-                      <p className="text-[10px] md:text-xs text-blue-300">Jogue as partidas na Live do DLS e some pontos para o Clã Kame!</p>
-                   </div>
-               </div>
-               
-               {isLeader && (
-                  <button onClick={handleStartDraw} className={`w-full sm:w-auto px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shrink-0 ${isGlobalGoalMet ? 'bg-amber-500 hover:bg-amber-400 text-blue-950 shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-pulse' : 'bg-blue-950 text-blue-600 border border-blue-800 cursor-not-allowed'}`}>
-                     {isGlobalGoalMet ? '🎁 Sortear Passe' : '🔒 Sorteio Bloqueado'}
-                  </button>
-               )}
-            </div>
+      {/* 🌟 PAINÉIS DE XPOINTS - VISUALIZAÇÃO POR ILHA */}
+      <div className="space-y-6 pt-6 border-t border-blue-800 animate-in slide-in-from-bottom-4">
 
-            <div className="bg-blue-950/50 rounded-xl p-4 md:p-5 border border-blue-800/50 relative z-10">
-                <div className="flex justify-between items-end mb-3">
-                    <div>
-                        <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mb-1">Pontos Acumulados</p>
-                        <p className="text-3xl md:text-4xl font-black text-white drop-shadow-md">{totalGlobalXp.toLocaleString('pt-BR')}</p>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-1">Objetivo Final</p>
-                        <p className="text-xl md:text-2xl font-black text-amber-500 drop-shadow-md">10.000.000</p>
-                    </div>
-                </div>
-                <div className="w-full bg-blue-900 rounded-full h-3 md:h-4 overflow-hidden shadow-inner border border-blue-800">
-                    <div className="bg-gradient-to-r from-blue-500 via-emerald-400 to-amber-400 h-full rounded-full transition-all duration-1000 relative" style={{ width: `${globalProgress}%` }}>
-                       <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                    </div>
-                </div>
-                <p className="text-center text-[10px] md:text-xs font-black text-blue-300 mt-2 tracking-widest">{globalProgress.toFixed(1)}% CONCLUÍDO</p>
-            </div>
-         </div>
+         {/* 🌴 VISÃO: ILHA TROPICAL */}
+         {showTropical && (
+           <div className="space-y-4">
+              <div className="bg-blue-900 border border-emerald-500/40 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-start mb-6 relative z-10 gap-4">
+                     <div className="flex items-center gap-3">
+                         <div className="bg-blue-950 p-2.5 rounded-xl border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]"><Zap size={24} className="text-emerald-400" /></div>
+                         <div>
+                            <h3 className="text-lg md:text-xl font-black text-white tracking-wide">META DA ILHA TROPICAL <span className="text-emerald-400">(LIVE)</span></h3>
+                            <p className="text-[10px] md:text-xs text-blue-300">Jogue as partidas na Live para bater a meta coletiva de 10M!</p>
+                         </div>
+                     </div>
+                     {isLeader && (
+                        <button onClick={() => handleStartDraw('tropical')} className={`w-full sm:w-auto px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shrink-0 ${isTropicalGoalMet ? 'bg-amber-500 hover:bg-amber-400 text-blue-950 shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-pulse' : 'bg-blue-950 text-blue-600 border border-blue-800 cursor-not-allowed'}`}>
+                           {isTropicalGoalMet ? '🎁 Sortear Passe (Tropical)' : '🔒 Sorteio Bloqueado'}
+                        </button>
+                     )}
+                  </div>
+                  <div className="bg-blue-950/50 rounded-xl p-4 md:p-5 border border-blue-800/50 relative z-10">
+                      <div className="flex justify-between items-end mb-3">
+                          <div>
+                              <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mb-1">XP Acumulado (Tropical)</p>
+                              <p className="text-3xl md:text-4xl font-black text-white drop-shadow-md">{totalTropicalXp.toLocaleString('pt-BR')}</p>
+                          </div>
+                          <div className="text-right">
+                              <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-1">Meta Global</p>
+                              <p className="text-xl md:text-2xl font-black text-amber-500 drop-shadow-md">10.000.000</p>
+                          </div>
+                      </div>
+                      <div className="w-full bg-blue-900 rounded-full h-3 md:h-4 overflow-hidden shadow-inner border border-blue-800">
+                          <div className="bg-emerald-500 h-full rounded-full transition-all duration-1000 relative" style={{ width: `${tropicalProgress}%` }}>
+                             <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                          </div>
+                      </div>
+                      <p className="text-center text-[10px] md:text-xs font-black text-blue-300 mt-2 tracking-widest">{tropicalProgress.toFixed(1)}% CONCLUÍDO</p>
+                  </div>
+              </div>
 
-         {/* AS DUAS ILHAS */}
-         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-             {/* 🌴 ILHA TROPICAL */}
-             <div className="bg-blue-950/40 border border-emerald-500/30 rounded-2xl p-5 shadow-lg flex flex-col">
-                 <div className="flex justify-between items-center border-b border-emerald-500/30 pb-3 mb-4">
-                    <h4 className="text-sm md:text-base font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">🌴 Ilha Tropical</h4>
-                    <div className="text-right">
-                       <p className="text-[9px] text-emerald-500 uppercase font-bold">Total da Ilha</p>
-                       <p className="text-sm font-black text-white">{totalTropicalXp.toLocaleString('pt-BR')} XP</p>
-                    </div>
-                 </div>
-                 
-                 <div className="flex gap-2 mb-4">
-                     <span className="text-[9px] bg-emerald-900/40 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded font-bold">Mínimo: 200.000</span>
-                     <span className="text-[9px] bg-amber-900/40 text-amber-400 border border-amber-500/30 px-2 py-1 rounded font-bold flex items-center gap-1 shadow-sm"><Ticket size={10}/> Sorteio: 350.000</span>
-                 </div>
+              <div className="bg-blue-950/40 border border-emerald-500/30 rounded-2xl p-5 shadow-lg flex flex-col">
+                  <div className="flex gap-2 mb-4 border-b border-emerald-500/30 pb-4">
+                      <span className="text-[9px] bg-emerald-900/40 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded font-bold">Mínimo Individual: 200.000</span>
+                      <span className="text-[9px] bg-amber-900/40 text-amber-400 border border-amber-500/30 px-2 py-1 rounded font-bold flex items-center gap-1 shadow-sm"><Ticket size={10}/> Teto Sorteio: 350.000</span>
+                  </div>
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                      {tropicalUsers.length === 0 && <p className="text-xs text-emerald-500/50 italic">Nenhum membro na Ilha Tropical.</p>}
+                      {tropicalUsers.map((u, i) => {
+                          const pts = Number(u.dlsXPoints) || 0;
+                          const prog = Math.min(100, (pts / 350000) * 100);
+                          const hitMin = pts >= 200000;
+                          const hitMax = pts >= 350000;
+                          let barColor = 'bg-blue-500';
+                          if (hitMax) barColor = 'bg-gradient-to-r from-amber-500 to-yellow-300 shadow-[0_0_8px_rgba(245,158,11,0.6)]';
+                          else if (hitMin) barColor = 'bg-emerald-400';
 
-                 <div className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
-                     {tropicalUsers.length === 0 && <p className="text-xs text-emerald-500/50 italic">Nenhum membro na Ilha Tropical.</p>}
-                     {tropicalUsers.map(u => {
-                         const pts = Number(u.dlsXPoints) || 0;
-                         const prog = Math.min(100, (pts / 350000) * 100);
-                         const hitMin = pts >= 200000;
-                         const hitMax = pts >= 350000;
-                         let barColor = 'bg-blue-500';
-                         if (hitMax) barColor = 'bg-gradient-to-r from-amber-500 to-yellow-300 shadow-[0_0_8px_rgba(245,158,11,0.6)]';
-                         else if (hitMin) barColor = 'bg-emerald-400';
+                          return (
+                              <div key={u.id} className={`bg-blue-900/50 p-3 rounded-xl border flex flex-col gap-2 ${hitMax ? 'border-amber-500/40' : 'border-blue-800'}`}>
+                                  <div className="flex justify-between items-center">
+                                      <span className={`text-xs font-bold flex items-center gap-1.5 ${hitMax ? 'text-white' : 'text-blue-100'}`}>
+                                         {hitMax && <Crown size={12} className="text-amber-400 drop-shadow-md"/>}
+                                         {i + 1}º - {u.name}
+                                      </span>
+                                      <span className={`text-[10px] font-black ${hitMax ? 'text-amber-400 drop-shadow-md' : hitMin ? 'text-emerald-400' : 'text-blue-300'}`}>{pts.toLocaleString('pt-BR')} XP</span>
+                                  </div>
+                                  <div className="w-full bg-blue-950 rounded-full h-1.5 overflow-hidden shadow-inner">
+                                      <div className={`${barColor} h-1.5 rounded-full transition-all duration-1000`} style={{ width: `${prog}%` }}></div>
+                                  </div>
+                              </div>
+                          );
+                      })}
+                  </div>
+              </div>
+           </div>
+         )}
 
-                         return (
-                             <div key={u.id} className={`bg-blue-900/50 p-3 rounded-xl border ${hitMax ? 'border-amber-500/40' : 'border-blue-800'}`}>
-                                 <div className="flex justify-between items-center mb-2">
-                                     <span className={`text-xs font-bold flex items-center gap-1.5 ${hitMax ? 'text-white' : 'text-blue-100'}`}>
-                                        {hitMax && <Crown size={12} className="text-amber-400 drop-shadow-md"/>}
-                                        {u.name}
-                                     </span>
-                                     <span className={`text-[10px] font-black ${hitMax ? 'text-amber-400 drop-shadow-md' : hitMin ? 'text-emerald-400' : 'text-blue-300'}`}>{pts.toLocaleString('pt-BR')} XP</span>
-                                 </div>
-                                 <div className="w-full bg-blue-950 rounded-full h-1.5 overflow-hidden shadow-inner">
-                                     <div className={`${barColor} h-1.5 rounded-full transition-all duration-1000`} style={{ width: `${prog}%` }}></div>
-                                 </div>
-                             </div>
-                         );
-                     })}
-                 </div>
-             </div>
+         {/* ☁️ VISÃO: ILHA DO CÉU */}
+         {showCeu && (
+           <div className="space-y-4 mt-8">
+              <div className="bg-blue-900 border border-sky-500/40 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-start mb-6 relative z-10 gap-4">
+                     <div className="flex items-center gap-3">
+                         <div className="bg-blue-950 p-2.5 rounded-xl border border-sky-500/30 shadow-[0_0_15px_rgba(14,165,233,0.2)]"><Zap size={24} className="text-sky-400" /></div>
+                         <div>
+                            <h3 className="text-lg md:text-xl font-black text-white tracking-wide">META DA ILHA DO CÉU <span className="text-sky-400">(LIVE)</span></h3>
+                            <p className="text-[10px] md:text-xs text-blue-300">Desempenho coletivo da divisão Céu.</p>
+                         </div>
+                     </div>
+                     {isLeader && (
+                        <button onClick={() => handleStartDraw('ceu')} className={`w-full sm:w-auto px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shrink-0 ${isCeuGoalMet ? 'bg-amber-500 hover:bg-amber-400 text-blue-950 shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-pulse' : 'bg-blue-950 text-blue-600 border border-blue-800 cursor-not-allowed'}`}>
+                           {isCeuGoalMet ? '🎁 Sortear Passe (Céu)' : '🔒 Sorteio Bloqueado'}
+                        </button>
+                     )}
+                  </div>
+                  <div className="bg-blue-950/50 rounded-xl p-4 md:p-5 border border-blue-800/50 relative z-10">
+                      <div className="flex justify-between items-end mb-3">
+                          <div>
+                              <p className="text-[10px] text-sky-400 font-bold uppercase tracking-widest mb-1">XP Acumulado (Céu)</p>
+                              <p className="text-3xl md:text-4xl font-black text-white drop-shadow-md">{totalCeuXp.toLocaleString('pt-BR')}</p>
+                          </div>
+                          <div className="text-right">
+                              <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-1">Meta Global</p>
+                              <p className="text-xl md:text-2xl font-black text-amber-500 drop-shadow-md">10.000.000</p>
+                          </div>
+                      </div>
+                      <div className="w-full bg-blue-900 rounded-full h-3 md:h-4 overflow-hidden shadow-inner border border-blue-800">
+                          <div className="bg-sky-500 h-full rounded-full transition-all duration-1000 relative" style={{ width: `${ceuProgress}%` }}>
+                             <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                          </div>
+                      </div>
+                      <p className="text-center text-[10px] md:text-xs font-black text-blue-300 mt-2 tracking-widest">{ceuProgress.toFixed(1)}% CONCLUÍDO</p>
+                  </div>
+              </div>
 
-             {/* ☁️ ILHA DO CÉU */}
-             <div className="bg-blue-950/40 border border-sky-500/30 rounded-2xl p-5 shadow-lg flex flex-col">
-                 <div className="flex justify-between items-center border-b border-sky-500/30 pb-3 mb-4">
-                    <h4 className="text-sm md:text-base font-black text-sky-400 uppercase tracking-widest flex items-center gap-2">☁️ Ilha do Céu</h4>
-                    <div className="text-right">
-                       <p className="text-[9px] text-sky-500 uppercase font-bold">Total da Ilha</p>
-                       <p className="text-sm font-black text-white">{totalCeuXp.toLocaleString('pt-BR')} XP</p>
-                    </div>
-                 </div>
+              <div className="bg-blue-950/40 border border-sky-500/30 rounded-2xl p-5 shadow-lg flex flex-col">
+                  <div className="flex gap-2 mb-4 border-b border-sky-500/30 pb-4">
+                      <span className="text-[9px] bg-sky-900/40 text-sky-400 border border-sky-500/30 px-2 py-1 rounded font-bold">Sem Obrigação de Meta</span>
+                      <span className="text-[9px] bg-amber-900/40 text-amber-400 border border-amber-500/30 px-2 py-1 rounded font-bold flex items-center gap-1 shadow-sm"><Ticket size={10}/> Teto Sorteio: 350.000</span>
+                  </div>
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                      {ceuUsers.length === 0 && <p className="text-xs text-sky-500/50 italic">Nenhum membro na Ilha do Céu.</p>}
+                      {ceuUsers.map((u, i) => {
+                          const pts = Number(u.dlsXPoints) || 0;
+                          const hitMax = pts >= 350000;
+                          const prog = Math.min(100, (pts / 350000) * 100);
+                          let barColor = hitMax ? 'bg-gradient-to-r from-amber-500 to-yellow-300 shadow-[0_0_8px_rgba(245,158,11,0.6)]' : 'bg-sky-500';
 
-                 <div className="flex gap-2 mb-4">
-                     <span className="text-[9px] bg-sky-900/40 text-sky-400 border border-sky-500/30 px-2 py-1 rounded font-bold">Sem Obrigação de Meta</span>
-                 </div>
-
-                 <div className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
-                     {ceuUsers.length === 0 && <p className="text-xs text-sky-500/50 italic">Nenhum membro na Ilha do Céu.</p>}
-                     {ceuUsers.map(u => {
-                         const pts = Number(u.dlsXPoints) || 0;
-                         const maxCeu = Math.max(100000, ...ceuUsers.map(x => Number(x.dlsXPoints)||0));
-                         const prog = Math.min(100, (pts / maxCeu) * 100);
-
-                         return (
-                             <div key={u.id} className="bg-blue-900/50 p-3 rounded-xl border border-blue-800">
-                                 <div className="flex justify-between items-center mb-2">
-                                     <span className="text-xs font-bold text-blue-100">{u.name}</span>
-                                     <span className="text-[10px] font-black text-sky-400">{pts.toLocaleString('pt-BR')} XP</span>
-                                 </div>
-                                 <div className="w-full bg-blue-950 rounded-full h-1.5 overflow-hidden shadow-inner">
-                                     <div className="bg-sky-500 h-1.5 rounded-full transition-all duration-1000" style={{ width: `${prog}%` }}></div>
-                                 </div>
-                             </div>
-                         );
-                     })}
-                 </div>
-             </div>
-         </div>
+                          return (
+                              <div key={u.id} className={`bg-blue-900/50 p-3 rounded-xl border flex flex-col gap-2 ${hitMax ? 'border-amber-500/40' : 'border-blue-800'}`}>
+                                  <div className="flex justify-between items-center">
+                                      <span className={`text-xs font-bold flex items-center gap-1.5 ${hitMax ? 'text-white' : 'text-blue-100'}`}>
+                                         {hitMax && <Crown size={12} className="text-amber-400 drop-shadow-md"/>}
+                                         {i + 1}º - {u.name}
+                                      </span>
+                                      <span className={`text-[10px] font-black ${hitMax ? 'text-amber-400 drop-shadow-md' : 'text-sky-400'}`}>{pts.toLocaleString('pt-BR')} XP</span>
+                                  </div>
+                                  <div className="w-full bg-blue-950 rounded-full h-1.5 overflow-hidden shadow-inner">
+                                      <div className={`${barColor} h-1.5 rounded-full transition-all duration-1000`} style={{ width: `${prog}%` }}></div>
+                                  </div>
+                              </div>
+                          );
+                      })}
+                  </div>
+              </div>
+           </div>
+         )}
       </div>
 
       {/* PARTIDAS LIBERADAS E PENDENTES */}
@@ -362,11 +376,7 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
                     <span className="text-[10px] bg-blue-950 text-blue-300 px-2.5 py-1 rounded font-bold uppercase border border-blue-800">{m.compName} • {m.roundName}</span>
                     {m.isFlash && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-1 rounded font-bold uppercase animate-pulse border border-amber-500/30 flex items-center gap-1"><Activity size={10}/> Flash</span>}
                   </div>
-                  {badgeLabel && (
-                     <div className="text-center mb-1">
-                        <span className="text-[9px] bg-blue-950/80 text-amber-400 px-2 py-0.5 rounded font-black uppercase border border-amber-500/30">{badgeLabel} {m.legLabel ? `• ${m.legLabel}` : ''}</span>
-                     </div>
-                  )}
+                  {badgeLabel && <div className="text-center mb-1"><span className="text-[9px] bg-blue-950/80 text-amber-400 px-2 py-0.5 rounded font-black uppercase border border-amber-500/30">{badgeLabel} {m.legLabel ? `• ${m.legLabel}` : ''}</span></div>}
                   <div className={`flex items-center justify-between gap-2 ${badgeLabel ? 'mb-4 mt-2' : 'mb-5 mt-3'} px-2`}>
                     <div className="flex flex-col items-center flex-1 min-w-0"><ShieldDisplay shield={myTeamObj?.shield} size="small" /><span className="text-xs font-bold mt-2 truncate w-full text-center text-emerald-400">{myTeamObj?.name}</span></div>
                     <span className="text-blue-600 font-black text-lg px-2">X</span>
@@ -423,9 +433,8 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
       {/* 🌟 MODAL DE SORTEIO OFICIAL */}
       {showDrawModal && (
         <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
-           <div className="bg-blue-950 border-2 border-amber-500 rounded-3xl w-full max-w-md p-6 text-center shadow-[0_0_50px_rgba(245,158,11,0.3)] relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/20 via-blue-950/0 to-blue-950/0 pointer-events-none"></div>
-
+           <div className={`bg-blue-950 border-2 rounded-3xl w-full max-w-md p-6 text-center relative overflow-hidden ${drawBranch === 'ceu' ? 'border-sky-500 shadow-[0_0_50px_rgba(14,165,233,0.3)]' : 'border-amber-500 shadow-[0_0_50px_rgba(245,158,11,0.3)]'}`}>
+              
               <Gift size={64} className={`mx-auto mb-4 ${isDrawing ? 'text-amber-500 animate-bounce' : 'text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.8)]'}`} />
               
               <h2 className="text-2xl font-black text-white uppercase tracking-widest mb-2 relative z-10">
@@ -433,7 +442,7 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
               </h2>
               
               <p className="text-xs text-blue-300 mb-6 relative z-10">
-                 {isDrawing ? `Sorteando a sorte entre os ${eligibleForDraw.length} técnicos de Elite...` : 'O Passe de Batalha da Temporada vai para:'}
+                 {isDrawing ? `Sorteando a sorte entre os técnicos de Elite da Ilha ${drawBranch === 'tropical' ? 'Tropical' : 'do Céu'}...` : `O Passe de Batalha da Temporada da Ilha ${drawBranch === 'tropical' ? 'Tropical' : 'do Céu'} vai para:`}
               </p>
 
               <div className="bg-blue-900 border border-blue-700 rounded-2xl p-6 mb-6 min-h-[140px] flex items-center justify-center shadow-inner relative z-10">
@@ -468,25 +477,15 @@ export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) 
     return !!competitions.find(c => c.id === m.compId);
   });
   let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0; 
-  let biggestWin = null; let maxGd = -1;
-  let biggestLoss = null; let minGd = 1;
-  let currentStreak = 0; let maxStreak = 0;
+  let biggestWin = null; let maxGd = -1; let biggestLoss = null; let minGd = 1; let currentStreak = 0; let maxStreak = 0;
 
   teamMatches.forEach(m => {
     const isTeamA = m.teamA === team.id;
-    const scoreFor = isTeamA ? m.scoreA : m.scoreB;
-    const scoreAgainst = isTeamA ? m.scoreB : m.scoreA;
-    gf += scoreFor; ga += scoreAgainst;
-    const gd = scoreFor - scoreAgainst;
-    if (scoreFor > scoreAgainst) { 
-      wins++; currentStreak++; maxStreak = Math.max(maxStreak, currentStreak);
-      if (gd > maxGd) { maxGd = gd; biggestWin = { scoreFor, scoreAgainst, oppId: isTeamA ? m.teamB : m.teamA }; } 
-    } else if (scoreFor === scoreAgainst) { 
-      draws++; currentStreak++; maxStreak = Math.max(maxStreak, currentStreak);
-    } else { 
-      losses++; currentStreak = 0;
-      if (gd < minGd) { minGd = gd; biggestLoss = { scoreFor, scoreAgainst, oppId: isTeamA ? m.teamB : m.teamA }; }
-    }
+    const scoreFor = isTeamA ? m.scoreA : m.scoreB; const scoreAgainst = isTeamA ? m.scoreB : m.scoreA;
+    gf += scoreFor; ga += scoreAgainst; const gd = scoreFor - scoreAgainst;
+    if (scoreFor > scoreAgainst) { wins++; currentStreak++; maxStreak = Math.max(maxStreak, currentStreak); if (gd > maxGd) { maxGd = gd; biggestWin = { scoreFor, scoreAgainst, oppId: isTeamA ? m.teamB : m.teamA }; } 
+    } else if (scoreFor === scoreAgainst) { draws++; currentStreak++; maxStreak = Math.max(maxStreak, currentStreak);
+    } else { losses++; currentStreak = 0; if (gd < minGd) { minGd = gd; biggestLoss = { scoreFor, scoreAgainst, oppId: isTeamA ? m.teamB : m.teamA }; } }
   });
 
   let ligaA = 0; let ligaB = 0; let ligaC = 0; let ligaD = 0; let copasFlash = 0; let customTitles = {};
@@ -494,10 +493,7 @@ export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) 
       const champIds = getChampionIds(c, matches, teams);
       if (champIds.includes(team.id)) {
           if (c.category === 'liga_a' || c.category === 'liga_main') ligaA++;
-          else if (c.category === 'liga_b') ligaB++;
-          else if (c.category === 'liga_c') ligaC++;
-          else if (c.category === 'liga_d') ligaD++;
-          else if (c.category === 'copa_flash' || c.category === 'copa_flash_dupla') copasFlash++;
+          else if (c.category === 'liga_b') ligaB++; else if (c.category === 'liga_c') ligaC++; else if (c.category === 'liga_d') ligaD++; else if (c.category === 'copa_flash' || c.category === 'copa_flash_dupla') copasFlash++;
           else { const compName = c.name || 'Torneio Oficial'; customTitles[compName] = (customTitles[compName] || 0) + 1; }
       }
   });
@@ -508,10 +504,7 @@ export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) 
   if (ligaC > 0) conquistas.push({ icon: '🥉', title: `LIGA KAME C - ${ligaC} TÍTULO${ligaC > 1 ? 'S' : ''}`, desc: 'Campeão da Série C' });
   if (ligaD > 0) conquistas.push({ icon: '🎖️', title: `LIGA KAME D - ${ligaD} TÍTULO${ligaD > 1 ? 'S' : ''}`, desc: 'Campeão da Série D' });
   if (copasFlash > 0) conquistas.push({ icon: '⚡', title: `COPA FLASH - ${copasFlash} TÍTULO${copasFlash > 1 ? 'S' : ''}`, desc: 'Campeão de Tiro Curto' });
-  Object.keys(customTitles).forEach(compName => {
-      const count = customTitles[compName];
-      conquistas.push({ icon: '🏆', title: `${compName.toUpperCase()} - ${count} TÍTULO${count > 1 ? 'S' : ''}`, desc: 'Campeão Oficial' });
-  });
+  Object.keys(customTitles).forEach(compName => { const count = customTitles[compName]; conquistas.push({ icon: '🏆', title: `${compName.toUpperCase()} - ${count} TÍTULO${count > 1 ? 'S' : ''}`, desc: 'Campeão Oficial' }); });
 
   if (wins > 0) conquistas.push({ icon: '🌟', title: '1ª VITÓRIA', desc: 'Venceu uma partida oficial' });
   if (gf >= 100) conquistas.push({ icon: '⚽', title: 'GOLEADOR', desc: 'Marcou 100 ou mais gols' });
@@ -521,116 +514,17 @@ export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) 
   if (biggestWin && (biggestWin.scoreFor - biggestWin.scoreAgainst) >= 3) conquistas.push({ icon: '⚡', title: 'IMPIEDOSO', desc: 'Venceu com 5+ gols de diferença' });
   if (draws >= 5) conquistas.push({ icon: '🤝', title: 'REI DO EMPATE', desc: 'Empatou 5 ou mais vezes' });
 
-  const activeComps = (competitions || []).filter(c => c.teams?.includes(team.id));
-  const getTeamObj = (id) => (teams || []).find(t => t.id === id);
+  const activeComps = (competitions || []).filter(c => c.teams?.includes(team.id)); const getTeamObj = (id) => (teams || []).find(t => t.id === id);
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
       <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="sticky top-0 bg-blue-900/95 backdrop-blur border-b border-blue-800 p-4 sm:p-6 flex justify-between items-center z-10">
-          <div className="flex items-center gap-4">
-            <ShieldDisplay shield={team.shield} size="normal" />
-            <div>
-              <h3 className="font-bold text-white text-lg md:text-xl leading-tight">{team.name}</h3>
-              <p className="text-xs text-emerald-400 font-medium uppercase tracking-widest mt-1">Técnico: {team.coach}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-blue-400 hover:text-white p-2 bg-blue-800 hover:bg-blue-700 rounded-full transition-colors"><X size={18}/></button>
-        </div>
-        
+        <div className="sticky top-0 bg-blue-900/95 backdrop-blur border-b border-blue-800 p-4 sm:p-6 flex justify-between items-center z-10"><div className="flex items-center gap-4"><ShieldDisplay shield={team.shield} size="normal" /><div><h3 className="font-bold text-white text-lg md:text-xl leading-tight">{team.name}</h3><p className="text-xs text-emerald-400 font-medium uppercase tracking-widest mt-1">Técnico: {team.coach}</p></div></div><button onClick={onClose} className="text-blue-400 hover:text-white p-2 bg-blue-800 hover:bg-blue-700 rounded-full transition-colors"><X size={18}/></button></div>
         <div className="p-4 sm:p-6 space-y-8">
-          <div>
-            <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Activity size={16}/> Visão Geral</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Jogos</p><p className="text-2xl font-bold text-white">{teamMatches.length}</p></div>
-              <div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Vitórias</p><p className="text-2xl font-bold text-emerald-400">{wins}</p></div>
-              <div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Gols Pró</p><p className="text-2xl font-bold text-emerald-400">{gf}</p></div>
-              <div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Aprov.</p><p className="text-2xl font-bold text-amber-400">{teamMatches.length > 0 ? Math.round((wins * 3 + draws) / (teamMatches.length * 3) * 100) : 0}%</p></div>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Star size={16} className="text-amber-400"/> Recordes do Clube</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center">
-                <p className="text-[10px] text-blue-500 uppercase font-bold mb-2">Maior Goleada</p>
-                {biggestWin ? (
-                  <>
-                    <p className="text-xl font-black text-emerald-400">{biggestWin.scoreFor} <span className="text-sm text-slate-500 font-bold mx-1">x</span> {biggestWin.scoreAgainst}</p>
-                    <p className="text-[10px] text-blue-300 mt-1 truncate w-full">vs {getTeamObj(biggestWin.oppId)?.name || 'Adversário'}</p>
-                  </>
-                ) : <p className="text-xs text-blue-700 italic mt-2">Nenhuma vitória</p>}
-              </div>
-              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center">
-                <p className="text-[10px] text-blue-500 uppercase font-bold mb-2">Pior Derrota</p>
-                {biggestLoss ? (
-                  <>
-                    <p className="text-xl font-black text-red-400">{biggestLoss.scoreFor} <span className="text-sm text-slate-500 font-bold mx-1">x</span> {biggestLoss.scoreAgainst}</p>
-                    <p className="text-[10px] text-blue-300 mt-1 truncate w-full">vs {getTeamObj(biggestLoss.oppId)?.name || 'Adversário'}</p>
-                  </>
-                ) : <p className="text-xs text-blue-700 italic mt-2">Nenhuma derrota</p>}
-              </div>
-              <div className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center">
-                <p className="text-[10px] text-blue-500 uppercase font-bold mb-2">Maior Série Invicta</p>
-                <p className="text-3xl font-black text-blue-200 mt-1">{maxStreak}</p>
-                <p className="text-[10px] text-blue-400 mt-1">Jogos sem perder</p>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Trophy size={16} className="text-emerald-500"/> Desempenho nos Campeonatos</h4>
-            {activeComps.length > 0 ? (
-              <div className="space-y-3">
-                {activeComps.map(comp => {
-                  const table = calculateStandings(matches, teams, comp.id);
-                  const rankIndex = table.findIndex(t => t.id === team.id);
-                  const myStats = rankIndex !== -1 ? table[rankIndex] : null;
-                  const rank = rankIndex !== -1 ? rankIndex + 1 : '-';
-                  return (
-                    <div key={comp.id} className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-                      <div className="flex-1 flex flex-col items-center sm:items-start w-full">
-                        <span className="font-bold text-blue-200 text-sm truncate">{comp.name}</span>
-                        <span className="text-[10px] text-blue-500 uppercase font-bold">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</span>
-                      </div>
-                      {myStats && myStats.p > 0 ? (
-                        <div className="flex items-center gap-4 shrink-0 bg-blue-900/50 px-4 py-2 rounded-lg border border-blue-800/50">
-                          <div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Posição</p><p className="text-base font-black text-emerald-400">{rank}º</p></div>
-                          <div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Pontos</p><p className="text-base font-black text-blue-200">{myStats.pts}</p></div>
-                          <div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Jogos</p><p className="text-base font-bold text-blue-300">{myStats.p}</p></div>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-blue-600 italic shrink-0">Sem jogos ainda</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-blue-500 text-center p-4 bg-blue-950 rounded-xl border border-blue-800 border-dashed">Ainda não disputou nenhum torneio.</p>
-            )}
-          </div>
-
-          <div>
-            <h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Medal size={16} className="text-amber-400"/> Sala de Troféus</h4>
-            {conquistas.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {conquistas.map((c, i) => {
-                  const isTitle = c.title.includes('TÍTULO');
-                  return (
-                    <div key={i} className={`p-4 rounded-xl border text-center flex flex-col items-center justify-center transition-all group ${isTitle ? 'bg-gradient-to-br from-amber-600/20 to-amber-900/40 border-amber-500/50 hover:border-amber-400' : 'bg-blue-950 border-blue-800 hover:border-amber-500/50 hover:bg-blue-900'}`}>
-                      <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{c.icon}</span>
-                      <p className={`text-xs font-bold ${isTitle ? 'text-amber-400 drop-shadow-md' : 'text-white'}`}>{c.title}</p>
-                      <p className={`text-[9px] mt-1 leading-tight ${isTitle ? 'text-amber-200/80 font-bold' : 'text-blue-500'}`}>{c.desc}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-blue-500 text-center p-6 bg-blue-950 rounded-xl border border-blue-800 border-dashed">Nenhuma conquista desbloqueada ainda.</p>
-            )}
-          </div>
-
+          <div><h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Activity size={16}/> Visão Geral</h4><div className="grid grid-cols-2 sm:grid-cols-4 gap-3"><div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Jogos</p><p className="text-2xl font-bold text-white">{teamMatches.length}</p></div><div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Vitórias</p><p className="text-2xl font-bold text-emerald-400">{wins}</p></div><div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Gols Pró</p><p className="text-2xl font-bold text-emerald-400">{gf}</p></div><div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Aprov.</p><p className="text-2xl font-bold text-amber-400">{teamMatches.length > 0 ? Math.round((wins * 3 + draws) / (teamMatches.length * 3) * 100) : 0}%</p></div></div></div>
+          <div><h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Star size={16} className="text-amber-400"/> Recordes do Clube</h4><div className="grid grid-cols-1 sm:grid-cols-3 gap-3"><div className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center"><p className="text-[10px] text-blue-500 uppercase font-bold mb-2">Maior Goleada</p>{biggestWin ? <><p className="text-xl font-black text-emerald-400">{biggestWin.scoreFor} <span className="text-sm text-slate-500 font-bold mx-1">x</span> {biggestWin.scoreAgainst}</p><p className="text-[10px] text-blue-300 mt-1 truncate w-full">vs {getTeamObj(biggestWin.oppId)?.name || 'Adversário'}</p></> : <p className="text-xs text-blue-700 italic mt-2">Nenhuma vitória</p>}</div><div className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center"><p className="text-[10px] text-blue-500 uppercase font-bold mb-2">Pior Derrota</p>{biggestLoss ? <><p className="text-xl font-black text-red-400">{biggestLoss.scoreFor} <span className="text-sm text-slate-500 font-bold mx-1">x</span> {biggestLoss.scoreAgainst}</p><p className="text-[10px] text-blue-300 mt-1 truncate w-full">vs {getTeamObj(biggestLoss.oppId)?.name || 'Adversário'}</p></> : <p className="text-xs text-blue-700 italic mt-2">Nenhuma derrota</p>}</div><div className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center"><p className="text-[10px] text-blue-500 uppercase font-bold mb-2">Maior Série Invicta</p><p className="text-3xl font-black text-blue-200 mt-1">{maxStreak}</p><p className="text-[10px] text-blue-400 mt-1">Jogos sem perder</p></div></div></div>
+          <div><h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Trophy size={16} className="text-emerald-500"/> Desempenho nos Campeonatos</h4>{activeComps.length > 0 ? (<div className="space-y-3">{activeComps.map(comp => { const table = calculateStandings(matches, teams, comp.id); const rankIndex = table.findIndex(t => t.id === team.id); const myStats = rankIndex !== -1 ? table[rankIndex] : null; const rank = rankIndex !== -1 ? rankIndex + 1 : '-'; return (<div key={comp.id} className="bg-blue-950 p-3 rounded-xl border border-blue-800 flex flex-col sm:flex-row items-center justify-between gap-3"><div className="flex-1 flex flex-col items-center sm:items-start w-full"><span className="font-bold text-blue-200 text-sm truncate">{comp.name}</span><span className="text-[10px] text-blue-500 uppercase font-bold">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</span></div>{myStats && myStats.p > 0 ? (<div className="flex items-center gap-4 shrink-0 bg-blue-900/50 px-4 py-2 rounded-lg border border-blue-800/50"><div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Posição</p><p className="text-base font-black text-emerald-400">{rank}º</p></div><div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Pontos</p><p className="text-base font-black text-blue-200">{myStats.pts}</p></div><div className="text-center"><p className="text-[9px] text-blue-400 uppercase font-bold mb-0.5">Jogos</p><p className="text-base font-bold text-blue-300">{myStats.p}</p></div></div>) : (<p className="text-xs text-blue-600 italic shrink-0">Sem jogos ainda</p>)}</div>);})}</div>) : (<p className="text-xs text-blue-500 text-center p-4 bg-blue-950 rounded-xl border border-blue-800 border-dashed">Ainda não disputou nenhum torneio.</p>)}</div>
+          <div><h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Medal size={16} className="text-amber-400"/> Sala de Troféus</h4>{conquistas.length > 0 ? (<div className="grid grid-cols-2 sm:grid-cols-3 gap-3">{conquistas.map((c, i) => { const isTitle = c.title.includes('TÍTULO'); return (<div key={i} className={`p-4 rounded-xl border text-center flex flex-col items-center justify-center transition-all group ${isTitle ? 'bg-gradient-to-br from-amber-600/20 to-amber-900/40 border-amber-500/50 hover:border-amber-400' : 'bg-blue-950 border-blue-800 hover:border-amber-500/50 hover:bg-blue-900'}`}><span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{c.icon}</span><p className={`text-xs font-bold ${isTitle ? 'text-amber-400 drop-shadow-md' : 'text-white'}`}>{c.title}</p><p className={`text-[9px] mt-1 leading-tight ${isTitle ? 'text-amber-200/80 font-bold' : 'text-blue-500'}`}>{c.desc}</p></div>); })}</div>) : (<p className="text-xs text-blue-500 text-center p-6 bg-blue-950 rounded-xl border border-blue-800 border-dashed">Nenhuma conquista desbloqueada ainda.</p>)}</div>
         </div>
       </div>
     </div>
