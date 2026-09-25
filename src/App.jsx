@@ -35,6 +35,7 @@ import TrophyRoom from './components/TrophyRoom';
 import RecordsWall from './components/RecordsWall';
 import XPointsManager from './components/XPointsManager';
 import { TeamStatsModal } from "./components/Dashboard";
+import GeneralDraw from './components/GeneralDraw';
 
 
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
@@ -705,6 +706,7 @@ export default function App() {
             showToast={showToast} 
           />
         );  
+        case 'general_draw': return <GeneralDraw teams={teams} onBack={() => setCurrentTab('dashboard')} />;
 
       default: return <Dashboard users={users} matches={matches} teams={teams} competitions={competitions} currentUser={currentUser} onSelectMatch={handleSelectMatch} onDeleteMatch={handleDeleteMatch} onChangeTab={setCurrentTab} onJoinOpenComp={(id) => { setSelectedCompId(id); setCurrentTab('join_comp'); }} />;
     }

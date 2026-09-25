@@ -176,11 +176,23 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
       {/* BOTÕES DE ACESSO RÁPIDO */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {hasAdminAccess && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button onClick={() => onChangeTab('xpoints_manager')} className="w-full bg-gradient-to-br from-amber-600/20 to-amber-900/40 hover:from-amber-600/40 p-4 rounded-2xl border border-amber-500/50 flex items-center justify-center gap-3 transition-all group shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+            <div className="bg-amber-950 p-2 rounded-full group-hover:scale-110 transition-transform shadow-inner"><Zap size={20} className="text-amber-400 animate-pulse" /></div>
+            <span className="text-sm font-bold text-amber-200 uppercase tracking-widest">Painel de XPoints</span>
+          </button>
+          
+          <button onClick={() => onChangeTab('general_draw')} className="w-full bg-gradient-to-br from-indigo-600/20 to-indigo-900/40 hover:from-indigo-600/40 p-4 rounded-2xl border border-indigo-500/50 flex items-center justify-center gap-3 transition-all group shadow-[0_0_15px_rgba(99,102,241,0.1)]">
+            <div className="bg-indigo-950 p-2 rounded-full group-hover:scale-110 transition-transform shadow-inner"><Dices size={20} className="text-indigo-400 animate-pulse" /></div>
+            <span className="text-sm font-bold text-indigo-200 uppercase tracking-widest">Roleta Livre</span>
+          </button>
+        </div>
+      )}
           <button onClick={() => onChangeTab('competitions')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
             <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform"><Camera size={20} className="text-emerald-400" /></div>
             <span className="text-xs font-bold text-blue-200">Registrar/Validar</span>
           </button>
-        )}
+       
         <button onClick={() => onChangeTab('predictions')} className="bg-blue-900/50 hover:bg-blue-800 p-4 rounded-2xl border border-blue-700/50 flex flex-col items-center justify-center gap-2 transition-all group shadow-sm">
           <div className="bg-blue-950 p-2 rounded-full group-hover:scale-110 transition-transform"><Dices size={20} className="text-amber-500" /></div>
           <span className="text-xs font-bold text-blue-200">KameBet</span>
