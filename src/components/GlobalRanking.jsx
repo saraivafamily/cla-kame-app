@@ -686,7 +686,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                         </td>
                         <td className="p-4">
                           <div className="flex items-center gap-3">
-                            <ShieldDisplay shield={t.shield} size="small" />
+                            <ShieldDisplay frame={t.frame}shield={t.shield} size="small" />
                             <div className="flex flex-col">
                               <span className="font-bold text-white text-base leading-tight">{t.coach}</span>
                               <span className="text-[10px] text-blue-400 uppercase font-medium">{t.name}</span>
@@ -874,7 +874,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                               <div key={m.id} className="bg-blue-950 border border-blue-800 rounded-xl p-2 flex flex-col gap-1.5 shadow-inner">
                                 <div className={`flex items-center justify-between p-1.5 rounded-lg transition-colors ${m.winner?.id === m.tA?.id ? `bg-${colorClass}-500/20 border border-${colorClass}-500/50` : 'border border-transparent'}`}>
                                   <div onClick={() => forceAdvanceTeam(xcla.id, rIdx, mIdx, m.tA)} className="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0" title="Forçar Vitória">
-                                    <ShieldDisplay shield={m.tA?.shield} size="small" /> 
+                                    <ShieldDisplay frame={tA?.frame} shield={m.tA?.shield} size="small" /> 
                                     <span className={`text-[10px] font-bold truncate ${m.winner?.id === m.tA?.id ? `text-${colorClass}-400` : 'text-blue-200'}`}>{m.tA?.name || 'A Definir'}</span>
                                   </div>
                                   <input type="number" min="0" value={m.scoreA||''} onChange={e=>updateBracketMatch(xcla.id, rIdx, mIdx, 'scoreA', e.target.value)} className="w-8 h-6 bg-blue-900 border border-blue-700 rounded text-center text-[10px] text-white outline-none focus:border-amber-500 shrink-0" placeholder="-" />
@@ -882,7 +882,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                                 <div className="h-px w-full bg-blue-800/50 mx-auto w-[90%]"></div>
                                 <div className={`flex items-center justify-between p-1.5 rounded-lg transition-colors ${m.winner?.id === m.tB?.id ? `bg-${colorClass}-500/20 border border-${colorClass}-500/50` : 'border border-transparent'}`}>
                                   <div onClick={() => forceAdvanceTeam(xcla.id, rIdx, mIdx, m.tB)} className="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0" title="Forçar Vitória">
-                                    <ShieldDisplay shield={m.tB?.shield} size="small" /> 
+                                    <ShieldDisplay frame={m.tB?.frame} shield={m.tB?.shield} size="small" /> 
                                     <span className={`text-[10px] font-bold truncate ${m.winner?.id === m.tB?.id ? `text-${colorClass}-400` : 'text-blue-200'}`}>{m.tB?.name || 'A Definir'}</span>
                                   </div>
                                   <input type="number" min="0" value={m.scoreB||''} onChange={e=>updateBracketMatch(xcla.id, rIdx, mIdx, 'scoreB', e.target.value)} className="w-8 h-6 bg-blue-900 border border-blue-700 rounded text-center text-[10px] text-white outline-none focus:border-amber-500 shrink-0" placeholder="-" />
@@ -915,7 +915,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                             xcla.titulares.map(t => (
                               <div key={t.id} className={`flex items-center justify-between bg-blue-900/50 p-2 rounded-lg border border-${colorClass}-500/20 group`}>
                                 <div className="flex items-center gap-2 min-w-0">
-                                  <ShieldDisplay shield={t.shield} size="small" />
+                                  <ShieldDisplay frame={t.frame} shield={t.shield} size="small" />
                                   <div className="flex flex-col min-w-0">
                                     <span className="text-xs font-bold text-white truncate">{t.name}</span>
                                     {t.isGuaranteed && <span className="text-[8px] text-amber-400 uppercase">{t.isGuaranteed}</span>}
@@ -1050,13 +1050,13 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                       <div className="space-y-1.5">
                         <p className="text-[10px] text-emerald-400 font-bold uppercase border-b border-blue-800 pb-1 mb-1">Titulares</p>
                         {(selectedActiveXcla.titulares || []).map(t => (
-                          <div key={t.id} className="text-xs text-white bg-blue-950 p-2 rounded border border-blue-800 flex items-center gap-2"><ShieldDisplay shield={t.shield} size="small"/> {t.name}</div>
+                          <div key={t.id} className="text-xs text-white bg-blue-950 p-2 rounded border border-blue-800 flex items-center gap-2"><ShieldDisplay frame={t.frame} shield={t.shield} size="small"/> {t.name}</div>
                         ))}
                         {(selectedActiveXcla.reservas || []).length > 0 && (
                           <>
                             <p className="text-[10px] text-amber-400 font-bold uppercase border-b border-blue-800 pb-1 mb-1 mt-3">Reservas</p>
                             {(selectedActiveXcla.reservas || []).map(t => (
-                              <div key={t.id} className="text-xs text-white bg-blue-950 p-2 rounded border border-blue-800 flex items-center gap-2"><ShieldDisplay shield={t.shield} size="small"/> {t.name}</div>
+                              <div key={t.id} className="text-xs text-white bg-blue-950 p-2 rounded border border-blue-800 flex items-center gap-2"><ShieldDisplay frame={t.frame} shield={t.shield} size="small"/> {t.name}</div>
                             ))}
                           </>
                         )}
@@ -1121,7 +1121,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                                
                                <div className="flex items-center justify-between px-2">
                                  <div className="flex flex-col items-center w-1/3">
-                                   <ShieldDisplay shield={kameT?.shield} size="small"/>
+                                   <ShieldDisplay frame={kameT?.frame} shield={kameT?.shield} size="small"/>
                                    <span className="text-[10px] font-bold text-emerald-400 mt-1 truncate w-full text-center">{kameT?.name}</span>
                                  </div>
                                  <div className="flex flex-col items-center justify-center w-1/3">

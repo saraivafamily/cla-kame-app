@@ -285,7 +285,7 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
               <div className="bg-blue-950/80 p-6 border-b border-blue-800 flex items-center gap-4">
                <label className="cursor-pointer relative group flex flex-col items-center" title="Clique para trocar o escudo">
                   <div className="relative">
-                    <span className="text-5xl"><ShieldDisplay shield={team.shield} size="large" /></span>
+                    <span className="text-5xl"><ShieldDisplay frame={team.frame}shield={team.shield} size="large" /></span>
                     <div className="absolute -bottom-1 -right-2 bg-emerald-600 rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all flex items-center justify-center">
                       <UploadCloud size={14} className="text-white" />
                     </div>

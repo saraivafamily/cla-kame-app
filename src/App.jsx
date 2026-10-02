@@ -676,7 +676,8 @@ export default function App() {
      case 'comp_details': return <CompetitionDetails users={users} comp={competitions.find(c=>c.id===selectedCompId)} teams={teams} matches={matches} competitions={competitions} currentUser={currentUser} onBack={()=>setCurrentTab('competitions')} onReleaseRound={handleReleaseRound} onLockRound={handleLockRound} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); showToast("Atualizado!", "success"); }} onUpdatePlayedMatch={async (m) => { await updateDoc(getPublicDocPath('matches', m.id), m); }} onDeleteMatch={handleDeleteMatch} showToast={showToast} onSubmitMatch={async (m) => { try { await setDoc(getPublicDocPath('matches', m.id), m); showToast("Resultado enviado!"); } catch(e) { showToast("Erro ao salvar no banco: " + e.message, "error"); } }} onUpdateMatchStatus={(id,st, updatedData=null)=>handleUpdateMatchStatus(id,st,updatedData)} onBatchUpdateComp={async (updatedComp, newMatchesArray) => { await updateDoc(getPublicDocPath('competitions', updatedComp.id), updatedComp); const promises = newMatchesArray.map(m => setDoc(getPublicDocPath('matches', m.id), m)); await Promise.all(promises); showToast("Fase encerrada e chaves atualizadas!", "success"); }} />;
       case 'match_details': return <MatchDetails match={selectedMatch} teams={teams} competitions={competitions} onBack={() => setCurrentTab(prevTab)} />;
       case 'training': return <TrainingCenter currentUser={currentUser} showToast={showToast} />;
-      case 'store': return <KameStore currentUser={currentUser} storeProducts={storeProducts} showToast={showToast} />;
+      case 'store':
+  return <KameStore currentUser={currentUser} users={users} teams={teams} predictions={predictions} showToast={showToast} />;
       
       // 🌟 NOVA ROTA UNIFICADA DA GESTÃO CLÃ
       case 'gestao_cla': 

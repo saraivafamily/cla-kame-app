@@ -46,11 +46,11 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const CAT_NAMES = {
     liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D',
     liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial',copa_estrela: 'Copa das estrelas', copa_estrelas: 'Copa das Estrelas', copa_do_rei: 'Copa do Rei',
-    copa_amazonia: 'Copa da Amazônia', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash em Duplas', copa_recompensa: 'Copa Recompensa',
+    copa_amazonia: 'Copa da Amazônia', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash em Duplas', copa_recompensa: 'Copa Recompensa', copa_do_cla: 'Copa do Clã',
   };
 
   useEffect(() => {
-    if (category === 'copa_flash' || category === 'copa_flash_dupla'|| category === 'copa_recompensa') { setFormat('cup'); }
+    if (category === 'copa_flash' || category === 'copa_flash_dupla'|| category === 'copa_recompensa'|| category === 'copa_cla') { setFormat('cup'); }
     const compsOfCategory = (competitions || []).filter(c => c.category === category);
     const nextEditionNumber = compsOfCategory.length + 1;
     setName(`${CAT_NAMES[category] || 'Competição'} - Edição ${nextEditionNumber}`);
@@ -218,7 +218,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Nome do Campeonato</label><input type="text" value={name} readOnly className="w-full bg-blue-950/50 border border-blue-800 rounded-xl p-3 text-blue-400 font-bold outline-none cursor-not-allowed" /></div>
             <div className="space-y-2"><label className="text-sm font-bold text-blue-300">Categoria (Divisão)</label>
               <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full bg-blue-950 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-bold focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner">
-                <option value="liga_a">🥇 Liga Kame A (Série A)</option><option value="liga_b">🥈 Liga Kame B (Série B)</option><option value="liga_c">🥉 Liga Kame C (Série C)</option><option value="liga_d">🎖️ Liga Kame D (Série D)</option><option value="liga_acesso">⬆️ Liga de Acesso</option><option value="copa_main">🏆 Copas Oficiais</option><option value="copa_recompensa">🎁 Copa Recompensa</option><option value="copa_estrelas">⭐ Copa das Estrelas</option><option value="copa_do_rei">👑 Copa do Rei</option><option value="copa_amazonia">🌳 Copa da Amazônia</option><option value="copa_flash">⚡ Copa Flash Solo</option><option value="copa_flash_dupla">👥 Copa Flash Duplas</option>             
+                <option value="liga_a">🥇 Liga Kame A (Série A)</option><option value="liga_b">🥈 Liga Kame B (Série B)</option><option value="liga_c">🥉 Liga Kame C (Série C)</option><option value="liga_d">🎖️ Liga Kame D (Série D)</option><option value="liga_acesso">⬆️ Liga de Acesso</option><option value="copa_main">🏆 Copas Oficiais</option><option value="copa_recompensa">🎁 Copa Recompensa</option><option value="copa_estrelas">⭐ Copa das Estrelas</option><option value="copa_do_rei">👑 Copa do Rei</option><option value="copa_amazonia">🌳 Copa da Amazônia</option><option value="copa_flash">⚡ Copa Flash Solo</option><option value="copa_flash_dupla">👥 Copa Flash Duplas</option><option value="copa_do_cla">🐢 Copa do Clã</option>             
               </select>
             </div>
             

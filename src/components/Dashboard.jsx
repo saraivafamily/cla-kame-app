@@ -49,7 +49,9 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
                   if (unplayedMatch.id.includes('_ida') || unplayedMatch.id.includes('_f1')) legLabel = 'Jogo de Ida';
                   else if (unplayedMatch.id.includes('_volta') || unplayedMatch.id.includes('_f2')) legLabel = 'Jogo de Volta';
               }
-              available.push({ ...unplayedMatch, compName: comp.name, compId: comp.id, roundName: round.number, isFlash: comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla', isDoubleLeg: group.length > 1 || comp.isIdaEVolta, isDupla: comp.category === 'copa_flash_dupla', legLabel });
+              // 🌟 ATUALIZADO AQUI PARA RECONHECER O MUNDIAL (copa_cla)
+              const isFlash = comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla' || comp.category === 'copa_cla';
+              available.push({ ...unplayedMatch, compName: comp.name, compId: comp.id, roundName: round.number, isFlash: isFlash, isDoubleLeg: group.length > 1 || comp.isIdaEVolta, isDupla: comp.category === 'copa_flash_dupla', legLabel });
            }
         });
       });
@@ -59,7 +61,6 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
 
   const hasAdminAccess = isLeader || (competitions || []).some(c => c.status !== 'finished' && isCompAdmin(c));
 
-  // 🌟 LÓGICA DE METAS POR ILHA E VISUALIZAÇÃO ISOLADA
   const myBranch = currentUser?.clanBranch;
   const showTropical = isLeader || myBranch === 'tropical';
   const showCeu = isLeader || myBranch === 'ceu';
@@ -120,7 +121,10 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
           <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2"><Trophy size={20} /> Novas Competições</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {openCompetitions.map(comp => {
+              // 🌟 ATUALIZADO AQUI PARA RECONHECER O MUNDIAL E O DESIGN DELE
               const isFlash = comp.category === 'copa_flash' || comp.category === 'copa_flash_dupla'; 
+              const isMundial = comp.category === 'copa_cla';
+              
               const compTeams = Array.isArray(comp.teams) ? comp.teams : [];
               const compPending = Array.isArray(comp.pendingTeams) ? comp.pendingTeams : [];
               const teamCount = parseInt(comp.teamCount) || 0;
@@ -135,16 +139,32 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
                 return inConfirmed || inPendingEx;
               });
 
+              // Design Especial para o Mundial
+              let boxClass = 'bg-blue-900 border-amber-500/30';
+              let titleClass = 'text-white group-hover:text-amber-400';
+              let catLabel = comp.format === 'league' ? 'Liga' : 'Copa / Grupos';
+              let catColor = 'text-emerald-400';
+
+              if (isFlash) {
+                  boxClass = 'bg-blue-900 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]';
+                  titleClass = 'text-amber-400';
+              } else if (isMundial) {
+                  boxClass = 'bg-gradient-to-br from-indigo-900 to-purple-900 border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.3)]';
+                  titleClass = 'text-purple-300';
+                  catLabel = '👑 MUNDIAL DE CLUBES';
+                  catColor = 'text-purple-400';
+              }
+
               return (
-                <div key={comp.id} className={`bg-blue-900 p-5 rounded-2xl border ${isFlash ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-amber-500/30'} shadow-lg flex flex-col justify-between group hover:border-amber-500/60 transition-all`}>
+                <div key={comp.id} className={`p-5 rounded-2xl border shadow-lg flex flex-col justify-between group hover:border-amber-500/60 transition-all ${boxClass}`}>
                   <div>
                     <div className="flex justify-between items-start mb-2">
-                      <h4 className={`font-black text-lg transition-colors ${isFlash ? 'text-amber-400' : 'text-white group-hover:text-amber-400'}`}>{comp.name}</h4>
+                      <h4 className={`font-black text-lg transition-colors ${titleClass}`}>{comp.name}</h4>
                       <span className="text-xs bg-amber-500/20 text-amber-400 font-bold px-2 py-1 rounded-lg border border-amber-500/30">
                         {compTeams.length}/{isFlash ? '∞' : teamCount} Vagas
                       </span>
                     </div>
-                    <p className="text-xs uppercase text-emerald-400 font-bold tracking-widest">{comp.format === 'league' ? 'Liga' : 'Copa / Grupos'}</p>
+                    <p className={`text-xs uppercase font-bold tracking-widest ${catColor}`}>{catLabel}</p>
                   </div>
                   
                   <div className="mt-5 pt-4 border-t border-blue-800">
@@ -220,7 +240,6 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
 
       {/* 🌟 PAINÉIS DE XPOINTS - VISUALIZAÇÃO POR ILHA */}
       <div className="space-y-6 pt-6 border-t border-blue-800 animate-in slide-in-from-bottom-4">
-
          {/* 🌴 VISÃO: ILHA TROPICAL */}
          {showTropical && (
            <div className="space-y-4">
@@ -390,9 +409,9 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
                   </div>
                   {badgeLabel && <div className="text-center mb-1"><span className="text-[9px] bg-blue-950/80 text-amber-400 px-2 py-0.5 rounded font-black uppercase border border-amber-500/30">{badgeLabel} {m.legLabel ? `• ${m.legLabel}` : ''}</span></div>}
                   <div className={`flex items-center justify-between gap-2 ${badgeLabel ? 'mb-4 mt-2' : 'mb-5 mt-3'} px-2`}>
-                    <div className="flex flex-col items-center flex-1 min-w-0"><ShieldDisplay shield={myTeamObj?.shield} size="small" /><span className="text-xs font-bold mt-2 truncate w-full text-center text-emerald-400">{myTeamObj?.name}</span></div>
+                    <div className="flex flex-col items-center flex-1 min-w-0"><ShieldDisplay frame={myTeamObj?.frame} shield={myTeamObj?.shield} size="small" /><span className="text-xs font-bold mt-2 truncate w-full text-center text-emerald-400">{myTeamObj?.name}</span></div>
                     <span className="text-blue-600 font-black text-lg px-2">X</span>
-                    <div className="flex flex-col items-center flex-1 min-w-0"><ShieldDisplay shield={opponentTeam?.shield} size="small" /><span className="text-xs font-bold mt-2 truncate w-full text-center text-blue-100">{opponentTeam?.name || 'Adversário'}</span></div>
+                    <div className="flex flex-col items-center flex-1 min-w-0"><ShieldDisplay frame={opponentTeam?.frame} shield={opponentTeam?.shield} size="small" /><span className="text-xs font-bold mt-2 truncate w-full text-center text-blue-100">{opponentTeam?.name || 'Adversário'}</span></div>
                   </div>
                   <button onClick={() => { if (opponentTeam?.whatsapp) window.open(`https://wa.me/${String(opponentTeam.whatsapp).replace(/\D/g, '')}`, '_blank'); }} disabled={!opponentTeam?.whatsapp} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-blue-800 disabled:text-blue-500 text-white font-bold py-2.5 rounded-xl text-xs uppercase flex items-center justify-center gap-2"><MessageCircle size={14}/> {opponentTeam?.whatsapp ? 'Chamar Adversário' : 'Sem Zap'}</button>
                 </div>
@@ -431,9 +450,9 @@ const Dashboard = ({ users, matches, teams, competitions, currentUser, onSelectM
             return (
               <div key={m.id} onClick={() => onSelectMatch && onSelectMatch(m)} className="bg-blue-900 p-3 md:p-4 rounded-xl border border-blue-800 flex flex-col gap-3 cursor-pointer hover:border-emerald-500/50 transition-all group">
                 <div className="flex items-center justify-between w-full gap-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-start"><div className="shrink-0"><ShieldDisplay shield={tA?.shield} size="normal" /></div><span className="font-medium text-[11px] md:text-sm text-blue-200 truncate group-hover:text-emerald-400">{String(tA?.name || 'Time A')}</span></div>
+                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-start"><div className="shrink-0"><ShieldDisplay frame={tA?.frame}shield={tA?.shield} size="normal" /></div><span className="font-medium text-[11px] md:text-sm text-blue-200 truncate group-hover:text-emerald-400">{String(tA?.name || 'Time A')}</span></div>
                   <div className="flex items-center justify-center gap-1.5 md:gap-2 px-2 md:px-3 py-1 bg-blue-950 rounded-lg border border-blue-800 shrink-0">{m.penaltiesA !== null && m.penaltiesA !== undefined && <span className="text-[10px] text-amber-400 font-bold mr-1">({m.penaltiesA})</span>}<span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreA) : '?'}</span><span className="text-[10px] md:text-xs text-blue-500 font-bold mx-0.5">X</span><span className="font-bold text-sm md:text-base text-emerald-400">{m.status === 'approved' || m.status === 'pending' ? String(m.scoreB) : '?'}</span>{m.penaltiesB !== null && m.penaltiesB !== undefined && <span className="text-[10px] text-amber-400 font-bold ml-1">({m.penaltiesB})</span>}</div>
-                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-end"><span className="font-medium text-[11px] md:text-sm text-blue-200 truncate text-right group-hover:text-emerald-400">{String(tB?.name || 'Time B')}</span><div className="shrink-0"><ShieldDisplay shield={tB?.shield} size="normal" /></div></div>
+                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-end"><span className="font-medium text-[11px] md:text-sm text-blue-200 truncate text-right group-hover:text-emerald-400">{String(tB?.name || 'Time B')}</span><div className="shrink-0"><ShieldDisplay frame={tB?.frame} shield={tB?.shield} size="normal" /></div></div>
                 </div>
                 <div className="flex justify-center border-t border-blue-800/50 pt-2 flex-col items-center gap-1">{m.status === 'approved' ? <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">✅ Oficializado</span> : <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400">⏳ Aguardando Validação</span>}</div>
               </div>
@@ -531,7 +550,7 @@ export const TeamStatsModal = ({ team, matches, teams, competitions, onClose }) 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
       <div className="bg-blue-900 border border-blue-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="sticky top-0 bg-blue-900/95 backdrop-blur border-b border-blue-800 p-4 sm:p-6 flex justify-between items-center z-10"><div className="flex items-center gap-4"><ShieldDisplay shield={team.shield} size="normal" /><div><h3 className="font-bold text-white text-lg md:text-xl leading-tight">{team.name}</h3><p className="text-xs text-emerald-400 font-medium uppercase tracking-widest mt-1">Técnico: {team.coach}</p></div></div><button onClick={onClose} className="text-blue-400 hover:text-white p-2 bg-blue-800 hover:bg-blue-700 rounded-full transition-colors"><X size={18}/></button></div>
+        <div className="sticky top-0 bg-blue-900/95 backdrop-blur border-b border-blue-800 p-4 sm:p-6 flex justify-between items-center z-10"><div className="flex items-center gap-4"><ShieldDisplay frame={team.frame} shield={team.shield} size="normal" /><div><h3 className="font-bold text-white text-lg md:text-xl leading-tight">{team.name}</h3><p className="text-xs text-emerald-400 font-medium uppercase tracking-widest mt-1">Técnico: {team.coach}</p></div></div><button onClick={onClose} className="text-blue-400 hover:text-white p-2 bg-blue-800 hover:bg-blue-700 rounded-full transition-colors"><X size={18}/></button></div>
         <div className="p-4 sm:p-6 space-y-8">
           <div><h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Activity size={16}/> Visão Geral</h4><div className="grid grid-cols-2 sm:grid-cols-4 gap-3"><div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Jogos</p><p className="text-2xl font-bold text-white">{teamMatches.length}</p></div><div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Vitórias</p><p className="text-2xl font-bold text-emerald-400">{wins}</p></div><div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Gols Pró</p><p className="text-2xl font-bold text-emerald-400">{gf}</p></div><div className="bg-blue-950 p-3 rounded-xl border border-blue-800 text-center"><p className="text-blue-500 text-[10px] uppercase font-bold mb-1">Aprov.</p><p className="text-2xl font-bold text-amber-400">{teamMatches.length > 0 ? Math.round((wins * 3 + draws) / (teamMatches.length * 3) * 100) : 0}%</p></div></div></div>
           <div><h4 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Star size={16} className="text-amber-400"/> Recordes do Clube</h4><div className="grid grid-cols-1 sm:grid-cols-3 gap-3"><div className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center"><p className="text-[10px] text-blue-500 uppercase font-bold mb-2">Maior Goleada</p>{biggestWin ? <><p className="text-xl font-black text-emerald-400">{biggestWin.scoreFor} <span className="text-sm text-slate-500 font-bold mx-1">x</span> {biggestWin.scoreAgainst}</p><p className="text-[10px] text-blue-300 mt-1 truncate w-full">vs {getTeamObj(biggestWin.oppId)?.name || 'Adversário'}</p></> : <p className="text-xs text-blue-700 italic mt-2">Nenhuma vitória</p>}</div><div className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center"><p className="text-[10px] text-blue-500 uppercase font-bold mb-2">Pior Derrota</p>{biggestLoss ? <><p className="text-xl font-black text-red-400">{biggestLoss.scoreFor} <span className="text-sm text-slate-500 font-bold mx-1">x</span> {biggestLoss.scoreAgainst}</p><p className="text-[10px] text-blue-300 mt-1 truncate w-full">vs {getTeamObj(biggestLoss.oppId)?.name || 'Adversário'}</p></> : <p className="text-xs text-blue-700 italic mt-2">Nenhuma derrota</p>}</div><div className="bg-blue-950 p-4 rounded-xl border border-blue-800 text-center flex flex-col items-center"><p className="text-[10px] text-blue-500 uppercase font-bold mb-2">Maior Série Invicta</p><p className="text-3xl font-black text-blue-200 mt-1">{maxStreak}</p><p className="text-[10px] text-blue-400 mt-1">Jogos sem perder</p></div></div></div>

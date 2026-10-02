@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Target, AlertCircle, CheckCircle, Dices, Save } from 'lucide-react';
+import { Target, AlertCircle, CheckCircle, Dices, Save, Lock } from 'lucide-react';
 import { updateDoc, setDoc, getDocs, query, where } from 'firebase/firestore';
 import { getPublicDocPath, getPublicPath } from '../utils/firebase';
 import ShieldDisplay from './ShieldDisplay';
@@ -12,7 +12,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
 
   const [selectedCompId, setSelectedCompId] = useState('');
   const [selectedRoundId, setSelectedRoundId] = useState('');
-
   const [customOdds, setCustomOdds] = useState({});
 
   const getTeam = (id) => (teams || []).find(t => t.id === id);
@@ -26,33 +25,22 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
       if (c.status !== 'active') return;
       
       const isFlash = c.category === 'copa_flash' || c.category === 'copa_flash_dupla';
-      
       const validRounds = [];
+      
       c.rounds?.forEach(r => {
         if (r.status !== 'locked') return; 
         
-        // 🌟 REGRA: Copa Flash só libera palpites em Semi, Final e 3º Lugar
         if (isFlash) {
            const roundName = String(r.number).toLowerCase();
-           // Bloqueia quartas e oitavas logo de cara
            if (roundName.includes('quarta') || roundName.includes('oitava') || roundName.includes('grupo') || roundName.includes('fase')) return;
-           
-           const allowed = roundName.includes('semi') || 
-                           roundName.includes('final') || 
-                           roundName.includes('3º') || 
-                           roundName.includes('terceiro') ||
-                           roundName === '3';
-           
+           const allowed = roundName.includes('semi') || roundName.includes('final') || roundName.includes('3º') || roundName.includes('terceiro') || roundName === '3';
            if (!allowed) return; 
         }
         
         const validMatches = [];
         r.matches.forEach(m => {
           if (myTeam && (m.teamA === myTeam.id || m.teamB === myTeam.id)) return;
-
           const hasResult = matches.some(x => x.matchId === m.id && x.compId === c.id && x.status !== 'rejected');
-          
-          // 🛡️ BLINDADO: Usando String() antes de chamar .includes()
           if (!hasResult && m.teamA && m.teamB && !String(m.teamA).includes('Definir') && !String(m.teamB).includes('Definir')) {
             validMatches.push({ ...m, compName: c.name, compId: c.id, roundName: r.number });
           }
@@ -70,9 +58,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
     return comps;
   }, [competitions, matches, myTeam]);
 
-  useEffect(() => {
-    setSelectedRoundId('');
-  }, [selectedCompId]);
+  useEffect(() => { setSelectedRoundId(''); }, [selectedCompId]);
 
   const displayedMatches = useMemo(() => {
     if (!selectedCompId || !selectedRoundId) return [];
@@ -82,35 +68,24 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
     return round ? round.matches : [];
   }, [bettingData, selectedCompId, selectedRoundId]);
 
-  // 🌟 NOVO MOTOR DE ODDS COM RANKING XPOINTS PARA COPA FLASH
   const getOdds = (match) => {
-     // 1º: Verifica se há Odds personalizadas salvas no banco para todos verem
      if (match.customOdds) return match.customOdds;
-
      const comp = (competitions || []).find(c => c.id === match.compId);
      const isFlash = comp?.category === 'copa_flash' || comp?.category === 'copa_flash_dupla';
 
-     let weightA = 5;
-     let weightB = 5;
+     let weightA = 5, weightB = 5;
 
      if (isFlash) {
-         // Para Copa Flash, o peso vem do Ranking XPoints Global!
          const validUsers = (users || []).filter(u => u.name && u.id !== 'u_master');
          const sortedUsers = [...validUsers].sort((a, b) => (Number(b.dlsXPoints) || 0) - (Number(a.dlsXPoints) || 0));
-         
          const ownerA = (teams || []).find(t => t.id === match.teamA)?.ownerId;
          const ownerB = (teams || []).find(t => t.id === match.teamB)?.ownerId;
-
          const rankA = sortedUsers.findIndex(u => u.id === ownerA) + 1 || validUsers.length;
          const rankB = sortedUsers.findIndex(u => u.id === ownerB) + 1 || validUsers.length;
-         
          const total = validUsers.length || 50;
-         
-         // Fórmula: Quanto melhor a posição (ex: 1º), maior o peso e menor a Odd
          weightA = Math.max(1, total - rankA + 10);
          weightB = Math.max(1, total - rankB + 10);
      } else {
-         // Ligas e Fases de Grupos continuam com a pontuação da tabela do torneio
          const table = calculateStandings(matches, teams, match.compId);
          const statsA = table.find(t => t.id === match.teamA);
          const statsB = table.find(t => t.id === match.teamB);
@@ -120,7 +95,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
      
      const weightD = 5 + (Math.max(weightA, weightB) - Math.abs(weightA - weightB)) * 0.5;
      const totalWeight = weightA + weightB + weightD;
-
      let oddA = (1 / (weightA / totalWeight)) * 0.90;
      let oddB = (1 / (weightB / totalWeight)) * 0.90;
      let oddD = (1 / (weightD / totalWeight)) * 0.90;
@@ -132,31 +106,23 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
   const handleCustomOddChangeLocal = (matchId, option, newValue, currentOdds) => {
       setCustomOdds({
           ...customOdds,
-          [matchId]: {
-              ...(customOdds[matchId] || currentOdds),
-              [option]: newValue
-          }
+          [matchId]: { ...(customOdds[matchId] || currentOdds), [option]: newValue }
       });
   };
 
-  // 🌟 SALVA A ODD EDITADA DIRETO NO BANCO PARA TODOS OS USUÁRIOS
   const saveCustomOddsToDB = async (match) => {
       const oddsToSave = customOdds[match.id];
       if (!oddsToSave) return;
-      
       try {
           const comp = competitions.find(c => c.id === match.compId);
           if (!comp) return;
-
           const updatedRounds = comp.rounds.map(r => ({
               ...r,
               matches: r.matches.map(m => m.id === match.id ? { ...m, customOdds: oddsToSave } : m)
           }));
-
           await updateDoc(getPublicDocPath('competitions', comp.id), { rounds: updatedRounds });
           showToast("Odds alteradas sincronizadas para todos!", "success");
       } catch (err) {
-          console.error(err);
           showToast("Erro ao sincronizar odds globais.", "error");
       }
   };
@@ -164,7 +130,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
   const ranking = useMemo(() => {
      const userPoints = {};
      (users || []).forEach(u => userPoints[u.id] = { ...u, bets: 0, wins: 0, profit: 0 });
-
      (predictions || []).forEach(p => {
         if (p.status) { 
            if (userPoints[p.userId]) {
@@ -174,24 +139,35 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
            }
         }
      });
-
      return Object.values(userPoints).filter(u => u.bets > 0).sort((a,b) => b.profit - a.profit || b.wins - a.wins);
   }, [predictions, users]);
 
   const handleSave = (m) => {
      const data = betData[m.id];
-     if (!data || !data.option || !data.amount || data.amount <= 0) { 
-       showToast("Escolha um vencedor e digite um valor válido!", "error"); 
+     const myPred = getMyPred(m.id);
+     
+     // 🛡️ BLINDAGEM 1: Proíbe alterar aposta existente
+     if (myPred) {
+         showToast("Aposta já realizada! Bilhetes não podem ser alterados.", "error");
+         return;
+     }
+
+     if (!data || !data.option || !data.amount) { 
+       showToast("Escolha um vencedor e digite um valor!", "error"); 
        return; 
      }
 
      const amountNum = parseInt(data.amount);
-     const myPred = getMyPred(m.id);
-     const oldAmount = myPred ? Number(myPred.amount) : 0;
-     const costDiff = amountNum - oldAmount;
+     
+     // 🛡️ BLINDAGEM 2: Proíbe apostas negativas, zero ou letras
+     if (isNaN(amountNum) || amountNum <= 0) {
+         showToast("O valor da aposta deve ser maior que zero!", "error");
+         return;
+     }
 
-     if (Number(currentUser.kameCoins || 0) < costDiff) {
-       showToast(`Saldo insuficiente! Faltam ${costDiff - Number(currentUser.kameCoins || 0)} BK.`, "error");
+     // 🛡️ BLINDAGEM 3: Verifica se tem dinheiro suficiente
+     if (Number(currentUser.kameCoins || 0) < amountNum) {
+       showToast(`Saldo insuficiente! Você tem apenas ${Number(currentUser.kameCoins || 0)} BK.`, "error");
        return;
      }
 
@@ -199,8 +175,9 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
      const currentOdds = customOdds[m.id] || baseOdds;
      const lockedOdd = Number(currentOdds[data.option]);
 
+     // O parametro oldAmount agora é sempre 0, pois nunca estamos "atualizando"
      onSavePrediction({
-        id: myPred ? myPred.id : `pred_${currentUser.id}_${m.id}`,
+        id: `pred_${currentUser.id}_${m.id}`,
         userId: currentUser.id,
         matchId: m.id,
         compId: m.compId,
@@ -208,7 +185,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
         amount: amountNum,
         lockedOdd: lockedOdd,
         timestamp: Date.now()
-     }, oldAmount);
+     }, 0);
      
      showToast(`Bilhete Fechado! Odd cravada em ${lockedOdd}x 🍀`, "success");
   };
@@ -223,7 +200,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
 
       for (const pred of predictions) {
           if (pred.type === 'deposit') continue; 
-
           const match = matches.find(m => m.matchId === pred.matchId && m.compId === pred.compId && m.status === 'approved');
           if (!match) continue; 
 
@@ -232,12 +208,14 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
           const penA = match.penaltiesA !== null && match.penaltiesA !== undefined ? Number(match.penaltiesA) : null;
           const penB = match.penaltiesB !== null && match.penaltiesB !== undefined ? Number(match.penaltiesB) : null;
 
-          let realOutcome = 'D';
+          // 🛡️ BLINDAGEM 4: A Regra do Empate nos Pênaltis
+          let realOutcome = 'D'; // Padrão é Empate
           if (scoreA > scoreB) realOutcome = 'A';
           else if (scoreB > scoreA) realOutcome = 'B';
           else if (penA !== null && penB !== null) {
-              if (penA > penB) realOutcome = 'A';
-              else if (penB > penA) realOutcome = 'B';
+              // Se o jogo foi pros pênaltis, significa que o tempo normal terminou EMPATADO.
+              // Nas regras de apostas (Bet365), quem apostou em 'D' ganha, e quem apostou nos times perde.
+              realOutcome = 'D'; 
           }
 
           const isWin = pred.option === realOutcome;
@@ -251,7 +229,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
           
           if (pred.status !== correctStatus || currentProfit !== correctProfit) {
               const diff = correctProfit - currentProfit;
-              
               if (!balanceDiffs[pred.userId]) balanceDiffs[pred.userId] = 0;
               balanceDiffs[pred.userId] += diff;
 
@@ -280,7 +257,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
           });
       }
 
-      showToast(`Auditoria concluída! ${predictionsToUpdate.length} bilhetes com erro foram consertados e os lucros pagos.`, "success");
+      showToast(`Auditoria concluída! ${predictionsToUpdate.length} bilhetes corrigidos e pagos com base na Regra do Empate.`, "success");
     } catch (error) {
       console.error(error);
       showToast("Erro durante a sincronização de auditoria.", "error");
@@ -288,9 +265,7 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
   };
 
   const totalOpenMatches = useMemo(() => {
-    return bettingData.reduce((total, comp) => {
-      return total + comp.rounds.reduce((rTotal, r) => rTotal + r.matches.length, 0);
-    }, 0);
+    return bettingData.reduce((total, comp) => total + comp.rounds.reduce((rTotal, r) => rTotal + r.matches.length, 0), 0);
   }, [bettingData]);
   
   return (
@@ -325,8 +300,9 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
             <div className="bg-blue-900 p-8 rounded-2xl border border-blue-800 text-center text-blue-400 border-dashed">
               <p className="font-bold text-lg mb-2">A central de palpites está fechada.</p>
               <p className="text-sm">Lembre-se das regras do jogo:<br/>
-              1. Só é possível dar palpites em rodadas que ainda <b>não foram liberadas</b> (Travadas).<br/>
-              2. Por ética, você <b>não pode</b> dar palpites nos jogos do seu próprio time.</p>
+              1. Só é possível dar palpites em rodadas que ainda <b>não foram liberadas</b>.<br/>
+              2. Apostas <b>não podem</b> ser alteradas depois de confirmadas.<br/>
+              3. Você <b>não pode</b> dar palpites nos jogos do seu próprio time.</p>
             </div>
           ) : (
             <div className="bg-blue-900 p-4 rounded-xl border border-blue-800 shadow-md">
@@ -366,9 +342,9 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                 const tA = getTeam(m.teamA); const tB = getTeam(m.teamB);
                 const myPred = getMyPred(m.id);
                 const currentData = betData[m.id] || { option: myPred?.option || null, amount: myPred?.amount || '' };
+                const isLocked = !!myPred; // 🛡️ Status de Bloqueio Visual
                 
                 const baseOdds = getOdds(m);
-                // currentOdds junta as modificadas localmente (se o admin estiver alterando agora) ou a final (já salva no Firebase)
                 const currentOdds = customOdds[m.id] || baseOdds;
 
                 const displayOddA = (myPred && myPred.option === 'A') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : currentOdds.A;
@@ -376,14 +352,13 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                 const displayOddB = (myPred && myPred.option === 'B') ? Number(myPred.lockedOdd || 1.1).toFixed(2) : currentOdds.B;
 
                 return (
-                  <div key={m.id} className="bg-blue-900 p-5 rounded-2xl border border-blue-800 shadow-lg hover:border-amber-500/30 transition-all group">
+                  <div key={m.id} className={`bg-blue-900 p-5 rounded-2xl border shadow-lg transition-all group ${isLocked ? 'border-emerald-500/50 bg-blue-900/50' : 'border-blue-800 hover:border-amber-500/30'}`}>
                     <div className="flex justify-between items-center mb-3">
                       <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-widest">{m.compName} • Rodada {m.roundName}</span>
-                      {myPred && <span className="text-[10px] text-emerald-400 font-black uppercase flex items-center gap-1">✅ Bilhete Salvo</span>}
+                      {isLocked && <span className="text-[10px] bg-emerald-900/50 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-black uppercase flex items-center gap-1"><Lock size={10}/> Fechado</span>}
                     </div>
                     
-                    {/* 🌟 MODO ADMIN: Edição Global de Odds */}
-                    {isAdmin && !myPred && (
+                    {isAdmin && !isLocked && (
                         <div className="flex justify-between items-center mb-3 bg-blue-950/50 p-2 rounded-lg border border-blue-800/50">
                             <span className="text-[10px] text-emerald-400 font-bold uppercase">👑 Ajuste de Odd Global</span>
                             <div className="flex gap-2">
@@ -397,20 +372,20 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                         </div>
                     )}
 
-                    <div className="grid grid-cols-3 gap-2 mb-4">
-                      <button onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'A'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'A' ? 'bg-emerald-600 border-emerald-500 shadow-inner scale-105' : 'bg-blue-950 border-blue-800 hover:border-emerald-500/50'}`}>
+                    <div className="grid grid-cols-3 gap-2 mb-4 relative">
+                      <button disabled={isLocked} onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'A'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'A' ? 'bg-emerald-600 border-emerald-500 shadow-inner scale-105' : 'bg-blue-950 border-blue-800 hover:border-emerald-500/50'} ${isLocked && currentData.option !== 'A' ? 'opacity-30' : ''}`}>
                          <ShieldDisplay shield={tA?.shield} size="small" />
                          <span className="text-[10px] text-white font-bold truncate w-full text-center">{tA?.name}</span>
                          <span className={`text-xs font-black ${currentData.option === 'A' ? 'text-blue-950' : 'text-amber-400'}`}>{displayOddA}x</span>
                       </button>
 
-                      <button onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'D'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'D' ? 'bg-slate-500 border-slate-400 shadow-inner scale-105' : 'bg-blue-950 border-blue-800 hover:border-slate-400/50'}`}>
+                      <button disabled={isLocked} onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'D'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'D' ? 'bg-slate-500 border-slate-400 shadow-inner scale-105' : 'bg-blue-950 border-blue-800 hover:border-slate-400/50'} ${isLocked && currentData.option !== 'D' ? 'opacity-30' : ''}`}>
                          <div className="w-10 h-10 flex items-center justify-center font-black text-slate-400">EMP</div>
                          <span className="text-[10px] text-slate-300 font-bold truncate w-full text-center">Empate</span>
                          <span className={`text-xs font-black mt-1 ${currentData.option === 'D' ? 'text-blue-950' : 'text-amber-400'}`}>{displayOddD}x</span>
                       </button>
 
-                      <button onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'B'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'B' ? 'bg-emerald-600 border-emerald-500 shadow-inner scale-105' : 'bg-blue-950 border-blue-800 hover:border-emerald-500/50'}`}>
+                      <button disabled={isLocked} onClick={() => setBetData({...betData, [m.id]: {...currentData, option: 'B'}})} className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${currentData.option === 'B' ? 'bg-emerald-600 border-emerald-500 shadow-inner scale-105' : 'bg-blue-950 border-blue-800 hover:border-emerald-500/50'} ${isLocked && currentData.option !== 'B' ? 'opacity-30' : ''}`}>
                          <ShieldDisplay shield={tB?.shield} size="small" />
                          <span className="text-[10px] text-white font-bold truncate w-full text-center">{tB?.name}</span>
                          <span className={`text-xs font-black ${currentData.option === 'B' ? 'text-blue-950' : 'text-amber-400'}`}>{displayOddB}x</span>
@@ -423,12 +398,16 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
                         <input 
                           type="number" inputMode="numeric" placeholder="Ex: 50"
                           value={currentData.amount} 
+                          disabled={isLocked}
                           onChange={e => setBetData({...betData, [m.id]: {...currentData, amount: e.target.value}})}
-                          className="w-full bg-blue-950 border border-blue-700 text-amber-400 font-black text-lg p-2 rounded-lg outline-none focus:border-amber-500" 
+                          className={`w-full bg-blue-950 border text-amber-400 font-black text-lg p-2 rounded-lg outline-none transition-all ${isLocked ? 'border-blue-800 opacity-70 cursor-not-allowed' : 'border-blue-700 focus:border-amber-500'}`} 
                         />
                       </div>
-                      <button onClick={() => handleSave(m)} disabled={!currentData.option || !currentData.amount} className="flex-1 py-3 px-4 text-xs font-bold bg-amber-600 hover:bg-amber-500 rounded-lg text-white shadow-md uppercase tracking-wider disabled:opacity-50 transition-colors">
-                        {myPred ? 'Atualizar' : 'Fechar Palpite'}
+                      <button 
+                        onClick={() => handleSave(m)} 
+                        disabled={!currentData.option || !currentData.amount || isLocked} 
+                        className={`flex-1 py-3 px-4 text-xs font-bold rounded-lg text-white shadow-md uppercase tracking-wider transition-colors ${isLocked ? 'bg-emerald-600/50 cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-500 disabled:opacity-50'}`}>
+                        {isLocked ? 'Aposta Confirmada' : 'Fechar Palpite'}
                       </button>
                     </div>
                     {currentData.option && currentData.amount && (
@@ -449,7 +428,6 @@ const PredictionsPanel = ({ competitions, matches, teams, users, currentUser, pr
       {activeTab === 'ranking' && (
         <div className="bg-blue-950 rounded-3xl border border-blue-800 shadow-2xl overflow-hidden animate-in slide-in-from-right-4">
           
-          {/* 🚀 BOTÃO DA AUDITORIA MÁGICA PARA LÍDERES */}
           {isAdmin && (
             <div className="p-4 bg-blue-900/60 border-b border-blue-800 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
               <div className="flex flex-col">
