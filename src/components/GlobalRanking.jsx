@@ -692,13 +692,38 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast, u
                           <div className="flex items-center gap-3">
                             <ShieldDisplay frame={t.frame} shield={t.shield} size="small" />
                             <div className="flex flex-col">
-                              {/* 🌟 AQUI ENTRA A COROA MÁGICA */}
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-white text-base leading-tight">{t.coach}</span>
+                              {/* 🌟 AQUI ENTRA A COROA MÁGICA GAMER */}
+                              <div className="flex items-center gap-3">
+                                <span className="font-bold text-white text-base leading-tight truncate">{t.coach}</span>
+                                
+                                {/* 🛡️ MOLDURA GAMER: PLAYER SUPERIOR */}
                                 {ownerUser?.isSupreme && (
-                                  <span className="bg-gradient-to-r from-amber-600 to-yellow-500 text-blue-950 font-black px-1.5 py-0.5 rounded text-[8px] uppercase tracking-widest shadow-[0_0_8px_rgba(245,158,11,0.6)]">
-                                    👑 Superior
-                                  </span>
+                                  <div className="relative shrink-0 ml-1 mb-1">
+                                    {/* Estrutura Principal da Moldura Quadrada (Reduzida para w-8 h-8) */}
+                                    <div className="relative w-8 h-8 bg-gradient-to-br from-gray-900 to-black border border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)] flex items-center justify-center rounded-[2px]">
+                                      
+                                      {/* 🔴 LEDs das Quinas (Ajustados para a nova escala) */}
+                                      <div className="absolute -top-1 -left-1 w-2 h-2 bg-yellow-400 border border-black rounded-[1px] shadow-[0_0_5px_yellow]"></div>
+                                      <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 border border-black rounded-[1px] shadow-[0_0_5px_yellow]"></div>
+                                      <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-emerald-400 border border-black rounded-[1px] shadow-[0_0_5px_#34d399]"></div>
+                                      <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-emerald-400 border border-black rounded-[1px] shadow-[0_0_5px_#34d399]"></div>
+
+                                      {/* 🟢 Linhas Tecnológicas Internas */}
+                                      <div className="absolute inset-[1px] border border-emerald-500/40 bg-gradient-to-b from-emerald-900/30 to-transparent"></div>
+                                      
+                                      {/* 👑 Ícone Central Brilhante */}
+                                      <Crown size={16} className="text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,1)] animate-pulse relative z-10 mb-0.5" />
+
+                                      {/* 🏷️ Placa "PLAYER SUPERIOR" no Centro Inferior */}
+                                      <div className="absolute -bottom-2.5 left-1/2 transform -translate-x-1/2 bg-black border border-emerald-500 px-1.5 py-[1px] flex items-center gap-1 z-20 whitespace-nowrap shadow-[0_2px_8px_rgba(16,185,129,0.7)] rounded-[2px]">
+                                         <span className="w-[3px] h-[3px] bg-yellow-400 rounded-full animate-ping"></span>
+                                         <span className="text-[5px] font-black uppercase tracking-[0.1em] bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-yellow-400 mt-[1px]">
+                                           Player Superior
+                                         </span>
+                                         <span className="w-[3px] h-[3px] bg-yellow-400 rounded-full animate-ping"></span>
+                                      </div>
+                                    </div>
+                                  </div>
                                 )}
                               </div>
                               <span className="text-[10px] text-blue-400 uppercase font-medium">{t.name}</span>
