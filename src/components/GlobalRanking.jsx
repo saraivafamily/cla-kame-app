@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Crown, Target, Trophy, Activity, Zap, Eye, Camera, Brain, Shield, Lock, X, XCircle, Trash2, AlertCircle } from 'lucide-react';
+import { Crown, Target, Trophy, Activity, Zap, Eye, Camera, Brain, Shield, Lock, X, XCircle, Trash2, AlertCircle, Users, ArrowLeft, MessageCircle } from 'lucide-react';
 import { updateDoc, setDoc } from 'firebase/firestore';
 import { getPublicDocPath } from '../utils/firebase';
 import ShieldDisplay from './ShieldDisplay';
@@ -7,7 +7,8 @@ import Button from './Button';
 import { PONTOS } from '../utils/pontuacoes';
 import { calculateStandings, getChampionIds } from '../utils/torneios';
 
-const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast }) => {
+// 🌟 ADICIONEI 'users' AQUI NAS PROPS PARA PODERMOS LER A PATENTE
+const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast, users }) => {
   const isAdmin = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
 
   // 🌟 Controle de Abas dentro do Ranking
@@ -673,9 +674,12 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                   rankingData.map((t, index) => {
                     const pts = t.globalPoints || 0;
                     const badge = getBadge(pts);
-                    const nextBadge = getNextBadgeInfo(pts); // 🌟 Puxa quanto falta para o próximo nível
+                    const nextBadge = getNextBadgeInfo(pts);
                     const isTop3 = index < 3;
                     const rankColors = ['text-amber-400', 'text-slate-300', 'text-amber-700'];
+                    
+                    // 🌟 AQUI NÓS LIGAMOS O DONO DO TIME COM A PATENTE DE PLAYER SUPERIOR
+                    const ownerUser = (users || []).find(u => u.id === t.ownerId);
                     
                     return (
                       <tr key={t.id} className={`hover:bg-blue-900/50 transition-colors ${index === 0 ? 'bg-amber-500/5' : ''}`}>
@@ -686,9 +690,17 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                         </td>
                         <td className="p-4">
                           <div className="flex items-center gap-3">
-                            <ShieldDisplay frame={t.frame}shield={t.shield} size="small" />
+                            <ShieldDisplay frame={t.frame} shield={t.shield} size="small" />
                             <div className="flex flex-col">
-                              <span className="font-bold text-white text-base leading-tight">{t.coach}</span>
+                              {/* 🌟 AQUI ENTRA A COROA MÁGICA */}
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-white text-base leading-tight">{t.coach}</span>
+                                {ownerUser?.isSupreme && (
+                                  <span className="bg-gradient-to-r from-amber-600 to-yellow-500 text-blue-950 font-black px-1.5 py-0.5 rounded text-[8px] uppercase tracking-widest shadow-[0_0_8px_rgba(245,158,11,0.6)]">
+                                    👑 Superior
+                                  </span>
+                                )}
+                              </div>
                               <span className="text-[10px] text-blue-400 uppercase font-medium">{t.name}</span>
                             </div>
                           </div>
@@ -874,7 +886,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                               <div key={m.id} className="bg-blue-950 border border-blue-800 rounded-xl p-2 flex flex-col gap-1.5 shadow-inner">
                                 <div className={`flex items-center justify-between p-1.5 rounded-lg transition-colors ${m.winner?.id === m.tA?.id ? `bg-${colorClass}-500/20 border border-${colorClass}-500/50` : 'border border-transparent'}`}>
                                   <div onClick={() => forceAdvanceTeam(xcla.id, rIdx, mIdx, m.tA)} className="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0" title="Forçar Vitória">
-                                    <ShieldDisplay frame={tA?.frame} shield={m.tA?.shield} size="small" /> 
+                                    <ShieldDisplay frame={m.tA?.frame} shield={m.tA?.shield} size="small" /> 
                                     <span className={`text-[10px] font-bold truncate ${m.winner?.id === m.tA?.id ? `text-${colorClass}-400` : 'text-blue-200'}`}>{m.tA?.name || 'A Definir'}</span>
                                   </div>
                                   <input type="number" min="0" value={m.scoreA||''} onChange={e=>updateBracketMatch(xcla.id, rIdx, mIdx, 'scoreA', e.target.value)} className="w-8 h-6 bg-blue-900 border border-blue-700 rounded text-center text-[10px] text-white outline-none focus:border-amber-500 shrink-0" placeholder="-" />
@@ -947,7 +959,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                             xcla.reservas.map(t => (
                               <div key={t.id} className="flex items-center justify-between bg-blue-900/50 p-2 rounded-lg border border-blue-700/50 group">
                                 <div className="flex items-center gap-2 min-w-0">
-                                  <ShieldDisplay shield={t.shield} size="small" />
+                                  <ShieldDisplay frame={t.frame} shield={t.shield} size="small" />
                                   <div className="flex flex-col min-w-0">
                                     <span className="text-xs font-bold text-blue-100 truncate">{t.name}</span>
                                     {t.isAuto && <span className="text-[8px] text-emerald-400 uppercase">🏆 Via Seletiva</span>}
@@ -992,7 +1004,7 @@ const GlobalRanking = ({ teams, matches, competitions, currentUser, showToast })
                  
                  <div className="text-center mt-6 mb-4">
                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full font-black tracking-widest uppercase border border-emerald-500/30">
-                     Time {selectedActiveXcla.squad} • Xclã em Andamento
+                      Time {selectedActiveXcla.squad} • Xclã em Andamento
                    </span>
                    <h2 className="text-3xl font-black text-white uppercase tracking-wider mt-3">{selectedActiveXcla.name}</h2>
                  </div>

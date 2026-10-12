@@ -177,7 +177,16 @@ const Profile = ({ currentUser, teams, matches, competitions, onEditTeam, onUpda
             }} />
           </label>
           <div>
-            <h2 className="text-2xl font-bold text-white">{currentUser.name}</h2>
+            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+   {currentUser.name}
+   
+   {/* SE ELE FOR O PLAYER SUPERIOR, MOSTRA A TAG AQUI TAMBÉM */}
+   {currentUser?.isSupreme && (
+      <span className="bg-gradient-to-r from-amber-600 to-yellow-500 text-blue-950 font-black px-2 py-0.5 rounded text-[10px] uppercase tracking-widest shadow-[0_0_10px_rgba(245,158,11,0.6)]">
+         👑 Player Superior
+      </span>
+   )}
+</h2>
             <p className="text-emerald-400 font-bold tracking-widest text-xs uppercase mt-1">{ROLE_NAMES[currentUser.role] || 'Membro'}</p>
           </div>
         </div>

@@ -36,6 +36,7 @@ import RecordsWall from './components/RecordsWall';
 import XPointsManager from './components/XPointsManager';
 import { TeamStatsModal } from "./components/Dashboard";
 import GeneralDraw from './components/GeneralDraw';
+import SupremeArena from './components/SupremeArena';
 
 
 const LOGO_URL = "https://i.imgur.com/dhXA0ni.png"; 
@@ -397,6 +398,7 @@ export default function App() {
     { id: 'trophies', label: 'Sala de Troféus', icon: Star },
     { id: 'records', label: 'Mural de Recordes', icon: Trophy },
     { id: 'rules', label: 'Regras do Clã', icon: BookOpen },
+    { id: 'supreme', label: 'Player Superior', icon: Crown },
     
     // Apenas quem é da diretoria vê este botão
     ...(hasEventAccess ? [
@@ -693,6 +695,8 @@ export default function App() {
 
       case 'feed': return <SocialFeed currentUser={currentUser} teams={teams} showToast={showToast} posts={feedPosts} onTaskcompleted={handleTaskcompleted} />;
       case 'join_comp': return <JoinCompetition compId={selectedCompId} competitions={competitions} teams={teams} currentUser={currentUser} onJoin={handleJoinComp} onBack={()=>setCurrentTab('dashboard')} showToast={showToast} onEditComp={async (c) => { await updateDoc(getPublicDocPath('competitions', c.id), c); setCurrentTab('competitions'); }} />;
+      case 'supreme':
+  return <SupremeArena currentUser={currentUser} users={users} teams={teams} showToast={showToast} />;
 
       case 'records': return <RecordsWall showToast={showToast} currentUser={currentUser} />;
       case 'trophies': return <TrophyRoom competitions={competitions} matches={matches} teams={teams} />;
