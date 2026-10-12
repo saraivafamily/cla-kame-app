@@ -52,13 +52,17 @@ const SupremeArena = ({ currentUser, users, teams, showToast }) => {
   const getTeam = (userId) => (teams || []).find(t => t.ownerId === userId);
   const getUser = (userId) => (users || []).find(u => u.id === userId);
 
-  const handleImageUpload = async (e) => {
+  const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    
     showToast("Processando imagem...", "info");
-    const base64 = await processImage(file);
-    setProofImage(base64);
-    showToast("Print anexado com sucesso!", "success");
+    
+    // Agora chamamos do jeito que o seu helpers.js exige (com callback)
+    processImage(file, (base64) => {
+      setProofImage(base64);
+      showToast("Print anexado com sucesso!", "success");
+    });
   };
 
   const handleChallenge = async () => {
