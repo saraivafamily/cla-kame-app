@@ -57,7 +57,14 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
   const isLeader = currentUser?.role === 'leader' || currentUser?.role === 'kaioh';
   const isAdmin = isLeader || comp?.creatorId === currentUser?.id || (comp?.admins || []).includes(currentUser?.id);
   
-  const CATEGORY_NAMES = { liga_a: '🥇 Liga Kame A', liga_b: '🥈 Liga Kame B', liga_c: '🥉 Liga Kame C', liga_d: '🎖️ Liga Kame D', liga_acesso: ' ⬆️ Liga de acesso', copa_estrelas: '⭐ Copa das Estrelas', copa_main: '🏆 Copa Oficial', copa_flash: '⚡ Copa Flash Solo', copa_flash_dupla: '👥 Copa Flash Duplas', copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia', copa_recompensa: '🎁 Copa Recompensa' };
+  const CATEGORY_NAMES = { 
+    liga_a: '🥇 Liga Kame A', liga_b: '🥈 Liga Kame B', liga_c: '🥉 Liga Kame C', liga_d: '🎖️ Liga Kame D', 
+    liga_acesso: '⬆️ Liga de Acesso', copa_main: '🏆 Copa Oficial', copa_estrelas: '⭐ Copa das Estrelas', 
+    copa_do_rei: '👑 Copa do Rei', copa_amazonia: '🌳 Copa da Amazônia', copa_flash: '⚡ Copa Flash Solo', 
+    copa_flash_dupla: '👥 Copa Flash Duplas', copa_recompensa: '🎁 Copa Recompensa',
+    copa_master: '🏆 Copa Master', copa_power: '💪 Copa Power', copa_relâmpago: '🌩️ Copa Relâmpago', 
+    copa_decisao: '🎯 Copa da Decisão', copa_do_cla: '🐢 Copa do Clã'
+  };
 
   const activeRound = comp?.rounds?.find(r => r.status === 'released');
   const isFlash = comp?.category === 'copa_flash' || comp?.category === 'copa_flash_dupla';
@@ -453,7 +460,23 @@ const CompetitionDetails = ({ comp, teams, matches, competitions = [], users = [
             <div className="space-y-1"><label className="text-xs font-bold text-blue-400">Edição (Apenas Número)</label><input type="number" min="1" value={settingsData.edition} onChange={e => setSettingsData({...settingsData, edition: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" placeholder="Ex: 1, 2, 3..." /></div>
             <div className="space-y-1"><label className="text-xs font-bold text-blue-400">Categoria (Ranking)</label>
               <select value={settingsData.category} onChange={e => setSettingsData({...settingsData, category: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500">
-                <option value="liga_a">🥇 Liga Kame A (Série A)</option><option value="liga_b">🥈 Liga Kame B (Série B)</option><option value="liga_c">🥉 Liga Kame C (Série C)</option><option value="liga_d">🎖️ Liga Kame D (Série D)</option><option value="liga_acesso">⬆️ Liga de Acesso</option><option value="copa_main">🏆 Copas Oficiais (Ex: Copa do Clã)</option><option value="copa_master">👑 Copa Master</option><option value="copa_do_rei">👑 Copa do Rei</option><option value="copa_estrela"> ⭐ Copa das Estrelas</option><option value="copa_amazonia">🌳 Copa da Amazônia</option><option value="copa_flash">⚡ Copa Flash Solo</option><option value="copa_flash_dupla">👥 Copa Flash Duplas</option><option value="copa_recompensa">🎁 Copa Recompensa</option>
+              <option value="liga_a">🥇 Liga Kame A (Série A)</option>
+              <option value="liga_b">🥈 Liga Kame B (Série B)</option>
+              <option value="liga_c">🥉 Liga Kame C (Série C)</option>
+              <option value="liga_d">🎖️ Liga Kame D (Série D)</option>
+              <option value="liga_acesso">⬆️ Liga de Acesso</option>
+              <option value="copa_main">🏆 Copas Oficiais</option>
+              <option value="copa_recompensa">🎁 Copa Recompensa</option>
+              <option value="copa_estrelas">⭐ Copa das Estrelas</option>
+              <option value="copa_do_rei">👑 Copa do Rei</option>
+              <option value="copa_amazonia">🌳 Copa da Amazônia</option>
+              <option value="copa_master">🏆 Copa Master</option>
+              <option value="copa_flash">⚡ Copa Flash Solo</option>
+              <option value="copa_flash_dupla">👥 Copa Flash Duplas</option>
+              <option value="copa_power">💪 Copa Power</option>
+              <option value="copa_decisao">🎯 Copa da Decisão</option>
+              <option value="copa_relâmpago">🌩️ Copa Relâmpago</option>
+              <option value="copa_do_cla">🐢 Copa do Clã</option>
               </select>
             </div>
             <div className="space-y-1"><label className="text-xs font-bold text-blue-400">Estilo de Jogo</label><select value={settingsData.playStyle} onChange={e => setSettingsData({...settingsData, playStyle: e.target.value})} className="w-full bg-blue-900 border border-blue-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500"><option value="Livre">Livre (Qualquer Estilo)</option><option value="Full Razz">Full Razz (Sem Balão)</option><option value="Personalizado">Regras Personalizadas</option></select></div>
