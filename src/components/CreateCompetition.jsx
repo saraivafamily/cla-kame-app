@@ -45,15 +45,32 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
 
   const CAT_NAMES = {
     liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D',
-    liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial',copa_estrela: 'Copa das estrelas', copa_estrelas: 'Copa das Estrelas', copa_do_rei: 'Copa do Rei',
-    copa_amazonia: 'Copa da Amazônia', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash em Duplas', copa_recompensa: 'Copa Recompensa', copa_master: 'Copa Master', copa_power: 'Copa Power', copa_relampago: 'Copa Relâmpago', copa_decisao: 'Copa da Decisão', copa_do_cla: 'Copa do Clã',
+    liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial', copa_estrelas: 'Copa das Estrelas', 
+    copa_do_rei: 'Copa do Rei', copa_amazonia: 'Copa da Amazônia', copa_flash: 'Copa Flash', 
+    copa_flash_dupla: 'Copa Flash em Duplas', copa_recompensa: 'Copa Recompensa', 
+    copa_master: 'Copa Master', copa_power: 'Copa Power', 
+    copa_relâmpago: 'Copa Relâmpago', // Acento corrigido para bater com o <option>
+    copa_decisao: 'Copa da Decisão', copa_do_cla: 'Copa do Clã'
   };
 
   useEffect(() => {
-    if (category === 'copa_flash' || category === 'copa_flash_dupla'|| category === 'copa_recompensa'|| category === 'copa_power'|| category === 'copa_master'||category === 'copa_decisao'|| category === 'copa_relampago'|| category === 'copa_do_cla') { setFormat('cup'); }
+    // Array para forçar o formato "cup" (Mata-Mata) automaticamente
+    const cupCategories = [
+      'copa_flash', 'copa_flash_dupla', 'copa_recompensa', 'copa_power', 
+      'copa_master', 'copa_decisao', 'copa_relâmpago', 'copa_do_cla'
+    ];
+    
+    if (cupCategories.includes(category)) { 
+      setFormat('cup'); 
+    }
+    
     const compsOfCategory = (competitions || []).filter(c => c.category === category);
     const nextEditionNumber = compsOfCategory.length + 1;
-    setName(`${CAT_NAMES[category] || 'Competição'} - Edição ${nextEditionNumber}`);
+    
+    // Monta o nome dinâmico corretamente, ex: "Copa Master - Edição 1"
+    const prefix = CAT_NAMES[category] || 'Competição';
+    setName(`${prefix} - Edição ${nextEditionNumber}`);
+    
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, competitions]);
 
