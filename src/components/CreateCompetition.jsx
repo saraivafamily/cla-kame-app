@@ -46,7 +46,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
   const CAT_NAMES = {
     liga_a: 'Liga Kame A', liga_b: 'Liga Kame B', liga_c: 'Liga Kame C', liga_d: 'Liga Kame D',
     liga_acesso: 'Liga de Acesso', copa_main: 'Copa Oficial',copa_estrela: 'Copa das estrelas', copa_estrelas: 'Copa das Estrelas', copa_do_rei: 'Copa do Rei',
-    copa_amazonia: 'Copa da Amazônia', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash em Duplas', copa_recompensa: 'Copa Recompensa', copa_power: 'Copa Power', copa_relampago: 'Copa Relâmpago', copa_decisao: 'Copa da Decisão', copa_do_cla: 'Copa do Clã',
+    copa_amazonia: 'Copa da Amazônia', copa_flash: 'Copa Flash', copa_flash_dupla: 'Copa Flash em Duplas', copa_recompensa: 'Copa Recompensa', liga_master: 'Liga Master', copa_power: 'Copa Power', copa_relampago: 'Copa Relâmpago', copa_decisao: 'Copa da Decisão', copa_do_cla: 'Copa do Clã',
   };
 
   useEffect(() => {
@@ -228,6 +228,7 @@ const CreateCompetition = ({ teams, competitions, matches, currentUser, onCreate
                 <option value="copa_estrelas">⭐ Copa das Estrelas</option>
                 <option value="copa_do_rei">👑 Copa do Rei</option>
                 <option value="copa_amazonia">🌳 Copa da Amazônia</option>
+                <option value="liga_master">🏆 Liga Master</option>
                 <option value="copa_flash">⚡ Copa Flash Solo</option>
                 <option value="copa_flash_dupla">👥 Copa Flash Duplas</option>
                 <option value="copa_power">💪 Copa Power</option>

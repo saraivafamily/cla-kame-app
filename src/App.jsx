@@ -387,23 +387,24 @@ export default function App() {
   const hasEventAccess = isLeaderOrKaioh || isOrganizer;
   
   const TABS = [
-    { id: 'dashboard', label: 'Início', icon: Home }, 
+    { id: 'dashboard', label: 'Início', icon: Home },
+    { id: 'store', label: 'Kame Store', icon: ShoppingCart }, 
     { id: 'profile', label: 'Meu Perfil', icon: User },
     { id: 'bank', label: 'Kame Bank', icon: Landmark },
-    { id: 'predictions', label: 'Kame Bet', icon: Target },
     { id: 'competitions', label: 'Competições', icon: Medal },
+    { id: 'supreme', label: 'Player Superior', icon: Crown },
+    { id: 'predictions', label: 'Kame Bet', icon: Target },
     { id: 'teams_list', label: 'Times', icon: Shield }, 
     { id: 'ranking', label: 'Ranking Xclã', icon: Crown },
     { id: 'feed', label: 'Feed da Resenha', icon: MessageCircle },
     { id: 'trophies', label: 'Sala de Troféus', icon: Star },
     { id: 'records', label: 'Mural de Recordes', icon: Trophy },
-    { id: 'rules', label: 'Regras do Clã', icon: BookOpen },
-    { id: 'supreme', label: 'Player Superior', icon: Crown },
-    
+    { id: 'rules', label: 'Regras do Clã', icon: BookOpen }, 
+
     // Apenas quem é da diretoria vê este botão
     ...(hasEventAccess ? [
       { id: 'training', label: 'CT Kame', icon: Brain },
-      { id: 'store', label: 'Kame Store', icon: ShoppingCart },
+      
       { id: 'gestao_cla', label: 'Gestão Clã', icon: Award }
     ] : []),
     ];
